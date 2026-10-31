@@ -1544,6 +1544,37 @@ jobs:
 
       - name: Build
         run: npm run build
+  gpu-parallel-puzzler:
+    name: gpu-parallel-puzzler
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gpu-parallel-puzzler
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: gpu-parallel-puzzler/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test with coverage
+        run: npm run coverage
+
+      - name: Build
+        run: npm run build
+
+
   site-footer:
     name: site-footer
     runs-on: ubuntu-latest

@@ -826,3 +826,16 @@ reference runtime checked against the browser by a parity fixture. No
 backend. 46 vitest tests, 100% statement coverage on the core.
 Live: [tiny-brains-league.netlify.app](https://tiny-brains-league.netlify.app).
 See its [README](./tiny-brains-league/README.md).
+
+### [`gpu-parallel-puzzler/`](./gpu-parallel-puzzler)
+
+GPU Parallel Puzzler: twelve CUDA-style kernel puzzles on a simulated SIMT
+GPU (warps, divergence, coalescing, shared memory and bank conflicts,
+barriers, atomics) with a cost model, a CPU-vs-GPU estimate, a race
+detector, star grading against par, a warp inspector and deterministic hints
+in place of the suggested Claude tutor. Students export progress files and
+instructors load them into a class table. No backend. 36 vitest tests, 99.2%
+statement coverage on the core.
+Live: [gpu-parallel-puzzler.netlify.app](https://gpu-parallel-puzzler.netlify.app).
+See its [README](./gpu-parallel-puzzler/README.md).
+
