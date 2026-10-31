@@ -797,3 +797,17 @@ drawing in the URL. No backend. 58 vitest tests, 100% statement coverage on
 the core.
 Live: [poincare-paint.netlify.app](https://poincare-paint.netlify.app).
 See its [README](./poincare-paint/README.md).
+
+### [`tamerlane-board/`](./tamerlane-board)
+
+Tamerlane Board: Timur's fourteenth-century chess on its 11×10 board with
+giraffes, war engines and citadels, against an alpha-beta engine in a Web
+Worker. Every piece is one line of a Betza-like notation (the giraffe is
+`F>R{3,}`), read by the move generator, the overlay and the engine alike. A
+piece lab animates a new piece's reach with optional blockers, estimates its
+value from mobility, drops it into Timur or classic chess, runs
+engine-vs-engine balance games and shares it as a link. The LLM
+English-to-notation step is replaced by examples and a syntax table. No
+backend. 82 vitest tests, 99% statement coverage on the core.
+Live: [tamerlane-board.netlify.app](https://tamerlane-board.netlify.app).
+See its [README](./tamerlane-board/README.md).
