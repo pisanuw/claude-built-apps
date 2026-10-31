@@ -140,6 +140,7 @@ addresses for now.
 | [Data Structure City](https://data-structure-city.hintwise.org/) ([code](./data-structure-city)) | A hash map, B-tree, skip list and LRU cache side by side, driven by one Redis-like console. |
 | [GPU Parallel Puzzler](https://gpu-parallel-puzzler.hintwise.org/) ([code](./gpu-parallel-puzzler)) | Twelve kernel puzzles on a simulated GPU: warps, divergence, coalescing, bank conflicts. |
 | [Pathfinding Playground](https://pathfinding-playground.hintwise.org/) ([code](./pathfinding-playground)) | Draw a grid and race BFS, Dijkstra, A* and friends across it. |
+| [Four Ghosts, Four Targets](https://four-ghosts.hintwise.org/) ([code](./four-ghosts)) | Four maze chasers each pick a target tile; see every candidate move and race the greedy rule against BFS and A*. |
 | [State Space Atlas](https://state-space-atlas.hintwise.org/) ([code](./state-space-atlas)) | Every reachable state of Hanoi, sliding tiles, Klotski and Rush Hour, drawn as one graph. |
 | [Elevator Algorithm Lab](https://elevator-algorithm-lab.hintwise.org/) ([code](./elevator-algorithm-lab)) | Write an elevator dispatch policy in JavaScript and run it against seeded traffic. |
 | [Lockstep Lab](https://lockstep-lab.hintwise.org/) ([code](./lockstep-lab)) | Watch deterministic lockstep and rollback netcode work, and fail. |

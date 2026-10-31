@@ -509,3 +509,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-11 [decision] app-notify stays transactional only (owner, option 1): no postal address in email footers; a PO box only if promotional email is ever sent.
 
 2026-11-11 [code] shortcut-sprint favicon shipped (owner): merged 7943cac, deploy run 175 green, icon and footer logo verified live.
+
+2026-11-11 [code] four-ghosts: rebased the never-merged 31 Oct branch (claude/magical-cray-8vo07d) onto main as feat/four-ghosts; hintwise domain, README row, PROJECTS entry, CI job. Not deployed.

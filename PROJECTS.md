@@ -1246,3 +1246,15 @@ with a cited rule (29 CFR 778, IRS FS-2026-13). 236 vitest tests, 98.6%
 statement coverage, and a Playwright walkthrough.
 Live: [qualified-overtime-checker.hintwise.org](https://qualified-overtime-checker.hintwise.org).
 See its [README](./qualified-overtime-checker/README.md).
+
+### [`four-ghosts/`](./four-ghosts)
+
+Four Ghosts, Four Targets, a maze-chase AI lab: four chasers on an original
+maze pick each move with the documented arcade greedy target-tile rule, and
+the app draws every target tile, candidate exit and squared distance. Single
+tick stepping forward and back, a Ghost cam decision table, the up-direction
+overflow bug on a toggle, six lesson scenarios, and a Web Worker that races
+target-tile ghosts against BFS and A* pursuit (captures per minute, bunching,
+spread). No backend. 55 vitest tests, 99.6% statement coverage on the core.
+Live: [four-ghosts.hintwise.org](https://four-ghosts.hintwise.org).
+See its [README](./four-ghosts/README.md).
