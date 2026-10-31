@@ -21,4 +21,7 @@ netlify:
   # No serverless functions; the whole app is static.
   functionsDir: ''
   siteName: tiny-brains-league
+  # Pinning the id skips the listSites lookup and the create-site fallback, so
+  # a deploy cannot fail by trying to re-create a name that is already taken.
+  siteId: 'db360bd1-96b5-4a70-86c6-e6eaf041716b'
   accountSlug: yusuf-pisan
