@@ -782,3 +782,18 @@ a URL fragment. Keyboard navigation and a text narration mode. No backend.
 71 vitest tests, 99.8% statement coverage on the core.
 Live: [data-structure-city.netlify.app](https://data-structure-city.netlify.app).
 See its [README](./data-structure-city/README.md).
+
+### [`poincare-paint/`](./poincare-paint)
+
+Poincaré Paint, a drawing toy in the Poincaré disk: every stroke is folded
+into the fundamental triangle of a {p,q} reflection group and redrawn under
+every tile with Möbius maps, so doodles become Circle Limit patterns.
+Rotation or kaleidoscope symmetry, any hyperbolic {p,q} up to 20, a geodesic
+brush, drag to translate the plane (the view is rebased onto a group element
+after each step so precision holds however far you go), double-click to glide
+a point to the centre, and a measure tool for hyperbolic distance and
+triangle angle sum and area. SVG export and share links that carry the whole
+drawing in the URL. No backend. 58 vitest tests, 100% statement coverage on
+the core.
+Live: [poincare-paint.netlify.app](https://poincare-paint.netlify.app).
+See its [README](./poincare-paint/README.md).
