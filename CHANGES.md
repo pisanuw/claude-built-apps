@@ -215,3 +215,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-10-31 [decision] Footer wording set by the owner: "I build apps like this one..." signed "Professor Yusuf Pisan"; emitted as ASCII entities so it survives pages without a UTF-8 charset.
 
 2026-10-31 [code] brocot-gear-finder, type-witness: fixed sideways page scroll on phones (convergents table in .table-wrap; wrapping toolbar and step controls). Checked at 320/360/390px.
+2026-10-31 [decision] tiny-brains-league: static app; Flask ladder, React viewer and Supabase replaced by in-browser training/ladder (Web Worker) and localStorage; instructor runs the official ladder locally.
+2026-10-31 [decision] tiny-brains-league: ratings are a Bradley-Terry fit on the Elo scale (order-independent), Random pinned at 1000; efficiency = Elo above Random per 1k params.

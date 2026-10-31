@@ -1,0 +1,32 @@
+{
+  "name": "tiny-brains-league",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Tiny Brains League: train the smallest Connect Four policy network you can under a hard parameter budget, export it as plain JSON weights, and climb a round-robin ladder ranked by Elo and Elo per 1k parameters. Entirely client-side.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test scripts",
+    "samples": "vite-node scripts/train-samples.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.20.5",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^9.17.0",
+    "globals": "^15.14.0",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.19.0",
+    "vite": "^6.0.7",
+    "vitest": "^2.1.8"
+  }
+}

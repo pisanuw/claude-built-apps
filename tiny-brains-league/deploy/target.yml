@@ -1,0 +1,24 @@
+# Deploy control file for Tiny Brains League (Netlify, static site).
+#
+# No backend and no environment variables: the engine, the training code (in
+# a Web Worker), the ladder and the replay viewer all run in the browser.
+# The deploy workflow auto-discovers this file via the `*/deploy/target.yml`
+# glob. package-lock.json is force-added (the root .gitignore excludes
+# lockfiles) because `npm ci` below needs it.
+#
+# Code-only pushes do not trigger a deploy: the workflow watches this file, so
+# touch it (or run the workflow manually) to ship UI changes.
+
+provider: netlify
+projectName: tiny-brains-league
+directory: tiny-brains-league
+build: npm ci && npm run build
+publish: dist
+
+envPassthrough: []
+
+netlify:
+  # No serverless functions; the whole app is static.
+  functionsDir: ''
+  siteName: tiny-brains-league
+  accountSlug: yusuf-pisan

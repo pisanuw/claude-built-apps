@@ -811,3 +811,18 @@ English-to-notation step is replaced by examples and a syntax table. No
 backend. 82 vitest tests, 99% statement coverage on the core.
 Live: [tamerlane-board.netlify.app](https://tamerlane-board.netlify.app).
 See its [README](./tamerlane-board/README.md).
+
+### [`tiny-brains-league/`](./tiny-brains-league)
+
+Tiny Brains League, a classroom ML assignment kit: train the smallest Connect
+Four policy network you can under a 5,000-parameter budget, by imitating a
+house bot (Adam on a legal-masked softmax, mirrored data) or by an evolution
+strategy, in a Web Worker. Submissions are plain JSON weight files validated
+against a fixed 84-in/7-out interface, so no student code runs. A round-robin
+ladder over fixed openings with colour swaps rates bots by a Bradley-Terry
+Elo fit plus an Elo-per-1k-parameters board, with milestone badges, a replay
+viewer that flags missed wins and blocks, an ablation log export, and a NumPy
+reference runtime checked against the browser by a parity fixture. No
+backend. 46 vitest tests, 100% statement coverage on the core.
+Live: [tiny-brains-league.netlify.app](https://tiny-brains-league.netlify.app).
+See its [README](./tiny-brains-league/README.md).
