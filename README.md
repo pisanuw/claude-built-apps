@@ -770,3 +770,15 @@ Hand-written notes replace the LLM explainer. No backend. 47 vitest tests,
 99.7% statement coverage on the core.
 Live: [leap-second-lab.netlify.app](https://leap-second-lab.netlify.app).
 See its [README](./leap-second-lab/README.md).
+
+### [`data-structure-city/`](./data-structure-city)
+
+Data Structure City: a hash map, a B-tree, a skip list and an LRU cache driven
+by one Redis-like console (SET/GET/DEL/EXPIRE/TICK/RANGE). Rehashes, node
+splits and merges, tower promotions and evictions are highlighted and narrated,
+and each building has a cost meter with last, amortized and worst-case figures.
+Five predict-then-reveal guided tours; instructors share their own as JSON in
+a URL fragment. Keyboard navigation and a text narration mode. No backend.
+71 vitest tests, 99.8% statement coverage on the core.
+Live: [data-structure-city.netlify.app](https://data-structure-city.netlify.app).
+See its [README](./data-structure-city/README.md).

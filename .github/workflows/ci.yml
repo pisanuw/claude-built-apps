@@ -1424,6 +1424,36 @@ jobs:
       - name: Build
         run: npm run build
 
+  data-structure-city:
+    name: data-structure-city
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: data-structure-city
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: data-structure-city/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test with coverage
+        run: npm run coverage
+
+      - name: Build
+        run: npm run build
+
   site-footer:
     name: site-footer
     runs-on: ubuntu-latest
