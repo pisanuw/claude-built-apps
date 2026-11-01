@@ -839,3 +839,17 @@ statement coverage on the core.
 Live: [gpu-parallel-puzzler.netlify.app](https://gpu-parallel-puzzler.netlify.app).
 See its [README](./gpu-parallel-puzzler/README.md).
 
+### [`modulo-bias-microscope/`](./modulo-bias-microscope)
+
+Modulo Bias Microscope: paste a JavaScript sampling function (pick an
+element, shuffle, weighted choice) and see how far its distribution drifts
+from the one intended. Exact mode enumerates every draw sequence from a tiny
+random source (1 to 16 bits) and reports each probability as a BigInt
+fraction; statistical mode runs a chi-square test on a 32-bit xoshiro128**
+stream. Seven-bug gallery with fixes, a shuffle position heat map,
+permalinks, and instructor exercise links with an exact-first autograder.
+JavaScript only (no Pyodide), no LLM, no backend. 68 vitest tests, 100%
+statement coverage on the core.
+Live: [modulo-bias-microscope.netlify.app](https://modulo-bias-microscope.netlify.app).
+See its [README](./modulo-bias-microscope/README.md).
+

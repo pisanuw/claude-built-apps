@@ -1574,6 +1574,36 @@ jobs:
       - name: Build
         run: npm run build
 
+  modulo-bias-microscope:
+    name: modulo-bias-microscope
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: modulo-bias-microscope
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: modulo-bias-microscope/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test with coverage
+        run: npm run coverage
+
+      - name: Build
+        run: npm run build
+
 
   site-footer:
     name: site-footer

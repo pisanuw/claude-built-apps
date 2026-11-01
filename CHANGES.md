@@ -217,3 +217,6 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-10-31 [code] brocot-gear-finder, type-witness: fixed sideways page scroll on phones (convergents table in .table-wrap; wrapping toolbar and step controls). Checked at 320/360/390px.
 2026-10-31 [decision] tiny-brains-league: static app; Flask ladder, React viewer and Supabase replaced by in-browser training/ladder (Web Worker) and localStorage; instructor runs the official ladder locally.
 2026-10-31 [decision] tiny-brains-league: ratings are a Bradley-Terry fit on the Elo scale (order-independent), Random pinned at 1000; efficiency = Elo above Random per 1k params.
+
+2026-11-01 [code] modulo-bias-microscope: new package (idea 2026-10-08 n2). Exact enumeration over a 1-16 bit source with BigInt fractions, chi-square on 32-bit xoshiro128**, 7-bug gallery, exercise links; 68 tests.
+2026-11-01 [decision] modulo-bias-microscope: JavaScript only (Pyodide dropped), no LLM/backend; exercises live in URL fragments; grader is exact-first with a chi-square fallback at a stated false-fail rate.
