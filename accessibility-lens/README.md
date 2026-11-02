@@ -2,6 +2,8 @@
 
 **Live:** [accessibility-lens.pisan.me](https://accessibility-lens.pisan.me) | TypeScript monorepo | 107 tests | MIT
 
+![Scanning the W3C's deliberately inaccessible demo page gives a score of 0, then the profile tabs replay it as a screen reader's linear stream, a blurred low-vision view and a deuteranopia filter on status colors](demo.gif)
+
 **See your page through four kinds of eyes.** Paste a public URL and Accessibility
 Lens fetches the markup, runs a deterministic subset of WCAG 2.1 checks, and
 replays the page the way users with **low vision**, **color blindness**,
