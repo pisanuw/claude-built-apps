@@ -240,3 +240,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [code] deploy.mjs: with customDomain set, a first _redirects rule 301s <siteName>.netlify.app to the pisan.me domain; Netlify served both. bombe-bench and cache-miss-theater live at <app>.pisan.me.
 
 2026-11-02 [code] deploy.mjs: the netlify.app redirect rule is now written after the SPA fallback, which had been replacing _redirects and erasing it.
+
+2026-11-02 [note] Deploy run 41391791124 failed on 51 Netlify targets with "JSONHTTPError: Forbidden" at netlify deploy; env:set still worked. Four full redeploys today (~200 deploys) likely hit a Netlify account limit. Sites stayed up.
