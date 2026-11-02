@@ -30,7 +30,7 @@ Remaining
 - [ ] Owner posts drafts 3-6 (one at a time, days apart)
 - [ ] Owner turns on Netlify Analytics for the sites listed in CHANGES.md 2026-11-02 (sessions have no Netlify token; cost per site unknown)
 - [x] deploy.mjs creates a new app's CNAME when CLOUDFLARE_API_TOKEN is set, and without it deploys on netlify.app only (no dead redirect); existing records are never changed (cloudflare-dns.mjs, 10 tests in CI)
-- [ ] Owner: create the Cloudflare token and add repo secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ZONE_ID (steps in CHANGES.md 2026-11-02)
+- [x] Cloudflare secrets added by the owner; "Check Cloudflare token" run 41450700693: token active, zone id set, reads bombe-bench.pisan.me's record. Creating a record is first exercised by the next new app's deploy.
 - [ ] Owner posts the launch drafts in docs/launch-drafts.md (Show HN: Bombe Bench; SIGCSE email: Cache Miss Theater)
 - [ ] Optional small bugs listed under Constraints
 

@@ -282,3 +282,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [code] Deploy runner checks a custom domain's DNS first: creates the CNAME with CLOUDFLARE_API_TOKEN (DNS only, never edits an existing record), else stays on netlify.app with a warning.
 
 2026-11-02 [doc] Cloudflare token: My Profile > API Tokens > Create Token > "Edit zone DNS" template, zone pisan.me; repo secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ZONE_ID (zone Overview page).
+
+2026-11-02 [note] Cloudflare secrets verified read-only (Check Cloudflare token run 41450700693); record creation untested until the next new app deploys.
