@@ -288,3 +288,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [decision] Every site's primary address is <app>.pisan.me (owner); BUILD_ROUTINE.md and CLAUDE.md require customDomain from the first deploy.
 
 2026-11-02 [code] Consent Leak Watch moved to consent-leak-watch.pisan.me; first CNAME created by the deploy runner (run 41452636626).
+
+2026-11-02 [note] Owner turned on Netlify Analytics for the sites that lacked it; the build routine now asks for it on each new site.

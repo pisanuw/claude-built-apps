@@ -116,6 +116,8 @@ pisan-labs GitHub org, so people can find, star and fork it.
    b. On the Mac, in claude-built-apps: `git pull && python3
       scripts/pisan_labs_setup.py`, which creates the empty
       pisan-labs/<slug> repo; then Actions > Mirror apps > Run workflow.
+   c. In Netlify, turn on Analytics for the <slug> project, so its traffic
+      shows on pisan-analytics.netlify.app (no session has a way to do it).
    If (a) applies, say that once it is done, any session re-runs the deploy
    for <slug> and moves the links in README, implemented.json and
    aiprojects.md to https://<slug>.pisan.me. Record the pending actions in
