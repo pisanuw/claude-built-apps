@@ -132,8 +132,8 @@ Yusuf Pisan
 | [Emoji Lingua](https://emoji-lingua.pisan.me/) ([code](./emoji-lingua)) | English to emoji and back. |
 | [Mult Streak](https://mult-streak.pisan.me/) ([code](./mult-streak)) | Ten multiplications in a row wins a 24-hour crown. |
 
-Longer write-ups of every app, including what each one deliberately leaves
-out, are in [PROJECTS.md](./PROJECTS.md). Each app also has its own
+For the technical side of each app (how it works, design decisions and what
+it deliberately leaves out), see [PROJECTS.md](./PROJECTS.md). Each app also has its own
 repository in [pisan-labs](https://github.com/pisan-labs), if you want to star,
 fork or reuse just one.
 
