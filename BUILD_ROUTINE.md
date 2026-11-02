@@ -111,7 +111,9 @@ pisan-labs GitHub org, so people can find, star and fork it.
 7. PORTFOLIO. In pisanorg/yusuf/aiprojects.md, insert a new section at the
    top of the matching group, in the existing format and voice: H3 title
    linked to the live site, one or two paragraphs including one honest
-   limitation, a README link line, "(Last update <Month Year>)". Update the
+   limitation, a README link line, "(Last update <Month Year>)". The section
+   is in Yusuf's voice, so never invent facts about him (his job, what he has
+   seen, who he knows); write about the problem and the app instead. Update the
    table of contents and the project count. Commit and push.
 
 8. OWNER ACTIONS. End the run with a short message to the owner listing,
@@ -133,4 +135,4 @@ portfolio updated, mirror files in place, owner actions listed. If any step
 fails, stop, push whatever is committed, and leave a clear status in the run
 rather than half-updating the three repos.
 
-Delete any claude/* branch whose tip is already on main.
+Delete only the claude/* branches this run created (locally and on GitHub), once their tip is on main. Leave every other claude/* branch alone: other sessions may be working on them.
