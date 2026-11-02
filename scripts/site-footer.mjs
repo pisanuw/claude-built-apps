@@ -7,7 +7,8 @@
  *   - Netlify apps: deploy.mjs calls injectFooterIntoDir() after the build.
  *   - mult-streak (Render, via backend-hub): its build script runs this CLI.
  *
- * Editing this file redeploys every target once (see .github/workflows/deploy.yml).
+ * Editing this file deploys nothing by itself: run the Deploy workflow manually
+ * with `all` (or named apps) to ship it. Each Netlify deploy costs credits.
  *
  * The markup is a declarative shadow root, so the app's CSS cannot restyle the
  * footer and the footer's CSS cannot leak into the app. It inherits the page's

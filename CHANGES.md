@@ -242,3 +242,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [code] deploy.mjs: the netlify.app redirect rule is now written after the SPA fallback, which had been replacing _redirects and erasing it.
 
 2026-11-02 [note] Deploy run 41391791124 failed on 51 Netlify targets with "JSONHTTPError: Forbidden" at netlify deploy; env:set still worked. Four full redeploys today (~200 deploys) likely hit a Netlify account limit. Sites stayed up.
+
+2026-11-02 [decision] Deploys cost Netlify credits: a push now deploys only targets whose target.yml changed. Runner or footer changes need a manual Deploy run naming apps or `all`.

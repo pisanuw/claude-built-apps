@@ -45,8 +45,10 @@ Every Netlify deploy adds the shared "built by" footer from
 any app's source, so local dev servers do not show it. Set `footer: false` at the
 top level of an app's `target.yml` to opt that app out. Render apps cannot be
 injected here (Render builds server-side), so `mult-streak` runs the same script
-from its own build. Changing `scripts/site-footer.mjs` redeploys every target
-once.
+from its own build. Changing `scripts/site-footer.mjs` deploys nothing by
+itself; run the Deploy workflow manually with `all` to ship it to every app.
+Each Netlify production deploy costs account credits, so prefer naming the
+apps you need.
 
 ## Custom domain
 

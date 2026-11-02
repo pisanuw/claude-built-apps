@@ -1,15 +1,19 @@
 # Self-discovering, config-driven deploy.
 #
-# To deploy or retarget any app, edit its `<app>/deploy/target.yml` and push
-# (or run this workflow manually). Only pushes to main deploy, and a push
-# deploys ONLY the targets whose target.yml changed in that push, so adding one
-# project does not redeploy the others. Everything is deployed only when the
-# workflow is run manually (workflow_dispatch) or the shared runner
-# (deploy.mjs) or the shared footer (scripts/site-footer.mjs) changed; even
-# then each target deploys once per push. Editing this file alone deploys
-# nothing. If the push's base commit is unavailable (force push), the diff
-# falls back to the tip commit's parent. Adding a new app needs no change here:
-# just add its directory with a deploy/target.yml.
+# To deploy or retarget any app, edit its `<app>/deploy/target.yml` and push.
+# Only pushes to main deploy, and a push deploys ONLY the targets whose
+# target.yml changed in that push (plus the few apps listed below whose source
+# changes also deploy). Nothing else redeploys on its own: a change to the
+# shared runner (deploy.mjs), the shared footer (scripts/site-footer.mjs) or
+# this file deploys nothing. Every Netlify production deploy costs account
+# credits, and redeploying all ~50 apps on every runner edit ran them out on
+# 2026-11-02.
+#
+# To ship a runner or footer change, run this workflow manually and name the
+# apps: `bombe-bench cache-miss-theater`, or `all` to redeploy everything.
+# If the push's base commit is unavailable (force push), the diff falls back
+# to the tip commit's parent. Adding a new app needs no change here: just add
+# its directory with a deploy/target.yml.
 #
 # Required repo secrets (only those relevant to your targets are used):
 #   RENDER_API_KEY, NETLIFY_AUTH_TOKEN   deploy targets
@@ -25,10 +29,12 @@ on:
       - '**/deploy/target.yml'
       - 'shortcut-sprint/**'
       - 'code-analogy-forge/**'
-      - 'accessibility-lens/deploy/deploy.mjs'
-      - 'scripts/site-footer.mjs'
-      - '.github/workflows/deploy.yml'
   workflow_dispatch:
+    inputs:
+      targets:
+        description: "App folders to deploy, separated by spaces (e.g. bombe-bench cache-miss-theater), or 'all'"
+        required: true
+        type: string
 
 jobs:
   discover:
@@ -44,6 +50,7 @@ jobs:
         name: Discover deploy targets
         env:
           EVENT_NAME: ${{ github.event_name }}
+          TARGETS: ${{ inputs.targets }}
           BEFORE_SHA: ${{ github.event.before }}
           AFTER_SHA: ${{ github.sha }}
         run: |
@@ -51,22 +58,30 @@ jobs:
 
           selected=""
           if [ "$EVENT_NAME" != "push" ]; then
-            echo "Manual run: deploying every target."
-            selected=$all
+            if [ "$(echo "$TARGETS" | xargs)" = "all" ]; then
+              echo "Manual run with 'all': deploying every target."
+              selected=$all
+            else
+              for app in $(echo "$TARGETS" | tr ',' ' '); do
+                f="$app/deploy/target.yml"
+                if [ -f "$f" ]; then selected="$selected$f"$'\n'
+                else echo "::error::No $f in the repo."; exit 1; fi
+              done
+            fi
           else
             base=$BEFORE_SHA
             if ! git cat-file -e "$base" 2>/dev/null; then
               # Force push: there is no trustworthy base, so diff the tip commit only.
-              # Run the workflow manually to redeploy everything.
+              # Run the workflow manually with `all` to redeploy everything.
               base=$(git rev-parse "$AFTER_SHA^" 2>/dev/null || git hash-object -t tree /dev/null)
               echo "Base commit $BEFORE_SHA unavailable: diffing against $base."
             fi
             changed=$(git diff --name-only "$base" "$AFTER_SHA")
             printf 'Changed files:\n%s\n' "$changed"
             if printf '%s\n' "$changed" | grep -qxE 'accessibility-lens/deploy/deploy\.mjs|scripts/site-footer\.mjs'; then
-              echo "Deploy runner or site footer changed: deploying every target."
-              selected=$all
-            else
+              echo "::notice::Deploy runner or site footer changed. Nothing redeploys for that alone; run this workflow manually to ship it."
+            fi
+            {
               # Only the target.ymls touched by this push, skipping deleted ones.
               for f in $(printf '%s\n' "$changed" | grep -xE '[^/]+/deploy/target\.yml' || true); do
                 [ -f "$f" ] && selected="$selected$f"$'\n'
@@ -83,7 +98,7 @@ jobs:
                 && ! printf '%s\n' "$changed" | grep -qx 'type-witness/deploy/target.yml'; then
                 selected="$selected"type-witness/deploy/target.yml$'\n'
               fi
-            fi
+            }
           fi
 
           configs=$(printf '%s\n' $selected | grep . | jq -R . | jq -cs .)
