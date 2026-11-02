@@ -26,7 +26,7 @@ Remaining
 - [ ] Owner: Cloudflare DNS for pisan.me, CNAME `consent-leak-watch` -> `consent-leak-watch.netlify.app`, DNS only (grey cloud). Then a session sets customDomain consent-leak-watch.pisan.me in consent-leak-watch/deploy/target.yml and moves the links in README, PROJECTS.md, implemented.json and aiprojects.md to it.
 - [ ] Owner: on the Mac, `git pull && python3 scripts/pisan_labs_setup.py` (creates pisan-labs/consent-leak-watch), then Actions > Mirror apps > Run workflow.
 - [ ] Owner: replace the "Build an idea I choose" task's prompt with the pointer to BUILD_ROUTINE.md (sessions cannot edit tasks created in the web UI: update_trigger refuses "http_api" routines). Until then the old inline prompt runs.
-- [ ] Recommend which apps to promote next from pisan-analytics.netlify.app (Basic auth; this session has no password, waiting on the owner)
+- [ ] Promote next (recommended 2026-11-02 from the owner's 30-day analytics export, waiting on the owner's choice): Code Viva (the only app with proven human demand, ~450 LinkedIn referrals), Accessibility Lens as the small-business-facing app (no analytics: Netlify Analytics off on its site), Fork Count (highest unpromoted CS lesson, 215 visitors). Most apps sit at 100-180 visitors, mostly bots/scanners and redirects; 24 sites have analytics off.
 - [ ] Optional: a Cloudflare API token (pisan.me, DNS edit) as a repo secret so deploy.mjs can create a new app's CNAME itself; until then the owner adds it by hand
 - [ ] Owner posts the launch drafts in docs/launch-drafts.md (Show HN: Bombe Bench; SIGCSE email: Cache Miss Theater)
 - [ ] Optional small bugs listed under Constraints
@@ -40,7 +40,7 @@ Remaining
 
 ## 4. Next step
 
-Get the analytics (password or exported numbers) and recommend which apps to promote after Bombe Bench and Cache Miss Theater. Then check the first run of each changed routine: the ideas run's small-business count and validator result, and whether the build run followed BUILD_ROUTINE.md (only once the owner has swapped the task's prompt).
+Confirm the promotion picks with the owner. Then check the first run of each changed routine: the ideas run's small-business count and validator result, and whether the build run followed BUILD_ROUTINE.md (only once the owner has swapped the task's prompt).
 
 ## 5. Decisions and why
 
@@ -106,5 +106,5 @@ None running from this session. Recurring jobs owned elsewhere: daily-project-id
 
 ## 11. Open questions
 
-1. Which apps to promote next after Bombe Bench and Cache Miss Theater? Owner asked for a recommendation from pisan-analytics.netlify.app, which needs its password.
+1. Promote Code Viva, Accessibility Lens and Fork Count next (see Remaining)? Recommended, not yet confirmed.
 2. Add a Cloudflare DNS token so new apps get <slug>.pisan.me without a manual step?

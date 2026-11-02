@@ -272,3 +272,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [code] mirror.yml skips an app whose pisan-labs repo does not exist yet instead of failing the run.
 
 2026-11-02 [code] Added consent-leak-watch (ideas 2026-11-02 n1): client-side HAR audit of cookie-banner leaks with plugin attribution and saved-check diff. First app in the "Tools for small businesses" table.
+
+2026-11-02 [note] 30-day analytics (owner export): Code Viva 751 visitors, 452 from LinkedIn; most apps 100-180, largely bots; 24 sites have analytics off. Recommended next: Code Viva, Accessibility Lens, Fork Count.
