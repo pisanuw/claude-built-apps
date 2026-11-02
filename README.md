@@ -1,6 +1,6 @@
 # 50 apps built by Claude
 
-[![CI](https://github.com/pisanuw/Claude-capstone/actions/workflows/ci.yml/badge.svg)](https://github.com/pisanuw/Claude-capstone/actions/workflows/ci.yml)
+[![CI](https://github.com/pisanuw/claude-built-apps/actions/workflows/ci.yml/badge.svg)](https://github.com/pisanuw/claude-built-apps/actions/workflows/ci.yml)
 
 Every app in this repo was built by [Claude Code](https://claude.com/claude-code)
 from a one-paragraph idea. Claude wrote the code, the tests and the deploy
