@@ -21,6 +21,8 @@ import { fileURLToPath } from 'node:url';
 
 export const PROJECTS_URL = 'https://pisanorg.github.io/yusuf/aiprojects.html';
 export const CONTACT_EMAIL = 'builder@pisan.me';
+/** Visible text for PROJECTS_URL: the URL without its scheme and extension. */
+export const PROJECTS_LABEL = 'pisanorg.github.io/yusuf/aiprojects';
 
 /** Marks an already-injected page so a second run is a no-op. */
 export const MARKER = 'data-site-footer';
@@ -47,11 +49,11 @@ export function footerHtml(app) {
   return (
     `<site-footer ${MARKER}><template shadowrootmode="open"><style>${STYLE}</style>` +
     `<aside aria-label="About the builder"><p>` +
-    `I build apps like this one for fun and to learn. ` +
-    `You can see all my projects at <a href="${PROJECTS_URL}">${PROJECTS_URL}</a>. ` +
-    `If you have a project you&#8217;d like built, contact me at <a href="${mailto}">${CONTACT_EMAIL}</a> ` +
-    `and I might just do it &#x1F609;. Commercial/complex projects may require funding.` +
-    `</p><p>Professor Yusuf Pisan</p></aside></template></site-footer>`
+    `Built by Claude, guided by me. I build tools like this for small businesses, startups and educators. ` +
+    `Got a problem I can fix? Email <a href="${mailto}">${CONTACT_EMAIL}</a>. ` +
+    `Paid projects welcome, interesting ones may be done for free :-) ` +
+    `More apps: <a href="${PROJECTS_URL}">${PROJECTS_LABEL}</a>.` +
+    `</p><p>Yusuf Pisan</p></aside></template></site-footer>`
   );
 }
 

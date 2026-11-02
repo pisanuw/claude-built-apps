@@ -1,0 +1,25 @@
+# CI for the standalone mirror of this app in the pisan-labs org.
+# GitHub ignores this file inside the monorepo (only the root .github runs
+# there); it becomes active when the mirror workflow puts this folder at the
+# root of pisan-labs/<app>.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run coverage
+      - run: npm run build

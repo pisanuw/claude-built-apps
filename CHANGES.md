@@ -224,3 +224,7 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [decision] Repo refocused on getting users and custom-build clients: "built by Claude" headline, pisan.me subdomains, pisan-labs org, flagships bombe-bench and cache-miss-theater.
 
 2026-11-02 [doc] README rewritten as a pitch plus a catalog grouped by audience; the per-app write-ups moved unchanged to PROJECTS.md. CLAUDE.md step 3 updated to match.
+
+2026-11-02 [code] Footer text set to the owner-approved wording ("Built by Claude, guided by me..."), signed Yusuf Pisan; still links aiprojects.html.
+
+2026-11-02 [code] Added mirror.yml: subtree-splits bombe-bench and cache-miss-theater to pisan-labs/<app> on push to main; skips until MIRROR_TOKEN exists. Each app carries its own CI for the mirror.

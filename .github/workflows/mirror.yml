@@ -1,0 +1,48 @@
+# Mirror selected apps into their own repos under the pisan-labs org.
+#
+# This monorepo stays the source of truth (CI, deploy, shared footer). Each
+# listed app's folder is split out with `git subtree split`, so the mirror
+# gets that folder at its root with its own history, and pushed to
+# pisan-labs/<app> main. A standalone repo per app is easier to find, star
+# and fork than one folder among fifty.
+#
+# To mirror another app: create an EMPTY repo pisan-labs/<app> (no README,
+# or the first push is rejected), then add the app to BOTH lists below.
+#
+# Secret MIRROR_TOKEN: a fine-grained token with Contents and Workflows
+# read/write on the mirror repos (Workflows because each app carries its own
+# .github/workflows/ci.yml for the mirror). Without it the job skips.
+name: Mirror apps
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'bombe-bench/**'
+      - 'cache-miss-theater/**'
+      - '.github/workflows/mirror.yml'
+  workflow_dispatch:
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [bombe-bench, cache-miss-theater]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Split ${{ matrix.app }} and push to pisan-labs/${{ matrix.app }}
+        env:
+          APP: ${{ matrix.app }}
+          TOKEN: ${{ secrets.MIRROR_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::notice::MIRROR_TOKEN is not set; skipping $APP."
+            exit 0
+          fi
+          git subtree split --prefix="$APP" -b mirror
+          git push "https://x-access-token:${TOKEN}@github.com/pisan-labs/${APP}.git" mirror:main
