@@ -284,3 +284,7 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [doc] Cloudflare token: My Profile > API Tokens > Create Token > "Edit zone DNS" template, zone pisan.me; repo secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ZONE_ID (zone Overview page).
 
 2026-11-02 [note] Cloudflare secrets verified read-only (Check Cloudflare token run 41450700693); record creation untested until the next new app deploys.
+
+2026-11-02 [decision] Every site's primary address is <app>.pisan.me (owner); BUILD_ROUTINE.md and CLAUDE.md require customDomain from the first deploy.
+
+2026-11-02 [code] Consent Leak Watch moved to consent-leak-watch.pisan.me; first CNAME created by the deploy runner (run 41452636626).

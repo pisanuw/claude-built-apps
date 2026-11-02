@@ -23,7 +23,7 @@ Done
 - [x] mirror.yml skips an app whose pisan-labs repo does not exist yet (warning, not failure)
 
 Remaining
-- [ ] Owner: Cloudflare DNS for pisan.me, CNAME `consent-leak-watch` -> `consent-leak-watch.netlify.app`, DNS only (grey cloud). Then a session sets customDomain consent-leak-watch.pisan.me in consent-leak-watch/deploy/target.yml and moves the links in README, PROJECTS.md, implemented.json and aiprojects.md to it.
+- [x] Consent Leak Watch on https://consent-leak-watch.pisan.me (Deploy run 41452636626: the runner created the CNAME, set the domain, got the certificate; netlify.app 301s there). Links moved in README, PROJECTS.md, the app README and aiprojects.md.
 - [ ] Owner: on the Mac, `git pull && python3 scripts/pisan_labs_setup.py` (creates pisan-labs/consent-leak-watch), then Actions > Mirror apps > Run workflow.
 - [ ] Owner: replace the "Build an idea I choose" task's prompt with the pointer to BUILD_ROUTINE.md (sessions cannot edit tasks created in the web UI: update_trigger refuses "http_api" routines). Until then the old inline prompt runs.
 - [x] Promotion picks (owner, 2026-11-02): Code Viva, Accessibility Lens, Fork Count, MyChessMaster (mychessmaster.net, private repo pisanuw/chess-analyzer). README "Start here" now shows these four plus Bombe Bench and Cache Miss Theater; drafts 3-6 in docs/launch-drafts.md
@@ -58,7 +58,7 @@ Check the first run of each changed routine: the ideas run's small-business coun
 - Footer links to pisanorg.github.io/yusuf/aiprojects.html (owner's choice), URL not renamed.
 - Small business first for new ideas and builds (owner, 2026-11-02). The ideas floor moved from one EdTech idea to one small-business idea.
 - The build routine lives in BUILD_ROUTINE.md, read by the task, so it is versioned and editable from any session (the task itself can only be edited by the owner).
-- New apps set customDomain from the start; the runner uses it only once DNS answers (creating the CNAME with the Cloudflare token), because a custom domain without a record 301s the working netlify.app address to a dead one.
+- Every site's primary address is <app>.pisan.me (owner, 2026-11-02). New apps set customDomain from the start; the runner uses it only once DNS answers (creating the CNAME with the Cloudflare token), because a custom domain without a record 301s the working netlify.app address to a dead one.
 - pisan-labs: CI is checked only when the owner messages; a repo is attached to a session only when it gets an issue or PR.
 
 ## 6. Tried and rejected

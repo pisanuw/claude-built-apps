@@ -23,7 +23,7 @@ Consent Leak Watch checks this for you in about five minutes:
 
 Everything happens inside your browser tab. The recordings are never uploaded.
 
-**Live:** https://consent-leak-watch.netlify.app · **Try it without recording:**
+**Live:** https://consent-leak-watch.pisan.me · **Try it without recording:**
 click "Try the example shop" for a made-up candle shop whose Meta plugin
 update started tracking before consent.
 

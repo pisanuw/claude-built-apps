@@ -82,13 +82,17 @@ pisan-labs GitHub org, so people can find, star and fork it.
 
 5. DEPLOY. Deploys run from GitHub Actions: a push to main deploys every
    target whose deploy/target.yml changed. Do not deploy with a connector.
-   Netlify: in target.yml set provider netlify, netlify.siteName <slug>,
-   accountSlug yusuf-pisan and customDomain <slug>.pisan.me. The deploy
-   runner creates the Cloudflare CNAME itself when the CLOUDFLARE_API_TOKEN
-   secret is set; without it (or if creating fails) it deploys on
-   <slug>.netlify.app only and says so in a "warning:" annotation. Read the
-   Deploy run's annotations to learn which happened, and use that address
-   (LIVE_URL below) from here on. Render backends go into backend-hub when
+   Every site's primary address is https://<slug>.pisan.me (owner,
+   2026-11-02), and every link to the app uses it. Netlify: in target.yml
+   set provider netlify, netlify.siteName <slug>, accountSlug yusuf-pisan and
+   customDomain <slug>.pisan.me. The deploy runner creates the Cloudflare
+   CNAME (DNS only) with the CLOUDFLARE_API_TOKEN secret, makes the domain
+   primary and 301s <slug>.netlify.app to it. If the Deploy run's
+   annotations carry a "warning:" that the domain was skipped, the runner
+   could not create the record: report that as a failure to fix (with the
+   annotation text), fall back to https://<slug>.netlify.app as LIVE_URL for
+   this run, and list the DNS step under owner actions. Otherwise LIVE_URL is
+   https://<slug>.pisan.me. Render backends go into backend-hub when
    possible. Verify LIVE_URL returns 200, renders the app, and carries the
    footer (`curl -s LIVE_URL | grep -c "Want something like this"`). Each
    Netlify deploy costs credits: do not redeploy other apps.

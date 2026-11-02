@@ -865,5 +865,5 @@ now sits behind a new leak. The idea's hosted headless-Chromium scanner with
 weekly rescans and email diffs was replaced by this do-it-yourself, fully
 client-side core: nothing is uploaded and nothing runs on a schedule. 44
 vitest tests, 100% statement coverage.
-Live: [consent-leak-watch.netlify.app](https://consent-leak-watch.netlify.app).
+Live: [consent-leak-watch.pisan.me](https://consent-leak-watch.pisan.me).
 See its [README](./consent-leak-watch/README.md).
