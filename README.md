@@ -40,6 +40,12 @@ Yusuf Pisan
 
 ## The catalog
 
+### Tools for small businesses
+
+| App | What it does |
+|---|---|
+| [Consent Leak Watch](https://consent-leak-watch.netlify.app/) ([code](./consent-leak-watch)) | Check that your shop's cookie banner really blocks trackers, and which plugin broke it. |
+
 ### Developer and web tools
 
 | App | What it does |

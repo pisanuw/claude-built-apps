@@ -270,3 +270,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [decision] Build routine moved to BUILD_ROUTINE.md: small-business ideas picked first, pisan-labs mirror files per app, first deploy on netlify.app until the owner adds the CNAME.
 
 2026-11-02 [code] mirror.yml skips an app whose pisan-labs repo does not exist yet instead of failing the run.
+
+2026-11-02 [code] Added consent-leak-watch (ideas 2026-11-02 n1): client-side HAR audit of cookie-banner leaks with plugin attribution and saved-check diff. First app in the "Tools for small businesses" table.

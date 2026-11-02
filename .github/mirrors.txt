@@ -9,6 +9,7 @@ cipher-ladder cipher-ladder
 code-analogy-forge code-analogy-forge
 code-review-gauntlet code-review-gauntlet
 code-viva code-viva
+consent-leak-watch consent-leak-watch
 cron-cartographer cron-cartographer
 data-structure-city data-structure-city
 diagram-layout-engine diagram-layout-engine

@@ -1,0 +1,28 @@
+# Deploy control file for Consent Leak Watch (Netlify, static site).
+#
+# No backend and no environment variables: HAR recordings are parsed and
+# analyzed in the visitor's browser and never uploaded. The deploy workflow
+# auto-discovers this file via the `*/deploy/target.yml` glob.
+# package-lock.json is force-added (the root .gitignore excludes lockfiles)
+# because `npm ci` below needs it.
+#
+# Code-only pushes do not trigger a deploy: the workflow watches this file, so
+# touch it (or run the workflow manually) to ship UI changes.
+#
+# customDomain is left out until the owner adds the Cloudflare CNAME
+# consent-leak-watch -> consent-leak-watch.netlify.app; setting it earlier
+# would redirect the working netlify.app address to a dead one.
+
+provider: netlify
+projectName: consent-leak-watch
+directory: consent-leak-watch
+build: npm ci && npm run build
+publish: dist
+
+envPassthrough: []
+
+netlify:
+  # No serverless functions; the whole app is static.
+  functionsDir: ''
+  siteName: consent-leak-watch
+  accountSlug: yusuf-pisan

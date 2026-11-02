@@ -845,3 +845,25 @@ statement coverage on the core.
 Live: [modulo-bias-microscope.pisan.me](https://modulo-bias-microscope.pisan.me).
 See its [README](./modulo-bias-microscope/README.md).
 
+
+### [`consent-leak-watch/`](./consent-leak-watch)
+
+Consent Leak Watch: for small WooCommerce and WordPress shops and the agencies
+that maintain them. The owner records two short visits in Chrome (banner left
+alone, and after Reject all), saves them as HAR files and drops them in. The
+app finds cookies and requests from about 25 advertising, analytics and embed
+services that fired before consent or after the rejection, splits the
+recording at the click by reading the banner's own consent cookie (Complianz,
+CookieYes, Cookiebot, OneTrust, Borlabs, Real Cookie Banner), and treats a
+Google Consent Mode hit sent with consent denied as a note rather than a leak.
+Each leak is traced to a plugin by following Chrome's `_initiator` chain back
+to a `/wp-content/plugins/<slug>/` file, or by the WordPress handle id of the
+inline snippet in the page HTML; when a speed plugin has combined the files,
+or PHP set the cookie, it says so instead of guessing. A saved check can be
+compared with a later one, which names the plugin that changed version and
+now sits behind a new leak. The idea's hosted headless-Chromium scanner with
+weekly rescans and email diffs was replaced by this do-it-yourself, fully
+client-side core: nothing is uploaded and nothing runs on a schedule. 44
+vitest tests, 100% statement coverage.
+Live: [consent-leak-watch.netlify.app](https://consent-leak-watch.netlify.app).
+See its [README](./consent-leak-watch/README.md).
