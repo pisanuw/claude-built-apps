@@ -264,3 +264,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [doc] Footer wording revised by the owner: "I create tools like this ... Want something like this for your own work?". All sites redeployed once to carry it.
 
 2026-11-02 [doc] HANDOFF.md for the next session; launch drafts saved to docs/launch-drafts.md.
+
+2026-11-02 [decision] emoji-lingua: ANTHROPIC_API_KEY removed from the live site (envRemove); translations use the dictionary engine only.

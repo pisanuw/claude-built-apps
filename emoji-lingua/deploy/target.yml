@@ -8,7 +8,12 @@ directory: emoji-lingua
 build: npm ci && npm run build
 publish: dist/public
 
-envPassthrough:
+envPassthrough: []
+
+# Deleted from the Netlify site on the next deploy (2026-11-02): every
+# translation was calling Claude on the owner's key. The dictionary engine
+# handles both directions without it.
+envRemove:
   - ANTHROPIC_API_KEY
 
 netlify:

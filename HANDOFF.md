@@ -16,12 +16,11 @@ Done
 - [x] pisan-labs org: 50 mirror repos created by the owner with scripts/pisan_labs_setup.py; mirror.yml pushed code to all 50
 - [x] Demo GIFs for 47 apps (none for emoji-lingua, mult-streak-edge, tetromino-arcade)
 - [x] 7 live bugs fixed with regression tests and deployed (cron-cartographer, game-palette-inspector, emoji-lingua, summit-navigator, code-analogy-forge, cipher-ladder, pull-the-pin)
-- [x] accessibility-lens: Anthropic key removed from Netlify (envRemove); /api/health reports provider heuristic
+- [x] accessibility-lens and emoji-lingua: Anthropic key removed from Netlify (envRemove); no live app calls Claude on the owner's key
 
 Remaining
 - [ ] Check pisan-labs mirror CI results (this session could not read those repos' Actions; owner was asked to glance)
 - [ ] Owner posts the launch drafts in docs/launch-drafts.md (Show HN: Bombe Bench; SIGCSE email: Cache Miss Theater)
-- [ ] Decide emoji-lingua's Anthropic key (see Open questions)
 - [ ] Optional small bugs listed under Constraints
 
 ## 3. Current state
@@ -29,7 +28,7 @@ Remaining
 - claude-built-apps: branch `claude/beautiful-shannon-9m7sw7` = `main` at 6d2f973 (before this handoff commit). Clean tree.
 - daily-project-ideas: `main` 3673627, clean. pisanorg/yusuf: `master` ab97a18, clean.
 - Last full deploy run 41416184263: 52/52 jobs success. Mirror run: success.
-- Handoff written 2026-11-02 about 10:10 CET (owner appears to be at UTC+1; unconfirmed).
+- Handoff written 2026-11-02 about 10:30 CET.
 
 ## 4. Next step
 
@@ -62,7 +61,8 @@ Ask the owner whether the pisan-labs repos' Actions tabs show green CI; fix any 
 - This session's git proxy reset `origin` to the old Claude-capstone URL several times; `git remote set-url origin https://github.com/pisanuw/claude-built-apps` if pushes warn "repository moved".
 - Repo settings (description/topics/homepage) cannot be written from a cloud session; use scripts/pisan_labs_setup.py locally or the GitHub UI.
 - Secrets (names only): NETLIFY_AUTH_TOKEN, RENDER_API_KEY, MIRROR_TOKEN (fine-grained, pisan-labs, all repos, Contents+Workflows), ANTHROPIC_API_KEY, RESEND_API, ADMIN_EMAIL, COOKIE_SECRET. No Cloudflare token exists yet; DNS records are already in place for every app.
-- emoji-lingua live calls Claude on every translation (key still set). mult-streak-edge page load runs its idle-email sweep; do not load it in automated runs.
+- Time zone: owner is travelling in Germany (CET) as of 2026-11-02; default is America/Los_Angeles. Report times in the zone they are in.
+- emoji-lingua now uses its dictionary engine only (key removed 2026-11-02). mult-streak-edge page load runs its idle-email sweep; do not load it in automated runs.
 - Known small issues not fixed: cron-cartographer refuses "last day of the month" (RRULE parser lacks BYMONTHDAY=-1); summit-navigator now/next bar shows the conference weekday for viewers far east of ET; pull-the-pin Instructor tab and analyzer rows still use clear+append re-render.
 - Netlify branch deploys for daily-project-ideas: unknown whether enabled (each would cost a build).
 
@@ -94,7 +94,5 @@ None running from this session. Recurring jobs owned elsewhere: daily-project-id
 
 ## 11. Open questions
 
-1. emoji-lingua: remove its ANTHROPIC_API_KEY the same way as accessibility-lens (envRemove in target.yml, one deploy)? Every live translation costs money today. Recommendation: yes, before promoting it.
-2. Are the 50 pisan-labs CI runs green? I don't know.
-3. Owner's time zone: commits suggest UTC+1. Confirm for scheduling and reports.
-4. Which apps to promote next after Bombe Bench and Cache Miss Theater, and whether to steer new builds toward small-business tools (the catalog has none yet).
+1. Are the 50 pisan-labs CI runs green? I don't know.
+2. Which apps to promote next after Bombe Bench and Cache Miss Theater, and whether to steer new builds toward small-business tools (the catalog has none yet).
