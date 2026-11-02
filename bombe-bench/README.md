@@ -13,6 +13,8 @@ Everything runs in the browser.
 
 Live: [bombe-bench.pisan.me](https://bombe-bench.pisan.me/)
 
+![Typing ATTACKATDAWN on the Machine tab lights each letter's signal path through plugboard, rotors and reflector, then the Attack tab loads a crib and runs the Bombe over 1,054,560 positions, leaving 5 stops and one that passes the checking machine](demo.gif)
+
 Implements idea #2 ("Bombe Bench") from the
 [2026-10-03 ideas day](https://github.com/pisanuw/daily-project-ideas)
 of `pisanuw/daily-project-ideas`.

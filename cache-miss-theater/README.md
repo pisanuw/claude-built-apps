@@ -11,6 +11,8 @@ exam questions whose answers come straight from the simulator.
 
 Live: [cache-miss-theater.pisan.me](https://cache-miss-theater.pisan.me/)
 
+![Row-order and column-order sums of the same 32x32 array played through a 1 KB 2-way cache: row order hits on three of every four reads, while column order crowds into four of the 16 sets and every read misses, mostly as conflict misses](demo.gif)
+
 Built from idea 2026-10-10 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).
 

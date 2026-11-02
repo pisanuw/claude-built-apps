@@ -28,11 +28,11 @@ Yusuf Pisan
 <table>
 <tr>
 <td width="50%" valign="top">
-<a href="https://bombe-bench.pisan.me/"><img src="bombe-bench/desktop.png" alt="Bombe Bench: an Enigma machine with the signal path of one keypress drawn through plugboard, rotors and reflector"></a>
+<a href="https://bombe-bench.pisan.me/"><img src="bombe-bench/demo.gif" alt="Bombe Bench: typing on the Enigma lights each signal path, then the Bombe breaks the message from a crib"></a>
 <p><b><a href="https://bombe-bench.pisan.me/">Bombe Bench</a></b>: an Enigma you can open up, and a working Turing-Welchman Bombe that breaks messages from a crib. <a href="./bombe-bench">Code</a></p>
 </td>
 <td width="50%" valign="top">
-<a href="https://cache-miss-theater.pisan.me/"><img src="cache-miss-theater/desktop.png" alt="Cache Miss Theater: a matrix multiply trace with a conflict miss highlighted in the cache sets"></a>
+<a href="https://cache-miss-theater.pisan.me/"><img src="cache-miss-theater/demo.gif" alt="Cache Miss Theater: row order hits three reads in four, column order crowds four cache sets and every read misses"></a>
 <p><b><a href="https://cache-miss-theater.pisan.me/">Cache Miss Theater</a></b>: write a C loop nest and watch every access go through a cache you configure, with each miss labelled compulsory, capacity or conflict. <a href="./cache-miss-theater">Code</a></p>
 </td>
 </tr>
