@@ -390,17 +390,6 @@ async function deployNetlify(cfg) {
     const added = injectFooterIntoDir(publishDir, cfg.projectName);
     log(added ? 'Added the site footer to index.html.' : 'Site footer already present.');
   }
-  // With a custom domain, send the old .netlify.app address there for good, so
-  // links and search engines end up on one URL. Netlify serves the default
-  // subdomain alongside the primary domain unless a rule says otherwise. The
-  // rule goes first in _redirects because the first matching rule wins.
-  if (n.customDomain) {
-    const file = path.join(publishDir, '_redirects');
-    const rule = `https://${siteName}.netlify.app/* https://${n.customDomain}/:splat 301!`;
-    const existing = existsSync(file) ? readFileSync(file, 'utf8') : '';
-    if (!existing.includes(rule)) writeFileSync(file, `${rule}\n${existing}`);
-    log(`Redirect rule: ${rule}`);
-  }
 
   // Resolve the site id, in order of reliability:
   //   1. netlify.siteId in target.yml   2. NETLIFY_SITE_ID env
@@ -467,6 +456,18 @@ async function deployNetlify(cfg) {
     (functionsDir ? '/api/*  /.netlify/functions/api/:splat  200\n' : '') +
       '/*      /index.html                     200\n',
   );
+  // With a custom domain, send the old .netlify.app address there for good, so
+  // links and search engines end up on one URL. Netlify serves the default
+  // subdomain alongside the primary domain unless a rule says otherwise. The
+  // rule goes first in _redirects because the first matching rule wins.
+  if (n.customDomain) {
+    const file = path.join(publishDir, '_redirects');
+    const rule = `https://${siteName}.netlify.app/* https://${n.customDomain}/:splat 301!`;
+    // Runs after the SPA fallback above is written, which replaces the file.
+    const existing = existsSync(file) ? readFileSync(file, 'utf8') : '';
+    if (!existing.includes(rule)) writeFileSync(file, `${rule}\n${existing}`);
+    log(`Redirect rule: ${rule}`);
+  }
   const run = { cwd: stageDir };
 
   // Forward environment variables to the site (for the serverless function).
@@ -565,7 +566,9 @@ async function ensureCustomDomain(siteId, domain) {
     await netlifyApi(`/sites/${siteId}/ssl`, { method: 'POST' });
     log(`Requested a TLS certificate for ${domain}.`);
   } catch (e) {
-    log(`TLS certificate request did not go through yet: ${String(e).slice(0, 300)}`);
+    const msg = String(e);
+    if (msg.includes('existing certificate')) log(`${domain} already has a certificate.`);
+    else log(`TLS certificate request did not go through yet: ${msg.slice(0, 300)}`);
   }
 }
 
