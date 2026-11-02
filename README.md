@@ -28,12 +28,12 @@ Yusuf Pisan
 <table>
 <tr>
 <td width="50%" valign="top">
-<a href="https://bombe-bench.netlify.app/"><img src="bombe-bench/desktop.png" alt="Bombe Bench: an Enigma machine with the signal path of one keypress drawn through plugboard, rotors and reflector"></a>
-<p><b><a href="https://bombe-bench.netlify.app/">Bombe Bench</a></b>: an Enigma you can open up, and a working Turing-Welchman Bombe that breaks messages from a crib. <a href="./bombe-bench">Code</a></p>
+<a href="https://bombe-bench.pisan.me/"><img src="bombe-bench/desktop.png" alt="Bombe Bench: an Enigma machine with the signal path of one keypress drawn through plugboard, rotors and reflector"></a>
+<p><b><a href="https://bombe-bench.pisan.me/">Bombe Bench</a></b>: an Enigma you can open up, and a working Turing-Welchman Bombe that breaks messages from a crib. <a href="./bombe-bench">Code</a></p>
 </td>
 <td width="50%" valign="top">
-<a href="https://cache-miss-theater.netlify.app/"><img src="cache-miss-theater/desktop.png" alt="Cache Miss Theater: a matrix multiply trace with a conflict miss highlighted in the cache sets"></a>
-<p><b><a href="https://cache-miss-theater.netlify.app/">Cache Miss Theater</a></b>: write a C loop nest and watch every access go through a cache you configure, with each miss labelled compulsory, capacity or conflict. <a href="./cache-miss-theater">Code</a></p>
+<a href="https://cache-miss-theater.pisan.me/"><img src="cache-miss-theater/desktop.png" alt="Cache Miss Theater: a matrix multiply trace with a conflict miss highlighted in the cache sets"></a>
+<p><b><a href="https://cache-miss-theater.pisan.me/">Cache Miss Theater</a></b>: write a C loop nest and watch every access go through a cache you configure, with each miss labelled compulsory, capacity or conflict. <a href="./cache-miss-theater">Code</a></p>
 </td>
 </tr>
 </table>
@@ -75,8 +75,8 @@ Yusuf Pisan
 
 | App | What it does |
 |---|---|
-| [Bombe Bench](https://bombe-bench.netlify.app/) ([code](./bombe-bench)) | Step through an Enigma rotor by rotor, then break it with a working Bombe. |
-| [Cache Miss Theater](https://cache-miss-theater.netlify.app/) ([code](./cache-miss-theater)) | Watch a C loop nest's exact address trace run through a configurable cache. |
+| [Bombe Bench](https://bombe-bench.pisan.me/) ([code](./bombe-bench)) | Step through an Enigma rotor by rotor, then break it with a working Bombe. |
+| [Cache Miss Theater](https://cache-miss-theater.pisan.me/) ([code](./cache-miss-theater)) | Watch a C loop nest's exact address trace run through a configurable cache. |
 | [Fork Count](https://fork-count.netlify.app/) ([code](./fork-count)) | Every process, pipe and possible output of a fork/wait/pipe C snippet, deadlocks included. |
 | [Assignment Stress Test](https://assignment-stress-test.netlify.app/) ([code](./assignment-stress-test)) | Every output the scheduler could produce for a fork/wait snippet, and why the others are impossible. |
 | [Heap Arena Replay](https://heap-arena-replay.netlify.app/) ([code](./heap-arena-replay)) | Replay a malloc/free trace on a word-accurate heap under different allocator policies. |

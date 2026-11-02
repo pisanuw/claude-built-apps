@@ -9,7 +9,7 @@ evicted, while a memory map shows which array elements are cached. Compare two
 kernels side by side, sweep a block size or a cache parameter, and generate
 exam questions whose answers come straight from the simulator.
 
-Live: [cache-miss-theater.netlify.app](https://cache-miss-theater.netlify.app)
+Live: [cache-miss-theater.pisan.me](https://cache-miss-theater.pisan.me/)
 
 Built from idea 2026-10-10 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).

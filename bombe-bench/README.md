@@ -11,7 +11,7 @@ hypotheses each position kills until only the stops are left. Instructors
 generate challenge messages with hidden settings and share them as links.
 Everything runs in the browser.
 
-Live: [bombe-bench.netlify.app](https://bombe-bench.netlify.app)
+Live: [bombe-bench.pisan.me](https://bombe-bench.pisan.me/)
 
 Implements idea #2 ("Bombe Bench") from the
 [2026-10-03 ideas day](https://github.com/pisanuw/daily-project-ideas)

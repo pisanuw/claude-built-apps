@@ -458,7 +458,7 @@ messages with hidden settings as links; answers are graded in the page.
 Deployed on **Netlify** (static site, no backend).
 
 55 vitest tests, 98.8% statement coverage on the core.
-Live: [bombe-bench.netlify.app](https://bombe-bench.netlify.app).
+Live: [bombe-bench.pisan.me](https://bombe-bench.pisan.me/).
 See its [README](./bombe-bench/README.md).
 
 ### [`state-space-atlas/`](./state-space-atlas)
@@ -643,7 +643,7 @@ questions answered by the simulator (Markdown or QTI 1.2). Deployed on
 **Netlify** (static site, no backend).
 
 62 vitest tests (the cache is cross-checked against a naive reference), 99.7% statement coverage on the core.
-Live: [cache-miss-theater.netlify.app](https://cache-miss-theater.netlify.app).
+Live: [cache-miss-theater.pisan.me](https://cache-miss-theater.pisan.me/).
 See its [README](./cache-miss-theater/README.md).
 
 ### [`edit-graph-lab/`](./edit-graph-lab)
