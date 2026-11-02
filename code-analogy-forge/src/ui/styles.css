@@ -242,6 +242,8 @@ table.maps td {
   padding: 4px 6px;
   border-top: 1px solid var(--border);
   vertical-align: top;
+  /* Let long phrases and identifiers break so the table never outgrows its card. */
+  overflow-wrap: anywhere;
 }
 
 table.maps th {
@@ -252,7 +254,6 @@ table.maps th {
 table.maps td:first-child {
   font-family: var(--mono);
   color: var(--good);
-  white-space: nowrap;
 }
 
 .card-actions {
