@@ -10,6 +10,8 @@ its exact type; click it to jump to its step.
 
 Live: [type-witness.pisan.me](https://type-witness.pisan.me)
 
+![Loading the typeof-narrowing example and stepping through its inference story, where the same value is string | number at the check, string inside the if branch and number after it, then hovering each value in the witness view to see its type](demo.gif)
+
 ## What it shows
 
 - **Literal types and widening** — `const x = 42` keeps the fresh literal type

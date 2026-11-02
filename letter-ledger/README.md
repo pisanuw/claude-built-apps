@@ -11,6 +11,8 @@ write.
 
 Live: [letter-ledger.pisan.me](https://letter-ledger.pisan.me)
 
+![Loading the demo ledger fills the deadline dashboard; on the Requests tab a request that breaks the 21-day notice policy is accepted and its fact outline is generated](demo.gif)
+
 Built from idea 2026-10-22 n3 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).
 

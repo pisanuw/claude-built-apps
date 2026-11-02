@@ -14,6 +14,8 @@ simulated machines.
 
 Live: [lockstep-lab.pisan.me](https://lockstep-lab.pisan.me)
 
+![Two simulated clients keep matching state hashes until the Map iteration order scenario is switched on; client B's units then drift from client A's ghost outlines and the hash strip turns red, naming the first differing field](demo.gif)
+
 Built from idea 2026-10-12 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).
 

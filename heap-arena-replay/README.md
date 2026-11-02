@@ -18,6 +18,8 @@ reference. Everything runs in the browser.
 
 Live: [heap-arena-replay.pisan.me](https://heap-arena-replay.pisan.me)
 
+![Pressing Play on the textbook walk-through replays its mallocs and frees on a 256-byte heap, with block outlines, the allocator's narration and the utilization tiles updating at each op](demo.gif)
+
 Implements idea #2 ("Heap Arena Replay") from the
 [2026-10-06 ideas day](https://github.com/pisanuw/daily-project-ideas)
 of `pisanuw/daily-project-ideas`.

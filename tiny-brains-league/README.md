@@ -7,6 +7,8 @@ parameter count.
 
 Live: [tiny-brains-league.pisan.me](https://tiny-brains-league.pisan.me)
 
+![Running the class ladder on the two sample brains and three house bots, the efficiency board ranking the 1,111-parameter Pocket-12 first, then replaying its win over Starter-48 with the network's move probabilities drawn above each column](demo.gif)
+
 Built from idea 2026-09-26 n3 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).
 The idea suggested a Flask ladder server, a React replay viewer and Supabase
