@@ -84,6 +84,7 @@ function loadConfig() {
     }
   }
   cfg.envPassthrough = Array.isArray(cfg.envPassthrough) ? cfg.envPassthrough : [];
+  cfg.envRemove = Array.isArray(cfg.envRemove) ? cfg.envRemove : [];
   return cfg;
 }
 
@@ -361,6 +362,7 @@ async function deployNetlify(cfg) {
     functionsDir,
     accountSlug: n.accountSlug || '(default team)',
     envVarsForwarded: Object.keys(env),
+    envVarsRemoved: cfg.envRemove,
     siteFooter: cfg.footer !== false,
     customDomain: n.customDomain || '(none)',
   };
@@ -475,6 +477,14 @@ async function deployNetlify(cfg) {
   // runtime, which silently leaves the function without the variable.
   // Best-effort (the app degrades gracefully), but report the outcome loudly so
   // a failure is visible instead of mysterious.
+  // envRemove: variables to delete from the site. Dropping a name from
+  // envPassthrough only stops sending it; Netlify keeps the last value, so a
+  // secret has to be removed explicitly. Unlike setting, failure here stops
+  // the deploy: shipping with a key that was meant to be gone is worse.
+  for (const key of cfg.envRemove) {
+    log(`Removing Netlify env ${key}`);
+    netlify(['env:unset', key, '--site', siteId], run);
+  }
   for (const [key, value] of Object.entries(env)) {
     try {
       log(`Setting Netlify env ${key}`);
