@@ -23,6 +23,8 @@ Done
 - [x] mirror.yml skips an app whose pisan-labs repo does not exist yet (warning, not failure)
 
 Remaining
+- [ ] Owner: Cloudflare DNS for pisan.me, CNAME `consent-leak-watch` -> `consent-leak-watch.netlify.app`, DNS only (grey cloud). Then a session sets customDomain consent-leak-watch.pisan.me in consent-leak-watch/deploy/target.yml and moves the links in README, PROJECTS.md, implemented.json and aiprojects.md to it.
+- [ ] Owner: on the Mac, `git pull && python3 scripts/pisan_labs_setup.py` (creates pisan-labs/consent-leak-watch), then Actions > Mirror apps > Run workflow.
 - [ ] Owner: replace the "Build an idea I choose" task's prompt with the pointer to BUILD_ROUTINE.md (sessions cannot edit tasks created in the web UI: update_trigger refuses "http_api" routines). Until then the old inline prompt runs.
 - [ ] Recommend which apps to promote next from pisan-analytics.netlify.app (Basic auth; this session has no password, waiting on the owner)
 - [ ] Optional: a Cloudflare API token (pisan.me, DNS edit) as a repo secret so deploy.mjs can create a new app's CNAME itself; until then the owner adds it by hand
