@@ -262,3 +262,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [decision] accessibility-lens: ANTHROPIC_API_KEY removed from the live site (envRemove in target.yml); every scan was sending issues to Claude on the owner key. Rule-based fixes only.
 
 2026-11-02 [doc] Footer wording revised by the owner: "I create tools like this ... Want something like this for your own work?". All sites redeployed once to carry it.
+
+2026-11-02 [doc] HANDOFF.md for the next session; launch drafts saved to docs/launch-drafts.md.
