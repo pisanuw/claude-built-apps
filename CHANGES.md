@@ -254,3 +254,7 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [code] bombe-bench and cache-miss-theater carry their own copy of the MIT LICENSE, so the pisan-labs mirrors are licensed; mirror.yml notes the step.
 
 2026-11-02 [code] Mirroring extended to 50 apps via .github/mirrors.txt (changed apps only per push); each app has LICENSE and its own CI; docs-only app changes no longer deploy. tetromino-arcade left out (trademark).
+
+2026-11-02 [doc] Demo GIFs for 46 of 48 mirrored apps (37 MB total, each under 1.5 MB); none for emoji-lingua (live site always calls Claude) or mult-streak (page load runs the email sweep).
+
+2026-11-02 [doc] scripts/pisan-labs-repos.csv: description, website and topics for all 50 pisan-labs repos; scripts/pisan_labs_setup.py applies it with gh.
