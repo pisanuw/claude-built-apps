@@ -7,7 +7,8 @@
 # and fork than one folder among fifty.
 #
 # To mirror another app: create an EMPTY repo pisan-labs/<app> (no README,
-# or the first push is rejected), then add the app to BOTH lists below.
+# or the first push is rejected), copy the root LICENSE into the app folder
+# (the split only carries that folder), then add the app to BOTH lists below.
 #
 # Secret MIRROR_TOKEN: a fine-grained token with Contents and Workflows
 # read/write on the mirror repos (Workflows because each app carries its own

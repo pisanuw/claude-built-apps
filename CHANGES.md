@@ -250,3 +250,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [code] All 51 Netlify apps get netlify.customDomain <folder>.pisan.me (mult-streak-edge -> mult-streak.pisan.me); every README link moves to pisan.me. One deploy per app.
 
 2026-11-02 [doc] Demo GIFs (about 15 s, 2.1 MB each) for bombe-bench and cache-miss-theater, in their READMEs and the root "Start here".
+
+2026-11-02 [code] bombe-bench and cache-miss-theater carry their own copy of the MIT LICENSE, so the pisan-labs mirrors are licensed; mirror.yml notes the step.
