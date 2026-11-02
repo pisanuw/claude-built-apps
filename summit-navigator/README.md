@@ -9,6 +9,8 @@ timezone-aware now/next banner.
 
 Live: [summit-navigator.pisan.me](https://summit-navigator.pisan.me)
 
+![Switching to Monday, filtering by the Plenary track, starring two keynotes and a session found by searching "agentic", then showing only the starred agenda with times flipped to the viewer's time zone](demo.gif)
+
 Implements idea #1 ("Summit Navigator") from the
 [2026-09-03 ideas day](https://github.com/pisanuw/daily-project-ideas)
 of `pisanuw/daily-project-ideas`.
