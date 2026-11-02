@@ -9,7 +9,7 @@ import { Z, simulate, type RunResult } from '../core/sim';
 import { Analyzer } from './analyzer';
 import { Board } from './board';
 import { faultSignals, displayPanel } from './challengeView';
-import { button, clear, el, select } from './dom';
+import { button, clear, el, rebuild, select } from './dom';
 import { FaultPicker } from './faultPicker';
 
 const DEFAULT_ROWS = [...[7, 6, 5, 4, 3, 2, 1, 0].map((i) => `BUS${i}`), 'CO', 'MI', 'RO', 'II', 'CE', 'AI', 'EO', 'OI', 'HLT'].map((n) => netId(n));
@@ -88,35 +88,36 @@ export class SandboxView {
       faultChip: fault ? faultChip(fault) : null,
     });
 
-    clear(this.side);
-    const options: [string, string][] = TEST_PROGRAMS.map((p, i) => [`${i}`, p.name]);
-    options.push(['custom', 'Write your own…']);
-    const prog = el(
-      'div',
-      { class: 'card' },
-      el('h2', {}, 'Program'),
-      el('div', { class: 'row' }, select(options, this.choice, (v) => {
-        this.choice = v;
-        if (v !== 'custom') this.source = TEST_PROGRAMS[Number(v)].source;
-        this.run();
-      }), button('Run', () => this.run(), 'primary')),
-    );
-    const ta = el('textarea', { rows: '9', spellcheck: 'false', class: 'mono' });
-    ta.value = this.source;
-    ta.readOnly = this.choice !== 'custom';
-    ta.addEventListener('input', () => (this.source = ta.value));
-    prog.append(ta);
-    if (this.error) prog.append(el('p', { class: 'bad small' }, this.error));
-    const faultCard = el(
-      'div',
-      { class: 'card' },
-      el('h2', {}, 'Inject a fault'),
-      this.picker.root,
-      el('p', { class: 'small' }, fault ? describeFault(fault) : 'Healthy board.'),
-      el('p', { class: 'muted small' }, fault ? `${differs.size} of ${SIGNAL_COUNT} signals differ from a healthy board while both are running this program${f.hashes[FREE_SIGNAL] === h.hashes[FREE_SIGNAL] ? ', but the display looks normal: this fault is invisible to this program' : ''}.` : ''),
-    );
-    faultCard.append(displayPanel(f, h));
-    this.side.append(prog, faultCard, this.regs);
+    rebuild(this.side, () => {
+      const options: [string, string][] = TEST_PROGRAMS.map((p, i) => [`${i}`, p.name]);
+      options.push(['custom', 'Write your own…']);
+      const prog = el(
+        'div',
+        { class: 'card' },
+        el('h2', {}, 'Program'),
+        el('div', { class: 'row' }, select(options, this.choice, (v) => {
+          this.choice = v;
+          if (v !== 'custom') this.source = TEST_PROGRAMS[Number(v)].source;
+          this.run();
+        }), button('Run', () => this.run(), 'primary')),
+      );
+      const ta = el('textarea', { rows: '9', spellcheck: 'false', class: 'mono' });
+      ta.value = this.source;
+      ta.readOnly = this.choice !== 'custom';
+      ta.addEventListener('input', () => (this.source = ta.value));
+      prog.append(ta);
+      if (this.error) prog.append(el('p', { class: 'bad small' }, this.error));
+      const faultCard = el(
+        'div',
+        { class: 'card' },
+        el('h2', {}, 'Inject a fault'),
+        this.picker.root,
+        el('p', { class: 'small' }, fault ? describeFault(fault) : 'Healthy board.'),
+        el('p', { class: 'muted small' }, fault ? `${differs.size} of ${SIGNAL_COUNT} signals differ from a healthy board while both are running this program${f.hashes[FREE_SIGNAL] === h.hashes[FREE_SIGNAL] ? ', but the display looks normal: this fault is invisible to this program' : ''}.` : ''),
+      );
+      faultCard.append(displayPanel(f, h));
+      return [prog, faultCard, this.regs];
+    });
     this.renderRegs();
 
     const traces = this.rows.flatMap((s) => {
