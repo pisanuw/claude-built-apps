@@ -31,7 +31,14 @@ publish: client/dist
 # deployed app. VALUES ARE NOT STORED HERE, only the names. The workflow reads
 # each value from its own environment (populated from GitHub secrets) and
 # forwards it to the host. Leave empty to deploy with no extra env.
-envPassthrough:
+envPassthrough: []
+
+# Names of environment variables to DELETE from the deployed site on the next
+# deploy. Removing a name from envPassthrough is not enough: the host keeps the
+# last value it was given. ANTHROPIC_API_KEY was removed on 2026-11-02 so that
+# scans stop sending issues to Claude on the owner's key; the rule-based fixes
+# cover every issue without it.
+envRemove:
   - ANTHROPIC_API_KEY
 
 # ---- Render-specific settings (used when provider: render) ----

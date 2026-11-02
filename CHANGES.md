@@ -252,3 +252,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [doc] Demo GIFs (about 15 s, 2.1 MB each) for bombe-bench and cache-miss-theater, in their READMEs and the root "Start here".
 
 2026-11-02 [code] bombe-bench and cache-miss-theater carry their own copy of the MIT LICENSE, so the pisan-labs mirrors are licensed; mirror.yml notes the step.
+
+2026-11-02 [decision] accessibility-lens: ANTHROPIC_API_KEY removed from the live site (envRemove in target.yml); every scan was sending issues to Claude on the owner key. Rule-based fixes only.
