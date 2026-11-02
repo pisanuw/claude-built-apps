@@ -116,10 +116,20 @@ export function timeRangeLabel(
   confZone: string,
   viewZone: string | null,
 ): string {
-  if (!viewZone || viewZone === confZone) {
-    return `${formatWallTime(s.start)} – ${formatWallTime(s.end)}`;
-  }
-  const startMs = epochFor(s.day, s.start, confZone);
-  const endMs = epochFor(s.day, s.end, confZone);
-  return `${formatInZone(startMs, viewZone)} – ${formatInZone(endMs, viewZone)}`;
+  return `${timeLabel(s.day, s.start, confZone, viewZone)} – ${timeLabel(s.day, s.end, confZone, viewZone)}`;
+}
+
+/**
+ * One conference wall time ("YYYY-MM-DD" + "HH:MM") for display, converted to
+ * `viewZone` when it differs from the conference zone. Used for time-slot
+ * headings so they always match the session cards beneath them.
+ */
+export function timeLabel(
+  day: string,
+  hhmm: string,
+  confZone: string,
+  viewZone: string | null,
+): string {
+  if (!viewZone || viewZone === confZone) return formatWallTime(hhmm);
+  return formatInZone(epochFor(day, hhmm, confZone), viewZone);
 }

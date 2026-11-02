@@ -1,6 +1,6 @@
 import type { Session, TimeBlock } from '../core/types';
 import { dayLabel } from '../core/schedule';
-import { formatWallTime, timeRangeLabel, type SessionStatus } from '../core/clock';
+import { timeLabel, timeRangeLabel, type SessionStatus } from '../core/clock';
 
 export function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -91,7 +91,8 @@ export function renderCard(s: Session, deps: CardDeps): HTMLElement {
 export function renderBlocks(blocks: TimeBlock[], deps: CardDeps): DocumentFragment {
   const frag = document.createDocumentFragment();
   for (const block of blocks) {
-    frag.append(el('div', 'block-time', formatWallTime(block.start)));
+    const day = block.sessions[0].day;
+    frag.append(el('div', 'block-time', timeLabel(day, block.start, deps.confZone, deps.viewZone)));
     for (const s of block.sessions) frag.append(renderCard(s, deps));
   }
   return frag;

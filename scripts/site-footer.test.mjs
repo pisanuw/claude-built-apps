@@ -18,6 +18,7 @@ test('footer links the projects page and email, naming the app in the subject', 
   assert.ok(html.includes('aria-label="About the builder"'));
   assert.ok(html.includes('<p>Yusuf Pisan</p>'));
   assert.ok(html.includes('Built by Claude, guided by me.'));
+  assert.ok(html.includes('Want something like this for your own work?'));
 });
 
 test('footer markup is ASCII, so it survives a page without a UTF-8 charset', () => {

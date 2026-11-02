@@ -1,7 +1,7 @@
 import './style.css';
 import rawSchedule from './data/schedule.json';
 import { validateSchedule, sessionsForDay, groupByStart, trackMap } from './core/schedule';
-import { nowNext, sessionStatus, formatWallTime } from './core/clock';
+import { nowNext, sessionStatus, timeLabel } from './core/clock';
 import { emptyFilter, filterSessions, hasActiveFilter, type FilterState } from './core/filter';
 import { createStarStore } from './core/stars';
 import { dayLabel } from './core/schedule';
@@ -134,7 +134,8 @@ function renderNowBar(): void {
   if (info.next.length > 0 && info.nextStart) {
     const line = el('div');
     line.append(el('span', 'tag', 'Next'));
-    const when = `${dayLabel(info.nextStart.day).weekday} ${formatWallTime(info.nextStart.start)}`;
+    const { day, start } = info.nextStart;
+    const when = `${dayLabel(day).weekday} ${timeLabel(day, start, confZone, state.viewZone)}`;
     line.append(`${when} — ${info.next.map((s) => s.title).join(' · ')}`);
     nowbar.append(line);
   }

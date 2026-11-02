@@ -50,8 +50,8 @@ export function footerHtml(app) {
   return (
     `<site-footer ${MARKER}><template shadowrootmode="open"><style>${STYLE}</style>` +
     `<aside aria-label="About the builder"><p>` +
-    `Built by Claude, guided by me. I build tools like this for small businesses, startups and educators. ` +
-    `Got a problem I can fix? Email <a href="${mailto}">${CONTACT_EMAIL}</a>. ` +
+    `Built by Claude, guided by me. I create tools like this for small businesses, startups and educators. ` +
+    `Want something like this for your own work? Email <a href="${mailto}">${CONTACT_EMAIL}</a>. ` +
     `Paid projects welcome, interesting ones may be done for free :-) ` +
     `More apps: <a href="${PROJECTS_URL}">${PROJECTS_LABEL}</a>.` +
     `</p><p>Yusuf Pisan</p></aside></template></site-footer>`

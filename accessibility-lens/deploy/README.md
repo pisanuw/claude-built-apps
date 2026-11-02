@@ -50,6 +50,13 @@ itself; run the Deploy workflow manually with `all` to ship it to every app.
 Each Netlify production deploy costs account credits, so prefer naming the
 apps you need.
 
+## Removing a secret
+
+Taking a name out of `envPassthrough` only stops the deploy sending it; the
+host keeps the last value. List the name under `envRemove` in `target.yml` and
+the next deploy deletes it from the Netlify site before deploying (and stops if
+the delete fails).
+
 ## Custom domain
 
 Set `netlify.customDomain: <app>.pisan.me` in `target.yml` to serve an app

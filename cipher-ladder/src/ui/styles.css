@@ -22,6 +22,8 @@ header.site h1 { font-size: 1.7rem; margin: 0; letter-spacing: -0.01em; }
 nav.views { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 14px; }
 nav.views button[aria-current="page"] { background: var(--accent); color: #fff; border-color: var(--accent); }
 code, .mono { font: 0.92em ui-monospace, SFMono-Regular, Menlo, monospace; }
+/* Solver readings and keys inside prose are long runs with no spaces: let them wrap in their card. */
+p .mono { overflow-wrap: anywhere; }
 button, .btn { font: inherit; padding: 7px 13px; border-radius: 8px; border: 1px solid #cfc9bf; background: var(--panel); color: var(--ink); cursor: pointer; min-height: 38px; display: inline-flex; align-items: center; gap: 6px; }
 button:hover, .btn:hover { border-color: #a39d94; }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
