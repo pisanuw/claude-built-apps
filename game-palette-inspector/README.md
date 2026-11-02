@@ -6,6 +6,8 @@ Everything runs in the browser. No accounts, no uploads, no API keys, no trackin
 
 **Live**: [game-palette-inspector.pisan.me](https://game-palette-inspector.pisan.me)
 
+![Loading the Red/green trap palette shows its red and green collapsing under deuteranopia in the header strip and the vision lab, then the confusion report flags the pair and the fix studio proposes a lighter red](demo.gif)
+
 Idea source: [Daily Project Ideas](https://daily-project-ideas.pisan.me/), 2026-06-19, Weekend tier.
 
 ## What it does
