@@ -81,20 +81,23 @@ jobs:
             if printf '%s\n' "$changed" | grep -qxE 'accessibility-lens/deploy/deploy\.mjs|scripts/site-footer\.mjs'; then
               echo "::notice::Deploy runner or site footer changed. Nothing redeploys for that alone; run this workflow manually to ship it."
             fi
+            # Docs, images, the license and an app's own CI file never need a
+            # deploy, so they do not count as source changes below.
+            code_changed=$(printf '%s\n' "$changed" | grep -vE '/(README\.md|LICENSE|demo\.gif|desktop\.png|mobile\.png)$|^[^/]+/\.github/' || true)
             {
               # Only the target.ymls touched by this push, skipping deleted ones.
               for f in $(printf '%s\n' "$changed" | grep -xE '[^/]+/deploy/target\.yml' || true); do
                 [ -f "$f" ] && selected="$selected$f"$'\n'
               done
-              if printf '%s\n' "$changed" | grep -q '^shortcut-sprint/' \
+              if printf '%s\n' "$code_changed" | grep -q '^shortcut-sprint/' \
                 && ! printf '%s\n' "$changed" | grep -qx 'shortcut-sprint/deploy/target.yml'; then
                 selected="$selected"shortcut-sprint/deploy/target.yml$'\n'
               fi
-              if printf '%s\n' "$changed" | grep -q '^code-analogy-forge/' \
+              if printf '%s\n' "$code_changed" | grep -q '^code-analogy-forge/' \
                 && ! printf '%s\n' "$changed" | grep -qx 'code-analogy-forge/deploy/target.yml'; then
                 selected="$selected"code-analogy-forge/deploy/target.yml$'\n'
               fi
-              if printf '%s\n' "$changed" | grep -q '^type-witness/' \
+              if printf '%s\n' "$code_changed" | grep -q '^type-witness/' \
                 && ! printf '%s\n' "$changed" | grep -qx 'type-witness/deploy/target.yml'; then
                 selected="$selected"type-witness/deploy/target.yml$'\n'
               fi

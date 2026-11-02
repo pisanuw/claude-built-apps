@@ -1,36 +1,32 @@
-# Mirror selected apps into their own repos under the pisan-labs org.
+# Mirror apps into their own repos under the pisan-labs org.
 #
 # This monorepo stays the source of truth (CI, deploy, shared footer). Each
-# listed app's folder is split out with `git subtree split`, so the mirror
-# gets that folder at its root with its own history, and pushed to
-# pisan-labs/<app> main. A standalone repo per app is easier to find, star
+# app listed in .github/mirrors.txt is split out with `git subtree split`, so
+# its repo gets that folder at its root with its own history, and pushed to
+# pisan-labs/<repo> main. A standalone repo per app is easier to find, star
 # and fork than one folder among fifty.
 #
-# To mirror another app: create an EMPTY repo pisan-labs/<app> (no README,
-# or the first push is rejected), copy the root LICENSE into the app folder
-# (the split only carries that folder), then add the app to BOTH lists below.
+# A push to main mirrors only the listed apps whose folder changed; a manual
+# run mirrors all of them.
 #
-# Secret MIRROR_TOKEN: a fine-grained token with Contents and Workflows
-# read/write on the mirror repos (Workflows because each app carries its own
-# .github/workflows/ci.yml for the mirror). Without it the job skips.
+# To mirror another app: create an EMPTY repo pisan-labs/<repo> (no README,
+# or the first push is rejected), copy the root LICENSE and an app-level
+# .github/workflows/ci.yml into the app folder (the split only carries that
+# folder), then add a line to .github/mirrors.txt.
+#
+# Secret MIRROR_TOKEN: a fine-grained token, resource owner pisan-labs, with
+# Contents and Workflows read/write on the mirror repos (Workflows because
+# each app carries its own CI file). Without it the job skips.
 name: Mirror apps
 
 on:
   push:
     branches: [main]
-    paths:
-      - 'bombe-bench/**'
-      - 'cache-miss-theater/**'
-      - '.github/workflows/mirror.yml'
   workflow_dispatch:
 
 jobs:
   mirror:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        app: [bombe-bench, cache-miss-theater]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,14 +35,39 @@ jobs:
           # overrides MIRROR_TOKEN in the push URL and is refused by pisan-labs.
           persist-credentials: false
 
-      - name: Split ${{ matrix.app }} and push to pisan-labs/${{ matrix.app }}
+      - name: Split and push changed apps
         env:
-          APP: ${{ matrix.app }}
           TOKEN: ${{ secrets.MIRROR_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
         run: |
           if [ -z "$TOKEN" ]; then
-            echo "::notice::MIRROR_TOKEN is not set; skipping $APP."
+            echo "::notice::MIRROR_TOKEN is not set; skipping."
             exit 0
           fi
-          git subtree split --prefix="$APP" -b mirror
-          git push "https://x-access-token:${TOKEN}@github.com/pisan-labs/${APP}.git" mirror:main
+          changed=""
+          if [ "$EVENT_NAME" = "push" ]; then
+            base=$BEFORE_SHA
+            git cat-file -e "$base" 2>/dev/null || base=$(git rev-parse "$AFTER_SHA^")
+            changed=$(git diff --name-only "$base" "$AFTER_SHA")
+          fi
+          failed=""
+          while read -r app repo; do
+            case "$app" in ''|'#'*) continue ;; esac
+            if [ "$EVENT_NAME" = "push" ] && ! printf '%s\n' "$changed" | grep -q "^$app/" \
+              && ! printf '%s\n' "$changed" | grep -qx '.github/mirrors.txt'; then
+              continue
+            fi
+            echo "::group::$app -> pisan-labs/$repo"
+            git branch -D mirror >/dev/null 2>&1 || true
+            if git subtree split -q --prefix="$app" -b mirror \
+              && git push -q "https://x-access-token:${TOKEN}@github.com/pisan-labs/${repo}.git" mirror:main; then
+              echo "pushed"
+            else
+              echo "::error::Mirroring $app to pisan-labs/$repo failed."
+              failed="$failed $app"
+            fi
+            echo "::endgroup::"
+          done < .github/mirrors.txt
+          [ -z "$failed" ] || { echo "Failed:$failed"; exit 1; }

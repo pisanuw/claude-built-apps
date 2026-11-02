@@ -252,3 +252,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [doc] Demo GIFs (about 15 s, 2.1 MB each) for bombe-bench and cache-miss-theater, in their READMEs and the root "Start here".
 
 2026-11-02 [code] bombe-bench and cache-miss-theater carry their own copy of the MIT LICENSE, so the pisan-labs mirrors are licensed; mirror.yml notes the step.
+
+2026-11-02 [code] Mirroring extended to 50 apps via .github/mirrors.txt (changed apps only per push); each app has LICENSE and its own CI; docs-only app changes no longer deploy. tetromino-arcade left out (trademark).
