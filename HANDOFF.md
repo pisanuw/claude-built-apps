@@ -24,7 +24,7 @@ Done
 
 Remaining
 - [x] Consent Leak Watch on https://consent-leak-watch.pisan.me (Deploy run 41452636626: the runner created the CNAME, set the domain, got the certificate; netlify.app 301s there). Links moved in README, PROJECTS.md, the app README and aiprojects.md.
-- [x] pisan-labs/consent-leak-watch created by the owner (pisan_labs_setup.py, 2026-11-02); mirrored by a manual Mirror apps run
+- [ ] pisan-labs/consent-leak-watch still missing at 14:00 UTC 2026-11-02, although the owner ran pisan_labs_setup.py (the Mac's checkout may predate the CSV row added at 11:03 UTC). Once it exists, run Mirror apps by hand; the 13:28 UTC manual run skipped it
 - [ ] Owner: replace the "Build an idea I choose" task's prompt with the pointer to BUILD_ROUTINE.md (sessions cannot edit tasks created in the web UI: update_trigger refuses "http_api" routines). Until then the old inline prompt runs.
 - [x] Promotion picks (owner, 2026-11-02): Code Viva, Accessibility Lens, Fork Count, MyChessMaster (mychessmaster.net, private repo pisanuw/chess-analyzer). README "Start here" now shows these four plus Bombe Bench and Cache Miss Theater; drafts 3-6 in docs/launch-drafts.md
 - [ ] daily-project-ideas implemented.json: Consent Leak Watch `url` still https://consent-leak-watch.netlify.app (it 301s). Change it to https://consent-leak-watch.pisan.me in the next commit pushed to that repo's main, not on its own: each push there is a Netlify build (owner, 2026-11-02)
