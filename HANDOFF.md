@@ -27,6 +27,7 @@ Remaining
 - [ ] Owner: on the Mac, `git pull && python3 scripts/pisan_labs_setup.py` (creates pisan-labs/consent-leak-watch), then Actions > Mirror apps > Run workflow.
 - [ ] Owner: replace the "Build an idea I choose" task's prompt with the pointer to BUILD_ROUTINE.md (sessions cannot edit tasks created in the web UI: update_trigger refuses "http_api" routines). Until then the old inline prompt runs.
 - [x] Promotion picks (owner, 2026-11-02): Code Viva, Accessibility Lens, Fork Count, MyChessMaster (mychessmaster.net, private repo pisanuw/chess-analyzer). README "Start here" now shows these four plus Bombe Bench and Cache Miss Theater; drafts 3-6 in docs/launch-drafts.md
+- [ ] daily-project-ideas implemented.json: Consent Leak Watch `url` still https://consent-leak-watch.netlify.app (it 301s). Change it to https://consent-leak-watch.pisan.me in the next commit pushed to that repo's main, not on its own: each push there is a Netlify build (owner, 2026-11-02)
 - [ ] Owner posts drafts 3-6 (one at a time, days apart)
 - [ ] Owner turns on Netlify Analytics for the sites listed in CHANGES.md 2026-11-02 (sessions have no Netlify token; cost per site unknown)
 - [x] deploy.mjs creates a new app's CNAME when CLOUDFLARE_API_TOKEN is set, and without it deploys on netlify.app only (no dead redirect); existing records are never changed (cloudflare-dns.mjs, 10 tests in CI)
