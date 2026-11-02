@@ -24,4 +24,6 @@ netlify:
   # Pinning the id skips the listSites lookup and the create-site fallback, so
   # a deploy cannot fail by trying to re-create a name that is already taken.
   siteId: '0d8c047d-9279-403e-8c4a-61d6687f820b'
+  # Primary domain; the CNAME lives in Cloudflare (DNS only).
+  customDomain: cache-miss-theater.pisan.me
   accountSlug: yusuf-pisan

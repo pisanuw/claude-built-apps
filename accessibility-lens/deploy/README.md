@@ -48,6 +48,15 @@ injected here (Render builds server-side), so `mult-streak` runs the same script
 from its own build. Changing `scripts/site-footer.mjs` redeploys every target
 once.
 
+## Custom domain
+
+Set `netlify.customDomain: <app>.pisan.me` in `target.yml` to serve an app
+from pisan.me. The deploy makes it the site's primary domain (Netlify then
+redirects `<siteName>.netlify.app` to it), asks Netlify for the Let's Encrypt
+certificate, and checks the page for up to five minutes while the certificate
+arrives. The DNS side is a CNAME `<app>` -> `<siteName>.netlify.app` in
+Cloudflare, set to DNS only (grey cloud); every app already has one.
+
 ## Try it safely first
 
 The runner has a dry-run mode that prints exactly what it would do and makes no

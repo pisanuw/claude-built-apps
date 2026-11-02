@@ -362,6 +362,7 @@ async function deployNetlify(cfg) {
     accountSlug: n.accountSlug || '(default team)',
     envVarsForwarded: Object.keys(env),
     siteFooter: cfg.footer !== false,
+    customDomain: n.customDomain || '(none)',
   };
   log('Netlify plan:\n' + JSON.stringify(plan, null, 2));
 
@@ -502,18 +503,64 @@ async function deployNetlify(cfg) {
   } catch {
     /* fall back to the conventional site URL */
   }
+  // netlify.customDomain (e.g. bombe-bench.pisan.me) becomes the site's
+  // primary domain, so Netlify redirects the .netlify.app address to it. The
+  // DNS CNAME must already point at <siteName>.netlify.app (DNS only, not
+  // proxied), or Netlify cannot issue the certificate.
+  if (n.customDomain) {
+    await ensureCustomDomain(siteId, n.customDomain);
+    url = `https://${n.customDomain}`;
+  }
   ghNotice(`${cfg.projectName} (netlify): ${url}`);
 
   // Verify the live site actually works (the CI runner can reach it, unlike a
   // local sandbox). Sites with functions get the /api/health JSON check; a
   // static site has no API, so the page itself coming back is the health check.
-  if (functionsDir) await verifyHealth(url, cfg.projectName);
-  else await verifyPage(url, cfg.projectName);
+  // A new custom domain may wait a minute or two for its certificate.
+  const attempts = n.customDomain ? 30 : 4;
+  if (functionsDir) await verifyHealth(url, cfg.projectName, attempts);
+  else await verifyPage(url, cfg.projectName, attempts);
+}
+
+/** Call the Netlify REST API with the deploy token; returns parsed JSON. */
+async function netlifyApi(route, init = {}) {
+  const res = await fetch(`https://api.netlify.com/api/v1${route}`, {
+    ...init,
+    headers: {
+      authorization: `Bearer ${process.env.NETLIFY_AUTH_TOKEN}`,
+      'content-type': 'application/json',
+    },
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`Netlify API ${init.method || 'GET'} ${route} -> HTTP ${res.status}: ${text.slice(0, 300)}`);
+  }
+  return text ? JSON.parse(text) : {};
+}
+
+/** Make `domain` the site's primary custom domain and ask for its certificate. */
+async function ensureCustomDomain(siteId, domain) {
+  const site = await netlifyApi(`/sites/${siteId}`);
+  if (site.custom_domain === domain) {
+    log(`Custom domain already ${domain}.`);
+  } else {
+    log(`Setting custom domain ${domain} (was ${site.custom_domain || 'none'}).`);
+    await netlifyApi(`/sites/${siteId}`, { method: 'PATCH', body: JSON.stringify({ custom_domain: domain }) });
+  }
+  // Netlify provisions the Let's Encrypt certificate on its own once DNS
+  // resolves; asking now saves waiting for its next check. A failure here is
+  // usually "DNS not verified yet", so it is logged, not fatal.
+  try {
+    await netlifyApi(`/sites/${siteId}/ssl`, { method: 'POST' });
+    log(`Requested a TLS certificate for ${domain}.`);
+  } catch (e) {
+    log(`TLS certificate request did not go through yet: ${String(e).slice(0, 300)}`);
+  }
 }
 
 /** Fetch the site root and report the result as an annotation (static sites). */
-async function verifyPage(url, projectName) {
-  for (let attempt = 1; attempt <= 4; attempt++) {
+async function verifyPage(url, projectName, attempts = 4) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
       const res = await fetch(url, { headers: { accept: 'text/html' } });
       const body = (await res.text()).slice(0, 200);
@@ -521,26 +568,26 @@ async function verifyPage(url, projectName) {
         ghNotice(`${projectName} page OK: ${url} -> ${res.status}`);
         return;
       }
-      if (attempt === 4) {
+      if (attempt === attempts) {
         ghError(
           `${projectName} deployed but ${url} returned HTTP ${res.status}. Body started: ${body}`,
         );
         return;
       }
     } catch (e) {
-      if (attempt === 4) {
+      if (attempt === attempts) {
         ghError(`${projectName} page check could not reach ${url}: ${String(e).slice(0, 160)}`);
         return;
       }
     }
-    await new Promise((r) => setTimeout(r, 3000));
+    await new Promise((r) => setTimeout(r, attempts > 4 ? 10000 : 3000));
   }
 }
 
 /** Fetch <url>/api/health and report the result as an annotation. */
-async function verifyHealth(url, projectName) {
+async function verifyHealth(url, projectName, attempts = 4) {
   const target = `${url.replace(/\/$/, '')}/api/health`;
-  for (let attempt = 1; attempt <= 4; attempt++) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
       const res = await fetch(target, { headers: { accept: 'application/json' } });
       const body = (await res.text()).slice(0, 200);
@@ -549,7 +596,7 @@ async function verifyHealth(url, projectName) {
         ghNotice(`${projectName} health OK: ${target} -> ${res.status} ${body}`);
         return;
       }
-      if (attempt === 4) {
+      if (attempt === attempts) {
         ghError(
           `${projectName} deployed but /api/health did not return JSON ` +
             `(HTTP ${res.status}). The serverless function or its routing is not working. ` +
@@ -558,12 +605,12 @@ async function verifyHealth(url, projectName) {
         return;
       }
     } catch (e) {
-      if (attempt === 4) {
+      if (attempt === attempts) {
         ghError(`${projectName} health check could not reach ${target}: ${String(e).slice(0, 160)}`);
         return;
       }
     }
-    await new Promise((r) => setTimeout(r, 3000));
+    await new Promise((r) => setTimeout(r, attempts > 4 ? 10000 : 3000));
   }
 }
 

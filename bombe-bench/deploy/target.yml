@@ -24,4 +24,6 @@ netlify:
   # Pinning the id skips the listSites lookup and the create-site fallback, so
   # a deploy cannot fail by trying to re-create a name that is already taken.
   siteId: 'bbcedb00-47cf-4d4f-bca9-06240995467f'
+  # Primary domain; the CNAME lives in Cloudflare (DNS only).
+  customDomain: bombe-bench.pisan.me
   accountSlug: yusuf-pisan
