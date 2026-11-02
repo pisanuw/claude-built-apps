@@ -9,10 +9,13 @@
 # A push to main mirrors only the listed apps whose folder changed; a manual
 # run mirrors all of them.
 #
-# To mirror another app: create an EMPTY repo pisan-labs/<repo> (no README,
-# or the first push is rejected), copy the root LICENSE and an app-level
+# To mirror another app: copy the root LICENSE and an app-level
 # .github/workflows/ci.yml into the app folder (the split only carries that
-# folder), then add a line to .github/mirrors.txt.
+# folder), add a line to .github/mirrors.txt and a row to
+# scripts/pisan-labs-repos.csv. The owner then runs
+# scripts/pisan_labs_setup.py, which creates the EMPTY repo pisan-labs/<repo>
+# (no README, or the first push is rejected), and runs this workflow by hand.
+# Until the repo exists the app is skipped with a warning, not a failure.
 #
 # Secret MIRROR_TOKEN: a fine-grained token, resource owner pisan-labs, with
 # Contents and Workflows read/write on the mirror repos (Workflows because
@@ -60,9 +63,19 @@ jobs:
               continue
             fi
             echo "::group::$app -> pisan-labs/$repo"
+            url="https://x-access-token:${TOKEN}@github.com/pisan-labs/${repo}.git"
+            # A new app is listed before the owner creates its repo (the token
+            # cannot create repos): skip it with a warning instead of failing.
+            if ! git ls-remote "$url" >/dev/null 2>ls-remote.err; then
+              if grep -qi 'not found' ls-remote.err; then
+                echo "::warning::pisan-labs/$repo does not exist yet; skipping $app. Create it with scripts/pisan_labs_setup.py, then run this workflow by hand."
+                echo "::endgroup::"
+                continue
+              fi
+            fi
             git branch -D mirror >/dev/null 2>&1 || true
             if git subtree split -q --prefix="$app" -b mirror \
-              && git push -q "https://x-access-token:${TOKEN}@github.com/pisan-labs/${repo}.git" mirror:main; then
+              && git push -q "$url" mirror:main; then
               echo "pushed"
             else
               echo "::error::Mirroring $app to pisan-labs/$repo failed."

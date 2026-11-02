@@ -266,3 +266,7 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [doc] HANDOFF.md for the next session; launch drafts saved to docs/launch-drafts.md.
 
 2026-11-02 [decision] emoji-lingua: ANTHROPIC_API_KEY removed from the live site (envRemove); translations use the dictionary engine only.
+
+2026-11-02 [decision] Build routine moved to BUILD_ROUTINE.md: small-business ideas picked first, pisan-labs mirror files per app, first deploy on netlify.app until the owner adds the CNAME.
+
+2026-11-02 [code] mirror.yml skips an app whose pisan-labs repo does not exist yet instead of failing the run.

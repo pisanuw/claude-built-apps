@@ -17,22 +17,28 @@ Done
 - [x] Demo GIFs for 47 apps (none for emoji-lingua, mult-streak-edge, tetromino-arcade)
 - [x] 7 live bugs fixed with regression tests and deployed (cron-cartographer, game-palette-inspector, emoji-lingua, summit-navigator, code-analogy-forge, cipher-ladder, pull-the-pin)
 - [x] accessibility-lens and emoji-lingua: Anthropic key removed from Netlify (envRemove); no live app calls Claude on the owner's key
+- [x] pisan-labs mirror CI: all green (owner checked, 2026-11-02)
+- [x] Ideas routine (daily-project-ideas ROUTINE.md, b0ba780): small business first; 4 of 7 lenses, 5+ small-business candidates per run, day floor is one small-business idea (validator enforces)
+- [x] Build routine rewritten in BUILD_ROUTINE.md: small-business pick order, pisan-labs mirror files, deploy via target.yml on netlify.app first, owner actions for DNS and repo creation
+- [x] mirror.yml skips an app whose pisan-labs repo does not exist yet (warning, not failure)
 
 Remaining
-- [ ] Check pisan-labs mirror CI results (this session could not read those repos' Actions; owner was asked to glance)
+- [ ] Owner: replace the "Build an idea I choose" task's prompt with the pointer to BUILD_ROUTINE.md (sessions cannot edit tasks created in the web UI: update_trigger refuses "http_api" routines). Until then the old inline prompt runs.
+- [ ] Recommend which apps to promote next from pisan-analytics.netlify.app (Basic auth; this session has no password, waiting on the owner)
+- [ ] Optional: a Cloudflare API token (pisan.me, DNS edit) as a repo secret so deploy.mjs can create a new app's CNAME itself; until then the owner adds it by hand
 - [ ] Owner posts the launch drafts in docs/launch-drafts.md (Show HN: Bombe Bench; SIGCSE email: Cache Miss Theater)
 - [ ] Optional small bugs listed under Constraints
 
 ## 3. Current state
 
-- claude-built-apps: branch `claude/beautiful-shannon-9m7sw7` = `main` at 6d2f973 (before this handoff commit). Clean tree.
-- daily-project-ideas: `main` 3673627, clean. pisanorg/yusuf: `master` ab97a18, clean.
+- claude-built-apps: `main` and `claude/intelligent-ptolemy-533qe5` carry this session's commits (see git log). Clean tree.
+- daily-project-ideas: `main` b0ba780 (small-business routine), clean. pisanorg/yusuf: `master` ab97a18, clean.
 - Last full deploy run 41416184263: 52/52 jobs success. Mirror run: success.
 - Handoff written 2026-11-02 about 10:30 CET.
 
 ## 4. Next step
 
-Ask the owner whether the pisan-labs repos' Actions tabs show green CI; fix any red one in the monorepo app folder (its `.github/workflows/ci.yml`), never in the mirror.
+Get the analytics (password or exported numbers) and recommend which apps to promote after Bombe Bench and Cache Miss Theater. Then check the first run of each changed routine: the ideas run's small-business count and validator result, and whether the build run followed BUILD_ROUTINE.md (only once the owner has swapped the task's prompt).
 
 ## 5. Decisions and why
 
@@ -45,6 +51,10 @@ Ask the owner whether the pisan-labs repos' Actions tabs show green CI; fix any 
 - game-palette-inspector suggests a fix only if it adds no confusion under any of 8 vision types; the Red/green trap preset therefore shows "no safe fix" (owner told; strict rule kept).
 - Ideas site keeps the name "Daily Project Ideas" (search terms), tagline does the pitch.
 - Footer links to pisanorg.github.io/yusuf/aiprojects.html (owner's choice), URL not renamed.
+- Small business first for new ideas and builds (owner, 2026-11-02). The ideas floor moved from one EdTech idea to one small-business idea.
+- The build routine lives in BUILD_ROUTINE.md, read by the task, so it is versioned and editable from any session (the task itself can only be edited by the owner).
+- A new app deploys on <slug>.netlify.app first; customDomain is set only after the owner adds the CNAME, because setting it earlier 301s the working address to a dead one.
+- pisan-labs: CI is checked only when the owner messages; a repo is attached to a session only when it gets an issue or PR.
 
 ## 6. Tried and rejected
 
@@ -94,5 +104,5 @@ None running from this session. Recurring jobs owned elsewhere: daily-project-id
 
 ## 11. Open questions
 
-1. Are the 50 pisan-labs CI runs green? I don't know.
-2. Which apps to promote next after Bombe Bench and Cache Miss Theater, and whether to steer new builds toward small-business tools (the catalog has none yet).
+1. Which apps to promote next after Bombe Bench and Cache Miss Theater? Owner asked for a recommendation from pisan-analytics.netlify.app, which needs its password.
+2. Add a Cloudflare DNS token so new apps get <slug>.pisan.me without a manual step?
