@@ -53,7 +53,7 @@ Yusuf Pisan
 </td>
 <td width="50%" valign="top">
 <a href="https://mychessmaster.net/"><img src="docs/images/mychessmaster-report.png" alt="MyChessMaster: a sample player's report with accuracy, critical moments per game, and the three error types to drill first"></a>
-<p><b><a href="https://mychessmaster.net/">MyChessMaster</a></b>: a chess coach for tournament players: Stockfish finds where each game went wrong, a coach model explains why, and the mistakes become prep sheets and spaced-repetition drills. Built with Claude Code for a serious club player; its code is in a private repo.</p>
+<p><b><a href="https://mychessmaster.net/">MyChessMaster</a></b>: a chess coach for tournament players: Stockfish finds where each game went wrong, a coach model explains why, and the mistakes become prep sheets and spaced-repetition drills. Built with Claude Code for tournament players preparing for a specific opponent; its code is in a private repo.</p>
 </td>
 </tr>
 </table>

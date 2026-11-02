@@ -29,7 +29,8 @@ Remaining
 - [x] Promotion picks (owner, 2026-11-02): Code Viva, Accessibility Lens, Fork Count, MyChessMaster (mychessmaster.net, private repo pisanuw/chess-analyzer). README "Start here" now shows these four plus Bombe Bench and Cache Miss Theater; drafts 3-6 in docs/launch-drafts.md
 - [ ] Owner posts drafts 3-6 (one at a time, days apart)
 - [ ] Owner turns on Netlify Analytics for the sites listed in CHANGES.md 2026-11-02 (sessions have no Netlify token; cost per site unknown)
-- [ ] Optional: a Cloudflare API token (pisan.me, DNS edit) as a repo secret so deploy.mjs can create a new app's CNAME itself; until then the owner adds it by hand
+- [x] deploy.mjs creates a new app's CNAME when CLOUDFLARE_API_TOKEN is set, and without it deploys on netlify.app only (no dead redirect); existing records are never changed (cloudflare-dns.mjs, 10 tests in CI)
+- [ ] Owner: create the Cloudflare token and add repo secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ZONE_ID (steps in CHANGES.md 2026-11-02)
 - [ ] Owner posts the launch drafts in docs/launch-drafts.md (Show HN: Bombe Bench; SIGCSE email: Cache Miss Theater)
 - [ ] Optional small bugs listed under Constraints
 
@@ -57,7 +58,7 @@ Check the first run of each changed routine: the ideas run's small-business coun
 - Footer links to pisanorg.github.io/yusuf/aiprojects.html (owner's choice), URL not renamed.
 - Small business first for new ideas and builds (owner, 2026-11-02). The ideas floor moved from one EdTech idea to one small-business idea.
 - The build routine lives in BUILD_ROUTINE.md, read by the task, so it is versioned and editable from any session (the task itself can only be edited by the owner).
-- A new app deploys on <slug>.netlify.app first; customDomain is set only after the owner adds the CNAME, because setting it earlier 301s the working address to a dead one.
+- New apps set customDomain from the start; the runner uses it only once DNS answers (creating the CNAME with the Cloudflare token), because a custom domain without a record 301s the working netlify.app address to a dead one.
 - pisan-labs: CI is checked only when the owner messages; a repo is attached to a session only when it gets an issue or PR.
 
 ## 6. Tried and rejected
@@ -108,4 +109,4 @@ None running from this session. Recurring jobs owned elsewhere: daily-project-id
 
 ## 11. Open questions
 
-1. Add a Cloudflare DNS token so new apps get <slug>.pisan.me without a manual step?
+1. None open; see Remaining for owner actions.

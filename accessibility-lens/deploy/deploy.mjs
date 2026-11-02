@@ -11,6 +11,8 @@
  * the environment only:
  *   - Render:  RENDER_API_KEY
  *   - Netlify: NETLIFY_AUTH_TOKEN
+ *   - Custom domains: CLOUDFLARE_API_TOKEN (optional, DNS edit on the zone)
+ *     and CLOUDFLARE_ZONE_ID (optional); see cloudflare-dns.mjs
  *
  * Usage:
  *   node deploy.mjs                 # real deploy
@@ -25,6 +27,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { injectFooterIntoDir } from '../../scripts/site-footer.mjs';
+import { ensureDomainDns } from './cloudflare-dns.mjs';
 
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
@@ -436,6 +439,23 @@ async function deployNetlify(cfg) {
     log(`Created site ${siteId}.`);
   }
 
+  // A custom domain is used only once its DNS record exists (created here when
+  // CLOUDFLARE_API_TOKEN is set): the redirect rule below would otherwise send
+  // the working .netlify.app address to a name that does not resolve.
+  let customDomain = n.customDomain || '';
+  if (customDomain) {
+    try {
+      const dns = await ensureDomainDns({ domain: customDomain, target: `${siteName}.netlify.app` });
+      if (dns.warning || !dns.ready) ghNotice(`warning: ${cfg.projectName}: ${dns.message}`);
+      else log(dns.message);
+      if (!dns.ready) customDomain = '';
+    } catch (e) {
+      // A DNS or Cloudflare API failure keeps the domain, as before this check
+      // existed: every app deployed so far already has its record.
+      ghNotice(`warning: ${cfg.projectName}: DNS check failed, using ${customDomain} anyway: ${String(e).slice(0, 200)}`);
+    }
+  }
+
   // The Netlify CLI refuses to run inside an npm workspaces root ("Projects
   // detected: @accessibility-lens/server, ..."). Run all site-scoped commands
   // from a clean staging directory with no package.json and a self-contained
@@ -462,9 +482,9 @@ async function deployNetlify(cfg) {
   // links and search engines end up on one URL. Netlify serves the default
   // subdomain alongside the primary domain unless a rule says otherwise. The
   // rule goes first in _redirects because the first matching rule wins.
-  if (n.customDomain) {
+  if (customDomain) {
     const file = path.join(publishDir, '_redirects');
-    const rule = `https://${siteName}.netlify.app/* https://${n.customDomain}/:splat 301!`;
+    const rule = `https://${siteName}.netlify.app/* https://${customDomain}/:splat 301!`;
     // Runs after the SPA fallback above is written, which replaces the file.
     const existing = existsSync(file) ? readFileSync(file, 'utf8') : '';
     if (!existing.includes(rule)) writeFileSync(file, `${rule}\n${existing}`);
@@ -527,11 +547,11 @@ async function deployNetlify(cfg) {
   }
   // netlify.customDomain (e.g. bombe-bench.pisan.me) becomes the site's
   // primary domain, so Netlify redirects the .netlify.app address to it. The
-  // DNS CNAME must already point at <siteName>.netlify.app (DNS only, not
+  // DNS CNAME must point at <siteName>.netlify.app (DNS only, not
   // proxied), or Netlify cannot issue the certificate.
-  if (n.customDomain) {
-    await ensureCustomDomain(siteId, n.customDomain);
-    url = `https://${n.customDomain}`;
+  if (customDomain) {
+    await ensureCustomDomain(siteId, customDomain);
+    url = `https://${customDomain}`;
   }
   ghNotice(`${cfg.projectName} (netlify): ${url}`);
 
@@ -539,7 +559,7 @@ async function deployNetlify(cfg) {
   // local sandbox). Sites with functions get the /api/health JSON check; a
   // static site has no API, so the page itself coming back is the health check.
   // A new custom domain may wait a minute or two for its certificate.
-  const attempts = n.customDomain ? 30 : 4;
+  const attempts = customDomain ? 30 : 4;
   if (functionsDir) await verifyHealth(url, cfg.projectName, attempts);
   else await verifyPage(url, cfg.projectName, attempts);
 }

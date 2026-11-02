@@ -278,3 +278,7 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [decision] Promote next: Code Viva, Accessibility Lens, Fork Count, MyChessMaster (owner). README Start here shows six apps; launch drafts 3-6 added.
 
 2026-11-02 [note] Netlify Analytics off on: accessibility-lens-pisanuw, mult-streak-edge-pisan, data-structure-city, gpu-parallel-puzzler, modulo-bias-microscope, poincare-paint, tamerlane-board, tiny-brains-league, consent-leak-watch.
+
+2026-11-02 [code] Deploy runner checks a custom domain's DNS first: creates the CNAME with CLOUDFLARE_API_TOKEN (DNS only, never edits an existing record), else stays on netlify.app with a warning.
+
+2026-11-02 [doc] Cloudflare token: My Profile > API Tokens > Create Token > "Edit zone DNS" template, zone pisan.me; repo secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ZONE_ID (zone Overview page).

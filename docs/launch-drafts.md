@@ -141,7 +141,7 @@ Sections 3 to 6 were added on 2026-11-02 for the next round (picked from the 30-
 
 **Post:**
 
-    MyChessMaster (https://mychessmaster.net) helps tournament players learn from their own games.
+    MyChessMaster (https://mychessmaster.net) is for chess players who play in tournaments and want to prepare for a specific opponent.
 
     Stockfish finds the moments where a game went wrong. A coach model explains each one in plain chess terms, using only the engine's lines, so it does not invent variations. The mistakes then become spaced-repetition drills from your own games, and an opponent's games become a prep sheet and a deck of positions to punish them with before the round.
 
@@ -149,7 +149,7 @@ Sections 3 to 6 were added on 2026-11-02 for the next round (picked from the 30-
 
     Built with Claude Code. I am happy to hear what a stronger player thinks it gets wrong.
 
-**Before posting:** add one sentence of your own about who it was built for, if you want to share that; I left it out. Check that membership requests are being answered before you send people to "Become a member".
+**Before posting:** check that membership requests are being answered before you send people to "Become a member".
 
 ---
 

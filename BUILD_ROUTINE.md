@@ -82,18 +82,19 @@ pisan-labs GitHub org, so people can find, star and fork it.
 
 5. DEPLOY. Deploys run from GitHub Actions: a push to main deploys every
    target whose deploy/target.yml changed. Do not deploy with a connector.
-   Netlify: in target.yml set provider netlify, netlify.siteName <slug> and
-   accountSlug yusuf-pisan, and leave customDomain out on the first deploy:
-   <slug>.pisan.me has no DNS record yet and no session can create one (no
-   Cloudflare token), and setting customDomain before the record exists
-   redirects the working netlify.app address to a dead one. Render backends
-   go into backend-hub when possible. Verify https://<slug>.netlify.app
-   returns 200, renders the app, and carries the footer
-   (`curl -s https://<slug>.netlify.app/ | grep -c "Want something like this"`).
-   Each Netlify deploy costs credits: do not redeploy other apps.
+   Netlify: in target.yml set provider netlify, netlify.siteName <slug>,
+   accountSlug yusuf-pisan and customDomain <slug>.pisan.me. The deploy
+   runner creates the Cloudflare CNAME itself when the CLOUDFLARE_API_TOKEN
+   secret is set; without it (or if creating fails) it deploys on
+   <slug>.netlify.app only and says so in a "warning:" annotation. Read the
+   Deploy run's annotations to learn which happened, and use that address
+   (LIVE_URL below) from here on. Render backends go into backend-hub when
+   possible. Verify LIVE_URL returns 200, renders the app, and carries the
+   footer (`curl -s LIVE_URL | grep -c "Want something like this"`). Each
+   Netlify deploy costs credits: do not redeploy other apps.
 
 6. MARK IMPLEMENTED. In implemented.json: remove "placeholder", set url
-   (https://<slug>.netlify.app for now), repo
+   (LIVE_URL), repo
    (https://github.com/pisanuw/claude-built-apps/tree/main/<slug>),
    implementedOn, and a one-paragraph notes. Update CHANGES.md in both
    repos. Commit and push.
@@ -105,15 +106,15 @@ pisan-labs GitHub org, so people can find, star and fork it.
    table of contents and the project count. Commit and push.
 
 8. OWNER ACTIONS. End the run with a short message to the owner listing,
-   with exact copy-paste steps, the two things only they can do:
-   a. Cloudflare DNS for pisan.me: add CNAME `<slug>` -> `<slug>.netlify.app`,
-      DNS only (grey cloud).
+   with exact copy-paste steps, what only they can do:
+   a. Only if the deploy stayed on netlify.app: Cloudflare DNS for pisan.me,
+      add CNAME `<slug>` -> `<slug>.netlify.app`, DNS only (grey cloud).
    b. On the Mac, in claude-built-apps: `git pull && python3
       scripts/pisan_labs_setup.py`, which creates the empty
       pisan-labs/<slug> repo; then Actions > Mirror apps > Run workflow.
-   Also say that once (a) is done, the next session sets customDomain
-   <slug>.pisan.me in target.yml and moves the links in README,
-   implemented.json and aiprojects.md to it. Record both pending actions in
+   If (a) applies, say that once it is done, any session re-runs the deploy
+   for <slug> and moves the links in README, implemented.json and
+   aiprojects.md to https://<slug>.pisan.me. Record the pending actions in
    claude-built-apps/HANDOFF.md under Remaining.
 
 Success: live site verified, ideas page shows the project as Implemented,
