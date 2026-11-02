@@ -260,3 +260,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [doc] scripts/pisan-labs-repos.csv: description, website and topics for all 50 pisan-labs repos; scripts/pisan_labs_setup.py applies it with gh.
 
 2026-11-02 [decision] accessibility-lens: ANTHROPIC_API_KEY removed from the live site (envRemove in target.yml); every scan was sending issues to Claude on the owner key. Rule-based fixes only.
+
+2026-11-02 [doc] Footer wording revised by the owner: "I create tools like this ... Want something like this for your own work?". All sites redeployed once to carry it.
