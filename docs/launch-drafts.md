@@ -1,6 +1,7 @@
 # Launch drafts
 
-Two posts, written to sound like you. Edit freely; nothing has been posted.
+Six posts, written to sound like you. Edit freely; nothing has been posted.
+Sections 3 to 6 were added on 2026-11-02 for the next round (picked from the 30-day analytics).
 
 ---
 
@@ -72,8 +73,88 @@ Two posts, written to sound like you. Edit freely; nothing has been posted.
 
 ---
 
+## 3. Small businesses: Accessibility Lens
+
+**Where:** LinkedIn first. The same text works as a note to a local business association or chamber newsletter, if you know someone who edits one.
+
+**Post:**
+
+    Is your website usable by someone who cannot see it?
+
+    Accessibility Lens (https://accessibility-lens.pisan.me) takes the address of a public page and runs eleven WCAG 2.1 checks on it: missing alt text, unlabelled form fields, empty links, heading order and so on. Then it replays the page the way four groups of visitors get it: as the linear stream a screen reader reads out, blurred for low vision, filtered for color blindness, and keyboard only. Every problem comes with a suggested fix.
+
+    Free, no sign-up. It is not a full audit (it reads the HTML your server sends, so anything added later by JavaScript is invisible to it), but it is a quick way to find the obvious problems before a customer does.
+
+    Claude Code wrote it; I set the rules and reviewed it. If you run a small business and want a tool like this built for your own site or workflow, email builder@pisan.me.
+
+**Have ready:** "Does this make my site ADA compliant?" Nope. Say it finds common problems and is a starting point, not a legal opinion.
+
+---
+
+## 4. Instructors: Code Viva
+
+**Where:** the SIGCSE members list, at least a week after the Cache Miss Theater email. Your LinkedIn post already brought about 450 visits, so a short follow-up there ("what I learned from the first N instructors who tried it") is worth it once you have something to say.
+
+**Subject:**
+
+    Short written orals on each student's own code (free tool)
+
+**Body:**
+
+    Hi all,
+
+    If you ever wonder how much of a submitted assignment the student actually understands, this may help.
+
+    Code Viva (https://code-viva.pisan.me) imports a Gradescope or Canvas export or a GitHub Classroom assignment, reads each student's code and commit history, and writes 4 to 6 questions anchored to *their* functions, guards and odd commits. Students answer in a timed text session from a personal link, with up to two follow-ups when an answer is vague. You get transcripts with proposed rubric scores and a flag queue, so TA time goes to the few students who need a real conversation.
+
+    No LLM: questions come from templates over a source analyser, so they are less fluent than a chatbot's but cannot invent code the student never wrote. Extended time for accommodations is built in.
+
+    Limits: response codes are not signed, so a determined student could edit their own transcript before sending it.
+
+    Claude Code wrote it; I set the requirements and reviewed it. Source (MIT): https://github.com/pisan-labs/code-viva
+
+    If you try it, I would like to hear what breaks.
+
+    Yusuf Pisan
+
+---
+
+## 5. Instructors: Fork Count
+
+**Where:** a short follow-up to the OS and systems people, or LinkedIn. Pairs well with Cache Miss Theater; post a few days apart.
+
+**Post:**
+
+    "How many times is hello printed?" is on nearly every operating systems exam, and most students guess.
+
+    Fork Count (https://fork-count.pisan.me) takes a short C snippet with fork, wait, exit, printf and pipes, runs every process it creates, draws the process tree and lists every output the scheduler could produce (stdio buffers copied at fork included). Type an output and it tells you whether some schedule prints it; if not, it names the happens-before edge that rules it out. Forgotten close() deadlocks show up too. A generator makes new exam questions whose answers are checked against every schedule.
+
+    Free, runs in the browser. Source (MIT): https://github.com/pisan-labs/fork-count
+
+    Built by Claude Code, reviewed by me. Students: no, it will not do the exam for you. It will show you why your answer was wrong. :-)
+
+---
+
+## 6. Chess players: MyChessMaster
+
+**Where:** your chess club's newsletter or mailing list, a scholastic chess parents' group, or LinkedIn. Check the forum's rules on self-promotion before posting anywhere else.
+
+**Post:**
+
+    MyChessMaster (https://mychessmaster.net) helps tournament players learn from their own games.
+
+    Stockfish finds the moments where a game went wrong. A coach model explains each one in plain chess terms, using only the engine's lines, so it does not invent variations. The mistakes then become spaced-repetition drills from your own games, and an opponent's games become a prep sheet and a deck of positions to punish them with before the round.
+
+    You can look around without signing in: there is a sample player with a full report, drills and a prep sheet. Members get the same for their own games.
+
+    Built with Claude Code. I am happy to hear what a stronger player thinks it gets wrong.
+
+**Before posting:** add one sentence of your own about who it was built for, if you want to share that; I left it out. Check that membership requests are being answered before you send people to "Become a member".
+
+---
+
 ## Before you post
 
-- Both links and both GIFs are live, and the pisan-labs repos now carry the MIT license.
+- Every link above was live on 2026-11-02, and the pisan-labs repos carry the MIT license (MyChessMaster's code is private, so its post has no source link).
 - Add a sentence of your own to either post if you have one: why you wanted the tool, or a course where you would use it. I left that out rather than invent it.
 - Post one at a time, a few days apart, so you can answer comments on each.

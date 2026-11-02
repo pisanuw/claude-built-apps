@@ -28,12 +28,32 @@ Yusuf Pisan
 <table>
 <tr>
 <td width="50%" valign="top">
+<a href="https://accessibility-lens.pisan.me/"><img src="accessibility-lens/demo.gif" alt="Accessibility Lens: scanning the W3C's deliberately inaccessible demo page scores 0, then the page is replayed as a screen reader's linear stream, a blurred low-vision view and a color-blindness filter"></a>
+<p><b><a href="https://accessibility-lens.pisan.me/">Accessibility Lens</a></b>: paste your website's address and see what blind, low-vision, color-blind and keyboard-only visitors get, with a suggested fix for each problem. For small businesses that want to know where their site stands before a customer tells them. <a href="./accessibility-lens">Code</a></p>
+</td>
+<td width="50%" valign="top">
+<a href="https://code-viva.pisan.me/"><img src="code-viva/demo.gif" alt="Code Viva: the review tab of the demo course puts the student with an unexplained commit and pasted answers at the top of the flag queue"></a>
+<p><b><a href="https://code-viva.pisan.me/">Code Viva</a></b>: short written orals on each student's own code: questions anchored to their functions and commits, with a flag queue so TA time goes to the few who need a conversation. <a href="./code-viva">Code</a></p>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
 <a href="https://bombe-bench.pisan.me/"><img src="bombe-bench/demo.gif" alt="Bombe Bench: typing on the Enigma lights each signal path, then the Bombe breaks the message from a crib"></a>
 <p><b><a href="https://bombe-bench.pisan.me/">Bombe Bench</a></b>: an Enigma you can open up, and a working Turing-Welchman Bombe that breaks messages from a crib. <a href="./bombe-bench">Code</a></p>
 </td>
 <td width="50%" valign="top">
 <a href="https://cache-miss-theater.pisan.me/"><img src="cache-miss-theater/demo.gif" alt="Cache Miss Theater: row order hits three reads in four, column order crowds four cache sets and every read misses"></a>
 <p><b><a href="https://cache-miss-theater.pisan.me/">Cache Miss Theater</a></b>: write a C loop nest and watch every access go through a cache you configure, with each miss labelled compulsory, capacity or conflict. <a href="./cache-miss-theater">Code</a></p>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<a href="https://fork-count.pisan.me/"><img src="fork-count/demo.gif" alt="Fork Count: the loop-counter example shows 4 processes and 3 possible outputs, and an impossible output is rejected with the edges that rule it out"></a>
+<p><b><a href="https://fork-count.pisan.me/">Fork Count</a></b>: paste a fork/wait/pipe snippet and see every process, every output the scheduler could produce, and why the others are impossible. <a href="./fork-count">Code</a></p>
+</td>
+<td width="50%" valign="top">
+<a href="https://mychessmaster.net/"><img src="docs/images/mychessmaster-report.png" alt="MyChessMaster: a sample player's report with accuracy, critical moments per game, and the three error types to drill first"></a>
+<p><b><a href="https://mychessmaster.net/">MyChessMaster</a></b>: a chess coach for tournament players: Stockfish finds where each game went wrong, a coach model explains why, and the mistakes become prep sheets and spaced-repetition drills. Built with Claude Code for a serious club player; its code is in a private repo.</p>
 </td>
 </tr>
 </table>
