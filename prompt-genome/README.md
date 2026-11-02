@@ -3,6 +3,8 @@
 Paste any AI prompt and see it as a DNA strand of typed genes. Edit, lint,
 mutate, and reassemble it, then keep the genes worth reusing.
 
+![Loading the code-review example splits it into colour-coded role, context, task, constraint, format and persona genes, then the constraint's Make it checkable mutation is previewed and applied](demo.gif)
+
 - **Live site:** https://prompt-genome.pisan.me
 - **Source:** https://github.com/pisanuw/Claude-capstone/tree/main/prompt-genome
 - **Host:** Netlify (static site; no backend).

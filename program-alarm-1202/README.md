@@ -12,6 +12,8 @@ design: one that halts on overflow and a naive round-robin one.
 
 Live: [program-alarm-1202.pisan.me](https://program-alarm-1202.pisan.me)
 
+![Playing the descent at 16x on the AGC Executive with 15% radar steal: core sets fill, five 1202 alarms and restarts fire, and guidance still lands at 1.0 m/s with no missed deadlines](demo.gif)
+
 Built as a tribute to Margaret Hamilton, who led the MIT team that wrote the
 Apollo on-board flight software.
 

@@ -4,6 +4,8 @@ Draw a grid map, then watch A*, Dijkstra, BFS, DFS, and Greedy best-first think,
 
 **Live:** https://pathfinding-playground.pisan.me
 
+![Sprinkling mud on an open map and running BFS against Dijkstra side by side: BFS takes the 17-step path through the mud at cost 21, Dijkstra detours to a 19-step path at cost 19](demo.gif)
+
 ![A* finding a route through a maze](docs/screenshot.png)
 
 Weekend idea 2026-07-26 from [Daily Project Ideas](https://daily-project-ideas.pisan.me/). The idea suggested Claude API calls for the narration. I skipped that: every line is a template filled with the g, h, and f values the algorithm just computed, so narration is free, instant, deterministic, and works offline. The explanation always matches what the algorithm actually did, which an LLM cannot promise.

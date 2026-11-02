@@ -8,6 +8,8 @@ to be as central as any other.
 
 Live: [poincare-paint.pisan.me](https://poincare-paint.pisan.me)
 
+![Drawing a blue curl and a red wave in a {7,3} tiling copies each stroke into every tile, then dragging with the Move tool slides the whole pattern across the disk](demo.gif)
+
 Built from idea 2026-10-10 n1 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).
 Everything runs in the browser; there is no backend.

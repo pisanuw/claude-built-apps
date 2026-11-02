@@ -8,6 +8,8 @@ the time. Most people drift to 60-70% within 100 presses.
 
 Live: [outguess-me.pisan.me](https://outguess-me.pisan.me)
 
+![Fifty F/J presses against the 6-gram oracle, each guess sealed with a SHA-256 hash, ending at 70% for the oracle and a breakdown that finds the presses over-alternate](demo.gif)
+
 A take on Scott Aaronson's classic "oracle" demo, prompted by the
 "Show HN: How random are you?" thread (October 2026).
 

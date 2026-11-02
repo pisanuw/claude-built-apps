@@ -9,6 +9,8 @@ students rewrite the loop filter and hear the result immediately.
 
 Live: [pluck-lab.pisan.me](https://pluck-lab.pisan.me)
 
+![Strumming a G chord, then switching to 256 samples per frame and plucking the A string: the delay line's noise smooths into a waveform and the high harmonics die away trip by trip](demo.gif)
+
 Built from idea 2026-10-16 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas),
 inspired by Guitoro (a sample-based keyboard guitar on Show HN). Pluck Lab
