@@ -1,0 +1,27 @@
+# Read-only check that the Cloudflare secrets work, without deploying anything
+# (every Netlify deploy costs credits). Verifies the token and reads one
+# existing app's DNS record through the same code the deploy runner uses.
+name: Check Cloudflare token
+
+on:
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: 'An existing app domain to read (nothing is written)'
+        required: false
+        default: 'bombe-bench.pisan.me'
+        type: string
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check
+        run: node accessibility-lens/deploy/check-cloudflare.mjs "${{ inputs.domain }}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
