@@ -143,6 +143,8 @@ header.hero p {
   padding: 0.15rem 0.5rem;
   color: var(--accent-2);
   font-size: 0.95rem;
+  /* RRULEs have no spaces; let them break at narrow widths. */
+  overflow-wrap: anywhere;
 }
 
 .copy-btn {

@@ -98,7 +98,19 @@ export function interpretInput(raw: string): Interpreted | InterpretFailure {
     // Fall through to natural language, but keep the cron error around: if
     // the input clearly wanted to be cron, that error is the useful one.
     const nl = naturalLanguageToCron(text);
-    if (nl !== null) {
+    if (nl !== null && nl.rrule !== null) {
+      // Phrases like "the last Friday of the month" that cron cannot say.
+      const schedule = parseRRule(nl.rrule);
+      return {
+        ok: true,
+        kind: 'natural-language',
+        schedule,
+        cron: null,
+        description: describeRRule(schedule),
+        notes: nl.notes,
+      };
+    }
+    if (nl !== null && nl.cron !== null) {
       try {
         const schedule = parseCron(nl.cron);
         return {

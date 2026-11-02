@@ -6,7 +6,13 @@
  */
 
 export interface NlResult {
-  cron: string;
+  /** Five-field cron, or null when only an RRULE can say it exactly. */
+  cron: string | null;
+  /**
+   * An RRULE for schedules cron cannot express, such as "the last Friday
+   * of the month" (set exactly when `cron` is null).
+   */
+  rrule: string | null;
   /** Assumptions the converter made, e.g. "assumed midnight". */
   notes: string[];
 }
@@ -20,6 +26,25 @@ const DOW: Record<string, number> = {
   friday: 5, fri: 5,
   saturday: 6, sat: 6,
 };
+
+const DOW_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const BYDAY_CODE = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+
+/** "first" .. "fifth" and "last" as RRULE BYDAY ordinals. */
+const ORDINALS: Record<string, number> = {
+  first: 1, '1st': 1, second: 2, '2nd': 2, third: 3, '3rd': 3,
+  fourth: 4, '4th': 4, fifth: 5, '5th': 5, last: -1,
+  'second to last': -2, 'next to last': -2, penultimate: -2,
+};
+const ORDINAL_WORDS: Record<number, string> = {
+  1: 'first', 2: 'second', 3: 'third', 4: 'fourth', 5: 'fifth', [-1]: 'last', [-2]: 'second-to-last',
+};
+const ORDINAL_RE_SRC = '(second[- ]to[- ]last|next[- ]to[- ]last|penultimate|first|second|third|fourth|fifth|last|1st|2nd|3rd|4th|5th)';
+
+interface OrdinalWeekday {
+  weekday: number;
+  ordinal: number;
+}
 
 const MONTHS: Record<string, number> = {
   january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3, april: 4, apr: 4,
@@ -51,11 +76,27 @@ function compressList(values: number[]): string {
   return [...new Set(values)].sort((a, b) => a - b).join(',');
 }
 
-/** Convert phrases like "every weekday at 4:15am" to a cron expression. */
+/**
+ * Convert phrases like "every weekday at 4:15am" to a cron expression, or
+ * to an RRULE for "the last Friday of the month"-style phrases, which cron
+ * cannot express (it ORs day-of-month with day-of-week).
+ */
 export function naturalLanguageToCron(input: string): NlResult | null {
-  const text = ` ${input.toLowerCase().replace(/[.!?]/g, ' ').replace(/\s+/g, ' ').trim()} `;
+  let text = ` ${input.toLowerCase().replace(/[.!?]/g, ' ').replace(/\s+/g, ' ').trim()} `;
   if (text.trim().length === 0) return null;
   const notes: string[] = [];
+
+  // --- ordinal weekdays ("the last friday") ------------------------------
+  // "the last weekday" would need BYSETPOS; refuse rather than drop "last".
+  if (new RegExp(`\\b${ORDINAL_RE_SRC}\\s+(?:week ?days?|business days?|working days?|weekend days?)\\b`).test(text)) {
+    return null;
+  }
+  const ordinalDays: OrdinalWeekday[] = [];
+  const ordRe = new RegExp(`\\b${ORDINAL_RE_SRC}\\s+(${Object.keys(DOW).join('|')})s?\\b`, 'g');
+  text = text.replace(ordRe, (_m, ord: string, day: string) => {
+    ordinalDays.push({ weekday: DOW[day], ordinal: ORDINALS[ord.replace(/-/g, ' ')] });
+    return ' ';
+  });
 
   // --- times of day -------------------------------------------------------
   const times: TimeOfDay[] = [];
@@ -105,7 +146,7 @@ export function naturalLanguageToCron(input: string): NlResult | null {
   }
   if (/\bevery quarter\b|\bquarterly\b/.test(text)) {
     [1, 4, 7, 10].forEach((m) => monthsSet.add(m));
-    if (doms.length === 0) {
+    if (doms.length === 0 && ordinalDays.length === 0) {
       doms.push(1);
       notes.push('quarterly runs on the 1st of Jan/Apr/Jul/Oct');
     }
@@ -154,6 +195,26 @@ export function naturalLanguageToCron(input: string): NlResult | null {
       minuteField = String(list[0].minute);
       hourField = String(list[0].hour);
     }
+  }
+
+  if (ordinalDays.length > 0) {
+    return ordinalWeekdayRRule(ordinalDays, {
+      minuteField,
+      hourField,
+      months: [...monthsSet],
+      monthInterval: intervalUnit === 'month' ? (intervalN as number) : 1,
+      // Anything else would need a day filter RRULE cannot combine exactly.
+      conflict:
+        doms.length > 0 ||
+        dows.size > 0 ||
+        sawWeekday ||
+        sawWeekend ||
+        (intervalN !== null && intervalUnit !== 'month') ||
+        hourly ||
+        everyMinute ||
+        (yearly && monthsSet.size === 0),
+      notes,
+    });
   }
 
   if (intervalN !== null && intervalUnit === 'minute') {
@@ -221,5 +282,40 @@ export function naturalLanguageToCron(input: string): NlResult | null {
     }
   }
 
-  return { cron: `${minuteField} ${hourField} ${domField} ${monthField} ${dowField}`, notes };
+  return { cron: `${minuteField} ${hourField} ${domField} ${monthField} ${dowField}`, rrule: null, notes };
+}
+
+interface OrdinalContext {
+  minuteField: string | null;
+  hourField: string | null;
+  months: number[];
+  monthInterval: number;
+  conflict: boolean;
+  notes: string[];
+}
+
+/** Build the MONTHLY RRULE for "the last Friday"-style phrases. */
+function ordinalWeekdayRRule(days: OrdinalWeekday[], ctx: OrdinalContext): NlResult | null {
+  if (ctx.conflict) return null;
+  const notes = ctx.notes;
+  const parts = ['FREQ=MONTHLY'];
+  if (ctx.monthInterval > 1) {
+    parts.push(`INTERVAL=${ctx.monthInterval}`);
+    notes.push(`every ${ctx.monthInterval} months counts from the start of the preview window (no DTSTART)`);
+  }
+  parts.push(`BYDAY=${days.map((d) => `${d.ordinal}${BYDAY_CODE[d.weekday]}`).join(',')}`);
+  if (ctx.months.length > 0) parts.push(`BYMONTH=${compressList(ctx.months)}`);
+  if (ctx.minuteField === null || ctx.hourField === null) {
+    notes.push('no time of day given; assumed 00:00');
+  }
+  parts.push(`BYHOUR=${ctx.hourField ?? '0'}`, `BYMINUTE=${ctx.minuteField ?? '0'}`);
+  const phrase = days.map((d) => `the ${ORDINAL_WORDS[d.ordinal]} ${DOW_FULL[d.weekday]}`).join(' and ');
+  const quartz =
+    days.length === 1 && days[0].ordinal !== -2
+      ? `; Quartz-style cron writes it as ${days[0].weekday}${days[0].ordinal === -1 ? 'L' : `#${days[0].ordinal}`}`
+      : '';
+  notes.push(
+    `standard cron cannot express "${phrase} of the month": with both day-of-month and day-of-week set it fires on either, so this is an RRULE instead${quartz}`,
+  );
+  return { cron: null, rrule: parts.join(';'), notes };
 }

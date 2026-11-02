@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { interpretInput } from '../src/core/interpret.js';
+import { expandSchedule } from '../src/core/expand.js';
 
 describe('interpretInput', () => {
   it('recognizes a plain cron expression', () => {
@@ -41,6 +42,32 @@ describe('interpretInput', () => {
     if (r.ok) {
       expect(r.kind).toBe('natural-language');
       expect(r.cron).toBe('15 4 * * 1-5');
+    }
+  });
+
+  it('turns "last friday of every month" into an exact RRULE schedule', () => {
+    const r = interpretInput('last friday of every month at 5pm');
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.kind).toBe('natural-language');
+      expect(r.cron).toBeNull();
+      expect(r.schedule.kind).toBe('rrule');
+      expect(r.schedule.source).toBe('FREQ=MONTHLY;BYDAY=-1FR;BYHOUR=17;BYMINUTE=0');
+      expect(r.description).toBe('Every month on the last Friday at 17:00');
+      expect(r.notes.join(' ')).toMatch(/cron cannot express/);
+      // Fires only on the last Friday of each month, never on the 1st or
+      // any other Friday (what the old "0 17 1 * 5" did).
+      const out = expandSchedule(r.schedule, {
+        scheduleZone: 'UTC',
+        displayZone: 'UTC',
+        horizonDays: 365,
+        startMs: Date.UTC(2026, 0, 1),
+      });
+      expect(out.days.filter((d) => d.count > 0).map((d) => d.date)).toEqual([
+        '2026-01-30', '2026-02-27', '2026-03-27', '2026-04-24', '2026-05-29', '2026-06-26',
+        '2026-07-31', '2026-08-28', '2026-09-25', '2026-10-30', '2026-11-27', '2026-12-25',
+      ]);
+      expect(out.next[0].scheduleWall).toMatchObject({ hour: 17, minute: 0 });
     }
   });
 

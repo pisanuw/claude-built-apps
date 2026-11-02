@@ -199,16 +199,20 @@ export function mountApp(root: HTMLElement): void {
       return;
     }
     const desc = el('div', 'desc');
-    desc.append(Object.assign(el('span', 'kind-badge', KIND_LABEL[parsed.kind])), parsed.description);
+    // English that cron cannot say (e.g. "last Friday of the month") comes back as an RRULE.
+    const englishRRule = parsed.kind === 'natural-language' && parsed.schedule.kind === 'rrule';
+    const badge = englishRRule ? 'English → RRULE' : KIND_LABEL[parsed.kind];
+    desc.append(Object.assign(el('span', 'kind-badge', badge)), parsed.description);
     verdict.append(desc);
-    if (parsed.cron !== null) {
+    const result = parsed.cron ?? (englishRRule ? parsed.schedule.source : null);
+    if (result !== null) {
       const line = el('div', 'cron-line');
-      line.append('cron: ');
-      line.append(el('code', 'mono', parsed.cron));
+      line.append(parsed.cron !== null ? 'cron: ' : 'RRULE: ');
+      line.append(el('code', 'mono', result));
       const copy = el('button', 'copy-btn', 'copy');
       copy.type = 'button';
       copy.addEventListener('click', () => {
-        void navigator.clipboard.writeText(parsed.cron as string).then(() => {
+        void navigator.clipboard.writeText(result).then(() => {
           copy.textContent = 'copied!';
           setTimeout(() => (copy.textContent = 'copy'), 1200);
         });
