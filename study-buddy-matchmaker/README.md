@@ -10,6 +10,8 @@ own levels and gaps, never a groupmate's.
 
 Live: [study-buddy-matchmaker.pisan.me](https://study-buddy-matchmaker.pisan.me)
 
+![The sample class's per-topic mastery heatmap, the study pairs it forms so each student leads a topic their partner is still learning, and the private card each student gets](demo.gif)
+
 Built from idea 2026-06-04 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).
 The idea suggested Claude for clustering profiles and writing agendas, plus a
