@@ -52,7 +52,8 @@ once.
 
 Set `netlify.customDomain: <app>.pisan.me` in `target.yml` to serve an app
 from pisan.me. The deploy makes it the site's primary domain (Netlify then
-redirects `<siteName>.netlify.app` to it), asks Netlify for the Let's Encrypt
+redirects `<siteName>.netlify.app` to it with a `_redirects` rule the
+deploy writes first in the publish directory), asks Netlify for the Let's Encrypt
 certificate, and checks the page for up to five minutes while the certificate
 arrives. The DNS side is a CNAME `<app>` -> `<siteName>.netlify.app` in
 Cloudflare, set to DNS only (grey cloud); every app already has one.

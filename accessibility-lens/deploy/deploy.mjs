@@ -17,7 +17,7 @@
  *   node deploy.mjs --dry-run       # print the plan, make no API calls
  *   node deploy.mjs --config path   # use a different control file
  */
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { execFileSync, execSync } from 'node:child_process';
 import path from 'node:path';
@@ -389,6 +389,17 @@ async function deployNetlify(cfg) {
   if (cfg.footer !== false) {
     const added = injectFooterIntoDir(publishDir, cfg.projectName);
     log(added ? 'Added the site footer to index.html.' : 'Site footer already present.');
+  }
+  // With a custom domain, send the old .netlify.app address there for good, so
+  // links and search engines end up on one URL. Netlify serves the default
+  // subdomain alongside the primary domain unless a rule says otherwise. The
+  // rule goes first in _redirects because the first matching rule wins.
+  if (n.customDomain) {
+    const file = path.join(publishDir, '_redirects');
+    const rule = `https://${siteName}.netlify.app/* https://${n.customDomain}/:splat 301!`;
+    const existing = existsSync(file) ? readFileSync(file, 'utf8') : '';
+    if (!existing.includes(rule)) writeFileSync(file, `${rule}\n${existing}`);
+    log(`Redirect rule: ${rule}`);
   }
 
   // Resolve the site id, in order of reliability:

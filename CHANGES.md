@@ -236,3 +236,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [decision] pisan.me DNS moves to Cloudflare, all records DNS-only. App subdomains are named after the package folder (pull-the-pin.pisan.me, mult-streak.pisan.me); cPanel extras and three typo CNAMEs dropped.
 
 2026-11-02 [code] deploy.mjs: netlify.customDomain in target.yml sets the Netlify primary domain and requests its certificate; bombe-bench and cache-miss-theater move to <app>.pisan.me.
+
+2026-11-02 [code] deploy.mjs: with customDomain set, a first _redirects rule 301s <siteName>.netlify.app to the pisan.me domain; Netlify served both. bombe-bench and cache-miss-theater live at <app>.pisan.me.
