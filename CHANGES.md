@@ -290,3 +290,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [code] Consent Leak Watch moved to consent-leak-watch.pisan.me; first CNAME created by the deploy runner (run 41452636626).
 
 2026-11-02 [note] Owner turned on Netlify Analytics for the sites that lacked it; the build routine now asks for it on each new site.
+
+2026-11-02 [decision] Build routine writes publicNotes for visitors (what it does, who for, one limitation; no build time, stack or test counts); notes stays technical for the owner.

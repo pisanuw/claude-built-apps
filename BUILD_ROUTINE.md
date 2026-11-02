@@ -100,7 +100,12 @@ pisan-labs GitHub org, so people can find, star and fork it.
 6. MARK IMPLEMENTED. In implemented.json: remove "placeholder", set url
    (LIVE_URL), repo
    (https://github.com/pisanuw/claude-built-apps/tree/main/<slug>),
-   implementedOn, and a one-paragraph notes. Update CHANGES.md in both
+   implementedOn, a one-paragraph `notes` (technical, for the owner's
+   password-protected notes view) and a `publicNotes` for visitors: two to
+   four plain sentences on what it does and who it is for, then one honest
+   limitation. publicNotes never mentions how long the build took ("built in
+   one session"), the tech stack, test counts or coverage: a visitor reads
+   those as "every job takes a few hours". Update CHANGES.md in both
    repos. Commit and push.
 
 7. PORTFOLIO. In pisanorg/yusuf/aiprojects.md, insert a new section at the
