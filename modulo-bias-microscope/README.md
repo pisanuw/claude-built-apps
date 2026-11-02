@@ -6,7 +6,7 @@ and see how far its output distribution drifts from the one you meant, both
 unit test; this makes them visible, and turns "is my shuffle fair?" into
 fractions a student can check by hand.
 
-Live: [modulo-bias-microscope.netlify.app](https://modulo-bias-microscope.netlify.app)
+Live: [modulo-bias-microscope.pisan.me](https://modulo-bias-microscope.pisan.me)
 
 Built from idea 2026-10-08 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas),

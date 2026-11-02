@@ -3,7 +3,7 @@
 Paste any AI prompt and see it as a DNA strand of typed genes. Edit, lint,
 mutate, and reassemble it, then keep the genes worth reusing.
 
-- **Live site:** https://prompt-genome.netlify.app
+- **Live site:** https://prompt-genome.pisan.me
 - **Source:** https://github.com/pisanuw/Claude-capstone/tree/main/prompt-genome
 - **Host:** Netlify (static site; no backend).
 - **Idea:** [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas), 2026-08-23 idea 1.

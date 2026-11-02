@@ -8,7 +8,7 @@ compiler computed for it, narrated in plain English. Step through with
 prev/next, a slider, or autoplay; hover any expression in the witness view for
 its exact type; click it to jump to its step.
 
-Live: [type-witness.netlify.app](https://type-witness.netlify.app)
+Live: [type-witness.pisan.me](https://type-witness.pisan.me)
 
 ## What it shows
 

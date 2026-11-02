@@ -4,7 +4,7 @@ Race to spot planted bugs, security holes, and code smells in realistic code
 snippets before the timer runs out — then get an annotated explainer of
 everything you missed.
 
-- **Live site:** https://code-review-gauntlet.netlify.app
+- **Live site:** https://code-review-gauntlet.pisan.me
 - **Source:** https://github.com/pisanuw/Claude-capstone/tree/main/code-review-gauntlet
 - **Host:** Netlify (fully static; no backend, no API keys).
 - **Idea:** [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas), 2026-08-11 idea 1.

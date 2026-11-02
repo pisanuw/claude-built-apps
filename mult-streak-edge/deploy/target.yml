@@ -22,5 +22,7 @@ netlify:
   siteName: mult-streak-edge-pisan
   siteId: ''
   accountSlug: ''
+  # Primary domain; the CNAME lives in Cloudflare (DNS only).
+  customDomain: mult-streak.pisan.me
 
 # redeploy: factoring mode — prime factorization game type added

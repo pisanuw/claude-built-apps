@@ -8,7 +8,7 @@ trains inside your tooth range, shows the continued fraction and Stern-Brocot
 path toward the target, and animates the chosen train in SVG next to a dial
 that shows how far it drifts from an ideal hand.
 
-Live: [brocot-gear-finder.netlify.app](https://brocot-gear-finder.netlify.app)
+Live: [brocot-gear-finder.pisan.me](https://brocot-gear-finder.pisan.me)
 
 Built from idea 2026-10-05 n1 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).

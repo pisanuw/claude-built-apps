@@ -13,7 +13,7 @@ takes **SQL DDL**, a **Prisma schema**, or a **JSON Schema**, and produces:
 The result exports as a Markdown document you can drop straight into an
 onboarding wiki.
 
-**Live:** https://schema-storyteller.netlify.app/
+**Live:** https://schema-storyteller.pisan.me/
 
 ## Why it is deterministic (no LLM)
 

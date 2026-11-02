@@ -16,7 +16,7 @@ answers off the simulator, exports Markdown or a Canvas QTI package, and a
 diff mode finds the first op where a student allocator's addresses leave the
 reference. Everything runs in the browser.
 
-Live: [heap-arena-replay.netlify.app](https://heap-arena-replay.netlify.app)
+Live: [heap-arena-replay.pisan.me](https://heap-arena-replay.pisan.me)
 
 Implements idea #2 ("Heap Arena Replay") from the
 [2026-10-06 ideas day](https://github.com/pisanuw/daily-project-ideas)

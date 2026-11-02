@@ -7,7 +7,7 @@ coalesced and uncoalesced memory, shared-memory bank conflicts, barriers,
 atomics and data races. Every run is graded for correctness and against a
 par time, with a CPU-vs-GPU estimate and plain-language hints.
 
-Live: [gpu-parallel-puzzler.netlify.app](https://gpu-parallel-puzzler.netlify.app)
+Live: [gpu-parallel-puzzler.pisan.me](https://gpu-parallel-puzzler.pisan.me)
 
 Built from idea 2026-06-23 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).

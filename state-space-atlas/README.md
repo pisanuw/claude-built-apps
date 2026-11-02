@@ -11,7 +11,7 @@ page is checked for admissibility and consistency on every single state, and
 the states where it overestimates light up red. Instructors export "beat
 this node count" challenges as links. Everything runs in the browser.
 
-Live: [state-space-atlas.netlify.app](https://state-space-atlas.netlify.app)
+Live: [state-space-atlas.pisan.me](https://state-space-atlas.pisan.me)
 
 Implements idea #2 ("State Space Atlas") from the
 [2026-10-01 ideas day](https://github.com/pisanuw/daily-project-ideas)

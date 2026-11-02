@@ -12,7 +12,7 @@ or longer but more readable) hunks. An exercise generator writes questions
 whose answers come from the reference implementations and exports them as
 Markdown or QTI 1.2.
 
-Live: [edit-graph-lab.netlify.app](https://edit-graph-lab.netlify.app)
+Live: [edit-graph-lab.pisan.me](https://edit-graph-lab.pisan.me)
 
 Built from idea 2026-10-11 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).

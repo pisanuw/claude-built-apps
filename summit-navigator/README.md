@@ -7,7 +7,7 @@ Atlanta, Aug 30 – Sep 2, 2026): sticky day tabs, color-coded track chips,
 full-text search, a starred personal agenda saved in your browser, and a
 timezone-aware now/next banner.
 
-Live: [summit-navigator.netlify.app](https://summit-navigator.netlify.app)
+Live: [summit-navigator.pisan.me](https://summit-navigator.pisan.me)
 
 Implements idea #1 ("Summit Navigator") from the
 [2026-09-03 ideas day](https://github.com/pisanuw/daily-project-ideas)

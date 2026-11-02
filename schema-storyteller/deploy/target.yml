@@ -22,3 +22,5 @@ netlify:
   # re-create a name that is already taken.
   siteId: '0fe0b047-2ef4-40ec-aded-1a35dc15e076'
   accountSlug: yusuf-pisan
+  # Primary domain; the CNAME lives in Cloudflare (DNS only).
+  customDomain: schema-storyteller.pisan.me

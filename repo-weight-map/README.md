@@ -10,7 +10,7 @@ of keys, a 180 MB CSV) and writes the `.gitignore` lines to fix them. Your root
 *already ignored* rather than counted against you. Nothing leaves the tab: the
 folder is walked for names and sizes only.
 
-Live: [repo-weight-map.netlify.app](https://repo-weight-map.netlify.app)
+Live: [repo-weight-map.pisan.me](https://repo-weight-map.pisan.me)
 (add `?sample` to load the demo repo straight away).
 
 Implements idea #1 ("Repo Weight Map") from the

@@ -28,3 +28,5 @@ netlify:
   # Pinned to the pre-existing site so the public URL survives the move.
   siteId: 'd451799b-4c1c-48a0-b00b-ba3fe403487e'
   accountSlug: yusuf-pisan
+  # Primary domain; the CNAME lives in Cloudflare (DNS only).
+  customDomain: game-palette-inspector.pisan.me

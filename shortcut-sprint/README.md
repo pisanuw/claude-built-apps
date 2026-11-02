@@ -3,7 +3,7 @@
 A Duolingo-style trainer for keyboard shortcuts. Pick a tool, get a task
 prompt ("Go to definition"), press the shortcut, and an SM-2 spaced-repetition
 scheduler decides when you see each one again. Live at
-**<https://shortcut-sprint.netlify.app>**.
+**<https://shortcut-sprint.pisan.me>**.
 
 Everything runs in the browser: no account, no server, no API keys. Progress
 lives in `localStorage`.

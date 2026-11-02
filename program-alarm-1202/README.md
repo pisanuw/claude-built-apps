@@ -10,7 +10,7 @@ restart-protected jobs at their last completed phase, and landing guidance
 keeps running. The same load can be replayed on two schedulers without that
 design: one that halts on overflow and a naive round-robin one.
 
-Live: [program-alarm-1202.netlify.app](https://program-alarm-1202.netlify.app)
+Live: [program-alarm-1202.pisan.me](https://program-alarm-1202.pisan.me)
 
 Built as a tribute to Margaret Hamilton, who led the MIT team that wrote the
 Apollo on-board flight software.

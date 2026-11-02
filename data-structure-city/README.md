@@ -5,7 +5,7 @@ map**, a **B-tree**, a **skip list** and an **LRU cache** at the same time, so
 you can watch each one change shape and compare what the same operation cost
 in each.
 
-Live: <https://data-structure-city.netlify.app>
+Live: <https://data-structure-city.pisan.me>
 
 Built from the idea "Data Structure City" (2026-09-26, #2) in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).

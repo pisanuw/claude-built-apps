@@ -6,7 +6,7 @@ an Escher-style Circle Limit pattern. Drag the plane to re-centre it on any
 point: the picture slides, nothing reaches the rim, and every spot turns out
 to be as central as any other.
 
-Live: [poincare-paint.netlify.app](https://poincare-paint.netlify.app)
+Live: [poincare-paint.pisan.me](https://poincare-paint.pisan.me)
 
 Built from idea 2026-10-10 n1 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).

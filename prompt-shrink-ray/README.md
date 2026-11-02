@@ -4,7 +4,7 @@ Paste an LLM prompt and get it compressed with a live token/cost estimate, a
 word-level diff of exactly what changed, and a keyword-retention check that
 flags anything load-bearing the compressor may have dropped.
 
-- **Live site:** https://prompt-shrink-ray.netlify.app
+- **Live site:** https://prompt-shrink-ray.pisan.me
 - **Source:** https://github.com/pisanuw/Claude-capstone/tree/main/prompt-shrink-ray
 - **Host:** Netlify (fully static, no backend, no API keys)
 

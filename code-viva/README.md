@@ -9,7 +9,7 @@ follow-ups when an answer is vague. You review transcripts with proposed rubric
 scores, quoted evidence and a flag queue, so TA time goes to the few students
 who need a short conversation.
 
-Live: [code-viva.netlify.app](https://code-viva.netlify.app)
+Live: [code-viva.pisan.me](https://code-viva.pisan.me)
 
 Built from idea 2026-10-21 n1 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas),

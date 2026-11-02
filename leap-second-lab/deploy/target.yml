@@ -22,3 +22,5 @@ netlify:
   functionsDir: ''
   siteName: leap-second-lab
   accountSlug: yusuf-pisan
+  # Primary domain; the CNAME lives in Cloudflare (DNS only).
+  customDomain: leap-second-lab.pisan.me

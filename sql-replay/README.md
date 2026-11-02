@@ -2,7 +2,7 @@
 
 **Watch a SQL SELECT execute one stage at a time, narrated in plain English.**
 
-Live: **<https://sql-replay.netlify.app>**
+Live: **<https://sql-replay.pisan.me>**
 
 Type a query, paste sample data (or use the built-in demo tables), and press
 Run. Execution unfolds as a replay you can play, pause, and single-step:

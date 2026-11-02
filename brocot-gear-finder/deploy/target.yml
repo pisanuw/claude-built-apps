@@ -25,3 +25,5 @@ netlify:
   # a deploy cannot fail by trying to re-create a name that is already taken.
   siteId: '81923a45-d24d-4aa7-8dc5-fd75a37e18f8'
   accountSlug: yusuf-pisan
+  # Primary domain; the CNAME lives in Cloudflare (DNS only).
+  customDomain: brocot-gear-finder.pisan.me

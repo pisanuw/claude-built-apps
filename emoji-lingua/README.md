@@ -2,7 +2,7 @@
 
 Translate English into emoji, and emoji back into English.
 
-- **Live site:** https://emoji-lingua-pisan.netlify.app  *(Netlify; confirmed after first deploy)*
+- **Live site:** https://emoji-lingua.pisan.me  *(Netlify; confirmed after first deploy)*
 - **Source:** https://github.com/pisanuw/Claude-capstone/tree/main/emoji-lingua
 - **Host:** Netlify (static page on the CDN + the API as a serverless function).
 

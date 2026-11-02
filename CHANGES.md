@@ -246,3 +246,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [decision] Deploys cost Netlify credits: a push now deploys only targets whose target.yml changed. Runner or footer changes need a manual Deploy run naming apps or `all`.
 
 2026-11-02 [code] bombe-bench and cache-miss-theater live at <app>.pisan.me; their .netlify.app addresses 301 there (path and query kept). README links updated.
+
+2026-11-02 [code] All 51 Netlify apps get netlify.customDomain <folder>.pisan.me (mult-streak-edge -> mult-streak.pisan.me); every README link moves to pisan.me. One deploy per app.

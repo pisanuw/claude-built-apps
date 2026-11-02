@@ -11,7 +11,7 @@ schedule prints it; if none does, it names the happens-before edge that rules
 it out. A generator turns templates into new exam questions whose answers are
 checked against every schedule.
 
-Live: [fork-count.netlify.app](https://fork-count.netlify.app)
+Live: [fork-count.pisan.me](https://fork-count.pisan.me)
 
 Built from idea 2026-10-09 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).

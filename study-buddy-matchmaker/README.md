@@ -8,7 +8,7 @@ the other is not. Every group gets a short shared agenda (who leads which
 topic, with links), and every student gets a private card that shows their
 own levels and gaps, never a groupmate's.
 
-Live: [study-buddy-matchmaker.netlify.app](https://study-buddy-matchmaker.netlify.app)
+Live: [study-buddy-matchmaker.pisan.me](https://study-buddy-matchmaker.pisan.me)
 
 Built from idea 2026-06-04 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).

@@ -61,5 +61,7 @@ netlify:
   # Optional: your Netlify team slug, needed only if your token has multiple
   # teams. Find it in your Netlify team URL/settings.
   accountSlug: ''
+  # Primary domain; the CNAME lives in Cloudflare (DNS only).
+  customDomain: accessibility-lens.pisan.me
 
 # --- deploy trigger: manual run to create the Netlify site (observable run) ---

@@ -22,3 +22,5 @@ netlify:
   functionsDir: ''
   siteName: data-structure-city
   accountSlug: yusuf-pisan
+  # Primary domain; the CNAME lives in Cloudflare (DNS only).
+  customDomain: data-structure-city.pisan.me

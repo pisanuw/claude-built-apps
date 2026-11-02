@@ -4,9 +4,9 @@ Check a game palette against WCAG contrast and 8 types of color vision deficienc
 
 Everything runs in the browser. No accounts, no uploads, no API keys, no tracking.
 
-**Live**: [game-palette-inspector.netlify.app](https://game-palette-inspector.netlify.app)
+**Live**: [game-palette-inspector.pisan.me](https://game-palette-inspector.pisan.me)
 
-Idea source: [Daily Project Ideas](https://daily-project-ideas.netlify.app/), 2026-06-19, Weekend tier.
+Idea source: [Daily Project Ideas](https://daily-project-ideas.pisan.me/), 2026-06-19, Weekend tier.
 
 ## What it does
 
@@ -35,7 +35,7 @@ standalone `pisanuw/c1` repo, and now deploys the same way as every other packag
 here: the repo-level `Deploy` workflow discovers [`deploy/target.yml`](./deploy/target.yml)
 and pushes a build to Netlify with the CLI. The Netlify site id is pinned in that
 file and is the same site the old repo published to, so
-<https://game-palette-inspector.netlify.app> is unchanged.
+<https://game-palette-inspector.pisan.me> is unchanged.
 
 The old repo's two deploy paths are gone: Netlify no longer builds from
 `pisanuw/c1` (that git connection was removed to stop it fighting with this

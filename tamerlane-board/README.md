@@ -8,7 +8,7 @@ and the engine read the same definitions. A piece lab lets you write a new
 piece, watch where it reaches, drop it into Timur or classic chess and play
 it, or have the engine play itself to see whether the piece is too strong.
 
-Live: [tamerlane-board.netlify.app](https://tamerlane-board.netlify.app)
+Live: [tamerlane-board.pisan.me](https://tamerlane-board.pisan.me)
 
 Built from idea 2026-10-15 n1 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas),

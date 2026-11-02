@@ -5,7 +5,7 @@ neural network you can to play Connect Four, under a hard budget of 5,000
 weights and biases, then climb a class ladder where Elo is weighed against
 parameter count.
 
-Live: [tiny-brains-league.netlify.app](https://tiny-brains-league.netlify.app)
+Live: [tiny-brains-league.pisan.me](https://tiny-brains-league.pisan.me)
 
 Built from idea 2026-09-26 n3 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).

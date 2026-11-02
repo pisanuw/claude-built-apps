@@ -6,7 +6,7 @@ and hear it synthesized instantly in your browser. Tune pitch, length,
 brightness, echo, and volume with sliders, watch the waveform and the full
 signal chain, then export a WAV at your chosen sample rate and bit depth.
 
-**Live:** <https://sound-sketchpad.netlify.app>
+**Live:** <https://sound-sketchpad.pisan.me>
 
 Built from idea **2026-08-09 #1** in
 [pisanuw/daily-project-ideas](https://github.com/pisanuw/daily-project-ideas).

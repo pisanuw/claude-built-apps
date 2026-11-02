@@ -6,7 +6,7 @@ browser. It follows modern guideline rules (SRS rotation with wall kicks,
 back-to-back and combo scoring) and wraps them in seven modes, a CPU
 opponent, exact replays, a daily challenge and local records.
 
-Live: [tetromino-arcade.netlify.app](https://tetromino-arcade.netlify.app)
+Live: [tetromino-arcade.pisan.me](https://tetromino-arcade.pisan.me)
 
 Requested directly (not taken from the
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas)

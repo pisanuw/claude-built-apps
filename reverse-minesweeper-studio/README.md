@@ -9,7 +9,7 @@ number, and searches for the smallest edit that removes the ambiguity. A
 guess-free board becomes a share link that friends can play to uncover the
 hidden drawing.
 
-Live: [reverse-minesweeper-studio.netlify.app](https://reverse-minesweeper-studio.netlify.app)
+Live: [reverse-minesweeper-studio.pisan.me](https://reverse-minesweeper-studio.pisan.me)
 
 Implements idea #1 ("Reverse Minesweeper Studio") from the
 [2026-09-29 ideas day](https://github.com/pisanuw/daily-project-ideas)

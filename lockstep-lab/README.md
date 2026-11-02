@@ -12,7 +12,7 @@ across input delays, and five autograded exercises ask students to fix a
 nondeterministic step function until it survives 10,000 ticks on two
 simulated machines.
 
-Live: [lockstep-lab.netlify.app](https://lockstep-lab.netlify.app)
+Live: [lockstep-lab.pisan.me](https://lockstep-lab.pisan.me)
 
 Built from idea 2026-10-12 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).

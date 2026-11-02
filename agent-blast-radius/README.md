@@ -1,6 +1,6 @@
 # Agent Blast Radius
 
-**Live:** https://agent-blast-radius.netlify.app
+**Live:** https://agent-blast-radius.pisan.me
 
 What can your AI tools actually touch? Drop in the config files for your MCP
 servers, coding agents, and browser or VS Code extensions, and get a one-page

@@ -6,7 +6,7 @@ cache headers, uncompressed responses, redirect chains, serialized API
 waterfalls, duplicate fetches, failing requests, slow server think-time,
 oversized payloads, and HTTP/1.x connection churn.
 
-**Live:** <https://har-detective.netlify.app>
+**Live:** <https://har-detective.pisan.me>
 
 Built from the 2026-08-21 idea in
 [pisanuw/daily-project-ideas](https://github.com/pisanuw/daily-project-ideas).

@@ -11,7 +11,7 @@ those logs into a gap report: the questions the syllabus does not answer,
 grouped by week and by similar wording, plus the words students used that the
 documents never contain. Everything runs in the browser; nothing is uploaded.
 
-Live: [where-does-it-say.netlify.app](https://where-does-it-say.netlify.app)
+Live: [where-does-it-say.pisan.me](https://where-does-it-say.pisan.me)
 
 Implements idea #1 ("Where Does It Say") from the
 [2026-09-30 ideas day](https://github.com/pisanuw/daily-project-ideas)

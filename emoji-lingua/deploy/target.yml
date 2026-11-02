@@ -16,6 +16,8 @@ netlify:
   siteName: emoji-lingua-pisan
   siteId: ''
   accountSlug: ''
+  # Primary domain; the CNAME lives in Cloudflare (DNS only).
+  customDomain: emoji-lingua.pisan.me
 
 # redeploy: pick up ANTHROPIC_API_KEY in the function runtime
 

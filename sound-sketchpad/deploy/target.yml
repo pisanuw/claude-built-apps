@@ -22,3 +22,5 @@ netlify:
   # re-create a name that is already taken.
   siteId: '6fea23bd-5815-4069-9107-7dac4efb22ed'
   accountSlug: yusuf-pisan
+  # Primary domain; the CNAME lives in Cloudflare (DNS only).
+  customDomain: sound-sketchpad.pisan.me

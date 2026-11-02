@@ -7,7 +7,7 @@ string on screen (the delay line, its harmonics and the output), lets you slow
 it down to one sample per frame, walks through seven lecture scenes, and lets
 students rewrite the loop filter and hear the result immediately.
 
-Live: [pluck-lab.netlify.app](https://pluck-lab.netlify.app)
+Live: [pluck-lab.pisan.me](https://pluck-lab.pisan.me)
 
 Built from idea 2026-10-16 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas),

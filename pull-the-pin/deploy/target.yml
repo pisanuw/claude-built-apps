@@ -23,3 +23,5 @@ netlify:
   # "pull-the-pin" is taken globally on Netlify by an unrelated site.
   siteName: pull-the-pin-lab
   accountSlug: yusuf-pisan
+  # Primary domain; the CNAME lives in Cloudflare (DNS only).
+  customDomain: pull-the-pin.pisan.me

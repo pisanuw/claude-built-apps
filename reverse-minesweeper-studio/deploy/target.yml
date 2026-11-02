@@ -25,3 +25,5 @@ netlify:
   # a deploy cannot fail by trying to re-create a name that is already taken.
   siteId: '1400712b-3786-4a7f-b2f8-3a0f41d3ecc6'
   accountSlug: yusuf-pisan
+  # Primary domain; the CNAME lives in Cloudflare (DNS only).
+  customDomain: reverse-minesweeper-studio.pisan.me

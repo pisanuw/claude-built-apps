@@ -6,7 +6,7 @@ analyzer probes on pins and bus lines, watch the set of faults consistent with
 what they have measured shrink, and then name the faulty chip, pin, bus line
 or microcode bit, the way a repair tech diagnoses a board.
 
-Live: [pull-the-pin-lab.netlify.app](https://pull-the-pin-lab.netlify.app)
+Live: [pull-the-pin.pisan.me](https://pull-the-pin.pisan.me)
 
 Built from idea 2026-10-18 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas),

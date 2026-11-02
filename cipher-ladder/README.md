@@ -14,7 +14,7 @@ rather than copy it. Instructors build their own ladder (cipher, key, text,
 hint budget per rung) into a share link and read exported progress files in a
 dashboard. Everything runs in the browser.
 
-Live: [cipher-ladder.netlify.app](https://cipher-ladder.netlify.app)
+Live: [cipher-ladder.pisan.me](https://cipher-ladder.pisan.me)
 
 Implements idea #2 ("Cipher Ladder") from the
 [2026-09-25 ideas day](https://github.com/pisanuw/daily-project-ideas)

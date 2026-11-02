@@ -2,7 +2,7 @@
 
 Paste any code snippet or name a CS concept, pick your audience, and get **three sharply framed analogies from different everyday domains**, ready for a lecture slide, a blog post, or a meeting with stakeholders.
 
-Live: **<https://code-analogy-forge.netlify.app>**
+Live: **<https://code-analogy-forge.pisan.me>**
 
 Built from idea 2026-08-25 n1 in [pisanuw/daily-project-ideas](https://github.com/pisanuw/daily-project-ideas).
 

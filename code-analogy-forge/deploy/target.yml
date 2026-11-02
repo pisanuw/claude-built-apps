@@ -23,3 +23,5 @@ netlify:
   # a deploy cannot fail by trying to re-create a name that is already taken.
   siteId: '979f9b5e-41f4-48fc-826c-1913e6a0b1b5'
   accountSlug: yusuf-pisan
+  # Primary domain; the CNAME lives in Cloudflare (DNS only).
+  customDomain: code-analogy-forge.pisan.me

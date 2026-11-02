@@ -6,7 +6,7 @@ press it reveals the guess and the nonce, and the page re-hashes them to show
 the oracle did not change its mind. A coin-flipping guesser would be right half
 the time. Most people drift to 60-70% within 100 presses.
 
-Live: [outguess-me.netlify.app](https://outguess-me.netlify.app)
+Live: [outguess-me.pisan.me](https://outguess-me.pisan.me)
 
 A take on Scott Aaronson's classic "oracle" demo, prompted by the
 "Show HN: How random are you?" thread (October 2026).

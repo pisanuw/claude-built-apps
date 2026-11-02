@@ -22,3 +22,5 @@ netlify:
   functionsDir: ''
   siteName: poincare-paint
   accountSlug: yusuf-pisan
+  # Primary domain; the CNAME lives in Cloudflare (DNS only).
+  customDomain: poincare-paint.pisan.me

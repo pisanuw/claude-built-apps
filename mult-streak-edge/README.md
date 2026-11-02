@@ -4,7 +4,7 @@ The Netlify deployment of [mult-streak](../mult-streak): the same
 multiplication-streak game (two 2-3 digit factors, type the product, 10 correct
 in a row wins a 24-hour crown), packaged for Netlify's serverless platform.
 
-- **Live site:** https://mult-streak-edge-pisan.netlify.app  *(Netlify, live)*
+- **Live site:** https://mult-streak.pisan.me  *(Netlify, live)*
 - **Source:** https://github.com/pisanuw/Claude-capstone/tree/main/mult-streak-edge
 - **Host:** Netlify (static page on the CDN + the API as a serverless function).
 

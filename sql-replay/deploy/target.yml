@@ -19,3 +19,5 @@ netlify:
   siteName: sql-replay
   siteId: dac90ae9-7eeb-4bb7-85d0-5687f88f9503
   accountSlug: yusuf-pisan
+  # Primary domain; the CNAME lives in Cloudflare (DNS only).
+  customDomain: sql-replay.pisan.me

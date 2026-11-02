@@ -6,7 +6,7 @@ RRULE, a GitHub Actions `on.schedule` snippet, or plain English like
 the next 30, 90, or 365 days on an interactive calendar heatmap, converts
 between any two time zones, and explains the schedule in plain English.
 
-Live: [cron-cartographer.netlify.app](https://cron-cartographer.netlify.app)
+Live: [cron-cartographer.pisan.me](https://cron-cartographer.pisan.me)
 
 Implements idea #1 ("Cron Cartographer") from the
 [2026-09-02 ideas day](https://github.com/pisanuw/daily-project-ideas)

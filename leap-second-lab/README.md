@@ -6,7 +6,7 @@ four kinds of clocks and a two-host event log, shows what JS `Date`,
 Temporal, Python and Postgres actually do with leap-second inputs, and ends
 with four fix-the-bug exercises with hidden tests.
 
-Live: [leap-second-lab.netlify.app](https://leap-second-lab.netlify.app)
+Live: [leap-second-lab.pisan.me](https://leap-second-lab.pisan.me)
 
 Built from idea 2026-10-17 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas),

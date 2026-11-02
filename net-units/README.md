@@ -11,7 +11,7 @@ duplication overlays; click one to see its diff with every counted unit
 highlighted, then run a "guess the author" round before revealing which
 solutions an AI wrote.
 
-Live: [net-units.netlify.app](https://net-units.netlify.app)
+Live: [net-units.pisan.me](https://net-units.pisan.me)
 
 Built from idea 2026-10-14 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas),

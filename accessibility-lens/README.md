@@ -1,6 +1,6 @@
 # Accessibility Lens
 
-**Live:** [accessibility-lens-pisanuw.netlify.app](https://accessibility-lens-pisanuw.netlify.app) | TypeScript monorepo | 107 tests | MIT
+**Live:** [accessibility-lens.pisan.me](https://accessibility-lens.pisan.me) | TypeScript monorepo | 107 tests | MIT
 
 **See your page through four kinds of eyes.** Paste a public URL and Accessibility
 Lens fetches the markup, runs a deterministic subset of WCAG 2.1 checks, and

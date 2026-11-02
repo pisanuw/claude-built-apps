@@ -5,7 +5,7 @@ Doing that by hand across several models, then grading each reply against your
 own rubric, takes an evening. This app does it in a few minutes and gives you a
 one-page report of which rubric rows AI already meets.
 
-Live: [assignment-stress-test.netlify.app](https://assignment-stress-test.netlify.app)
+Live: [assignment-stress-test.pisan.me](https://assignment-stress-test.pisan.me)
 
 Built from the 2026-10-23 idea in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).

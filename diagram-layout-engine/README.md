@@ -6,7 +6,7 @@ a themeable SVG writer, plus a visual diff, a stage-by-stage inspector and a
 benchmark. No Mermaid, dagre or ELK; no dependencies at runtime. Everything
 runs in the browser.
 
-Live: [diagram-layout-engine.netlify.app](https://diagram-layout-engine.netlify.app)
+Live: [diagram-layout-engine.pisan.me](https://diagram-layout-engine.pisan.me)
 
 Built from the 2026-10-18 idea "Build Your Own Diagram Layout Engine", a
 five-week classroom assignment prompted by the HN thread on Pele (Obsidian's

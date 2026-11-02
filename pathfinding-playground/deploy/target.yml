@@ -28,3 +28,5 @@ netlify:
   # Pinned to the pre-existing site so the public URL survives the move.
   siteId: '656c1f2c-1b56-4b0c-bd5d-b90344042d66'
   accountSlug: yusuf-pisan
+  # Primary domain; the CNAME lives in Cloudflare (DNS only).
+  customDomain: pathfinding-playground.pisan.me

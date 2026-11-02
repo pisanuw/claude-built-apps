@@ -10,7 +10,7 @@ same trace, and the identical run can be drawn as a head sweeping across
 cylinders with time flowing down, the textbook diagram. Everything runs in the
 browser; nothing is uploaded.
 
-Live: [elevator-algorithm-lab.netlify.app](https://elevator-algorithm-lab.netlify.app)
+Live: [elevator-algorithm-lab.pisan.me](https://elevator-algorithm-lab.pisan.me)
 
 Implements idea #2 ("Elevator Algorithm Lab") from the
 [2026-09-29 ideas day](https://github.com/pisanuw/daily-project-ideas)

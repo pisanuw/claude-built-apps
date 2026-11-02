@@ -22,3 +22,5 @@ netlify:
   functionsDir: ''
   siteName: tamerlane-board
   accountSlug: yusuf-pisan
+  # Primary domain; the CNAME lives in Cloudflare (DNS only).
+  customDomain: tamerlane-board.pisan.me
