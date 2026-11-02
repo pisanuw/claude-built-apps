@@ -25,4 +25,6 @@ netlify:
   # No serverless functions; the whole app is static.
   functionsDir: ''
   siteName: consent-leak-watch
+  # Primary domain; the deploy runner creates its Cloudflare CNAME (DNS only).
+  customDomain: consent-leak-watch.pisan.me
   accountSlug: yusuf-pisan
