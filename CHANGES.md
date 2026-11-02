@@ -296,3 +296,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [doc] Ideas site now customer-facing (daily-project-ideas 9f5bb63); built apps carry publicNotes; owner notes at daily-project-ideas.pisan.me/notes/ behind a password.
 
 2026-11-02 [doc] README rewritten for visitors (what the apps are, try them, want one built, working with me); build, CI and local-run details moved to DEVELOPING.md.
+
+2026-11-02 [code] ACR Draft (acr-draft/) live at https://acr-draft.pisan.me: axe-core scans plus guided WCAG 2.1 AA review, rule-based VPAT 2.5 WCAG edition export to Word/HTML. 48 tests.
