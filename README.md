@@ -1,4 +1,4 @@
-# 50 apps built by Claude
+# 51 apps built by Claude
 
 Free tools for small businesses, teachers, students and the curious. Every
 one is live: click a name below and it opens in your browser. Most need no
@@ -67,6 +67,7 @@ Yusuf Pisan
 | App | What it does |
 |---|---|
 | [Accessibility Lens](https://accessibility-lens.pisan.me/) ([code](./accessibility-lens)) | Scan a public page against WCAG 2.1, then see it the way low-vision, color-blind, keyboard-only and screen-reader users do. |
+| [ACR Draft](https://acr-draft.pisan.me/) ([code](./acr-draft)) | Write the accessibility report (VPAT) a university asks for before it buys your software: scans plus a guided review, exported to Word. |
 | [Agent Blast Radius](https://agent-blast-radius.pisan.me/) ([code](./agent-blast-radius)) | Drop in MCP configs and agent settings to see what each AI tool on your machine can reach. |
 | [HAR Detective](https://har-detective.pisan.me/) ([code](./har-detective)) | Drag in a browser HAR file for a waterfall and a ranked, plain-English performance report. |
 | [Cron Cartographer](https://cron-cartographer.pisan.me/) ([code](./cron-cartographer)) | Any cron expression, RRULE or GitHub Actions schedule as a calendar heatmap of when it fires. |

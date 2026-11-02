@@ -867,3 +867,30 @@ client-side core: nothing is uploaded and nothing runs on a schedule. 44
 vitest tests, 100% statement coverage.
 Live: [consent-leak-watch.pisan.me](https://consent-leak-watch.pisan.me).
 See its [README](./consent-leak-watch/README.md).
+
+
+### [`acr-draft/`](./acr-draft)
+
+ACR Draft: for small software companies, edtech especially, that are asked
+for a VPAT before a university will buy. The vendor describes the product,
+answers twelve yes/no questions that settle Not Applicable criteria (video,
+live streams, time limits, gestures, forms, payments or test submissions...),
+and attaches axe-core results to each key screen: from a console snippet that
+loads axe-core 4.11.0 from cdnjs on a signed-in screen and copies the
+results, from an `@axe-core/cli` file covering several pages, or by pasting
+the page HTML, which the app strips of scripts and handlers and scans in a
+sandboxed iframe with the bundled axe-core. A guided review covers all 50
+WCAG 2.1 A and AA criteria, each with a plain-language test, the scan's
+findings and an outcome plus evidence note. Fixed rules then set each
+conformance level and remark: no Supports from a scan alone, a pass that
+contradicts scan failures becomes Partially Supports, every claim needs a
+note, Not Evaluated (not allowed for A/AA in VPAT 2.5) stamps the report
+DRAFT, and 4.1.1 Parsing is Supports per the 2023 errata. Export is the VPAT
+2.5 WCAG edition layout as Word (docx library, lazy-loaded), HTML or print to
+PDF, with screens tested and an evidence appendix. Saved project files can be
+compared release to release (level changes, new and fixed failures, screens
+dropped). The idea's hosted Playwright crawler, Supabase storage and Claude
+remark drafting were replaced by this fully client-side, rule-based core.
+48 vitest tests, 99% statement coverage.
+Live: [acr-draft.pisan.me](https://acr-draft.pisan.me).
+See its [README](./acr-draft/README.md).
