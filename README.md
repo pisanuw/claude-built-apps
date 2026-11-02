@@ -1,24 +1,20 @@
 # 50 apps built by Claude
 
-[![CI](https://github.com/pisanuw/claude-built-apps/actions/workflows/ci.yml/badge.svg)](https://github.com/pisanuw/claude-built-apps/actions/workflows/ci.yml)
+Free tools for small businesses, teachers, students and the curious. Every
+one is live: click a name below and it opens in your browser. Most need no
+sign-up and send nothing anywhere; your files stay on your computer.
 
-Every app in this repo was built by [Claude Code](https://claude.com/claude-code)
-from a one-paragraph idea. Claude wrote the code, the tests and the deploy
-scripts. I picked the ideas, set the rules, reviewed the results and said no
-a lot.
-
-Claude can write the code. Getting it to build the right thing, test it
-properly and ship something people can use still takes someone who knows
-what good looks like. That part is my job.
-
-All of them are live, most run entirely in your browser (no sign-up, nothing
-uploaded), and every one has its own tests and CI.
+Each app started as a one-paragraph idea. [Claude Code](https://claude.com/claude-code)
+wrote the code; I picked the ideas, set the bar, reviewed the results and
+said no a lot. Claude can write code. Getting it to build the right thing,
+check it properly and ship something people can use still takes someone who
+knows what good looks like. That part is my job.
 
 **Want one built?** I build tools like these for small businesses, startups
 and educators. Email [builder@pisan.me](mailto:builder@pisan.me?subject=Project%20idea)
 with a paragraph about the problem and I'll tell you honestly whether it fits.
 Paid work keeps the lights on, but a useful or interesting problem matters
-more to me than the budget. If you just want ideas, I keep a public list of
+more to me than the budget. Looking for ideas? I keep a public list of
 [600+ things I could build for you](https://daily-project-ideas.pisan.me/).
 
 Yusuf Pisan
@@ -135,41 +131,22 @@ Yusuf Pisan
 | [Emoji Lingua](https://emoji-lingua.pisan.me/) ([code](./emoji-lingua)) | English to emoji and back. |
 | [Mult Streak](https://mult-streak.pisan.me/) ([code](./mult-streak)) | Ten multiplications in a row wins a 24-hour crown. |
 
-Also in the repo: [`backend-hub`](./backend-hub) (several small backends on one
-Render service), [`summit-navigator`](./summit-navigator) (schedule for a
-conference that has now happened) and [`tetromino-arcade`](./tetromino-arcade).
-
 Longer write-ups of every app, including what each one deliberately leaves
-out, are in [PROJECTS.md](./PROJECTS.md).
+out, are in [PROJECTS.md](./PROJECTS.md). Each app also has its own
+repository in [pisan-labs](https://github.com/pisan-labs), if you want to star,
+fork or reuse just one.
 
-## How they get built
+## Working with me
 
-1. A scheduled Claude routine in
-   [`daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas)
-   looks for real demand (complaints, feature requests, people paying for
-   similar tools) and writes up a few ideas each morning.
-2. I pick one. Claude builds it in its own folder here: TypeScript, vitest
-   with at least 85% coverage, lint, typecheck, and a `deploy/target.yml`.
-3. CI checks every package on every push. The deploy workflow finds every
-   `*/deploy/target.yml` and ships changed apps to Netlify or Render.
-4. A shared footer from [`scripts/site-footer.mjs`](./scripts/site-footer.mjs)
-   is added to every app at deploy time.
+Tell me the problem, not the solution: who is stuck, what they do today and
+what it costs them. I'll say whether software is the right answer, and if it
+is, what a first version would do and what it would leave out. Every app
+here was built the same way: a small, working first version that real people
+can try, then improvements from what they say.
 
-Most apps replace the idea's suggested LLM calls with deterministic code where
-that works, so they are free to run, work offline and give the same answer
-twice. The design decisions for each app are in its README.
+## Free to use and reuse
 
-## Running one locally
-
-```bash
-cd bombe-bench
-npm ci
-npm run dev
-```
-
-Every package also has `npm run lint`, `npm run typecheck`, `npm run coverage`
-and `npm run build`.
-
-## License
-
-[MIT](./LICENSE)
+Every app is free to use, and the code is [MIT licensed](./LICENSE), so you
+can copy it, change it and use it in your own work. Developers: how the
+repository is organized, tested and deployed is in
+[DEVELOPING.md](./DEVELOPING.md).
