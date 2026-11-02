@@ -13,6 +13,8 @@ documents never contain. Everything runs in the browser; nothing is uploaded.
 
 Live: [where-does-it-say.pisan.me](https://where-does-it-say.pisan.me)
 
+![Asking the sample course "Can I use ChatGPT on lab 3?" returns the exact AI-policy sentence, verified word for word and highlighted in the document, while "Will there be extra credit?" gets "Not stated in the course documents"](demo.gif)
+
 Implements idea #1 ("Where Does It Say") from the
 [2026-09-30 ideas day](https://github.com/pisanuw/daily-project-ideas)
 of `pisanuw/daily-project-ideas`.
