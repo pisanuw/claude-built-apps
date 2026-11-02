@@ -4,6 +4,8 @@ Paste two versions of a schema and get an annotated breaking-change diff:
 every change classified **safe / caution / breaking** with a one-sentence
 migration note, exportable as a Markdown checklist for a PR description.
 
+![Typing NOT NULL onto a new column in the AFTER schema flips it from safe to breaking and raises the breaking count to 4, then the TypeScript example shows interface changes classified the same way](demo.gif)
+
 - **Live site:** https://migration-diff-narrator.pisan.me
 - **Source:** https://github.com/pisanuw/Claude-capstone/tree/main/migration-diff-narrator
 - **Host:** Netlify (fully static, no backend, no API keys)
