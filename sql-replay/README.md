@@ -4,6 +4,8 @@
 
 Live: **<https://sql-replay.pisan.me>**
 
+![Stepping the Filter and sort demo query through FROM, WHERE (the failing row struck through), SELECT, ORDER BY and the final result, each with its narration](demo.gif)
+
 Type a query, paste sample data (or use the built-in demo tables), and press
 Run. Execution unfolds as a replay you can play, pause, and single-step:
 

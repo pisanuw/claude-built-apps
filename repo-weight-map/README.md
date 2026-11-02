@@ -13,6 +13,8 @@ folder is walked for names and sizes only.
 Live: [repo-weight-map.pisan.me](https://repo-weight-map.pisan.me)
 (add `?sample` to load the demo repo straight away).
 
+![Loading the sample student repo as a treemap, zooming into its data folder, then unticking the virtualenv finding so its lines leave the proposed .gitignore](demo.gif)
+
 Implements idea #1 ("Repo Weight Map") from the
 [2026-09-28 ideas day](https://github.com/pisanuw/daily-project-ideas)
 of `pisanuw/daily-project-ideas`.

@@ -11,6 +11,8 @@ hidden drawing.
 
 Live: [reverse-minesweeper-studio.pisan.me](https://reverse-minesweeper-studio.pisan.me)
 
+![Adding one mine to the heart drawing turns the board Needs a guess with amber cells, the two ambiguous layouts are shown, and a suggested one-cell fix makes it guess-free again](demo.gif)
+
 Implements idea #1 ("Reverse Minesweeper Studio") from the
 [2026-09-29 ideas day](https://github.com/pisanuw/daily-project-ideas)
 of `pisanuw/daily-project-ideas`.
