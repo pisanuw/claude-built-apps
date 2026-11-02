@@ -292,3 +292,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [note] Owner turned on Netlify Analytics for the sites that lacked it; the build routine now asks for it on each new site.
 
 2026-11-02 [decision] Build routine writes publicNotes for visitors (what it does, who for, one limitation; no build time, stack or test counts); notes stays technical for the owner.
+
+2026-11-02 [doc] Ideas site now customer-facing (daily-project-ideas 9f5bb63); built apps carry publicNotes; owner notes at daily-project-ideas.pisan.me/notes/ behind a password.
