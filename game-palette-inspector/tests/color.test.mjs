@@ -126,3 +126,86 @@ test('findConfusions flags red/green, not white pairs', () => {
   const withWhite = res.filter((p) => p.i === 2 || p.j === 2);
   assert.equal(withWhite.length, 0, 'white stays distinct from both');
 });
+
+// Copies of the presets in src/components/PaletteBench.jsx (JSX, so node
+// cannot import it directly).
+const PRESETS = [
+  { name: 'Forest platformer', bg: 0, hexes: ['#1b2a20', '#3e8948', '#d95763', '#f4d35e', '#4e91d9', '#8a6f4d', '#e8e3d3'] },
+  { name: 'Neon arcade', bg: 0, hexes: ['#0d0221', '#ff2975', '#00f0ff', '#ffd400', '#7a04eb', '#f8f8f2'] },
+  { name: 'Red/green trap', bg: 0, hexes: ['#262626', '#e74c3c', '#27ae60', '#f1c40f', '#ecf0f1'] },
+];
+
+const band = (d) => (d < 0.04 ? 2 : d < 0.1 ? 1 : 0);
+const views = (a, b) => [
+  ['typical', deltaEok(a, b)],
+  ...CVD_TYPES.map((t) => [t.id, deltaEok(simulateColor(a, t.id), simulateColor(b, t.id))]),
+];
+
+// What the fix studio's Apply button does: replace color i with the suggestion.
+function applySuggestion(hexes, bg, i, target) {
+  const fix = suggestFix(hexes[i], hexes[bg], target, { palette: hexes, index: i });
+  const next = hexes.slice();
+  if (fix?.hex) next[i] = fix.hex;
+  return { fix, next };
+}
+
+test('Red/green trap: applying the suggested red creates no CRITICAL confusion', () => {
+  const { hexes, bg } = PRESETS[2];
+  const { fix, next } = applySuggestion(hexes, bg, 1, 4.5);
+  const critical = findConfusions(next).filter((c) => c.severity === 'critical');
+  assert.deepEqual(
+    critical.map((c) => `${next[c.i]}/${next[c.j]} under ${c.worst.typeId}`),
+    [],
+    'no pair may become nearly identical under any vision type'
+  );
+  // Every lightness of this red that reaches 4.5:1 lands on the green's
+  // luminance (or past it, into protanopia), so the studio must say so.
+  assert.equal(fix.hex, null);
+  assert.equal(fix.conflict.hex, '#27ae60');
+  assert.equal(fix.conflict.label, 'Achromatopsia');
+});
+
+test('suggestions never push any pair into a worse confusion band, across presets and targets', () => {
+  let offered = 0;
+  for (const { name, hexes, bg } of PRESETS) {
+    for (const target of [3, 4.5, 7]) {
+      const criticalBefore = new Set(
+        findConfusions(hexes).filter((c) => c.severity === 'critical').map((c) => `${c.i}-${c.j}`)
+      );
+      hexes.forEach((hex, i) => {
+        if (i === bg || contrastRatio(parseHex(hex), parseHex(hexes[bg])) >= target) return;
+        const { fix, next } = applySuggestion(hexes, bg, i, target);
+        if (!fix?.hex) return;
+        offered++;
+        const where = `${name} @${target}: ${hex} -> ${fix.hex}`;
+        assert.ok(contrastRatio(parseHex(fix.hex), parseHex(hexes[bg])) >= target, where + ' meets target');
+        hexes.forEach((other, j) => {
+          if (j === i) return;
+          const before = views(parseHex(hex), parseHex(other));
+          const after = views(parseHex(fix.hex), parseHex(other));
+          after.forEach(([id, d], v) => {
+            assert.ok(band(d) <= band(before[v][1]), `${where} vs ${other} worse under ${id}: ${d.toFixed(3)}`);
+          });
+        });
+        for (const c of findConfusions(next)) {
+          if (c.severity === 'critical') {
+            assert.ok(criticalBefore.has(`${c.i}-${c.j}`), `${where} adds critical ${next[c.i]}/${next[c.j]}`);
+          }
+        }
+      });
+    }
+  }
+  assert.ok(offered >= 5, 'still offers fixes where a safe one exists, got ' + offered);
+});
+
+test('suggestFix with palette context will not break a contrast pair that already passes', () => {
+  // #595959 fails 4.5:1 on black but passes against #eeeeee; any gray light
+  // enough for 4.5:1 on black falls below 4.5:1 against #eeeeee.
+  const palette = ['#000000', '#595959', '#eeeeee'];
+  assert.ok(contrastRatio(parseHex('#595959'), parseHex('#eeeeee')) >= 4.5);
+  assert.ok(suggestFix('#595959', '#000000', 4.5).hex, 'a contrast-only fix exists');
+  const fix = suggestFix('#595959', '#000000', 4.5, { palette, index: 1 });
+  assert.equal(fix.hex, null);
+  assert.equal(fix.conflict.hex, '#eeeeee');
+  assert.equal(fix.conflict.label, 'Contrast');
+});

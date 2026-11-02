@@ -18,9 +18,24 @@ import { CVD_TYPES, simulateColor } from './cvd.js';
  * lightness can reach the target in either direction (possible for AAA 7:1
  * against mid-tone backgrounds, where even pure black and white fall short).
  *
- * @returns {{hex:string, ratio:number, direction:'lighter'|'darker', deltaL:number} | null}
+ * Pass `context` ({ palette, index }: the whole palette and fg's slot in it)
+ * and the fix is also checked against the rest of the palette: a lightness
+ * step that fixes contrast can make the color collide with a neighbor under
+ * another vision type (a lighter red lands on green's luminance, so the pair
+ * merges under achromatopsia). With context, candidates are scanned from the
+ * smallest lightness change outward and the first one is returned that, for
+ * every other palette color, neither pushes the pair into a worse confusion
+ * band (distinct -> confusable -> near identical) under typical vision or any
+ * of the eight simulated vision types, nor drops a pair that met `target` in
+ * the contrast matrix below it. If every contrast-passing candidate would do
+ * one of those, the result is { hex: null, conflict } naming the worst
+ * collision of the nearest candidate.
+ *
+ * @returns {{hex:string, ratio:number, direction:'lighter'|'darker'|'none', deltaL:number}
+ *   | {hex:null, conflict:{hex:string, index:number, label:string, d?:number, ratio?:number}}
+ *   | null}
  */
-export function suggestFix(fgHex, bgHex, target) {
+export function suggestFix(fgHex, bgHex, target, context) {
   const fg = parseHex(fgHex);
   const bg = parseHex(bgHex);
   const { L, C, H } = rgbToOklch(fg);
@@ -62,8 +77,77 @@ export function suggestFix(fgHex, bgHex, target) {
   if (darker) options.push({ ...darker, direction: 'darker', deltaL: Math.abs(darker.l - L) });
   if (options.length === 0) return null;
   options.sort((a, b) => a.deltaL - b.deltaL);
-  const best = options[0];
-  return { hex: toHex(best.rgb), ratio: best.ratio, direction: best.direction, deltaL: best.deltaL };
+  if (!context) {
+    const best = options[0];
+    return { hex: toHex(best.rgb), ratio: best.ratio, direction: best.direction, deltaL: best.deltaL };
+  }
+
+  // Every in-target lightness in each direction, nearest first. Contrast is
+  // monotonic away from the background, so everything past the boundary passes.
+  const candidates = [];
+  for (const o of options) {
+    const end = o.direction === 'lighter' ? 1 : 0;
+    const steps = Math.ceil(Math.abs(end - o.l) / L_STEP);
+    for (let k = 0; k <= steps; k++) {
+      const l = k === steps ? end : o.l + Math.sign(end - o.l) * k * L_STEP;
+      const { rgb, ratio } = ratioAt(l);
+      if (ratio >= target) candidates.push({ rgb, ratio, direction: o.direction, deltaL: Math.abs(l - L) });
+    }
+  }
+  candidates.sort((a, b) => a.deltaL - b.deltaL);
+
+  const others = context.palette
+    .map((hex, j) => ({ j, rgb: parseHex(hex) }))
+    .filter(({ j, rgb }) => j !== context.index && rgb);
+  const before = others.map(({ rgb }) => ({
+    d: viewDistances(fg, rgb),
+    ratio: contrastRatio(fg, rgb),
+  }));
+  // The worst collision a candidate would cause, or null if it causes none.
+  const conflictOf = (cand) => {
+    let worst = null;
+    for (let n = 0; n < others.length; n++) {
+      const after = viewDistances(cand.rgb, others[n].rgb);
+      for (let v = 0; v < VIEWS.length; v++) {
+        if (band(after[v]) > band(before[n].d[v]) && (!worst || after[v] < worst.d)) {
+          worst = { hex: toHex(others[n].rgb), index: others[n].j, label: VIEWS[v].label, d: after[v] };
+        }
+      }
+      const ratio = contrastRatio(cand.rgb, others[n].rgb);
+      if (!worst && before[n].ratio >= target && ratio < target) {
+        worst = { hex: toHex(others[n].rgb), index: others[n].j, label: 'Contrast', ratio };
+      }
+    }
+    return worst;
+  };
+
+  let firstConflict = null;
+  const seen = new Set();
+  for (const cand of candidates) {
+    const hex = toHex(cand.rgb);
+    if (seen.has(hex)) continue;
+    seen.add(hex);
+    const conflict = conflictOf(cand);
+    if (!conflict) return { hex, ratio: cand.ratio, direction: cand.direction, deltaL: cand.deltaL };
+    firstConflict ??= conflict;
+  }
+  return { hex: null, conflict: firstConflict };
+}
+
+// Lightness grid for palette-aware candidates (OKLCH L runs 0..1).
+const L_STEP = 0.005;
+
+// Typical vision plus every simulated deficiency.
+const VIEWS = [{ id: null, label: 'Typical vision' }, ...CVD_TYPES];
+
+// Severity band of a distance, as findConfusions reports it: 0 distinct,
+// 1 confusable (warning), 2 near identical (critical).
+const band = (d) => (d < NEAR_IDENTICAL ? 2 : d < CONFUSABLE ? 1 : 0);
+
+function viewDistances(a, b) {
+  return VIEWS.map((t) =>
+    t.id ? deltaEok(simulateColor(a, t.id), simulateColor(b, t.id)) : deltaEok(a, b)
+  );
 }
 
 // Thresholds on OKLab distance (black-white = 1.0).
