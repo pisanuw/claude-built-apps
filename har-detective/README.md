@@ -8,6 +8,8 @@ oversized payloads, and HTTP/1.x connection churn.
 
 **Live:** <https://har-detective.pisan.me>
 
+![Loading the sample session lists 13 ranked findings; opening the N+1 finding and pressing Show in waterfall highlights the eight /api/products/{id} calls running one after another](demo.gif)
+
 Built from the 2026-08-21 idea in
 [pisanuw/daily-project-ideas](https://github.com/pisanuw/daily-project-ideas).
 The idea suggested running Claude over the request data; this implementation

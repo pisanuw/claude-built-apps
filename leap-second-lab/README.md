@@ -8,6 +8,8 @@ with four fix-the-bug exercises with hidden tests.
 
 Live: [leap-second-lab.pisan.me](https://leap-second-lab.pisan.me)
 
+![On the Step vs smear tab, dragging the instant slider into 2016-12-31T23:59:60 shows the POSIX clock reading 23:59:59 again while the smeared clocks sit half a second off, then the chart zooms out to the 1,000-second UTC-SLS ramp](demo.gif)
+
 Built from idea 2026-10-17 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas),
 which was prompted by the decision to stop inserting leap seconds. The idea's

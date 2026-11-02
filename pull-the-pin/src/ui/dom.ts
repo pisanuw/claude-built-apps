@@ -25,6 +25,27 @@ export function clear(node: Element): void {
   while (node.firstChild) node.removeChild(node.firstChild);
 }
 
+const FOCUSABLE = 'a[href], button, input, select, textarea, summary, [tabindex]';
+
+/**
+ * Rebuild a container's children in one step, keeping keyboard focus and the
+ * scroll position. Removing a focused control makes the browser lay out the
+ * page there and then; if the container is half empty at that moment (cleared
+ * node by node, or a reused child already moved into the new content) the
+ * shorter page clamps the scroll position and the page jumps up. So: note the
+ * focus and scroll before building, swap in one step, refocus the control at
+ * the same position without scrolling, and put the scroll back if it moved.
+ */
+export function rebuild(node: Element, build: () => Child[]): void {
+  const { scrollX, scrollY } = window;
+  const active = document.activeElement;
+  const index = active && node.contains(active) ? [...node.querySelectorAll(FOCUSABLE)].indexOf(active) : -1;
+  node.replaceChildren(...build());
+  const next = index < 0 ? undefined : node.querySelectorAll(FOCUSABLE)[index];
+  if (next && next.tagName === active!.tagName) (next as HTMLElement).focus({ preventScroll: true });
+  if (window.scrollX !== scrollX || window.scrollY !== scrollY) window.scrollTo(scrollX, scrollY);
+}
+
 export function button(label: string, onClick: () => void, cls = ''): HTMLButtonElement {
   const b = el('button', { type: 'button', class: cls }, label);
   b.addEventListener('click', onClick);

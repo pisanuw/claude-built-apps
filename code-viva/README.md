@@ -11,6 +11,8 @@ who need a short conversation.
 
 Live: [code-viva.pisan.me](https://code-viva.pisan.me)
 
+![Loading the linked-lists demo course opens the Review tab, where Ben tops the flag queue with an unexplained commit, vague answers, follow-ups and a pasted textbook paragraph, then clicking Ana shows a 15 of 15 transcript with no flags](demo.gif)
+
 Built from idea 2026-10-21 n1 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas),
 prompted by the SIGCSE TS 2026 lightning talk on AI-driven oral examinations

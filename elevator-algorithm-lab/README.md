@@ -12,6 +12,8 @@ browser; nothing is uploaded.
 
 Live: [elevator-algorithm-lab.pisan.me](https://elevator-algorithm-lab.pisan.me)
 
+![The textbook disk trace runs LOOK and SSTF side by side, first as a disk head moving like an elevator car, then in disk view as the classic sweep diagram, ending on the metrics: 208 versus 236 cylinders of head movement](demo.gif)
+
 Implements idea #2 ("Elevator Algorithm Lab") from the
 [2026-09-29 ideas day](https://github.com/pisanuw/daily-project-ideas)
 of `pisanuw/daily-project-ideas`.

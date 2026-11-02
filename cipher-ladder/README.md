@@ -16,6 +16,8 @@ dashboard. Everything runs in the browser.
 
 Live: [cipher-ladder.pisan.me](https://cipher-ladder.pisan.me)
 
+![On the Caesar rung the tallest ciphertext bar, A, is taken as E; sliding the shift to 22 turns the decryption into The War of the Worlds, and checking it solves the rung and opens a debrief with the solver's own step-by-step attack](demo.gif)
+
 Implements idea #2 ("Cipher Ladder") from the
 [2026-09-25 ideas day](https://github.com/pisanuw/daily-project-ideas)
 of `pisanuw/daily-project-ideas`.

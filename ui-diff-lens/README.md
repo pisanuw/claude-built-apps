@@ -4,6 +4,8 @@ Drag two UI screenshots into the browser and get a **classified visual diff**:
 every changed region is labeled as one of seven change types, with the evidence
 spelled out.
 
+![Loading the built-in sample screenshot pair, which is diffed into seven labelled regions (color, layout shift, visibility, removed, text edit, added, spacing), then clicking regions on the overlay to select each one's explanation](demo.gif)
+
 - **Live site:** https://ui-diff-lens.pisan.me
 - **Source:** https://github.com/pisanuw/Claude-capstone/tree/main/ui-diff-lens
 - **Host:** Netlify (fully static; screenshots never leave the browser).

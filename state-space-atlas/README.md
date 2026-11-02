@@ -13,6 +13,8 @@ this node count" challenges as links. Everything runs in the browser.
 
 Live: [state-space-atlas.pisan.me](https://state-space-atlas.pisan.me)
 
+![BFS sweeps across all 20,160 states of the 7-puzzle atlas layer by layer, then A* with Manhattan distance reaches the same optimal 36-move solution after expanding 10,519, and the run table compares the two](demo.gif)
+
 Implements idea #2 ("State Space Atlas") from the
 [2026-10-01 ideas day](https://github.com/pisanuw/daily-project-ideas)
 of `pisanuw/daily-project-ideas`.

@@ -7,6 +7,8 @@ in each.
 
 Live: <https://data-structure-city.pisan.me>
 
+![FILL 8 builds a hash map, B-tree, skip list and LRU cache at once and reports each rehash and node split, GET k1 hits in three buildings but misses in the LRU cache, and DEL k2 merges two B-tree nodes, with per-building cost meters](demo.gif)
+
 Built from the idea "Data Structure City" (2026-09-26, #2) in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).
 

@@ -8,6 +8,8 @@ signal chain, then export a WAV at your chosen sample rate and bit depth.
 
 **Live:** <https://sound-sketchpad.pisan.me>
 
+![Typing tiny retro laser, echoing and seeing which words matched and the waveform, playing it with a moving playhead, switching to the metallic door slam preset and dragging the pitch slider](demo.gif)
+
 Built from idea **2026-08-09 #1** in
 [pisanuw/daily-project-ideas](https://github.com/pisanuw/daily-project-ideas).
 

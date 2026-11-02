@@ -8,6 +8,8 @@ runs in the browser.
 
 Live: [diagram-layout-engine.pisan.me](https://diagram-layout-engine.pisan.me)
 
+![Typing a new edge into the Mermaid source re-lays out the CI/CD flowchart, then switching direction to top-to-bottom and the theme to blueprint redraws it, and hovering a node highlights its edges](demo.gif)
+
 Built from the 2026-10-18 idea "Build Your Own Diagram Layout Engine", a
 five-week classroom assignment prompted by the HN thread on Pele (Obsidian's
 themeable Mermaid renderer), where people mostly asked for readable large

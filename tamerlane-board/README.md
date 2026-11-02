@@ -10,6 +10,8 @@ it, or have the engine play itself to see whether the piece is too strong.
 
 Live: [tamerlane-board.pisan.me](https://tamerlane-board.pisan.me)
 
+![In the piece lab, the giraffe's F>R{3,} reach animates outward on the 11x10 board, then typing the cannon notation mR cpR and placing two enemy blockers shows it capturing by hopping over one](demo.gif)
+
 Built from idea 2026-10-15 n1 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas),
 prompted by a Show HN post about Timur's chess. The idea's optional Claude

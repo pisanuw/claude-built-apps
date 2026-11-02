@@ -2,6 +2,8 @@
 
 **Live:** https://agent-blast-radius.pisan.me
 
+![Clicking Try a sample scans twelve bundled AI tool configs, then scrolls through cards scoring each tool's reach across filesystem, shell, network, credentials and browser data, with the config line behind every capability](demo.gif)
+
 What can your AI tools actually touch? Drop in the config files for your MCP
 servers, coding agents, and browser or VS Code extensions, and get a one-page
 report scoring each tool's reach across five dimensions: **filesystem**,

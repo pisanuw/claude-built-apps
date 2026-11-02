@@ -59,6 +59,58 @@ describe('naturalLanguageToCron', () => {
     expect(naturalLanguageToCron('on the last day of the month')).toBeNull();
   });
 
+  describe('ordinal weekdays ("last Friday of the month")', () => {
+    // Cron ORs day-of-month with day-of-week, so it cannot say "the last
+    // Friday"; the converter must hand back an RRULE, never a cron.
+    const rrule = (text: string): string | null => naturalLanguageToCron(text)?.rrule ?? null;
+
+    it('converts "last friday of every month at 5pm" to an RRULE, not cron', () => {
+      const r = naturalLanguageToCron('last friday of every month at 5pm');
+      expect(r?.cron).toBeNull();
+      expect(r?.rrule).toBe('FREQ=MONTHLY;BYDAY=-1FR;BYHOUR=17;BYMINUTE=0');
+      expect(r?.notes.join(' ')).toMatch(/cron cannot express "the last Friday of the month"/);
+      expect(r?.notes.join(' ')).not.toMatch(/1st of the month/);
+    });
+
+    it('handles the sibling phrasings', () => {
+      expect(rrule('last monday of the month')).toBe('FREQ=MONTHLY;BYDAY=-1MO;BYHOUR=0;BYMINUTE=0');
+      expect(rrule('first friday of every month at 9am')).toBe('FREQ=MONTHLY;BYDAY=1FR;BYHOUR=9;BYMINUTE=0');
+      expect(rrule('second tuesday of each month')).toBe('FREQ=MONTHLY;BYDAY=2TU;BYHOUR=0;BYMINUTE=0');
+      expect(rrule('on the 3rd wednesday at 14:30')).toBe('FREQ=MONTHLY;BYDAY=3WE;BYHOUR=14;BYMINUTE=30');
+      expect(rrule('second-to-last thursday of the month')).toBe('FREQ=MONTHLY;BYDAY=-2TH;BYHOUR=0;BYMINUTE=0');
+      expect(rrule('first monday and last friday of the month at 8am')).toBe(
+        'FREQ=MONTHLY;BYDAY=1MO,-1FR;BYHOUR=8;BYMINUTE=0',
+      );
+      expect(naturalLanguageToCron('last monday of the month')?.notes.join(' ')).toMatch(/00:00/);
+    });
+
+    it('carries months and month intervals into the RRULE', () => {
+      expect(rrule('last friday of december at 5pm')).toBe('FREQ=MONTHLY;BYDAY=-1FR;BYMONTH=12;BYHOUR=17;BYMINUTE=0');
+      expect(rrule('first monday of every quarter')).toBe('FREQ=MONTHLY;BYDAY=1MO;BYMONTH=1,4,7,10;BYHOUR=0;BYMINUTE=0');
+      const r = naturalLanguageToCron('first monday of every other month at 9am');
+      expect(r?.rrule).toBe('FREQ=MONTHLY;INTERVAL=2;BYDAY=1MO;BYHOUR=9;BYMINUTE=0');
+      expect(r?.notes.join(' ')).toMatch(/preview window/);
+      expect(naturalLanguageToCron('last friday at 9:15am and 5pm')?.notes.join(' ')).toMatch(/different minutes/);
+    });
+
+    it('refuses combinations it cannot express exactly', () => {
+      expect(naturalLanguageToCron('last friday and the 15th of the month')).toBeNull();
+      expect(naturalLanguageToCron('last friday of the month and every monday')).toBeNull();
+      expect(naturalLanguageToCron('every 10 minutes on the last friday')).toBeNull();
+      expect(naturalLanguageToCron('last friday of every year')).toBeNull();
+      // "the last weekday" needs BYSETPOS, which is not supported; it must
+      // not degrade to "every weekday".
+      expect(naturalLanguageToCron('last weekday of the month')).toBeNull();
+      expect(naturalLanguageToCron('first business day of the month at 9am')).toBeNull();
+    });
+
+    it('leaves plain weekday and first-of-month phrases on cron', () => {
+      expect(naturalLanguageToCron('every friday at 5pm')).toEqual({ cron: '0 17 * * 5', rrule: null, notes: [] });
+      expect(cron('at midnight on the first of each month')).toBe('0 0 1 * *');
+      expect(cron('first day of every month at 9am')).toBe('0 9 1 * *');
+    });
+  });
+
   it('returns null for input with no schedule signal', () => {
     expect(naturalLanguageToCron('hello world')).toBeNull();
     expect(naturalLanguageToCron('')).toBeNull();

@@ -14,6 +14,8 @@ Markdown or QTI 1.2.
 
 Live: [edit-graph-lab.pisan.me](https://edit-graph-lab.pisan.me)
 
+![Myers' algorithm on ABCABBA and CBABAC: furthest-reaching paths spread across the edit graph step by step while the V array fills in, then the Compare tab shows the LCS, Myers, patience and histogram diffs and the LCS table](demo.gif)
+
 Built from idea 2026-10-11 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).
 

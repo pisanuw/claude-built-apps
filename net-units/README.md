@@ -13,6 +13,8 @@ solutions an AI wrote.
 
 Live: [net-units.pisan.me](https://net-units.pisan.me)
 
+![Switching the x axis from net lines to net coding units shows the four-line crammed Student 2 solution is not small, then clicking its point opens the diff with every counted unit highlighted](demo.gif)
+
 Built from idea 2026-10-14 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas),
 inspired by the Parsimony benchmark, which ranks models by the net code they

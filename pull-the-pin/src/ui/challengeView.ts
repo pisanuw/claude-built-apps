@@ -10,7 +10,7 @@ import { DEFAULT_MAX_CYCLES, simulate, type RunResult } from '../core/sim';
 import { Analyzer } from './analyzer';
 import { saveAttempt } from './attempts';
 import { Board } from './board';
-import { button, clear, el, select } from './dom';
+import { button, clear, el, rebuild, select } from './dom';
 import { FaultPicker } from './faultPicker';
 import type { SignatureService } from './signatures';
 
@@ -54,6 +54,7 @@ export class ChallengeView {
   private showSet = true;
   private hint: string | null = null;
   private asmError: string | null = null;
+  private readonly openKinds = new Set<FaultKind>();
 
   private readonly board = new Board((s) => this.pick(s));
   private readonly analyzer = new Analyzer((c) => {
@@ -214,8 +215,7 @@ export class ChallengeView {
   }
 
   private renderSide() {
-    clear(this.side);
-    this.side.append(this.runCard(), this.probeCard(), this.diagnosisCard(), this.answerCard());
+    rebuild(this.side, () => [this.runCard(), this.probeCard(), this.diagnosisCard(), this.answerCard()]);
   }
 
   private runCard(): HTMLElement {
@@ -320,6 +320,9 @@ export class ChallengeView {
     }
     for (const [kind, list] of byKind) {
       const details = el('details', {}, el('summary', {}, `${KIND_TITLES[kind]}: ${list.length}`));
+      // The panel is rebuilt while signatures load; keep expanded groups open.
+      details.open = this.openKinds.has(kind);
+      details.addEventListener('toggle', () => (details.open ? this.openKinds.add(kind) : this.openKinds.delete(kind)));
       const ul = el('ul', { class: 'faults' });
       for (const i of list.slice(0, 60)) ul.append(el('li', {}, describeFault(CATALOG[i])));
       if (list.length > 60) ul.append(el('li', { class: 'muted' }, `…and ${list.length - 60} more`));

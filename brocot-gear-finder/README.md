@@ -10,6 +10,8 @@ that shows how far it drifts from an ideal hand.
 
 Live: [brocot-gear-finder.pisan.me](https://brocot-gear-finder.pisan.me)
 
+![Picking the moon-phase preset lists the most accurate 1 to 3 stage gear trains for 29.530589, then the chosen three-stage train turns in SVG and dragging the drift slider shows it 74 degrees ahead of an ideal hand after 100 million turns](demo.gif)
+
 Built from idea 2026-10-05 n1 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).
 

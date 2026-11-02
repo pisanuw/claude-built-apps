@@ -8,6 +8,7 @@ import {
   sessionStatus,
   nowNext,
   timeRangeLabel,
+  timeLabel,
 } from '../src/core/clock';
 import { makeSession } from './helpers';
 
@@ -115,5 +116,20 @@ describe('timeRangeLabel', () => {
   it('converts when viewing from another zone', () => {
     expect(timeRangeLabel(s, NY, 'America/Los_Angeles')).toBe('10:30 AM – 11:30 AM');
     expect(timeRangeLabel(s, NY, 'UTC')).toBe('5:30 PM – 6:30 PM');
+  });
+});
+
+describe('timeLabel (time-slot headings)', () => {
+  it('uses wall time in the conference zone', () => {
+    expect(timeLabel('2026-08-31', '08:30', NY, null)).toBe('8:30 AM');
+    expect(timeLabel('2026-08-31', '08:30', NY, NY)).toBe('8:30 AM');
+  });
+
+  it('converts to the viewer zone, matching the card time range', () => {
+    // Regression: headings stayed in ET while cards switched to the viewer's zone.
+    const s = makeSession({ day: '2026-08-31', start: '08:30', end: '09:00' });
+    const LA = 'America/Los_Angeles';
+    expect(timeLabel(s.day, s.start, NY, LA)).toBe('5:30 AM');
+    expect(timeRangeLabel(s, NY, LA).startsWith(timeLabel(s.day, s.start, NY, LA) + ' –')).toBe(true);
   });
 });

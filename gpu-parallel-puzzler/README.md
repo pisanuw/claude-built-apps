@@ -9,6 +9,8 @@ par time, with a CPU-vs-GPU estimate and plain-language hints.
 
 Live: [gpu-parallel-puzzler.pisan.me](https://gpu-parallel-puzzler.pisan.me)
 
+![Level 4 of GPU Parallel Puzzler: the divergent starter kernel earns one star with 128 divergent branches and 52% of lanes busy, then the 3-star solution runs at par with every lane busy and no divergence](demo.gif)
+
 Built from idea 2026-06-23 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).
 The idea's Claude hint system is replaced by a deterministic diagnosis that

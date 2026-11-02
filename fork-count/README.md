@@ -13,6 +13,8 @@ checked against every schedule.
 
 Live: [fork-count.pisan.me](https://fork-count.pisan.me)
 
+![Loading the loop-counter example shows 4 processes and 3 possible outputs, then checking an output that starts with 1 reports it impossible and names the program-order and fork edges that rule it out](demo.gif)
+
 Built from idea 2026-10-09 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).
 

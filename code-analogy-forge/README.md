@@ -4,6 +4,8 @@ Paste any code snippet or name a CS concept, pick your audience, and get **three
 
 Live: **<https://code-analogy-forge.pisan.me>**
 
+![Pasting a recursive factorial function detects recursion from its self-call and forges three analogies (post office, school, cooking) with code-to-analogy tables, then switching the audience to curious child and non-technical adult rewrites every card](demo.gif)
+
 Built from idea 2026-08-25 n1 in [pisanuw/daily-project-ideas](https://github.com/pisanuw/daily-project-ideas).
 
 ## What it does

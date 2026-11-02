@@ -8,6 +8,8 @@ between any two time zones, and explains the schedule in plain English.
 
 Live: [cron-cartographer.pisan.me](https://cron-cartographer.pisan.me)
 
+![Typing "every 2 hours on weekends" becomes cron 0 */2 * * 0,6 with a weekends-only heatmap, then the 365-day view of 0 0 13 * 5 shows cron firing on every Friday and every 13th, with one day's fire times](demo.gif)
+
 Implements idea #1 ("Cron Cartographer") from the
 [2026-09-02 ideas day](https://github.com/pisanuw/daily-project-ideas)
 of `pisanuw/daily-project-ideas`.
@@ -52,6 +54,11 @@ and the same input always produces the same answer, offline.
 - The natural-language converter is a fixed rule set, not a language model:
   it covers the common phrasings (intervals, times, weekdays, day-of-month,
   months, quarterly) and returns "could not understand" for the rest.
+  Phrases like "last Friday of every month" or "second Tuesday of each
+  month" become an RRULE (`FREQ=MONTHLY;BYDAY=-1FR;...`) with a note
+  explaining why: five-field cron ORs day-of-month with day-of-week, so it
+  cannot say them. "The last weekday" and "the last day of the month" are
+  refused rather than guessed.
 - RRULE support is the subset listed above; `BYSETPOS`, `BYWEEKNO`,
   `BYYEARDAY`, and `WKST`-dependent expansion are not implemented, and a
   pasted RRULE has no `DTSTART`, so expansion anchors at the start of the
@@ -70,7 +77,7 @@ npm run typecheck  # tsc --noEmit
 npm run build      # typecheck + vite build to dist/
 ```
 
-74 tests cover the cron parser, describer, natural-language converter,
+80 tests cover the cron parser, describer, natural-language converter,
 RRULE parser/expander, time-zone engine (including exact 2026 DST
 transition instants for America/Los_Angeles), heatmap aggregation, share
 links, and input auto-detection.
@@ -81,7 +88,7 @@ links, and input auto-detection.
 src/core/          pure, dependency-free engine (all unit-tested)
   cron.ts          five-field parser + day/wall matching + GHA extraction
   describe.ts      schedule -> plain English
-  nl.ts            English -> cron (deterministic rules)
+  nl.ts            English -> cron, or RRULE where cron cannot say it
   rrule.ts         RRULE parser + wall-time expansion
   tz.ts            offset-transition tables over Intl; exact conversions
   expand.ts        firing enumeration + per-day heatmap aggregation

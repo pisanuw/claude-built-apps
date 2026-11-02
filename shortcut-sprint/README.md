@@ -5,6 +5,8 @@ prompt ("Go to definition"), press the shortcut, and an SM-2 spaced-repetition
 scheduler decides when you see each one again. Live at
 **<https://shortcut-sprint.pisan.me>**.
 
+![A VS Code practice session: three shortcuts pressed correctly, one wrong key that gets Not quite, then Show answer revealing the combo](demo.gif)
+
 Everything runs in the browser: no account, no server, no API keys. Progress
 lives in `localStorage`.
 

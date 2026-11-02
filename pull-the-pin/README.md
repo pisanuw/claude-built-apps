@@ -8,6 +8,8 @@ or microcode bit, the way a repair tech diagnoses a board.
 
 Live: [pull-the-pin.pisan.me](https://pull-the-pin.pisan.me)
 
+![Running a test program on a broken board, asking for the best next probe, and probing the AI control line until one consistent fault, an open CTRL.AI pin, is left](demo.gif)
+
 Built from idea 2026-10-18 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas),
 inspired by antirez's Commodore 64 hardware simulator (break chips and pins,

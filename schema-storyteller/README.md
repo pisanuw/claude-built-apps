@@ -15,6 +15,8 @@ onboarding wiki.
 
 **Live:** https://schema-storyteller.pisan.me/
 
+![Loading the SQL blog sample and scrolling through the plain-English story, the review findings and the per-entity descriptions](demo.gif)
+
 ## Why it is deterministic (no LLM)
 
 The original project idea proposed sending the schema to an LLM. Schema

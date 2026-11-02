@@ -4,6 +4,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['test/**/*.test.ts'],
+    // Process the stylesheet (vitest blanks CSS by default) so test/styles.test.ts can read it raw.
+    css: { include: [/styles\.css/] },
     coverage: {
       provider: 'v8',
       reporter: ['text'],

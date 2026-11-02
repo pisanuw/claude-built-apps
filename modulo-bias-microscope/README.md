@@ -8,6 +8,8 @@ fractions a student can check by hand.
 
 Live: [modulo-bias-microscope.pisan.me](https://modulo-bias-microscope.pisan.me)
 
+![Picking the naive shuffle from the bug gallery shows three permutations at 5/27 and three at 4/27, off by 1/18; Show the fix swaps in Fisher-Yates and every permutation lands exactly on 1/6](demo.gif)
+
 Built from idea 2026-10-08 n2 in
 [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas),
 inspired by the Hacker News post "When random is not actually random enough".

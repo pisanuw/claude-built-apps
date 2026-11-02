@@ -4,6 +4,8 @@ Race to spot planted bugs, security holes, and code smells in realistic code
 snippets before the timer runs out — then get an annotated explainer of
 everything you missed.
 
+![A Novice round plants two defects in a JavaScript comment renderer; flagging the innerHTML line and submitting scores 100 points, marks the found XSS line green and the missed div line red, and explains each defect with its fix](demo.gif)
+
 - **Live site:** https://code-review-gauntlet.pisan.me
 - **Source:** https://github.com/pisanuw/Claude-capstone/tree/main/code-review-gauntlet
 - **Host:** Netlify (fully static; no backend, no API keys).
