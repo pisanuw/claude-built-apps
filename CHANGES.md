@@ -220,3 +220,7 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 
 2026-11-01 [code] modulo-bias-microscope: new package (idea 2026-10-08 n2). Exact enumeration over a 1-16 bit source with BigInt fractions, chi-square on 32-bit xoshiro128**, 7-bug gallery, exercise links; 68 tests.
 2026-11-01 [decision] modulo-bias-microscope: JavaScript only (Pyodide dropped), no LLM/backend; exercises live in URL fragments; grader is exact-first with a chi-square fallback at a stated false-fail rate.
+
+2026-11-02 [decision] Repo refocused on getting users and custom-build clients: "built by Claude" headline, pisan.me subdomains, pisan-labs org, flagships bombe-bench and cache-miss-theater.
+
+2026-11-02 [doc] README rewritten as a pitch plus a catalog grouped by audience; the per-app write-ups moved unchanged to PROJECTS.md. CLAUDE.md step 3 updated to match.

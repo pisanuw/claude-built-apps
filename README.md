@@ -1,855 +1,149 @@
-# Claude-capstone
+# 50 apps built by Claude
 
 [![CI](https://github.com/pisanuw/Claude-capstone/actions/workflows/ci.yml/badge.svg)](https://github.com/pisanuw/Claude-capstone/actions/workflows/ci.yml)
 
-Capstone projects built by Claude from prompts in
-[`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas).
-
-Every deployed app ends with the same "built by" footer, added at deploy time
-from [`scripts/site-footer.mjs`](./scripts/site-footer.mjs); see the
-[deploy README](./accessibility-lens/deploy/README.md#site-footer).
-
-## Projects
-
-### [`accessibility-lens/`](./accessibility-lens)
-
-**Accessibility Lens** implements idea #2 ("Code Blindfold") from the ideas day of
-2026-05-12. Paste a public URL and it analyzes the page against a deterministic
-subset of WCAG 2.1, then replays it the way users with low vision, color blindness,
-keyboard-only navigation, and screen readers experience it, with a suggested fix for
-every issue and optional Claude-generated code rewrites.
-
-TypeScript monorepo (Express + a pure analysis engine on the server, React + Vite +
-Tailwind on the client), 107 tests, deployable as a single Node service.
-Live: [accessibility-lens-pisanuw.netlify.app](https://accessibility-lens-pisanuw.netlify.app).
-See its [README](./accessibility-lens/README.md) and
-[ASSUMPTIONS](./accessibility-lens/ASSUMPTIONS.md).
-
-### [`mult-streak/`](./mult-streak) and [`mult-streak-edge/`](./mult-streak-edge)
-
-A multiplication-streak game: solve two 2-3 digit factors, ten correct in a row
-wins a 24-hour crown, a wrong answer resets the streak. Anonymous cookie identity,
-game state in a signed cookie, and a "player stopped" email to the admin via
-Resend. `mult-streak` runs on **Render** behind the shared
-[`backend-hub`](./backend-hub) service at `/mult-streak/` (where the idle email
-is reliable); `mult-streak-edge` is the same game on **Netlify** (game works
-fully; email is Render-only, by the nature of serverless). Both built from the
-config-driven deploy pipeline.
-
-### [`backend-hub/`](./backend-hub)
-
-One **Render** web service hosting several low-traffic backends behind path
-prefixes, because Render bills per idle service instance. Currently serves
-`mult-streak` at `/mult-streak/`; `/chat` (chatwithdigitalme) and `/dsa`
-(dsa-instructor) are documented, reserved mount points for future moves.
-
-### [`emoji-lingua/`](./emoji-lingua)
-
-Translate English into emoji and emoji back into English, with a hybrid engine: a
-curated dictionary (deterministic, always available) plus optional Claude-powered
-translation for context-aware results and interpretive readings. Deployed on
-**Netlify** (static page + serverless API).
-
-### [`schema-storyteller/`](./schema-storyteller)
-
-Paste a SQL, Prisma, or JSON Schema and get a plain-English entity-relationship
-narrative plus a rule-based review of likely-missing primary keys, foreign-key
-indexes, and constraints, exportable as Markdown. Everything runs client-side: a
-hand-written parser and a fixed rule set replace the idea's suggested LLM calls,
-so the output is free, offline, and reproducible. Deployed on **Netlify**
-(static site, no backend).
-
-Live: [schema-storyteller.netlify.app](https://schema-storyteller.netlify.app).
-See its [README](./schema-storyteller/README.md).
-
-### [`migration-diff-narrator/`](./migration-diff-narrator)
-
-Paste two versions of a SQL schema or TypeScript interfaces and get an
-annotated breaking-change diff: every change classified safe / caution /
-breaking with a one-sentence migration note, plus rename detection and a
-Markdown-checklist export for PR descriptions. A deterministic rule set
-replaces the idea's suggested Claude API classification, so verdicts are
-instant, offline, and reproducible. Deployed on **Netlify** (static site, no
-backend).
-
-Live: [migration-diff-narrator.netlify.app](https://migration-diff-narrator.netlify.app).
-See its [README](./migration-diff-narrator/README.md).
-
-### [`shortcut-sprint/`](./shortcut-sprint)
-
-A Duolingo-style trainer for keyboard shortcuts: a task prompt ("Go to
-definition"), you press the shortcut, and an SM-2 spaced-repetition scheduler
-decides when you see it again. Bundled libraries for VS Code, Chrome DevTools,
-Figma, Vim (multi-chord sequences included), Emacs, Excel, Visio, Word, and
-Acrobat Reader, custom JSON sets uploadable, per-tool mastery radar chart and
-a daily streak. Entirely client-side: SM-2 replaces the idea's suggested
-backend, progress lives in localStorage.
-Deployed on **Netlify** (static site, no backend).
-
-Live: [shortcut-sprint.netlify.app](https://shortcut-sprint.netlify.app).
-See its [README](./shortcut-sprint/README.md).
-
-### [`ui-diff-lens/`](./ui-diff-lens)
-
-Drag two UI screenshots into the browser and get a classified visual diff:
-every changed region labeled as layout shift, spacing nudge, color restyle,
-text edit, visibility fade, added, or removed element, each with a confidence
-and the measured evidence. A perceptual pixel diff with anti-aliasing
-detection, region clustering, and structural heuristics (displacement search,
-opacity fit, edge correlation) replace the idea's suggested Claude Vision
-calls, so results are deterministic and screenshots never leave the machine.
-Exports an annotated PNG or a standalone HTML report. Deployed on **Netlify**
-(static site, no backend).
-
-Live: [ui-diff-lens.netlify.app](https://ui-diff-lens.netlify.app).
-See its [README](./ui-diff-lens/README.md).
-
-### [`code-review-gauntlet/`](./code-review-gauntlet)
-
-A code-review reflex game: a realistic snippet appears with 1-3 planted
-defects and a countdown; click every line you would flag, then get an
-annotated explainer of every bug, security hole, and code smell — found or
-missed. A seeded mutation engine over 11 hand-written templates (JavaScript,
-Python, SQL; 51 catalogued single-line defects) replaces the idea's suggested
-Claude API generation, and a date-seeded daily challenge plus localStorage
-skill radar replace the suggested Supabase leaderboard, so the game is
-deterministic, offline, and free. Deployed on **Netlify** (static site, no
-backend).
-
-Live: [code-review-gauntlet.netlify.app](https://code-review-gauntlet.netlify.app).
-See its [README](./code-review-gauntlet/README.md).
-
-### [`sound-sketchpad/`](./sound-sketchpad)
-
-**Sound Sketchpad** implements idea #1 ("Procedural Sound Sketchpad") from the
-ideas day of 2026-08-09. Describe a sound effect in plain words ("muffled
-explosion heard from underground", "tiny retro laser") and hear it synthesized
-instantly: a deterministic word-to-DSP recipe book (20 base sounds, 18
-modifiers) replaces the idea's suggested Claude API code generation, and a
-pure sample-by-sample DSP engine (oscillators, seeded noise, ADSR, biquad
-filters, echo, bit crush) replaces Web Audio graphs, so tests assert on the
-exact samples the user hears. Oscilloscope, signal-chain view, tuning
-sliders, and 16/24-bit WAV export. Deployed on **Netlify** (static site, no
-backend).
-
-Live: [sound-sketchpad.netlify.app](https://sound-sketchpad.netlify.app).
-See its [README](./sound-sketchpad/README.md).
-
-### [`sql-replay/`](./sql-replay)
-
-**SQL Replay** implements idea #1 ("SQL Replay") from the ideas day of
-2026-07-30. Type a SQL SELECT, paste sample CSV data (or use the built-in
-demo tables), and watch execution unfold one stage at a time: rows
-materialize at FROM, pair up at JOIN (LEFT JOIN survivors get NULL padding),
-fail WHERE with the evaluated condition shown, collapse into groups, get
-filtered by HAVING, projected, deduplicated, ordered, and trimmed by LIMIT.
-A deterministic narrator generates a plain-English sentence per stage from
-the real execution stats, replacing the idea's suggested Claude API narrator,
-and share links encode the whole workspace into the URL hash. Deployed on
-**Netlify** (static site, no backend).
-
-Live: [sql-replay.netlify.app](https://sql-replay.netlify.app).
-See its [README](./sql-replay/README.md).
-
-### [`har-detective/`](./har-detective)
-
-**HAR Detective** implements idea #1 ("HAR Detective") from the ideas day of
-2026-08-21. Drop a browser HAR file on the page and get an interactive
-request waterfall plus a ranked, plain-English performance report: N+1 call
-patterns, missing cache headers, uncompressed responses, redirect chains,
-serialized API waterfalls, duplicate fetches, failing requests, slow server
-think-time, oversized payloads, and HTTP/1.x connection churn. Ten
-hand-written deterministic detectors replace the idea's suggested Claude API
-analysis, so results are instant, reproducible, and the HAR never leaves the
-browser. Deployed on **Netlify** (static site, no backend).
-
-Live: [har-detective.netlify.app](https://har-detective.netlify.app).
-See its [README](./har-detective/README.md).
-
-### [`code-analogy-forge/`](./code-analogy-forge)
-
-**Code Analogy Forge** implements idea #1 ("Code Analogy Forge") from the ideas
-day of 2026-08-25. Paste code or name a CS concept, pick your audience (curious
-child, high school student, CS undergraduate, or non-technical adult), and get
-three hand-written analogies from three different everyday domains, each with a
-"this maps to that" table. A keyword + code-shape detector (including real
-self-call analysis for recursion) picks the concept; a curated corpus of 47
-concepts x 3 domains x 4 audience variants (564 hand-written texts) replaces
-the idea's suggested Claude API generation, and a localStorage library with tags, search, Markdown export,
-and serverless read-only share links replaces Supabase; a 47-example menu
-covers every concept, grouped into ten themed sections. Deployed on **Netlify**
-(static site, no backend).
-
-Live: [code-analogy-forge.netlify.app](https://code-analogy-forge.netlify.app).
-See its [README](./code-analogy-forge/README.md).
-
-### [`prompt-genome/`](./prompt-genome)
-
-**Prompt Genome** implements idea #1 ("Prompt Genome") from the ideas day of
-2026-08-23. Paste any AI prompt and see it as a DNA strand of typed,
-color-coded genes: role, persona, context, task, constraint, format, example.
-A rule-based classifier (explicit section labels plus sentence-level cue
-patterns, each gene showing why it got its label) replaces the idea's
-suggested Claude API parsing; three hand-written deterministic mutations per
-gene type replace "AI suggests three alternatives"; and a word-level LCS diff
-of the prompt itself replaces model-response diffing. A lint pass scores the
-genome 0-100 (missing task, vague wording, brevity-vs-depth conflicts,
-negative-only constraints, and more), genes can be edited, reclassified, and
-reordered, a localStorage library keeps reusable genes with tags and search,
-and share links carry the whole genome in the URL hash. Deployed on
-**Netlify** (static site, no backend).
-
-Live: [prompt-genome.netlify.app](https://prompt-genome.netlify.app).
-See its [README](./prompt-genome/README.md).
-
-### [`type-witness/`](./type-witness)
-
-**Type Witness** implements idea #1 ("Type Witness") from the ideas day of
-2026-08-02. Paste a TypeScript snippet and watch type inference unfold as an
-ordered, narrated story: literal types and let/const widening, generic calls
-showing the declared signature, the inferred binding (`T = string`), and the
-resolved signature, unannotated callback parameters typed from context,
-control-flow narrowing with declared-vs-here detail, inferred return types,
-and compiler errors threaded in right after the step where inference went
-astray. The real TypeScript compiler (pinned 5.6.3) runs in a Web Worker
-against an in-memory file system with the full ES2022 lib closure bundled as
-raw text, so analysis is exact, offline, and nothing leaves the browser. Hover
-any expression for its type, click to jump to its step, autoplay the story, or
-share a snippet via a URL-hash link. Deployed on **Netlify** (static site, no
-backend).
-
-Live: [type-witness.netlify.app](https://type-witness.netlify.app).
-See its [README](./type-witness/README.md).
-
-### [`cron-cartographer/`](./cron-cartographer)
-
-**Cron Cartographer** implements idea #1 ("Cron Cartographer") from the ideas
-day of 2026-09-02. Paste a cron expression, an RRULE, a GitHub Actions
-`on.schedule` snippet, or plain English like "every weekday at 4:15am", and
-see every firing over the next 30, 90, or 365 days on a calendar heatmap,
-with exact fire times on hover, a plain-English description of the schedule,
-and a next-25-firings table. Separate "runs in" and "view in" time-zone
-pickers convert exactly: offset transitions are resolved to the minute from
-the browser's IANA database, spring-forward gaps are reported as skipped
-(like system cron), and ambiguous fall-back times fire once. A deterministic
-rule-based English parser replaces the idea's suggested Claude API call, and
-a hand-written cron/RRULE engine replaces the suggested npm packages, so the
-app has zero runtime dependencies and works offline. Share links carry the
-whole state in query params. Deployed on **Netlify** (static site, no
-backend).
-
-Live: [cron-cartographer.netlify.app](https://cron-cartographer.netlify.app).
-See its [README](./cron-cartographer/README.md).
-
-### [`summit-navigator/`](./summit-navigator)
-
-**Summit Navigator** implements idea #1 ("Summit Navigator") from the ideas day
-of 2026-09-03: a mobile-first schedule browser for the inaugural ACM AI
-Leadership Summit (Hyatt Regency Atlanta, Aug 30 – Sep 2, 2026). Sticky day
-tabs, sessions grouped by start time, eleven color-coded track chips,
-every-term full-text search across titles/speakers/rooms/descriptions, a
-starred "My agenda" persisted in localStorage, and a now/next banner plus a
-one-tap toggle between Atlanta wall time and the viewer's own time zone
-(exact IANA math, DST-safe). The entire conference lives in one validated
-`schedule.json`, so the app doubles as a drop-in template for any conference.
-The build environment could not reach the official program page, so the
-bundled data is an unofficial snapshot reconstructed from ACM's public
-announcements, and the app's footer says so. Deployed on **Netlify** (static
-site, no backend).
-
-Live: [summit-navigator.netlify.app](https://summit-navigator.netlify.app).
-See its [README](./summit-navigator/README.md).
-
-### [`game-palette-inspector/`](./game-palette-inspector)
-
-**Game Palette Inspector** implements idea #1 from the ideas day of 2026-06-19.
-Check a game palette against WCAG contrast and eight kinds of colour vision
-deficiency, then get replacement colours that keep the art style: build a palette
-by hand, load a preset, or drop a screenshot and have its eight dominant colours
-extracted. The confusion report measures pairs perceptually in OKLab and names the
-worst-case vision type; the fix studio repairs a failing colour by binary-searching
-OKLCH lightness with hue pinned, and says so honestly when a contrast target is
-unreachable. Simulation is Machado, Oliveira and Fernandes (2009) applied in linear
-sRGB, verified against the colour-science reference data.
-
-Moved here on 2026-08-27 from the standalone `pisanuw/c1` repo, with its history,
-so every capstone project now lives in one place. The Netlify site id is pinned in
-its `deploy/target.yml`, so the public URL did not change.
-
-The one deviation from the house layout: this app predates it and is plain
-JavaScript with `node --test`, not TypeScript with vitest, so it has no `lint`,
-`typecheck`, or `coverage` script and its CI job runs install, test, and build
-only. 11 tests, no backend, no runtime dependencies beyond React.
-Live: [game-palette-inspector.netlify.app](https://game-palette-inspector.netlify.app).
-See its [README](./game-palette-inspector/README.md).
-
-### [`pathfinding-playground/`](./pathfinding-playground)
-
-**Pathfinding Playground** implements idea #1 from the ideas day of 2026-07-26.
-Draw a grid map, drop in walls and mud (mud costs 5 to enter), then watch A*,
-Dijkstra, BFS, DFS, and greedy best-first think one expansion at a time, each
-step narrated from the live algorithm state: which cell got picked, why, and what
-its g, h, and f values were. The idea suggested Claude API calls for narration;
-every line is instead a template filled with the numbers the algorithm just
-computed, so it is free, offline, and cannot drift from what the search did. Each
-algorithm is a generator emitting one uniform event trace that the canvas
-renderer and the narrator both consume. Compare mode runs two algorithms side by
-side, and the whole puzzle (map, start, goal, picks) run-length encodes into the
-URL hash, so a class exercise is shareable as a plain link.
-
-Moved here on 2026-08-27 from the standalone `pisanuw/pathfinding-playground`
-repo, with its history. The Netlify site id is pinned in its `deploy/target.yml`,
-so the public URL did not change.
-
-Like `game-palette-inspector`, this app predates the TypeScript house style: it
-is plain JavaScript, and while it does use vitest it has no `lint`, `typecheck`,
-or `coverage` script, so its CI job runs install, test, and build only. 20 tests
-covering optimality, path validity, maze solvability, and trace determinism.
-Live: [pathfinding-playground-pisanuw.netlify.app](https://pathfinding-playground-pisanuw.netlify.app).
-See its [README](./pathfinding-playground/README.md).
-
-### [`prompt-shrink-ray/`](./prompt-shrink-ray)
-
-Paste an LLM prompt and get it compressed with a live token/cost estimate: a
-word-level diff of exactly what changed, and a retention check flagging any
-number, quoted string, inline/fenced code, or probable proper noun the
-compression dropped. Three levels (light/medium/aggressive) run filler-word
-removal, verbose-phrase simplification, cross-section duplicate-instruction
-removal, and few-shot example trimming; fenced code blocks are never touched.
-A deterministic rule set replaces the idea's suggested Claude Haiku
-compression call and Claude Sonnet equivalence check, so results are instant,
-offline, and reproducible. Deployed on **Netlify** (static site, no backend).
-
-76 vitest tests, 100% statement coverage.
-Live: [prompt-shrink-ray.netlify.app](https://prompt-shrink-ray.netlify.app).
-See its [README](./prompt-shrink-ray/README.md).
-
-### [`agent-blast-radius/`](./agent-blast-radius)
-
-Drop in MCP configs (Claude Desktop, Cursor, VS Code, Claude Code), Claude Code
-settings, and browser or VS Code extension manifests to see what each AI tool
-can reach: filesystem, shell/code execution, network egress, credentials, and
-browser data, scored 0-100 with a plain-English explanation and the exact
-config evidence per capability. It also flags plaintext secrets, unpinned
-`npx`/`uvx` packages, auto-approved tools, `bypassPermissions`, Docker socket
-mounts, and all-sites extension access. Files are parsed in the tab and never
-uploaded; a self-contained HTML report can be downloaded. The idea's suggested
-local CLI became a static web app (no install, but you pick the files).
-Deployed on **Netlify** (static site, no backend).
-
-95 vitest tests, >99% statement coverage.
-Live: [agent-blast-radius.netlify.app](https://agent-blast-radius.netlify.app).
-See its [README](./agent-blast-radius/README.md).
-
-### [`repo-weight-map/`](./repo-weight-map)
-
-Drop a project folder into the browser and see a zoomable squarified treemap
-of where the bytes are, colored by category (source, dependencies, generated
-output, data, media, `.git` internals), plus a nineteen-rule junk detector for
-committed virtualenvs, `node_modules`, build output, caches, secrets, and
-files over 10 MB, each with an explanation and the `.gitignore` lines to fix
-it. Untick findings to refine a before/after estimate, copy the lines or a
-unified diff against the existing `.gitignore`, or download a standalone HTML
-report. The folder is walked for names and sizes only and nothing is
-uploaded; the treemap layout is hand-written (no d3). The idea's git history
-mode was left out. Deployed on **Netlify** (static site, no backend).
-
-40 vitest tests, 100% statement coverage on the core.
-Live: [repo-weight-map.netlify.app](https://repo-weight-map.netlify.app).
-See its [README](./repo-weight-map/README.md).
-
-### [`cipher-ladder/`](./cipher-ladder)
-
-A classical cryptanalysis ladder: Caesar, affine, Vigenere, columnar
-transposition, monoalphabetic substitution and homophonic substitution, each
-rung unlocking after a correct solve. The workbench has letter, bigram and
-trigram frequencies against English, index of coincidence per period with
-per-column charts, a Kasiski table, and keyboard-only substitution and symbol
-boards that decrypt live; hints come from an instructor-set budget. After a
-solve, a deterministic solver's step-by-step attack on the same ciphertext is
-shown beside the student's path, including where it went wrong, in place of
-the idea's LLM debrief. Instructors build a ladder into a share link and read
-exported progress files in a dashboard (no Supabase, no accounts). Deployed on
-**Netlify** (static site, no backend).
-
-65 vitest tests, 100% statement coverage on the core.
-Live: [cipher-ladder.netlify.app](https://cipher-ladder.netlify.app).
-See its [README](./cipher-ladder/README.md).
-
-### [`where-does-it-say/`](./where-does-it-say)
-
-A course Q&A box that can only answer by pointing at the exact sentence: the
-instructor drops in the syllabus, specs and policies (PDF, Markdown or text),
-and every answer is a passage from them, verified word for word (after
-whitespace and typography folding) and highlighted in a side-by-side viewer.
-If no passage qualifies it says "Not stated in the course documents" and logs
-the question; exported logs become an instructor gap report grouped by week
-and wording. A "Check a quote" mode verifies quotes pasted from anywhere and
-diffs altered ones against the closest passage. A deterministic BM25 proposer
-with numbered-item matching ("lab 3" against "labs 1 to 4") replaces the
-idea's Claude Haiku function; course packs travel compressed in the share
-link. Deployed on **Netlify** (static site, no backend).
-
-91 vitest tests, 99.7% statement coverage on the core.
-Live: [where-does-it-say.netlify.app](https://where-does-it-say.netlify.app).
-See its [README](./where-does-it-say/README.md).
-
-### [`elevator-algorithm-lab/`](./elevator-algorithm-lab)
-
-A browser sandbox where students write an elevator dispatch policy in
-JavaScript (`dispatch(car, state)` returns the next floor) and run it against
-seeded traffic scenarios in an animated building: morning rush, lunch spike,
-a starvation trap and the textbook disk trace. Each run reports mean, p95 and
-max wait (starvation), energy and more; two policies replay side by side on
-the same trace; and a disk view redraws the identical run as a head sweeping
-across cylinders with time flowing down, so FCFS, SSTF, SCAN and LOOK (all
-included as editable presets, with the textbook head-movement numbers pinned
-in tests) are visibly elevator algorithms. Instructors author scenarios as
-JSON with deterministic generators, mark them hidden for grading and share
-them by link; the class leaderboard stores only scores and policy hashes,
-locally, with CSV/JSON export and import in place of the idea's Supabase.
-Deployed on **Netlify** (static site, no backend).
-
-53 vitest tests, 100% statement coverage on the core.
-Live: [elevator-algorithm-lab.netlify.app](https://elevator-algorithm-lab.netlify.app).
-See its [README](./elevator-algorithm-lab/README.md).
-
-### [`reverse-minesweeper-studio/`](./reverse-minesweeper-studio)
-
-Paint a picture with mines, pick a safe opening, and a tiered client-side
-solver (single-cell rules, pairwise overlap, exhaustive frontier search, then
-the global mine count) plays the board without ever guessing. Stuck regions
-turn amber, two mine layouts that both fit the visible numbers can be toggled
-side by side, and a Web Worker searches single-cell edits for the smallest fix
-that makes the board guess-free. A slider replays the deduction step by step,
-a difficulty meter reports the hardest tier needed, and finished boards travel
-as playable URL-fragment links that reveal the drawing on a win. Deployed on
-**Netlify** (static site, no backend).
-
-41 vitest tests, 99.9% statement coverage on the core.
-Live: [reverse-minesweeper-studio.netlify.app](https://reverse-minesweeper-studio.netlify.app).
-See its [README](./reverse-minesweeper-studio/README.md).
-
-### [`heap-arena-replay/`](./heap-arena-replay)
-
-A malloc you can watch. Paste or generate a malloc/free/realloc trace and
-replay it on a word-accurate CS:APP-style heap (header and footer boundary
-tags, prologue and epilogue, alignment padding, pred/succ pointers stored in
-free payloads) under first-fit, next-fit, best-fit or worst-fit on an
-implicit list, an explicit list or segregated size classes, with immediate,
-deferred or no coalescing. Each step draws the strip, highlights what the
-search examined and returned, and explains the adjusted size, the split and
-the coalescing case in a sentence; the policy can be switched mid-replay with
-the blocks left in place. A compare tab replays the same trace under eight
-policies with fragmentation and search-cost charts, a quiz generator reads
-verified answers off the simulator and exports Markdown or a Canvas QTI zip,
-and a diff mode finds the first op where a student allocator's addresses
-diverge and flags misalignment, overlap and bounds bugs. Deployed on
-**Netlify** (static site, no backend).
-
-57 vitest tests, 99.1% statement coverage on the core.
-Live: [heap-arena-replay.netlify.app](https://heap-arena-replay.netlify.app).
-See its [README](./heap-arena-replay/README.md).
-
-### [`bombe-bench/`](./bombe-bench)
-
-An Enigma I you can open up (rotors I-V, reflectors A/B/C, ring settings,
-plugboard, double stepping) with every keypress drawn as a path through
-plugboard, rotors and reflector, paired with a working Turing-Welchman
-Bombe. Slide a crib along the ciphertext to discard positions where a letter
-would encipher to itself, build the menu graph and see its loops, then run
-the Bombe over all 60 rotor orders and 17,576 positions in a Web Worker with
-a live count of rejected positions and stops; a checking-machine pass thins
-the stops, and a tracer follows one hypothesis implication by implication
-until the test register is lit twice. Instructors generate challenge
-messages with hidden settings as links; answers are graded in the page.
-Deployed on **Netlify** (static site, no backend).
-
-55 vitest tests, 98.8% statement coverage on the core.
-Live: [bombe-bench.netlify.app](https://bombe-bench.netlify.app).
-See its [README](./bombe-bench/README.md).
-
-### [`state-space-atlas/`](./state-space-atlas)
-
-Enumerates every reachable state of a small puzzle (Towers of Hanoi, sliding
-tiles up to the 8-puzzle, the classic Klotski, Rush Hour) in a Web Worker,
-draws the whole state graph on a canvas with every state in the column of
-its distance from the start, and animates BFS, DFS, IDDFS, greedy and A*
-across it with live expansion, frontier and peak-memory counters. Students
-type a heuristic in JavaScript and, because the atlas knows the true distance
-of every state, it is checked for admissibility and consistency on all of
-them, with overestimating states painted red. Same-size pieces and mirror
-images collapse into one node, hover shows a picture of any state, and
-instructors export "expand fewer than N nodes" challenges as links. Deployed
-on **Netlify** (static site, no backend).
-
-65 vitest tests, 99.6% statement coverage on the core.
-Live: [state-space-atlas.netlify.app](https://state-space-atlas.netlify.app).
-See its [README](./state-space-atlas/README.md).
-
-### [`program-alarm-1202/`](./program-alarm-1202)
-
-A playable model of the Apollo Guidance Computer's priority Executive during
-the lunar descent, built as a tribute to Margaret Hamilton. A cycle-stealing
-radar fault makes low-priority jobs pile up in the real pools of 7 core sets
-and 5 VAC areas until a request finds nothing free and 1202 (or 1201) fires;
-the restart then flushes everything, re-establishes only the restart-protected
-jobs at their last phase, and guidance keeps flying a 1D descent to touchdown.
-The same load replays on a halt-on-overflow Executive and a naive round-robin
-scheduler, with a DSKY panel, live slot gauges, a guidance timeline, a steal
-sweep and the real Apollo 11 alarm timeline. Deployed on **Netlify** (static
-site, no backend).
-
-36 vitest tests, 100% statement coverage on the core.
-Live: [program-alarm-1202.netlify.app](https://program-alarm-1202.netlify.app).
-See its [README](./program-alarm-1202/README.md).
-
-### [`outguess-me/`](./outguess-me)
-
-A take on Scott Aaronson's oracle demo: press F or J as unpredictably as you
-can while an n-gram oracle predicts each key and seals its guess with a
-SHA-256 commitment before you press, then reveals it with the nonce so the
-page can verify it. Easy mode is the classic 6-gram table with back-off; hard
-mode is a weighted-majority mixture of 1- to 6-gram experts. Live hit rate
-against a coin-flip band, then a breakdown with a Wilson interval and
-binomial p-value, the 6-gram table that read you, run lengths, alternation
-rate and Krichevsky-Trofimov bits per press. Paste any two-symbol sequence or
-run 200 real coin flips as a control; share links replay the oracle on open.
-Deployed on **Netlify** (static site, no backend).
-
-43 vitest tests, 100% statement coverage on the core.
-Live: [outguess-me.netlify.app](https://outguess-me.netlify.app).
-See its [README](./outguess-me/README.md).
-
-### [`code-viva/`](./code-viva)
-
-Short written orals about each student's own code. Import a Gradescope or
-Canvas zip or a GitHub Classroom assignment (browser straight to the GitHub
-API), and a source analyser plus commit statistics write 4 to 6 questions per
-student anchored to their own functions, guards, data structures, vague names
-and unusual commits (one-commit submissions, late-night bulk adds, deadline
-rushes). Students answer in a timed text session from a personal link (the
-questions travel in the URL fragment), with up to two follow-ups aimed at what
-a vague answer is missing, and send back a response code. The review tab shows
-transcripts with proposed 0-3 rubric scores quoting their evidence, a flag
-queue (low scores, pasting, an unexplained commit, focus loss, restarts),
-instructor overrides and approval, and CSV exports. Eleven demo courses (C, C++,
-C#, Java, Python, JavaScript, TypeScript) load from the top of the page, and a
-"How it works" tab walks through the whole workflow. Deterministic templates and
-a keyword rubric replace the idea's Claude API calls. Deployed on **Netlify**
-(static site, no backend).
-
-117 vitest tests, 99.7% statement coverage on the core.
-Live: [code-viva.netlify.app](https://code-viva.netlify.app).
-See its [README](./code-viva/README.md).
-
-### [`diagram-layout-engine/`](./diagram-layout-engine)
-
-A from-scratch layout engine for a Mermaid flowchart subset, built as the
-reference solution for the "Build Your Own Diagram Layout Engine" assignment. A
-hand-written recursive-descent parser (14 shapes, labelled links in both forms,
-chains, `&` groups, nested subgraphs with their own `direction`, `classDef`,
-`style`, `linkStyle`) reports the first error with line, column and a caret.
-Layout is the full Sugiyama pipeline: greedy feedback arcs, longest-path or
-network-simplex layering, dummy nodes, barycenter/median sweeps with
-transposition scored by an accumulator-tree crossing count, Brandes-Koepf or
-priority coordinates, then spline, polyline or orthogonal routing. Subgraphs
-are laid out bottom-up in their own direction; edges into them get legs that
-bend around sibling nodes. Six CSS-variable themes, SVG/PNG export, share
-links, a stable-layout visual diff (one union layout, added/removed/changed
-colouring), a stage-by-stage pipeline inspector and a 50-graph benchmark that
-ranks five configurations. Ten bundled examples. Deployed on **Netlify**
-(static site, no backend).
-
-88 vitest tests, 98.9% statement coverage on the core.
-Live: [diagram-layout-engine.netlify.app](https://diagram-layout-engine.netlify.app).
-See its [README](./diagram-layout-engine/README.md).
-
-### [`letter-ledger/`](./letter-ledger)
-
-Recommendation-letter requests for professors. A personal request link carries
-the professor's policy (notice period, grade rule, required documents,
-questions) and public key; the student form collects programs and letter
-deadlines, courses, documents and a signed FERPA release, and seals it all into
-one `.ledger` file (ECDH P-256, AES-256-GCM) the student emails. The professor's
-dashboard files requests by student, checks them against the policy and the
-release, sorts every letter by deadline, exports calendar reminders (.ics) and
-writes status emails for the mail app. A notes timeline (with quick capture
-during the term) feeds a Markdown fact outline per program that leaves grades
-out unless the release covers them. Encrypted backups, deletion on request, a
-demo ledger. Deployed on **Netlify** (static site, no backend).
-
-Live: [letter-ledger.netlify.app](https://letter-ledger.netlify.app).
-See its [README](./letter-ledger/README.md).
-
-### [`brocot-gear-finder/`](./brocot-gear-finder)
-
-Gear trains for any ratio with whole-number teeth. Type a target reduction
-(an expression or a:b) and an exhaustive search over a product table lists the
-most accurate 1 to 3 stage compound trains in your tooth range, with error in
-ppm/ppb and as clock drift in s/day. A continued-fraction panel shows the
-Stern-Brocot path and which convergents are buildable (Brocot's point: the
-best fraction often has a prime factor no gear can carry). The chosen train is
-animated in SVG with involute teeth phased to mesh, a dial shows drift against
-an ideal hand, and an SVG cut sheet exports for laser cutting. Share links in
-the URL fragment. Deployed on **Netlify** (static site, no backend).
-
-44 vitest tests, 100% statement coverage on the core.
-Live: [brocot-gear-finder.netlify.app](https://brocot-gear-finder.netlify.app).
-See its [README](./brocot-gear-finder/README.md).
-
-### [`fork-count/`](./fork-count)
-
-Fork-output questions for OS courses, answered exhaustively. Paste a short
-fork/wait/exit/printf/pipe C snippet: a hand-written interpreter runs every
-process (by re-executing main() along each process's fork decisions, so stdio
-buffers copied at fork come out right), draws the process tree with an arrow
-for each pipe, and enumerates every output any schedule can print, with
-symmetry reduction so 16 identical processes need a few hundred states. Pipes,
-`dup2`, `exec` of small filters (`wc`, `sort`, `grep`, `tr`, ...) and the
-deadlocks a missing `close` causes are modelled. Type an output to learn
-whether it is possible and, if not, which fork, wait or pipe edge rules it
-out. 37 examples (24 on pipes). A seeded generator writes exam questions whose
-answers are verified against every schedule and exports Markdown or QTI 1.2.
-Deployed on **Netlify** (static site, no backend).
-
-165 vitest tests (including a brute-force soundness check), 99% statement coverage on the core.
-Live: [fork-count.netlify.app](https://fork-count.netlify.app).
-See its [README](./fork-count/README.md).
-
-### [`assignment-stress-test/`](./assignment-stress-test)
-
-See how AI scores on your assignment before students find out. Paste the
-prompt and rubric (one row per line or a Markdown table, rows tagged `{tests}`
-go to the autograder), and each Claude model makes three student-style
-attempts: a lazy paste, a rubric-aware request and a careful plan/write/revise
-conversation. Your pytest suite runs in the browser in Pyodide with a time
-limit; the other rows are scored by a judge model against your rubric. The
-report shows a model by style matrix, which rows AI meets, gets partway or
-cannot meet, editable scores and full transcripts, and exports as a one-page
-HTML report. History keeps runs term over term with re-test diffs and flags
-assignments that aged badly. Instructors bring their own API key (calls go
-straight from the browser to Anthropic) or paste replies from any chat tool.
-Ships with a real recorded demo on two sample assignments. Deployed on
-**Netlify** (static site, no backend).
-
-53 vitest tests (the pytest harness runs for real under CPython), 99.8% statement coverage on the core.
-Live: [assignment-stress-test.netlify.app](https://assignment-stress-test.netlify.app).
-See its [README](./assignment-stress-test/README.md).
-
-### [`cache-miss-theater/`](./cache-miss-theater)
-
-Watch a loop nest miss. Write a small C kernel (arrays, #define constants,
-for/while/if, min/max bounds) and a hand-written interpreter produces its
-exact address trace, which runs through a configurable cache (size, line
-size, associativity, LRU/FIFO/random, write-allocate, write-back). Every miss
-is classified as compulsory, capacity or conflict by running an infinite and
-a fully associative cache alongside. Step or play through the trace with an
-animated sets × ways grid and a memory map of each array, compare two kernels
-side by side, sweep a block size or cache parameter, and generate exam
-questions answered by the simulator (Markdown or QTI 1.2). Deployed on
-**Netlify** (static site, no backend).
-
-62 vitest tests (the cache is cross-checked against a naive reference), 99.7% statement coverage on the core.
-Live: [cache-miss-theater.netlify.app](https://cache-miss-theater.netlify.app).
-See its [README](./cache-miss-theater/README.md).
-
-### [`edit-graph-lab/`](./edit-graph-lab)
-
-Diff as a shortest-path search. Type two texts (lines or characters) and see
-their edit graph, with Myers' O(ND) algorithm animated step by step: the
-furthest-reaching d-paths spread across the grid while the V array fills in,
-and the final path becomes a unified diff whose hunks light up their stretch
-of the path. A comparison view runs LCS dynamic programming, Myers, patience
-and histogram diff on the same input and outlines the hunks where they
-disagree, with seven curated "readability trap" examples. A seeded exercise
-generator (predict D, fill in V[k], spot the patience diff, count the hunks)
-exports Markdown or QTI 1.2. Deployed on **Netlify** (static site, no backend).
-
-36 vitest tests (cross-checked against the `diff` npm package), 99.4% statement coverage on the core.
-Live: [edit-graph-lab.netlify.app](https://edit-graph-lab.netlify.app).
-See its [README](./edit-graph-lab/README.md).
-
-### [`lockstep-lab/`](./lockstep-lab)
-
-Deterministic lockstep and rollback netcode, made visible. Two to four
-simulated RTS clients run side by side over a seeded fake network (latency,
-jitter, loss, reordering). Toggle a source of nondeterminism (float32 across
-two platforms, an unseeded RNG, Map iteration order, frame-rate timestep) and
-watch the per-tick state hashes split, with a diff naming the first unit and
-field that differ. A sweep compares input-delay lockstep with GGPO-style
-rollback (input lag, stalls, re-simulation cost), and five autograded
-exercises ask students to make a step function survive 10,000 ticks on two
-simulated machines. Deployed on **Netlify** (static site, no backend).
-
-46 vitest tests (rollback's confirmed states are checked against lockstep's), 100% statement coverage on the core.
-Live: [lockstep-lab.netlify.app](https://lockstep-lab.netlify.app).
-See its [README](./lockstep-lab/README.md).
-
-### [`tetromino-arcade/`](./tetromino-arcade)
-
-A feature-rich, Tetris-style falling-block game, built on request rather than
-from the ideas list. Guideline rules (SRS kicks, 7-bag, hold, ghost, lock
-delay with move reset, T-spins, back-to-back, combos, perfect clears) in a
-deterministic 60 fps core; Marathon, Sprint 40L, Ultra, Dig, Master 20G, Zen,
-a Daily Sprint and Versus against a Dellacherie/El-Tetris CPU with garbage
-exchange. Rebindable keys with DAS/ARR, gamepad and touch controls, themes,
-synthesised sound, records, and exact replays from seed plus key log.
-58 vitest tests, 99% statement coverage on the core.
-Live: [tetromino-arcade.netlify.app](https://tetromino-arcade.netlify.app).
-See its [README](./tetromino-arcade/README.md).
-
-### [`net-units/`](./net-units)
-
-Measures how much code each solution adds in coding units (names, keywords,
-literals and operators on added lines minus deleted lines) rather than lines,
-so cramming does not help. Size vs tests-passed scatter with complexity and
-duplication overlays, side-by-side diffs with every counted unit highlighted,
-a per-function breakdown, and a guess-the-author round with an anonymized
-annotation export. Hand-written lexer for Python, JavaScript/TypeScript, Java
-and C/C++; no backend or LLM. 39 vitest tests, 99% statement coverage on the
-core.
-Live: [net-units.netlify.app](https://net-units.netlify.app).
-See its [README](./net-units/README.md).
-
-### [`study-buddy-matchmaker/`](./study-buddy-matchmaker)
-
-Complementary study pairs from a gradebook. Upload a CSV (topics and maxima
-read from headers like `Q3 [recursion] /5`, every guess editable), see each
-student's mastery per topic in a colour-coded class table, and get pairs where
-each student is strong in what the other is still learning: maximum-weight
-matching, exact by subset DP up to 20 students and greedy plus pair swaps
-above, with one trio for odd classes and keep-apart constraints. Each group
-gets an agenda (who leads which topic, with links) and each student a private
-printable card that never shows a groupmate's scores. No backend or LLM;
-nothing leaves the browser. 29 vitest tests, 100% statement coverage on the
-core.
-Live: [study-buddy-matchmaker.netlify.app](https://study-buddy-matchmaker.netlify.app).
-See its [README](./study-buddy-matchmaker/README.md).
-
-### [`pluck-lab/`](./pluck-lab)
-
-A guitar strummed from the QWERTY keyboard (chord keys plus H/J strums) where
-every note is synthesized live by Karplus-Strong in an AudioWorklet: a delay
-line of seeded noise, a weighted two-point average, a first-order allpass for
-fractional tuning and a comb-filtered pick position. Shows the watched
-string's delay line, its harmonics and output, slowed down to one sample per
-frame if you like, with seven lecture scenes (noise to note, pitch
-quantization at 48 and 8 kHz, why high notes die faster, tone, pick position,
-strum timing) and an editable loop filter that is analysed deterministically
-(linearity, gain and delay per frequency, predicted ring times) instead of by
-an LLM. No samples, no backend. 53 vitest tests, 100% statement coverage on
-the core.
-Live: [pluck-lab.netlify.app](https://pluck-lab.netlify.app).
-See its [README](./pluck-lab/README.md).
-
-### [`pull-the-pin/`](./pull-the-pin)
-
-A Ben Eater style SAP-1 8-bit computer simulated pin by pin (11 chip packages,
-168 pins, 52 nets, 0/1/Z with wired-AND contention) with one hidden fault:
-a stuck net, an open pin, a bus short, a flipped microcode ROM bit or a dead
-chip. Students run test programs for free, spend a probe budget on a logic
-analyzer, and watch the set of the 3,810 catalog faults still consistent with
-their measurements shrink (every fault simulated per program in a Web Worker
-and compared by waveform hash). A deterministic "next probe" suggestion
-replaces the LLM tutor. Sandbox with healthy-vs-faulty diffs, seeded and
-hand-picked challenge links, local attempt log. No backend. 74 vitest tests,
-99% statement coverage on the core.
-Live: [pull-the-pin-lab.netlify.app](https://pull-the-pin-lab.netlify.app).
-See its [README](./pull-the-pin/README.md).
-
-### [`leap-second-lab/`](./leap-second-lab)
-
-23:59:60, a timekeeping lab: TAI, UTC, GPS, Unix and UT1 on one zoomable
-timeline with a continuous-UTC projection, a step vs 24 h smear vs UTC-SLS vs
-monotonic simulator with a seeded two-host log replay (reordered lines,
-receives before sends, backwards clocks), and a library bench of ten
-leap-second edge cases recorded from real JS Date, Temporal, Python and
-Postgres runs. Four fix-the-bug exercises run hidden tests in a Web Worker.
-Hand-written notes replace the LLM explainer. No backend. 47 vitest tests,
-99.7% statement coverage on the core.
-Live: [leap-second-lab.netlify.app](https://leap-second-lab.netlify.app).
-See its [README](./leap-second-lab/README.md).
-
-### [`data-structure-city/`](./data-structure-city)
-
-Data Structure City: a hash map, a B-tree, a skip list and an LRU cache driven
-by one Redis-like console (SET/GET/DEL/EXPIRE/TICK/RANGE). Rehashes, node
-splits and merges, tower promotions and evictions are highlighted and narrated,
-and each building has a cost meter with last, amortized and worst-case figures.
-Five predict-then-reveal guided tours; instructors share their own as JSON in
-a URL fragment. Keyboard navigation and a text narration mode. No backend.
-71 vitest tests, 99.8% statement coverage on the core.
-Live: [data-structure-city.netlify.app](https://data-structure-city.netlify.app).
-See its [README](./data-structure-city/README.md).
-
-### [`poincare-paint/`](./poincare-paint)
-
-Poincaré Paint, a drawing toy in the Poincaré disk: every stroke is folded
-into the fundamental triangle of a {p,q} reflection group and redrawn under
-every tile with Möbius maps, so doodles become Circle Limit patterns.
-Rotation or kaleidoscope symmetry, any hyperbolic {p,q} up to 20, a geodesic
-brush, drag to translate the plane (the view is rebased onto a group element
-after each step so precision holds however far you go), double-click to glide
-a point to the centre, and a measure tool for hyperbolic distance and
-triangle angle sum and area. SVG export and share links that carry the whole
-drawing in the URL. No backend. 58 vitest tests, 100% statement coverage on
-the core.
-Live: [poincare-paint.netlify.app](https://poincare-paint.netlify.app).
-See its [README](./poincare-paint/README.md).
-
-### [`tamerlane-board/`](./tamerlane-board)
-
-Tamerlane Board: Timur's fourteenth-century chess on its 11×10 board with
-giraffes, war engines and citadels, against an alpha-beta engine in a Web
-Worker. Every piece is one line of a Betza-like notation (the giraffe is
-`F>R{3,}`), read by the move generator, the overlay and the engine alike. A
-piece lab animates a new piece's reach with optional blockers, estimates its
-value from mobility, drops it into Timur or classic chess, runs
-engine-vs-engine balance games and shares it as a link. The LLM
-English-to-notation step is replaced by examples and a syntax table. No
-backend. 82 vitest tests, 99% statement coverage on the core.
-Live: [tamerlane-board.netlify.app](https://tamerlane-board.netlify.app).
-See its [README](./tamerlane-board/README.md).
-
-### [`tiny-brains-league/`](./tiny-brains-league)
-
-Tiny Brains League, a classroom ML assignment kit: train the smallest Connect
-Four policy network you can under a 5,000-parameter budget, by imitating a
-house bot (Adam on a legal-masked softmax, mirrored data) or by an evolution
-strategy, in a Web Worker. Submissions are plain JSON weight files validated
-against a fixed 84-in/7-out interface, so no student code runs. A round-robin
-ladder over fixed openings with colour swaps rates bots by a Bradley-Terry
-Elo fit plus an Elo-per-1k-parameters board, with milestone badges, a replay
-viewer that flags missed wins and blocks, an ablation log export, and a NumPy
-reference runtime checked against the browser by a parity fixture. No
-backend. 46 vitest tests, 100% statement coverage on the core.
-Live: [tiny-brains-league.netlify.app](https://tiny-brains-league.netlify.app).
-See its [README](./tiny-brains-league/README.md).
-
-### [`gpu-parallel-puzzler/`](./gpu-parallel-puzzler)
-
-GPU Parallel Puzzler: twelve CUDA-style kernel puzzles on a simulated SIMT
-GPU (warps, divergence, coalescing, shared memory and bank conflicts,
-barriers, atomics) with a cost model, a CPU-vs-GPU estimate, a race
-detector, star grading against par, a warp inspector and deterministic hints
-in place of the suggested Claude tutor. Students export progress files and
-instructors load them into a class table. No backend. 36 vitest tests, 99.2%
-statement coverage on the core.
-Live: [gpu-parallel-puzzler.netlify.app](https://gpu-parallel-puzzler.netlify.app).
-See its [README](./gpu-parallel-puzzler/README.md).
-
-### [`modulo-bias-microscope/`](./modulo-bias-microscope)
-
-Modulo Bias Microscope: paste a JavaScript sampling function (pick an
-element, shuffle, weighted choice) and see how far its distribution drifts
-from the one intended. Exact mode enumerates every draw sequence from a tiny
-random source (1 to 16 bits) and reports each probability as a BigInt
-fraction; statistical mode runs a chi-square test on a 32-bit xoshiro128**
-stream. Seven-bug gallery with fixes, a shuffle position heat map,
-permalinks, and instructor exercise links with an exact-first autograder.
-JavaScript only (no Pyodide), no LLM, no backend. 68 vitest tests, 100%
-statement coverage on the core.
-Live: [modulo-bias-microscope.netlify.app](https://modulo-bias-microscope.netlify.app).
-See its [README](./modulo-bias-microscope/README.md).
-
+Every app in this repo was built by [Claude Code](https://claude.com/claude-code)
+from a one-paragraph idea. Claude wrote the code, the tests and the deploy
+scripts. I picked the ideas, set the rules, reviewed the results and said no
+a lot.
+
+Claude can write the code. Getting it to build the right thing, test it
+properly and ship something people can use still takes someone who knows
+what good looks like. That part is my job.
+
+All of them are live, most run entirely in your browser (no sign-up, nothing
+uploaded), and every one has its own tests and CI.
+
+**Want one built?** I build tools like these for small businesses, startups
+and educators. Email [builder@pisan.me](mailto:builder@pisan.me?subject=Project%20idea)
+with a paragraph about the problem and I'll tell you honestly whether it fits.
+Paid work keeps the lights on, but a useful or interesting problem matters
+more to me than the budget. If you just want ideas, I keep a public list of
+[600+ things I could build for you](https://daily-project-ideas.netlify.app/).
+
+Yusuf Pisan
+
+## Start here
+
+<table>
+<tr>
+<td width="50%" valign="top">
+<a href="https://bombe-bench.netlify.app/"><img src="bombe-bench/desktop.png" alt="Bombe Bench: an Enigma machine with the signal path of one keypress drawn through plugboard, rotors and reflector"></a>
+<p><b><a href="https://bombe-bench.netlify.app/">Bombe Bench</a></b>: an Enigma you can open up, and a working Turing-Welchman Bombe that breaks messages from a crib. <a href="./bombe-bench">Code</a></p>
+</td>
+<td width="50%" valign="top">
+<a href="https://cache-miss-theater.netlify.app/"><img src="cache-miss-theater/desktop.png" alt="Cache Miss Theater: a matrix multiply trace with a conflict miss highlighted in the cache sets"></a>
+<p><b><a href="https://cache-miss-theater.netlify.app/">Cache Miss Theater</a></b>: write a C loop nest and watch every access go through a cache you configure, with each miss labelled compulsory, capacity or conflict. <a href="./cache-miss-theater">Code</a></p>
+</td>
+</tr>
+</table>
+
+## The catalog
+
+### Developer and web tools
+
+| App | What it does |
+|---|---|
+| [Accessibility Lens](https://accessibility-lens-pisanuw.netlify.app/) ([code](./accessibility-lens)) | Scan a public page against WCAG 2.1, then see it the way low-vision, color-blind, keyboard-only and screen-reader users do. |
+| [Agent Blast Radius](https://agent-blast-radius.netlify.app/) ([code](./agent-blast-radius)) | Drop in MCP configs and agent settings to see what each AI tool on your machine can reach. |
+| [HAR Detective](https://har-detective.netlify.app/) ([code](./har-detective)) | Drag in a browser HAR file for a waterfall and a ranked, plain-English performance report. |
+| [Cron Cartographer](https://cron-cartographer.netlify.app/) ([code](./cron-cartographer)) | Any cron expression, RRULE or GitHub Actions schedule as a calendar heatmap of when it fires. |
+| [Schema Storyteller](https://schema-storyteller.netlify.app/) ([code](./schema-storyteller)) | Paste a SQL, Prisma or JSON schema, get the data model in plain English plus missing keys and indexes. |
+| [Migration Diff Narrator](https://migration-diff-narrator.netlify.app/) ([code](./migration-diff-narrator)) | Two versions of a schema in, every change marked safe, caution or breaking out. |
+| [Repo Weight Map](https://repo-weight-map.netlify.app/) ([code](./repo-weight-map)) | Drop a project folder in and see what is bloating it, with the `.gitignore` lines to fix it. |
+| [UI Diff Lens](https://ui-diff-lens.netlify.app/) ([code](./ui-diff-lens)) | Two screenshots in, every changed region classified as layout, spacing, color, text and so on. |
+| [Type Witness](https://type-witness.netlify.app/) ([code](./type-witness)) | Watch the TypeScript compiler infer types, expression by expression. |
+| [Net Units](https://net-units.netlify.app/) ([code](./net-units)) | Measure how much code a change adds in syntax-level units instead of lines. |
+| [Prompt Genome](https://prompt-genome.netlify.app/) ([code](./prompt-genome)) | Split a prompt into color-coded parts (role, task, constraint, format...) and lint it. |
+| [Prompt Shrink Ray](https://prompt-shrink-ray.netlify.app/) ([code](./prompt-shrink-ray)) | Compress an LLM prompt with a live token estimate and a check that the keywords survived. |
+| [Game Palette Inspector](https://game-palette-inspector.netlify.app/) ([code](./game-palette-inspector)) | Check a palette against WCAG contrast and 8 kinds of color blindness, with replacements that keep the art style. |
+| [Diagram Layout Engine](https://diagram-layout-engine.netlify.app/) ([code](./diagram-layout-engine)) | A from-scratch layout engine for Mermaid flowcharts, with every stage of the pipeline visible. |
+| [Modulo Bias Microscope](https://modulo-bias-microscope.netlify.app/) ([code](./modulo-bias-microscope)) | Paste a random sampling function and see exactly how biased it is. |
+| [Shortcut Sprint](https://shortcut-sprint.netlify.app/) ([code](./shortcut-sprint)) | Spaced-repetition drills for keyboard shortcuts in VS Code, Vim, Figma, Excel and more. |
+
+### Tools for teachers
+
+| App | What it does |
+|---|---|
+| [Letter Ledger](https://letter-ledger.netlify.app/) ([code](./letter-ledger)) | Recommendation-letter requests: a request link with your policy and FERPA release, encrypted packets, a deadline dashboard. |
+| [Code Viva](https://code-viva.netlify.app/) ([code](./code-viva)) | Short oral checks on each student's own submission, with questions anchored to their functions. |
+| [Study Buddy Matchmaker](https://study-buddy-matchmaker.netlify.app/) ([code](./study-buddy-matchmaker)) | Upload a gradebook CSV and get complementary study pairs with shared agendas. |
+| [Where Does It Say](https://where-does-it-say.netlify.app/) ([code](./where-does-it-say)) | Questions about the syllabus answered only with verbatim quotes, or a refusal. |
+| [Code Analogy Forge](https://code-analogy-forge.netlify.app/) ([code](./code-analogy-forge)) | Three analogies for a piece of code or a CS concept, pitched at the audience you choose. |
+
+### Interactive CS lessons
+
+| App | What it does |
+|---|---|
+| [Bombe Bench](https://bombe-bench.netlify.app/) ([code](./bombe-bench)) | Step through an Enigma rotor by rotor, then break it with a working Bombe. |
+| [Cache Miss Theater](https://cache-miss-theater.netlify.app/) ([code](./cache-miss-theater)) | Watch a C loop nest's exact address trace run through a configurable cache. |
+| [Fork Count](https://fork-count.netlify.app/) ([code](./fork-count)) | Every process, pipe and possible output of a fork/wait/pipe C snippet, deadlocks included. |
+| [Assignment Stress Test](https://assignment-stress-test.netlify.app/) ([code](./assignment-stress-test)) | Every output the scheduler could produce for a fork/wait snippet, and why the others are impossible. |
+| [Heap Arena Replay](https://heap-arena-replay.netlify.app/) ([code](./heap-arena-replay)) | Replay a malloc/free trace on a word-accurate heap under different allocator policies. |
+| [SQL Replay](https://sql-replay.netlify.app/) ([code](./sql-replay)) | Watch a SELECT execute step by step, each stage narrated. |
+| [Edit Graph Lab](https://edit-graph-lab.netlify.app/) ([code](./edit-graph-lab)) | Diff as a shortest-path search, with Myers' algorithm animated. |
+| [Data Structure City](https://data-structure-city.netlify.app/) ([code](./data-structure-city)) | A hash map, B-tree, skip list and LRU cache side by side, driven by one Redis-like console. |
+| [GPU Parallel Puzzler](https://gpu-parallel-puzzler.netlify.app/) ([code](./gpu-parallel-puzzler)) | Twelve kernel puzzles on a simulated GPU: warps, divergence, coalescing, bank conflicts. |
+| [Pathfinding Playground](https://pathfinding-playground-pisanuw.netlify.app/) ([code](./pathfinding-playground)) | Draw a grid and race BFS, Dijkstra, A* and friends across it. |
+| [State Space Atlas](https://state-space-atlas.netlify.app/) ([code](./state-space-atlas)) | Every reachable state of Hanoi, sliding tiles, Klotski and Rush Hour, drawn as one graph. |
+| [Elevator Algorithm Lab](https://elevator-algorithm-lab.netlify.app/) ([code](./elevator-algorithm-lab)) | Write an elevator dispatch policy in JavaScript and run it against seeded traffic. |
+| [Lockstep Lab](https://lockstep-lab.netlify.app/) ([code](./lockstep-lab)) | Watch deterministic lockstep and rollback netcode work, and fail. |
+| [Pull the Pin](https://pull-the-pin-lab.netlify.app/) ([code](./pull-the-pin)) | An 8-bit SAP-1 computer where the instructor breaks a chip and students find the fault. |
+| [Program Alarm 1202](https://program-alarm-1202.netlify.app/) ([code](./program-alarm-1202)) | A playable model of the Apollo Guidance Computer's executive during the lunar descent. |
+| [Leap Second Lab](https://leap-second-lab.netlify.app/) ([code](./leap-second-lab)) | TAI, UTC, GPS, Unix and UT1 on one timeline, and what 23:59:60 does to your code. |
+| [Cipher Ladder](https://cipher-ladder.netlify.app/) ([code](./cipher-ladder)) | Climb from Caesar to Vigenère to homophonic ciphers with live cryptanalysis tools. |
+| [Code Review Gauntlet](https://code-review-gauntlet.netlify.app/) ([code](./code-review-gauntlet)) | Race the clock to spot planted bugs and security holes. |
+| [Pluck Lab](https://pluck-lab.netlify.app/) ([code](./pluck-lab)) | A keyboard guitar synthesized live by Karplus-Strong, with the filter on screen. |
+| [Tiny Brains League](https://tiny-brains-league.netlify.app/) ([code](./tiny-brains-league)) | Train the smallest Connect Four network you can and climb a ladder. |
+| [Brocot Gear Finder](https://brocot-gear-finder.netlify.app/) ([code](./brocot-gear-finder)) | Gear trains for any ratio with continued fractions and the Stern-Brocot tree. |
+
+### Games and toys
+
+| App | What it does |
+|---|---|
+| [Poincaré Paint](https://poincare-paint.netlify.app/) ([code](./poincare-paint)) | Draw in the hyperbolic disk and watch every stroke tile to infinity. |
+| [Tamerlane Board](https://tamerlane-board.netlify.app/) ([code](./tamerlane-board)) | Timur's 14th-century chess with giraffes, war engines and citadels. |
+| [Reverse Minesweeper Studio](https://reverse-minesweeper-studio.netlify.app/) ([code](./reverse-minesweeper-studio)) | Paint a picture with mines and find out if it can be solved without guessing. |
+| [Outguess Me](https://outguess-me.netlify.app/) ([code](./outguess-me)) | Press F or J as randomly as you can while an oracle predicts you. You are less random than you think. |
+| [Sound Sketchpad](https://sound-sketchpad.netlify.app/) ([code](./sound-sketchpad)) | Describe a sound effect in words and get playable audio with WAV export. |
+| [Emoji Lingua](https://emoji-lingua-pisan.netlify.app/) ([code](./emoji-lingua)) | English to emoji and back. |
+| [Mult Streak](https://mult-streak-edge-pisan.netlify.app/) ([code](./mult-streak)) | Ten multiplications in a row wins a 24-hour crown. |
+
+Also in the repo: [`backend-hub`](./backend-hub) (several small backends on one
+Render service), [`summit-navigator`](./summit-navigator) (schedule for a
+conference that has now happened) and [`tetromino-arcade`](./tetromino-arcade).
+
+Longer write-ups of every app, including what each one deliberately leaves
+out, are in [PROJECTS.md](./PROJECTS.md).
+
+## How they get built
+
+1. A scheduled Claude routine in
+   [`daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas)
+   looks for real demand (complaints, feature requests, people paying for
+   similar tools) and writes up a few ideas each morning.
+2. I pick one. Claude builds it in its own folder here: TypeScript, vitest
+   with at least 85% coverage, lint, typecheck, and a `deploy/target.yml`.
+3. CI checks every package on every push. The deploy workflow finds every
+   `*/deploy/target.yml` and ships changed apps to Netlify or Render.
+4. A shared footer from [`scripts/site-footer.mjs`](./scripts/site-footer.mjs)
+   is added to every app at deploy time.
+
+Most apps replace the idea's suggested LLM calls with deterministic code where
+that works, so they are free to run, work offline and give the same answer
+twice. The design decisions for each app are in its README.
+
+## Running one locally
+
+```bash
+cd bombe-bench
+npm ci
+npm run dev
+```
+
+Every package also has `npm run lint`, `npm run typecheck`, `npm run coverage`
+and `npm run build`.
+
+## License
+
+[MIT](./LICENSE)
