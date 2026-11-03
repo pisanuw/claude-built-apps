@@ -31,7 +31,8 @@ lectures and recordings rather than the internet. How it holds back the answer
 is written up in
 [Teaching an LLM Tutor to Withhold the Answer](https://arxiv.org/abs/2608.12292).
 Its code is private. To look around, sign in with the demo account
-`demo@hintwise.org`; student accounts are limited to UW addresses for now.
+`demo@hintwise.org` (no code needed); student accounts are limited to UW
+addresses for now.
 
 ## Start here
 
