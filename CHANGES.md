@@ -316,3 +316,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-03 [code] Student Journey Check (ideas 2026-11-03 #1, tier a: the only un-built small-business idea) live at https://student-journey-check.pisan.me; static page plus a stateless /api/step function.
 
 2026-11-03 [fix] student-journey-check: removed the esbuild import.meta banner that crashed the function under Netlify's CommonJS re-bundle (first deploy /api/health 502); redeployed, health OK.
+
+2026-11-03 [doc] docs/envfull-setup.sh: the git copy of the setup script of EnvFull, the cloud environment the routines share; it runs each attached repo's .claude/cloud-setup.sh. Caches are kept per repo.
