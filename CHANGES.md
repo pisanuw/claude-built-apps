@@ -308,3 +308,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-03 [note] halflife pisan-labs sync installed; first run created and mirrored pisan-labs/acr-draft and consent-leak-watch. ACR Draft analytics on.
 
 2026-11-03 [code] pisan_labs_setup.py reports what it did per repo (created, updated, topics) and a summary line; it was silent on changes, so the 2026-11-03 run looked like it skipped the two repos it created.
+
+2026-11-03 [doc] README: "My biggest project" section for Digital Student Assistant (digital-student-assistant.com), above Start here.

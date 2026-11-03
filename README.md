@@ -19,6 +19,19 @@ more to me than the budget. Looking for ideas? I keep a public list of
 
 Yusuf Pisan
 
+## My biggest project
+
+<a href="https://digital-student-assistant.com/"><img src="docs/images/digital-student-assistant.png" alt="Digital Student Assistant: the sign-in page, where Bo explains and Kit asks you to explain" width="100%"></a>
+
+**[Digital Student Assistant](https://digital-student-assistant.com/)** is the
+AI teaching assistant for my data structures courses at UW Bothell, and my
+students are using it now. It guides rather than answers: it asks before it
+tells, it will not hand over homework solutions, and it teaches from my own
+lectures and recordings rather than the internet. How it holds back the answer
+is written up in
+[Teaching an LLM Tutor to Withhold the Answer](https://arxiv.org/abs/2608.12292).
+Its code is private, and signing in needs a class account.
+
 ## Start here
 
 <table>
