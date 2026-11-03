@@ -894,3 +894,35 @@ remark drafting were replaced by this fully client-side, rule-based core.
 48 vitest tests, 99% statement coverage.
 Live: [acr-draft.pisan.me](https://acr-draft.pisan.me).
 See its [README](./acr-draft/README.md).
+
+
+### [`student-journey-check/`](./student-journey-check)
+
+Student Journey Check: for coaches, tutors and small academies that sell
+courses from their own WordPress site with Tutor LMS. A test student walks
+eight steps the way real students do: the site opens (critical error,
+maintenance, database error, PHP warnings), login through `/wp-login.php` or
+a custom page (wrong password, CAPTCHA, two-factor and silent failures told
+apart), the dashboard (bounced back to login, a popup already open, course
+not listed), the course page (enrolled or offered "Enroll Now"), a lesson and
+its video (access denied, YouTube embeds that hit Error 153 because of a
+`no-referrer` policy, empty players), the quiz page (opened, never taken),
+the certificate page ("Nonce not matched") and the price a logged-out visitor
+sees (struck-through sale prices, missing or changed prices, several
+currency formats). Each step reports Works, Look at this, Broken or Not
+checked with the page's own words and what to try, plus a ready-to-forward
+alert email, a text report and new/fixed/still-broken changes against the
+last check on the same device. A demo tab runs the same checker in the
+browser against a pretend Tutor LMS academy with seven switchable breakages
+taken from 2026 support-forum reports. Real sites are read by one stateless
+Netlify function, `POST /api/step`, called once per step so each call fits
+the 10-second limit; the session cookies travel with the browser, the
+password goes only to the login step and nothing is stored. Requests stay on
+the host the owner typed, every hop is DNS-checked against private and
+reserved addresses, and redirects are followed by hand. The idea's
+Playwright worker, screenshots, Supabase schedules and daily email alerts
+were replaced by this on-demand, HTML-reading core: no browser runs, so
+script-only problems and actual video playback are out of reach. 141 vitest
+tests, 99% statement coverage.
+Live: [student-journey-check.pisan.me](https://student-journey-check.pisan.me).
+See its [README](./student-journey-check/README.md).

@@ -44,6 +44,7 @@ shortcut-sprint shortcut-sprint
 sound-sketchpad sound-sketchpad
 sql-replay sql-replay
 state-space-atlas state-space-atlas
+student-journey-check student-journey-check
 study-buddy-matchmaker study-buddy-matchmaker
 summit-navigator summit-navigator
 tamerlane-board tamerlane-board

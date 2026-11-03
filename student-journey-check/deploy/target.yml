@@ -1,0 +1,26 @@
+# Deploy control file for Student Journey Check (Netlify: static page + one function).
+#
+# The page is static. Checking a real course site needs a server, because a
+# web page cannot read another site, so /api/step runs as the Netlify
+# function `api` (bundled by `npm run build` into netlify/functions/api.mjs).
+# The function stores nothing and calls no paid API. The demo academy runs
+# entirely in the browser.
+#
+# package-lock.json is force-added (the root .gitignore excludes lockfiles)
+# because `npm ci` below needs it. Code-only pushes do not deploy; touch this
+# file (or run the Deploy workflow naming this app) to ship UI changes.
+
+provider: netlify
+projectName: student-journey-check
+directory: student-journey-check
+build: npm ci && npm run build
+publish: dist
+
+envPassthrough: []
+
+netlify:
+  functionsDir: netlify/functions
+  siteName: student-journey-check
+  accountSlug: yusuf-pisan
+  # Primary domain; the deploy runner creates its Cloudflare CNAME (DNS only).
+  customDomain: student-journey-check.pisan.me

@@ -76,6 +76,7 @@ addresses for now.
 | App | What it does |
 |---|---|
 | [Consent Leak Watch](https://consent-leak-watch.pisan.me/) ([code](./consent-leak-watch)) | Check that your shop's cookie banner really blocks trackers, and which plugin broke it. |
+| [Student Journey Check](https://student-journey-check.pisan.me/) ([code](./student-journey-check)) | A test student walks your online course after every update and tells you which step your students would get stuck on. |
 
 ### Developer and web tools
 
