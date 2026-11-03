@@ -302,3 +302,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [decision] BUILD_ROUTINE.md: delete only the run's own claude/* branches (the first run tried to delete other sessions' branches); never invent first-person facts in aiprojects entries.
 
 2026-11-03 [code] scripts/halflife/: daily launchd job for the owner's Mac that runs pisan_labs_setup.py in its own clone and starts Mirror apps (gh workflow run); install.sh installs or removes it.
+
+2026-11-03 [doc] BUILD_ROUTINE.md: owner actions give the direct Netlify analytics link for the new site, and point at the halflife job for the pisan-labs repo.

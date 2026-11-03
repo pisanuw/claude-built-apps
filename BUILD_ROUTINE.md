@@ -121,11 +121,17 @@ pisan-labs GitHub org, so people can find, star and fork it.
    with exact copy-paste steps, what only they can do:
    a. Only if the deploy stayed on netlify.app: Cloudflare DNS for pisan.me,
       add CNAME `<slug>` -> `<slug>.netlify.app`, DNS only (grey cloud).
-   b. On the Mac, in claude-built-apps: `git pull && python3
-      scripts/pisan_labs_setup.py`, which creates the empty
-      pisan-labs/<slug> repo; then Actions > Mirror apps > Run workflow.
-   c. In Netlify, turn on Analytics for the <slug> project, so its traffic
-      shows on pisan-analytics.netlify.app (no session has a way to do it).
+   b. Nothing to do for the pisan-labs repo if the daily halflife job
+      (scripts/halflife/, 04:13) is installed: it creates pisan-labs/<slug>
+      and mirrors it. Say so, and give the manual fallback: in
+      claude-built-apps on the Mac, `git pull && python3
+      scripts/pisan_labs_setup.py && gh workflow run mirror.yml --repo
+      pisanuw/claude-built-apps --ref main`.
+   c. Turn on Netlify web analytics for the new site, so its traffic shows
+      on pisan-analytics.netlify.app (no session has a way to do it). Give
+      the direct link, with <slug> filled in:
+      https://app.netlify.com/projects/<slug>/analytics-and-metrics/analytics
+      (<slug> is netlify.siteName in target.yml.)
    If (a) applies, say that once it is done, any session re-runs the deploy
    for <slug> and moves the links in README, implemented.json and
    aiprojects.md to https://<slug>.pisan.me. Record the pending actions in
