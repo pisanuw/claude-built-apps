@@ -54,6 +54,7 @@ def main():
     if problems:
         raise SystemExit('Fix the CSV first:\n  ' + '\n  '.join(problems))
 
+    created, updated = [], []
     for r in rows:
         full = f"{ORG}/{r['repo']}"
         topics = r['topics'].split()
@@ -63,22 +64,33 @@ def main():
         if current is None:
             changed = True
             gh(['repo', 'create', full, '--public', '--description', r['description'], '--homepage', r['homepage']], dry_run)
+            print('  created (public, empty)')
+            created.append(full)
             have = []
         else:
             info = json.loads(current)
             if info.get('description') != r['description'] or info.get('homepageUrl') != r['homepage']:
                 changed = True
                 gh(['repo', 'edit', full, '--description', r['description'], '--homepage', r['homepage']], dry_run)
+                print('  updated description and website')
+                updated.append(full)
             have = [t['name'] for t in (info.get('repositoryTopics') or [])]
         add = [t for t in topics if t not in have]
         remove = [t for t in have if t not in topics]
         if add:
             gh(['repo', 'edit', full, '--add-topic', ','.join(add)], dry_run)
+            print(f'  added topics: {" ".join(add)}')
         if remove:
             gh(['repo', 'edit', full, '--remove-topic', ','.join(remove)], dry_run)
+            print(f'  removed topics: {" ".join(remove)}')
+        if (add or remove) and full not in created and full not in updated:
+            updated.append(full)
         if not (changed or add or remove):
             print('  up to date')
-    print(f'{len(rows)} repos checked.')
+    print(f'{len(rows)} repos checked: {len(created)} created, {len(updated)} updated, '
+          f'{len(rows) - len(created) - len(updated)} up to date.')
+    if created:
+        print('Created: ' + ', '.join(created))
 
 
 if __name__ == '__main__':
