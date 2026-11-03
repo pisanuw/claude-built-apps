@@ -300,3 +300,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-02 [code] ACR Draft (acr-draft/) live at https://acr-draft.pisan.me: axe-core scans plus guided WCAG 2.1 AA review, rule-based VPAT 2.5 WCAG edition export to Word/HTML. 48 tests.
 
 2026-11-02 [decision] BUILD_ROUTINE.md: delete only the run's own claude/* branches (the first run tried to delete other sessions' branches); never invent first-person facts in aiprojects entries.
+
+2026-11-03 [code] scripts/halflife/: daily launchd job for the owner's Mac that runs pisan_labs_setup.py in its own clone and starts Mirror apps (gh workflow run); install.sh installs or removes it.

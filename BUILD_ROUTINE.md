@@ -113,7 +113,8 @@ pisan-labs GitHub org, so people can find, star and fork it.
    linked to the live site, one or two paragraphs including one honest
    limitation, a README link line, "(Last update <Month Year>)". The section
    is in Yusuf's voice, so never invent facts about him (his job, what he has
-   seen, who he knows); write about the problem and the app instead. Update the
+   seen, who he knows); write about the problem and the app instead. No test
+   counts, coverage or build time: visitors read those as trivia. Update the
    table of contents and the project count. Commit and push.
 
 8. OWNER ACTIONS. End the run with a short message to the owner listing,

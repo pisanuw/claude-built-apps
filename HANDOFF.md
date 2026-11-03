@@ -27,7 +27,7 @@ Remaining
 - [ ] pisan-labs/consent-leak-watch still missing at 14:00 UTC 2026-11-02, although the owner ran pisan_labs_setup.py (the Mac's checkout may predate the CSV row added at 11:03 UTC). Once it exists, run Mirror apps by hand; the 13:28 UTC manual run skipped it
 - [x] Owner replaced the "Build an idea I choose" task's prompt with the pointer to BUILD_ROUTINE.md; the 2026-11-02 evening run followed it (ACR Draft).
 - [x] ACR Draft (ideas 2026-10-23 #2, tier b: no small-business idea was left) live on https://acr-draft.pisan.me (Deploy run 41521369534: the runner created the CNAME and certificate; netlify.app 301s there). Catalog, PROJECTS.md, implemented.json and aiprojects.md updated.
-- [ ] Owner: create pisan-labs/acr-draft (`git pull && python3 scripts/pisan_labs_setup.py` on the Mac), then Actions > Mirror apps > Run workflow
+- [ ] Owner: install the daily pisan-labs sync on halflife (`scripts/halflife/install.sh`); it creates missing pisan-labs repos (acr-draft, consent-leak-watch) and runs Mirror apps every day at 04:13
 - [ ] Owner: turn on Netlify Analytics for the acr-draft project
 - [ ] Ideas backlog has no un-built small-business idea left; the next build runs pick from tier b/c until the ideas routine adds more
 - [x] Promotion picks (owner, 2026-11-02): Code Viva, Accessibility Lens, Fork Count, MyChessMaster (mychessmaster.net, private repo pisanuw/chess-analyzer). README "Start here" now shows these four plus Bombe Bench and Cache Miss Theater; drafts 3-6 in docs/launch-drafts.md

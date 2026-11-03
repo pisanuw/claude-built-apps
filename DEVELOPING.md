@@ -19,7 +19,10 @@ people working on them.
 4. A shared footer from [`scripts/site-footer.mjs`](./scripts/site-footer.mjs)
    is added to every app at deploy time.
 5. The mirror workflow copies each app into its own repo in the
-   [pisan-labs](https://github.com/pisan-labs) organization.
+   [pisan-labs](https://github.com/pisan-labs) organization. A new app's repo
+   is created by `scripts/pisan_labs_setup.py`, which runs daily on the
+   owner's Mac (halflife) through `scripts/halflife/` together with a manual
+   Mirror apps run (`gh workflow run mirror.yml --repo pisanuw/claude-built-apps`).
 
 Most apps replace the idea's suggested LLM calls with deterministic code where
 that works, so they are free to run, work offline and give the same answer

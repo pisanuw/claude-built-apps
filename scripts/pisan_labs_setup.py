@@ -37,6 +37,9 @@ def gh(args, dry_run, capture=False):
 
 
 def main():
+    if '-h' in sys.argv or '--help' in sys.argv:
+        print(__doc__)
+        return
     dry_run = '--dry-run' in sys.argv
     rows = list(csv.DictReader(CSV_PATH.open(newline='', encoding='utf-8')))
     problems = []
