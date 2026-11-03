@@ -311,4 +311,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 
 2026-11-03 [doc] README: "My biggest project" section for Digital Student Assistant (digital-student-assistant.com), above Start here.
 
-2026-11-03 [code] .claude/cloud-setup.sh: warms the npm cache from the newest app's package.json for the shared "Routines" cloud environment; the build routine's install drops from ~21 s to ~10 s.
+2026-11-03 [code] .claude/cloud-setup.sh: warms the npm cache from the newest app's package.json for the shared EnvFull cloud environment; the build routine's install drops from ~21 s to ~10 s.
