@@ -109,6 +109,7 @@ addresses for now.
 | [Study Buddy Matchmaker](https://study-buddy-matchmaker.pisan.me/) ([code](./study-buddy-matchmaker)) | Upload a gradebook CSV and get complementary study pairs with shared agendas. |
 | [Where Does It Say](https://where-does-it-say.pisan.me/) ([code](./where-does-it-say)) | Questions about the syllabus answered only with verbatim quotes, or a refusal. |
 | [Code Analogy Forge](https://code-analogy-forge.pisan.me/) ([code](./code-analogy-forge)) | Three analogies for a piece of code or a CS concept, pitched at the audience you choose. |
+| [Dossier Comment Reflector](https://dossier-comment-reflector.pisan.me/) ([code](./dossier-comment-reflector)) | Years of student evaluation comments in; themes, before-and-after evidence for your course changes, fair quotes and a page-limited tenure reflection draft out. |
 
 ### Interactive CS lessons
 

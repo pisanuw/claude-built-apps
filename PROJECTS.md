@@ -926,3 +926,34 @@ script-only problems and actual video playback are out of reach. 141 vitest
 tests, 99% statement coverage.
 Live: [student-journey-check.pisan.me](https://student-journey-check.pisan.me).
 See its [README](./student-journey-check/README.md).
+
+
+### [`dossier-comment-reflector/`](./dossier-comment-reflector)
+
+Dossier Comment Reflector: for faculty preparing a promotion, tenure or
+post-tenure dossier that asks how student comments changed their teaching.
+Comments come in as CSV exports (the comment, course and term columns are
+guessed, several comment columns per file are kept with their question, "N/A"
+answers skipped) or as pasted text, one course and term at a time. Term labels
+in any common form ("Fall 2024", "SP25", "2024-25 Semester 2") are put in
+calendar order. Each comment is split into clauses and sorted into thirteen
+built-in themes plus any the user adds by keyword; tone comes from a word list
+with negation, intensifiers, "too <word>" and contrast handling, so one comment
+can be positive on clarity and critical on exams. A theme-by-term table shows
+mentions and critical counts per course. The user records each course change
+in their own words with its first term; the app ticks matching themes and
+compares mention share and critical share before and after, refusing to judge
+with fewer than five mentions on a side. The quote picker balances praise and
+criticism, spreads picks across terms, drops near-duplicates, honours pins and
+exclusions, and replaces titled names, listed names and emails with
+[name]/[email]. The reflection draft (intro, one paragraph per change with
+before/after numbers and verbatim excerpts, strengths, still working on) fits
+a pages x words-per-page budget by dropping material in a fixed order and saying
+what it dropped; bracketed placeholders mark what only the author can write.
+It exports to Word (docx, lazy-loaded), plain text, and a coded-comments CSV;
+projects save to a local JSON file and nothing is stored or uploaded. The idea's
+Claude clustering and drafting, Supabase and Stripe were replaced by this
+deterministic, browser-only core. 101 vitest tests, 99% statement coverage;
+zero axe WCAG 2.1 AA violations in light and dark mode.
+Live: [dossier-comment-reflector.pisan.me](https://dossier-comment-reflector.pisan.me).
+See its [README](./dossier-comment-reflector/README.md).
