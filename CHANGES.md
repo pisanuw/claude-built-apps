@@ -322,3 +322,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-03 [code] dossier-comment-reflector: new app (ideas 2026-10-25 #3, tier b: no small-business idea left, Micro-SaaS is the only tier-b category with ideas). Course-evaluation comments to themes, before/after evidence for recorded course changes, balanced redacted quotes and a page-limited reflection draft for Word; browser-only, no AI. Live at https://dossier-comment-reflector.pisan.me (Deploy run 41640581885 created the CNAME and certificate; netlify.app 301s there). Mirror files, CI job, catalog row and PROJECTS.md entry added.
 
 2026-11-03 [doc] README headline count 51 -> 53 apps, matching the catalog (ACR Draft and Student Journey Check had not bumped it).
+
+2026-11-03 [note] Measured in EnvFull: setup 27 s for this repo; a new app's npm install 13.5 s (21 s without the cache on 2026-11-02), not the ~10 s estimated; an existing app's npm ci 4.6 s.

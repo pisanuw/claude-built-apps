@@ -9,9 +9,10 @@
 #
 # Measured 2026-11-03: the cache is kept per environment and repository (a
 # second teacherspayteachers session restored its own snapshot, not the newer
-# dsa-instructor one). Setup took 3 s for teacherspayteachers and 48 s for
-# dsa-instructor in EnvFull; in a test container, about 19 s for
-# claude-built-apps and 0 s for daily-project-ideas, which needs nothing.
+# dsa-instructor one). Setup took 3 s for teacherspayteachers, 48 s for
+# dsa-instructor and 27 s for claude-built-apps in EnvFull; daily-project-ideas
+# needs nothing. A new app's npm install (288 packages, no lockfile) then took
+# 13.5 s in EnvFull, against 21 s without the cache on 2026-11-02.
 #
 # It runs as root, one directory above the session's repository, before the
 # environment's variables are set and before the GitHub proxy is up, once per
