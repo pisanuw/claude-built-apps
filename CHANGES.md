@@ -318,3 +318,7 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-03 [fix] student-journey-check: removed the esbuild import.meta banner that crashed the function under Netlify's CommonJS re-bundle (first deploy /api/health 502); redeployed, health OK.
 
 2026-11-03 [doc] docs/envfull-setup.sh: the git copy of the setup script of EnvFull, the cloud environment the routines share; it runs each attached repo's .claude/cloud-setup.sh. Caches are kept per repo.
+
+2026-11-03 [code] dossier-comment-reflector: new app (ideas 2026-10-25 #3, tier b: no small-business idea left, Micro-SaaS is the only tier-b category with ideas). Course-evaluation comments to themes, before/after evidence for recorded course changes, balanced redacted quotes and a page-limited reflection draft for Word; browser-only, no AI. Live at https://dossier-comment-reflector.pisan.me (Deploy run 41640581885 created the CNAME and certificate; netlify.app 301s there). Mirror files, CI job, catalog row and PROJECTS.md entry added.
+
+2026-11-03 [doc] README headline count 51 -> 53 apps, matching the catalog (ACR Draft and Student Journey Check had not bumped it).

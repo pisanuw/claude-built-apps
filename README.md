@@ -1,4 +1,4 @@
-# 51 apps built by Claude
+# 53 apps built by Claude
 
 Free tools for small businesses, teachers, students and the curious. Every
 one is live: click a name below and it opens in your browser. Most need no
