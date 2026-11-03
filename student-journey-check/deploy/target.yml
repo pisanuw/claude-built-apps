@@ -24,3 +24,5 @@ netlify:
   accountSlug: yusuf-pisan
   # Primary domain; the deploy runner creates its Cloudflare CNAME (DNS only).
   customDomain: student-journey-check.pisan.me
+
+# redeploy: function bundle no longer uses import.meta (Netlify re-bundles it as CommonJS)

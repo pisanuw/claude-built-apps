@@ -17,7 +17,5 @@ await build({
   format: 'esm',
   target: 'node20',
   legalComments: 'none',
-  // Lets bundled CommonJS code call require() for Node built-ins.
-  banner: { js: "import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);" },
 });
 console.log(`Built ${outfile}`);
