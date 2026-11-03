@@ -64,7 +64,7 @@ def main():
         if current is None:
             changed = True
             gh(['repo', 'create', full, '--public', '--description', r['description'], '--homepage', r['homepage']], dry_run)
-            print('  created (public, empty)')
+            print('  ' + ('would create' if dry_run else 'created') + ' (public, empty)')
             created.append(full)
             have = []
         else:
@@ -72,25 +72,26 @@ def main():
             if info.get('description') != r['description'] or info.get('homepageUrl') != r['homepage']:
                 changed = True
                 gh(['repo', 'edit', full, '--description', r['description'], '--homepage', r['homepage']], dry_run)
-                print('  updated description and website')
+                print('  ' + ('would update' if dry_run else 'updated') + ' description and website')
                 updated.append(full)
             have = [t['name'] for t in (info.get('repositoryTopics') or [])]
         add = [t for t in topics if t not in have]
         remove = [t for t in have if t not in topics]
         if add:
             gh(['repo', 'edit', full, '--add-topic', ','.join(add)], dry_run)
-            print(f'  added topics: {" ".join(add)}')
+            print(f'  {"would add" if dry_run else "added"} topics: {" ".join(add)}')
         if remove:
             gh(['repo', 'edit', full, '--remove-topic', ','.join(remove)], dry_run)
-            print(f'  removed topics: {" ".join(remove)}')
+            print(f'  {"would remove" if dry_run else "removed"} topics: {" ".join(remove)}')
         if (add or remove) and full not in created and full not in updated:
             updated.append(full)
         if not (changed or add or remove):
             print('  up to date')
-    print(f'{len(rows)} repos checked: {len(created)} created, {len(updated)} updated, '
+    verb = ('would be created', 'would be updated') if dry_run else ('created', 'updated')
+    print(f'{len(rows)} repos checked: {len(created)} {verb[0]}, {len(updated)} {verb[1]}, '
           f'{len(rows) - len(created) - len(updated)} up to date.')
     if created:
-        print('Created: ' + ', '.join(created))
+        print(('Would create: ' if dry_run else 'Created: ') + ', '.join(created))
 
 
 if __name__ == '__main__':
