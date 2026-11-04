@@ -324,3 +324,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-03 [doc] README headline count 51 -> 53 apps, matching the catalog (ACR Draft and Student Journey Check had not bumped it).
 
 2026-11-03 [note] Measured in EnvFull: setup 27 s for this repo; a new app's npm install 13.5 s (21 s without the cache on 2026-11-02), not the ~10 s estimated; an existing app's npm ci 4.6 s.
+
+2026-11-04 [note] Routine runs keep their own cache per environment, seeded by their first run after the setup script; the build routine's first EnvFull run installed a new app in 4 s (21 s before).

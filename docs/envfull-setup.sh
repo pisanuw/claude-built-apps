@@ -14,6 +14,15 @@
 # needs nothing. A new app's npm install (288 packages, no lockfile) then took
 # 13.5 s in EnvFull, against 21 s without the cache on 2026-11-02.
 #
+# Routine runs cache differently (seen in their startup logs, 2026-11-03/04;
+# the docs do not describe it). They never read or write the cache above.
+# Each routine keeps its own per environment: its first run there starts
+# "new" (clone, then this script), and later runs start "resume-cached"
+# from that first run's machine as it stood after this script (not the end
+# of any run), fetching the repositories forward and skipping the script.
+# So a change here reaches a routine only when its own cache is rebuilt.
+# The build routine's first EnvFull run installed a new app in 4 s.
+#
 # It runs as root, one directory above the session's repository, before the
 # environment's variables are set and before the GitHub proxy is up, once per
 # environment cache: the first session, after an edit to this script or the
