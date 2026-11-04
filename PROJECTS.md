@@ -993,3 +993,54 @@ dashboard and server-side PDFs were replaced by this browser-only core.
 light and dark mode.
 Live: [accessibility-fleet-log.pisan.me](https://accessibility-fleet-log.pisan.me).
 See its [README](./accessibility-fleet-log/README.md).
+
+
+### [`misrepresentation-preflight/`](./misrepresentation-preflight)
+
+Misrepresentation Preflight: for owners of small online stores whose Google
+Merchant Center account is suspended (or at risk) for Misrepresentation, a
+cross-page consistency check to run before spending a review request. The
+owner enters the store address, optionally adds the product feed (Merchant
+Center TSV/CSV export, RSS/Atom XML, or a Shopify product export) and what
+they told Merchant Center (business name, phone, email, postcode, return
+window, handling and transit days). The checker reads robots.txt and the home
+page, then the contact, about, shipping, returns, terms, privacy and FAQ pages
+(from the home page's links, falling back to each store builder's usual
+policy addresses), listing pages and up to 15 product pages, feed links
+first: at most 50 pages, two at a time. Each page is reduced to facts: emails,
+phones (tel: links and labelled text, compared by their last nine digits),
+business names (Organization JSON-LD, og:site_name, the copyright line),
+addresses and postcodes, shipping windows split into handling versus delivery
+and standard, express or international, return windows and no-returns
+statements (conditional and item-specific exceptions excluded), free-shipping
+thresholds, product offers from JSON-LD (ProductGroup variants included),
+microdata, price meta tags and the visible price and cart button, the number
+of Product data blocks, and eight families of risky wording. Checks compare
+like with like across pages and against the feed and Merchant Center:
+different phones, a personal mailbox next to the store domain, unrelated
+business names, different postcodes, clashing handling or delivery times,
+feed handling and transit versus the site, different free-shipping minimums,
+different return windows, no-returns next to a return window, visible price
+or stock versus product data, duplicate Product data that disagrees, feed
+price, stock and currency versus the landing page, feed links that 404 or
+leave the store, missing contact, shipping, returns and terms pages and
+policy links that 404 (guessed addresses and 403 refusals are not counted).
+Evidence is grouped by value, so a site-wide banner does not crowd out the
+policy page's sentence. Findings are ranked fix first / fix soon / worth a
+look and carry the page, the sentence and a fix. Policy and contact pages are
+read even where robots.txt disallows them (the owner confirms ownership) and
+the report lists them; other disallowed pages are skipped. A Netlify function
+(`/api/page`, `/api/robots`) reads one page per call with an SSRF guard and
+same-host redirects and returns only the extracted facts, never the HTML.
+A dated re-check log in localStorage records each check, notes and what was
+fixed or is new since the last check of the same store; it exports as CSV and
+the report as Markdown. The built-in sample shop (Fernhill Candle Co.) runs
+entirely in the browser with 14 planted contradictions and an "after fixes"
+version. The idea's Flask crawler, parsing queue and Supabase scan history
+were replaced by this deterministic core. Tried against several live Shopify
+and WooCommerce stores during the build, which removed false positives (tel:
+links with encoded spaces, section numbers read as phones, "Non-Returnable
+Items" headings, conditional no-returns sentences). 99 vitest tests, 99%
+statement coverage.
+Live: [misrepresentation-preflight.pisan.me](https://misrepresentation-preflight.pisan.me).
+See its [README](./misrepresentation-preflight/README.md).

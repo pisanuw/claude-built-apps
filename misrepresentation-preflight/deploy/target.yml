@@ -1,0 +1,27 @@
+# Deploy control file for Misrepresentation Preflight (Netlify: static page + one function).
+#
+# The page is static. Checking a real store needs a server, because a web page
+# cannot read another website, so /api/page and /api/robots run as the Netlify
+# function `api` (bundled by `npm run build` into netlify/functions/api.mjs).
+# The function reads one public store page per call, returns only the facts it
+# extracted (never the page), stores nothing and calls no paid API. The sample
+# shop runs entirely in the browser.
+#
+# package-lock.json is force-added (the root .gitignore excludes lockfiles)
+# because `npm ci` below needs it. Code-only pushes do not deploy; touch this
+# file (or run the Deploy workflow naming this app) to ship UI changes.
+
+provider: netlify
+projectName: misrepresentation-preflight
+directory: misrepresentation-preflight
+build: npm ci && npm run build
+publish: dist
+
+envPassthrough: []
+
+netlify:
+  functionsDir: netlify/functions
+  siteName: misrepresentation-preflight
+  accountSlug: yusuf-pisan
+  # Primary domain; the deploy runner creates its Cloudflare CNAME (DNS only).
+  customDomain: misrepresentation-preflight.pisan.me

@@ -330,3 +330,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-04 [note] Accessibility Fleet Log (ideas 2026-11-04 #2, tier a) built: browser-only fleet dashboard, dated issue log, statements and monthly client reports; 72 tests, 99% coverage.
 
 2026-11-04 [code] Poincaré Paint: brush colour now picked from an HSV colour wheel (hue/saturation disc, brightness slider, hex box); 61 tests.
+
+2026-11-04 [note] Misrepresentation Preflight (ideas 2026-11-03 #2, tier a) built: cross-page consistency check for stores suspended by Merchant Center (contact details, shipping and return windows, prices, stock, product data, feed) with a Netlify function reading one page per call, a sample shop and a dated re-check log; 99 tests, 99% coverage.
