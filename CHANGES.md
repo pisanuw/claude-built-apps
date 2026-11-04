@@ -328,3 +328,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-04 [note] Routine runs keep their own cache per environment, seeded by their first run after the setup script; the build routine's first EnvFull run installed a new app in 4 s (21 s before).
 
 2026-11-04 [note] Accessibility Fleet Log (ideas 2026-11-04 #2, tier a) built: browser-only fleet dashboard, dated issue log, statements and monthly client reports; 72 tests, 99% coverage.
+
+2026-11-04 [code] Poincaré Paint: brush colour now picked from an HSV colour wheel (hue/saturation disc, brightness slider, hex box); 61 tests.

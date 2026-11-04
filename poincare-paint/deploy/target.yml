@@ -8,6 +8,7 @@
 #
 # Code-only pushes do not trigger a deploy: the workflow watches this file, so
 # touch it (or run the workflow manually) to ship UI changes.
+# Last UI ship: 2026-11-04 (colour wheel).
 
 provider: netlify
 projectName: poincare-paint

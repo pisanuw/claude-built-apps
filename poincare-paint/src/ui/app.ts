@@ -6,6 +6,7 @@ import { exportSvg } from '../core/svg';
 import { decodeShare, encodeShare } from '../core/share';
 import { carry, dragView, easeInOut, rebase, recenterAt } from '../core/view';
 import { CanvasSink } from './canvasSink';
+import { colorWheel } from './colorWheel';
 import { clear, h } from './dom';
 
 type Tool = 'free' | 'geodesic' | 'measure' | 'move';
@@ -114,14 +115,12 @@ export function mountApp(root: HTMLElement): void {
   }
 
   const swatches = h('div', { class: 'swatches', role: 'radiogroup', 'aria-label': 'Colour' });
-  const colorInput = h('input', { type: 'color', value: state.color, 'aria-label': 'Custom colour' });
-  colorInput.addEventListener('input', () => setColor(colorInput.value));
+  const wheel = colorWheel(state.color, (c) => setColor(c));
   const swatchButtons: HTMLButtonElement[] = PALETTE.map((c) => {
     const b = h('button', { type: 'button', class: 'swatch', role: 'radio', title: c, 'aria-label': `Colour ${c}`, style: `background:${c}`, onclick: () => setColor(c) });
     swatches.append(b);
     return b;
   });
-  swatches.append(colorInput);
 
   const widthInput = h('input', { type: 'range', min: 1, max: 24, step: 1, value: String(state.widthPx) });
   const widthOut = h('output', {}, `${state.widthPx}px`);
@@ -204,7 +203,7 @@ export function mountApp(root: HTMLElement): void {
     'aside',
     { class: 'panel' },
     h('section', {}, h('h2', {}, 'Tiling'), h('div', { class: 'row' }, presetSel, h('span', { class: 'pq' }, '{', pInput, ',', qInput, '}')), pqError, h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Symmetry'), symSel), h('div', { class: 'checks' }, check('Shade', () => state.shading, (v) => (state.shading = v)), check('Polygon edges', () => state.edges, (v) => (state.edges = v)), check('Mirror lines', () => state.mirrors, (v) => (state.mirrors = v)))),
-    h('section', {}, h('h2', {}, 'Brush'), toolRow, swatches, h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Width at the centre ', widthOut), widthInput)),
+    h('section', {}, h('h2', {}, 'Brush'), toolRow, swatches, wheel.el, h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Width at the centre ', widthOut), widthInput)),
     h('section', {}, h('div', { class: 'button-row' }, undoBtn, redoBtn, clearBtn, resetBtn), h('div', { class: 'button-row' }, svgBtn, linkBtn)),
     h('section', {}, h('h2', {}, 'Measure'), measureOut),
     h('details', {}, h('summary', {}, 'Detail'), h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Max mirror steps ', depthOut), depthInput), h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Smallest tile drawn ', fineOut), fineInput, h('small', {}, 'Smaller values draw further towards the rim and cost more time.'))),
@@ -459,7 +458,7 @@ export function mountApp(root: HTMLElement): void {
   function setColor(c: string): void {
     if (!validColor(c)) return;
     state.color = c.toLowerCase();
-    colorInput.value = state.color;
+    wheel.set(state.color);
     syncControls();
   }
 

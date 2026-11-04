@@ -137,3 +137,16 @@ input[type='color'] { width: 34px; height: 30px; padding: 1px; }
   .site-header h1 { font-size: 1.6rem; }
   .facts { grid-template-columns: 1fr; }
 }
+
+.wheel-wrap { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 10px; }
+.wheel { position: relative; width: 168px; height: 168px; border-radius: 50%; touch-action: none; cursor: crosshair; flex: none; }
+.wheel:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.wheel-canvas { width: 100%; height: 100%; display: block; border-radius: 50%; }
+.wheel-marker { position: absolute; width: 14px; height: 14px; margin: -9px 0 0 -9px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px #000, 0 1px 3px rgba(0, 0, 0, 0.5); pointer-events: none; }
+.wheel-side { display: flex; flex-direction: column; gap: 8px; flex: 1 1 120px; min-width: 120px; }
+.wheel-label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; font-weight: 600; }
+input.wheel-value { accent-color: var(--ink); height: 14px; border-radius: 7px; appearance: none; -webkit-appearance: none; background: linear-gradient(to right, #000, var(--wheel-full, #fff)); border: 1px solid var(--line); }
+input.wheel-value::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 2px solid #000; }
+input.wheel-value::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 2px solid #000; }
+.wheel-preview { width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--line); flex: none; }
+.wheel-hex { width: 6.5em; font-family: var(--mono); }

@@ -25,7 +25,8 @@ Everything runs in the browser; there is no backend.
   half of the group (Circle Limit style); *Kaleidoscope* adds the mirror
   images. Shading, polygon edges and mirror lines can be turned on or off.
 - **Brush.** Freehand or Geodesic (drag out a hyperbolic straight line), eight
-  colours plus a picker, and a width set in pixels at the centre. Widths are
+  quick colours plus a colour wheel (hue and saturation on the disc, a
+  brightness slider, and a hex box), and a width set in pixels at the centre. Widths are
   stored in hyperbolic units, so copies thin out towards the rim at the right
   rate.
 - **Move.** Use the Move tool, Shift-drag, or right-drag to translate the
@@ -106,7 +107,7 @@ npm run coverage   # vitest with v8 coverage (core only)
 npm run build
 ```
 
-58 vitest tests, 100% statement coverage of `src/core`. The DOM glue in
+61 vitest tests, 100% statement coverage of `src/core`. The DOM glue in
 `src/ui` was checked by driving the built app in Playwright: drawing, dragging,
 measuring, export, share-link round trip, a 390 px phone width with no
 sideways scroll, and dark mode.
