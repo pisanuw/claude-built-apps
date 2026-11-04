@@ -1,4 +1,4 @@
-# 53 apps built by Claude
+# 54 apps built by Claude
 
 Free tools for small businesses, teachers, students and the curious. Every
 one is live: click a name below and it opens in your browser. Most need no
@@ -75,6 +75,7 @@ addresses for now.
 
 | App | What it does |
 |---|---|
+| [Accessibility Fleet Log](https://accessibility-fleet-log.pisan.me/) ([code](./accessibility-fleet-log)) | For agencies looking after many client sites: everyone's accessibility status on one screen, a dated log of problems found and fixed, a statement per site and a monthly report under your name. |
 | [Consent Leak Watch](https://consent-leak-watch.pisan.me/) ([code](./consent-leak-watch)) | Check that your shop's cookie banner really blocks trackers, and which plugin broke it. |
 | [Student Journey Check](https://student-journey-check.pisan.me/) ([code](./student-journey-check)) | A test student walks your online course after every update and tells you which step your students would get stuck on. |
 

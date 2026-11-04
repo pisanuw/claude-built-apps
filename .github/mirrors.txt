@@ -1,4 +1,5 @@
 # folder repo  (one app per line; repo is github.com/pisan-labs/<repo>)
+accessibility-fleet-log accessibility-fleet-log
 bombe-bench bombe-bench
 cache-miss-theater cache-miss-theater
 accessibility-lens accessibility-lens

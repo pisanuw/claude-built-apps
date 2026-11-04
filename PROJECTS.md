@@ -957,3 +957,39 @@ deterministic, browser-only core. 101 vitest tests, 99% statement coverage;
 zero axe WCAG 2.1 AA violations in light and dark mode.
 Live: [dossier-comment-reflector.pisan.me](https://dossier-comment-reflector.pisan.me).
 See its [README](./dossier-comment-reflector/README.md).
+
+
+### [`accessibility-fleet-log/`](./accessibility-fleet-log)
+
+Accessibility Fleet Log: for web agencies and freelancers who maintain 10 to
+100 small-business websites on a care plan and need to show each client,
+month after month, where its site stands on accessibility. Results come in
+from free checkers the agency already runs, with nothing installed on client
+sites: axe-core JSON (the browser extension, a console snippet or bookmarklet
+the app provides, or `@axe-core/cli` arrays), pa11y and pa11y-ci JSON,
+Lighthouse JSON, or a CSV from any tool (page, issue, WCAG, severity, count and
+status columns are guessed, and can be picked by hand). Only failing rule ids,
+WCAG criteria, element counts and page addresses are kept; the snippet drops
+element HTML and selectors before copying. Imports are matched to a client by
+host, with a warning for pages from another site. The issue log replays each
+site's checks in date order: an issue (one rule on one page) is found on the
+first check that reports it, fixed on the first later check of the same page
+that does not, and marked as come back when it returns, so a partial check
+never closes issues on pages it skipped. The fleet dashboard shows last check
+("check due" after 35 days), open, critical, the change since the previous
+check, fixes in 30 days and statement state per site, plus WCAG criteria that
+recur across clients. Each site gets a draft statement (EU wording naming EN
+301 549 and the BFSG with the MLBF as enforcement body, US wording on the ADA,
+or both; WCAG 2.1 or 2.2 AA target) whose status never outruns the evidence:
+open target issues give Partially conformant, a clean automated check alone
+gives Not yet confirmed, and "meets the standard as far as we know" needs a
+manual review in the last year. Statements are saved as dated versions with a
+line diff between them. The monthly white-label report (agency name, brand
+color darkened to 4.5:1 on white, footer line) lists fixed, new and open
+issues and prints to PDF or downloads as HTML. Data is kept in localStorage
+with a fleet-file backup. The idea's companion WordPress plugin, Supabase
+dashboard and server-side PDFs were replaced by this browser-only core.
+72 vitest tests, 99% statement coverage; zero axe WCAG 2.2 AA violations in
+light and dark mode.
+Live: [accessibility-fleet-log.pisan.me](https://accessibility-fleet-log.pisan.me).
+See its [README](./accessibility-fleet-log/README.md).
