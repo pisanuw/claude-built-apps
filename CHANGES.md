@@ -342,3 +342,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-05 [code] Popup Check (ideas 2026-11-03 #3, tier a) built in popup-check/: bookmark that checks open popups, age gates, cookie banners and chat buttons with simulated and guided keyboard tests, dated reports in the browser, practice shop; CI job and pisan-labs mirror files added.
 
 2026-11-05 [deploy] Popup Check live on https://popup-check.pisan.me (Deploy run 42017674116: site, CNAME and certificate created); links in README, PROJECTS.md, implemented.json and aiprojects.md. popup-check.netlify.app answered Netlify's 'Page not found' instead of the usual 301 at verification.
+
+2026-11-05 [doc] README: StepWise (stepwise.pisan.me, pisan-labs/visualizing-data-structures) added to Start here with a recorded AVL-insert GIF, and to Interactive CS lessons.

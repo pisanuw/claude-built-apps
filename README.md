@@ -67,6 +67,12 @@ addresses for now.
 <p><b><a href="https://mychessmaster.net/">MyChessMaster</a></b>: a chess coach for tournament players: Stockfish finds where each game went wrong, a coach model explains why, and the mistakes become prep sheets and spaced-repetition drills. Built with Claude Code for tournament players preparing for a specific opponent; its code is in a private repo.</p>
 </td>
 </tr>
+<tr>
+<td colspan="2" valign="top">
+<a href="https://stepwise.pisan.me/"><img src="docs/images/stepwise.gif" alt="StepWise: inserting 10 20 30 40 50 25 into an AVL tree, with each step narrated, the running pseudocode line highlighted and the rotations shown" width="100%"></a>
+<p><b><a href="https://stepwise.pisan.me/">StepWise</a></b>: data structures and algorithms one step at a time, for university courses. Pick any of 100+ structures and algorithms, run operations on it, and every step comes with a plain explanation, the pseudocode line that is running and the variables. Step backwards as far as you like, share what you built as a link, or embed it in Canvas. <a href="https://github.com/pisan-labs/visualizing-data-structures">Code</a></p>
+</td>
+</tr>
 </table>
 
 ## The catalog
@@ -118,6 +124,7 @@ addresses for now.
 
 | App | What it does |
 |---|---|
+| [StepWise](https://stepwise.pisan.me/) ([code](https://github.com/pisan-labs/visualizing-data-structures)) | 100+ data structures and algorithms, every step narrated with its pseudocode line and variables; step back, share as a link, embed in Canvas. |
 | [Bombe Bench](https://bombe-bench.pisan.me/) ([code](./bombe-bench)) | Step through an Enigma rotor by rotor, then break it with a working Bombe. |
 | [Cache Miss Theater](https://cache-miss-theater.pisan.me/) ([code](./cache-miss-theater)) | Watch a C loop nest's exact address trace run through a configurable cache. |
 | [Fork Count](https://fork-count.pisan.me/) ([code](./fork-count)) | Every process, pipe and possible output of a fork/wait/pipe C snippet, deadlocks included. |
