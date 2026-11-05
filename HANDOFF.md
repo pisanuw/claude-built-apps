@@ -128,3 +128,11 @@ None running from this session. Recurring jobs owned elsewhere: daily-project-id
 ## 11. Open questions
 
 1. None open; see Remaining for owner actions.
+
+## Session of 2026-11-02 to 2026-11-05 (session_01JyJzMUtBZwWUSbZ6bDDS2Q), where it stopped
+
+- Ideas routine reworked for more and better ideas (daily-project-ideas ROUTINE.md: spend pass, sources A15/A16/B11/B12, watchlist re-research, 3-5 ideas per first run, per-run provisional cap, keep reviewing to 10). Nov 5 first run shipped 2 ideas after 6 reviews; the rule now treats that as a failure. Next: check the Nov 6 10:51 CET run.
+- Attach custom domain workflow (attach-domain.yml) gave chess-tournament-director.pisan.me; PR pisan-labs/chess-tournament-director#35 (netlify.app 301) is open, not merged, CI not checked.
+- Digital Student Assistant featured in README and aiprojects (demo@hintwise.org, no code needed).
+- halflife pisan-labs sync installed (scripts/halflife/), setup script now reports actions.
+- Launch drafts 1-6 in docs/launch-drafts.md still unposted; a DSA draft was offered, not written.
