@@ -336,3 +336,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-04 [deploy] Misrepresentation Preflight live on https://misrepresentation-preflight.pisan.me (Deploy run 41894506042); links in README, PROJECTS.md, implemented.json and aiprojects.md.
 
 2026-11-04 [deploy] Accessibility Fleet Log live on https://accessibility-fleet-log.pisan.me (Deploy run 41861381957); links in README, PROJECTS.md, implemented.json and aiprojects.md.
+
+2026-11-05 [code] Attach custom domain workflow (attach-domain.mjs): CNAME, Netlify primary domain and certificate for an existing site, no deploy; first used for chess-tournament-director.pisan.me.

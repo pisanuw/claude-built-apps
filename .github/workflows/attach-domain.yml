@@ -1,0 +1,33 @@
+# Give an existing Netlify site a <name>.pisan.me address without a deploy:
+# creates the Cloudflare CNAME, sets the site's primary domain, requests the
+# certificate. For sites outside this repo too (any site on the account).
+name: Attach custom domain
+
+on:
+  workflow_dispatch:
+    inputs:
+      site:
+        description: 'Netlify site (project) name, e.g. chess-tournament-director'
+        required: true
+        type: string
+      domain:
+        description: 'Domain to attach, e.g. chess-tournament-director.pisan.me'
+        required: true
+        type: string
+
+jobs:
+  attach:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Attach
+        run: node accessibility-lens/deploy/attach-domain.mjs "$SITE" "$DOMAIN"
+        env:
+          SITE: ${{ inputs.site }}
+          DOMAIN: ${{ inputs.domain }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
