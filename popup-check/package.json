@@ -1,0 +1,33 @@
+{
+  "name": "popup-check",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Popup Check: a bookmark that tests the popups, age gates, cookie banners and chat buttons on your online store with the keyboard and a screen-reader view, and keeps a dated report. Runs in your browser; nothing is installed on your store.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test scripts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.20.5",
+    "@vitest/coverage-v8": "^2.1.8",
+    "esbuild": "^0.24.2",
+    "eslint": "^9.17.0",
+    "globals": "^15.14.0",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.19.0",
+    "vite": "^6.0.7",
+    "vitest": "^2.1.8"
+  }
+}

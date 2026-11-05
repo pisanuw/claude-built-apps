@@ -1,0 +1,26 @@
+# Deploy control file for Popup Check (Netlify, static site).
+#
+# No backend and no environment variables: the checks run inside the store
+# owner's browser (as a bookmark), and reports travel in the page address and
+# stay in the visitor's browser. The deploy workflow auto-discovers this file
+# via the `*/deploy/target.yml` glob. package-lock.json is force-added (the
+# root .gitignore excludes lockfiles) because `npm ci` below needs it.
+#
+# Code-only pushes do not trigger a deploy: the workflow watches this file, so
+# touch it (or run the workflow manually) to ship UI changes.
+
+provider: netlify
+projectName: popup-check
+directory: popup-check
+build: npm ci && npm run build
+publish: dist
+
+envPassthrough: []
+
+netlify:
+  # No serverless functions; the whole app is static.
+  functionsDir: ''
+  siteName: popup-check
+  # Primary domain; the deploy runner creates its Cloudflare CNAME (DNS only).
+  customDomain: popup-check.pisan.me
+  accountSlug: yusuf-pisan

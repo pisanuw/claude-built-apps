@@ -1044,3 +1044,52 @@ Items" headings, conditional no-returns sentences). 99 vitest tests, 99%
 statement coverage.
 Live: [misrepresentation-preflight.pisan.me](https://misrepresentation-preflight.pisan.me).
 See its [README](./misrepresentation-preflight/README.md).
+
+### [`popup-check/`](./popup-check)
+
+Popup Check: for owners of small online stores who add email popups, age
+gates, cookie banners and chat buttons through apps, a bookmark that checks
+each open overlay with the keyboard and a screen-reader view and produces a
+dated report. The owner opens their store, waits for the popup and clicks the
+bookmark; a panel in a shadow root (ignored by every check) finds the open
+overlays: dialogs (`role=dialog`/`alertdialog`, `aria-modal`, open
+`<dialog>`) and `position: fixed` elements, merged so a backdrop and its
+dialog count once, classified as email/discount popup, age gate, cookie
+banner, chat button or other by known-app marks (about 35 apps: Klaviyo,
+Privy, OneTrust, Cookiebot, Tidio, Intercom, Shopify Inbox and others, by
+id, class, tag and frame/script address), wording, size and position; site
+headers, off-screen drawers and hidden elements are skipped. Static checks
+read the page: dialog role, dialog name, background hidden (aria-modal,
+`:modal`, or every sibling up the tree aria-hidden/inert), close control
+(found by name or close/dismiss marks; symbol-only names like a bare × and
+unreachable close controls fail), close/chat target size (24 px), field
+labels (placeholder-only is a warning), button/link names, image alt,
+contrast (WCAG luminance, alpha blending up the ancestor chain, large-text
+threshold, pictures and gradients skipped) and "fake buttons" (clickable-
+looking elements that cannot take focus, outermost only). Accessible names
+follow a practical subset of the accname rules. Keyboard tests: focus-in is
+read from where page focus was before the panel took it; the simulated Tab
+test focuses the last and first controls, dispatches Tab/Shift+Tab keydowns
+(with legacy keyCode) and, when the popup's own code does not move or hold
+focus, predicts the browser's next stop from the document Tab order; Escape
+is run only on request (it closes the popup) and also checks where focus
+lands. The guided test records the owner's real Tab and Escape presses
+(focusin and keydown in the capture phase) and its results replace the
+simulated ones. Reports pack into the address hash (deflate-raw via
+CompressionStream, base64url, plain fallback) for the site, which shows each
+check with the fix, whose job the fix is (app settings or support versus the
+theme), a support message to copy, a comparison with the previous report of
+the same store (fixed, new, still failing, new and gone popups), print to
+PDF and copy as text; history lives in localStorage. A practice shop has
+five sample popups (badly and well built discount popups, an age gate, a
+cookie banner with one fake link, an unnamed chat icon). The idea's
+Playwright crawler that triggers popups by timer and scroll, axe-core worker,
+Supabase history and weekly re-check were replaced by this browser-only
+core; the bookmark is esbuild-bundled from `src/panel/entry.ts` into one
+self-contained `javascript:` link (about 60 KB). Tried in Chromium on a page
+with a Klaviyo-style popup, including the guided test with real key presses
+and the report window. 54 vitest tests, 99% statement coverage; zero axe
+WCAG 2.2 AA violations on the site, the report view and the panel in light
+and dark mode.
+Live: [popup-check.pisan.me](https://popup-check.pisan.me).
+See its [README](./popup-check/README.md).
