@@ -1,75 +1,57 @@
 # Handoff: get users, get noticed
 
+Rolling handoff for the Plabs relay (session-relay skill). Rewritten at each handover; the last section has the owner's standing instructions, the relay parameters and Scheduling.
+
 ## 1. Goal
 
-Owner's words (2026-11-02): "Get people using these projects, advertise these projects to get customers that may want me to build similar projects for them." "One way to be noticed is for github repos to be noticed, forked and get stars." Paid custom builds are the offer, part-time; "I care more about connections and being useful than money." "Built by Claude" is the headline: "While Claude can build them, not everybody can guide Claude to build them." Customer priority: small businesses, startups, edtech, universities. Domain: pisan.me.
+Owner's words (2026-11-02): "Get people using these projects, advertise these projects to get customers that may want me to build similar projects for them." "One way to be noticed is for github repos to be noticed, forked and get stars." Paid custom builds are the offer, part-time; "I care more about connections and being useful than money." "Built by Claude" is the headline. Customer priority: small businesses, startups, edtech, universities. Domain: pisan.me.
 
-## 2. Status
+## 2. What is live (6 November)
 
-Done
-- [x] Repo renamed Claude-capstone -> pisanuw/claude-built-apps; README rewritten as pitch + catalog by audience; long write-ups in PROJECTS.md
-- [x] pisan.me DNS moved from cPanel to Cloudflare (all records DNS-only); Google MX kept
-- [x] All 51 Netlify apps live at `<folder>.pisan.me` (mult-streak-edge -> mult-streak.pisan.me); `.netlify.app` 301s there
-- [x] Shared footer (scripts/site-footer.mjs) uses the owner's final wording; all sites redeployed once and checked live
-- [x] daily-project-ideas framed as "ideas I could build for you"; canonical daily-project-ideas.pisan.me; Friday lens = small business
-- [x] aiprojects page (pisanorg/yusuf): "Want one built?" box, phone menu fix, pisan.me links, 4 dead Render projects marked (offline)
-- [x] pisan-labs org: 50 mirror repos created by the owner with scripts/pisan_labs_setup.py; mirror.yml pushed code to all 50
-- [x] Demo GIFs for 47 apps (none for emoji-lingua, mult-streak-edge, tetromino-arcade)
-- [x] 7 live bugs fixed with regression tests and deployed (cron-cartographer, game-palette-inspector, emoji-lingua, summit-navigator, code-analogy-forge, cipher-ladder, pull-the-pin)
-- [x] accessibility-lens and emoji-lingua: Anthropic key removed from Netlify (envRemove); no live app calls Claude on the owner's key
-- [x] pisan-labs mirror CI: all green (owner checked, 2026-11-02)
-- [x] Ideas routine (daily-project-ideas ROUTINE.md, b0ba780): small business first; 4 of 7 lenses, 5+ small-business candidates per run, day floor is one small-business idea (validator enforces)
-- [x] Build routine rewritten in BUILD_ROUTINE.md: small-business pick order, pisan-labs mirror files, deploy via target.yml on netlify.app first, owner actions for DNS and repo creation
-- [x] mirror.yml skips an app whose pisan-labs repo does not exist yet (warning, not failure)
+- claude-built-apps: 59 apps with a deploy/target.yml, each at `<folder>.pisan.me`; README (visitor-facing, DEVELOPING.md for developers) with "My biggest project" (Digital Student Assistant) and a "Start here" grid incl. StepWise; 57 pisan-labs mirrors (.github/mirrors.txt; backend-hub and tetromino-arcade are not mirrored), synced daily by halflife (scripts/halflife/, launchd 04:13).
+- daily-project-ideas.pisan.me: customer-facing idea pages grouped by audience, "Built and live" showcase of 8 apps (6 demo GIFs, 2 screenshots) (web/showcase.json), owner notes at /notes/ (password).
+- pisanorg.github.io/yusuf/aiprojects.html: 99 projects, StepWise newest; Digital Student Assistant featured in the hire box (demo account demo@hintwise.org, no code needed).
+- Routines (owner's, not relay): ideas routine trig_01SRpCBczLpJRc3VDeTtyBWG daily 01:51 Pacific (10:51 CET), reads ROUTINE.md on main; build routine trig_01BAP9nsXTtxTdpMiwk5GdXE daily 02:49 Pacific (11:49 CET), reads BUILD_ROUTINE.md on main.
+- Heads at handoff: claude-built-apps main 411fd03, daily-project-ideas main cefd94e, yusuf master 1f5ca00.
 
-Remaining
-- [x] Consent Leak Watch on https://consent-leak-watch.pisan.me (Deploy run 41452636626: the runner created the CNAME, set the domain, got the certificate; netlify.app 301s there). Links moved in README, PROJECTS.md, the app README and aiprojects.md.
-- [x] Owner replaced the "Build an idea I choose" task's prompt with the pointer to BUILD_ROUTINE.md; the 2026-11-02 evening run followed it (ACR Draft).
-- [x] ACR Draft (ideas 2026-10-23 #2, tier b: no small-business idea was left) live on https://acr-draft.pisan.me (Deploy run 41521369534: the runner created the CNAME and certificate; netlify.app 301s there). Catalog, PROJECTS.md, implemented.json and aiprojects.md updated.
-- [x] Daily pisan-labs sync installed on halflife (launchd me.pisan.pisan-labs-sync, 04:13, log ~/Library/Logs/pisan-labs-sync.log); its first run created and mirrored pisan-labs/acr-draft and pisan-labs/consent-leak-watch (2026-11-03 03:21 UTC)
-- [x] Netlify Analytics on for acr-draft (owner, 2026-11-03)
-- [x] Student Journey Check (ideas 2026-11-03 #1, tier a) live on https://student-journey-check.pisan.me (Deploy runs 41625349618, 41626369789: CNAME and certificate created, netlify.app 301s there; the first run's function crashed on load and was fixed in 766d713). Catalog, PROJECTS.md, implemented.json and aiprojects.md updated.
-- [ ] Owner: turn on Netlify Analytics for student-journey-check (https://app.netlify.com/projects/student-journey-check/analytics-and-metrics/analytics). pisan-labs/student-journey-check is created by the halflife sync at 04:13; fallback `python3 scripts/pisan_labs_setup.py && gh workflow run mirror.yml --repo pisanuw/claude-built-apps --ref main`
-- [x] Dossier Comment Reflector (ideas 2026-10-25 #3, tier b) live on https://dossier-comment-reflector.pisan.me (Deploy run 41640581885: CNAME and certificate created, netlify.app 301s there). Catalog (Tools for teachers), PROJECTS.md, implemented.json and aiprojects.md updated; README and aiprojects counts now 53.
-- [ ] Owner: turn on Netlify Analytics for dossier-comment-reflector (https://app.netlify.com/projects/dossier-comment-reflector/analytics-and-metrics/analytics). pisan-labs/dossier-comment-reflector is created by the halflife sync at 04:13; fallback `git pull && python3 scripts/pisan_labs_setup.py && gh workflow run mirror.yml --repo pisanuw/claude-built-apps --ref main`
-- [x] Misrepresentation Preflight (ideas 2026-11-03 #2, tier a) live on https://misrepresentation-preflight.pisan.me (Deploy run 41894506042: CNAME and certificate created, netlify.app 301s there; live check of a real store through the function works). Catalog (Tools for small businesses), PROJECTS.md, implemented.json and aiprojects.md updated; README and aiprojects counts now 55.
-- [ ] Owner: turn on Netlify Analytics for misrepresentation-preflight (https://app.netlify.com/projects/misrepresentation-preflight/analytics-and-metrics/analytics). pisan-labs/misrepresentation-preflight is created by the halflife sync at 04:13; fallback `git pull && python3 scripts/pisan_labs_setup.py && gh workflow run mirror.yml --repo pisanuw/claude-built-apps --ref main`
-- [x] Accessibility Fleet Log (ideas 2026-11-04 #2, tier a: highest score of the small-business ideas) live on https://accessibility-fleet-log.pisan.me (Deploy run 41861381957: CNAME and certificate created, netlify.app 301s there). Catalog (Tools for small businesses), PROJECTS.md, implemented.json and aiprojects.md updated; aiprojects count now 97.
-- [ ] Owner: turn on Netlify Analytics for accessibility-fleet-log (https://app.netlify.com/projects/accessibility-fleet-log/analytics-and-metrics/analytics). pisan-labs/accessibility-fleet-log is created by the halflife sync at 04:13; fallback `git pull && python3 scripts/pisan_labs_setup.py && gh workflow run mirror.yml --repo pisanuw/claude-built-apps --ref main`
-- [x] Popup Check (ideas 2026-11-03 #3, tier a: score 17, Multi-week, oldest of the three tied small-business ideas) live on https://popup-check.pisan.me (Deploy run 42017674116: CNAME and certificate created). Catalog (Tools for small businesses), PROJECTS.md, implemented.json and aiprojects.md updated; README count 56, aiprojects count 98.
-- [ ] Owner: turn on Netlify Analytics for popup-check (https://app.netlify.com/projects/popup-check/analytics-and-metrics/analytics). pisan-labs/popup-check is created by the halflife sync at 04:13; fallback `git pull && python3 scripts/pisan_labs_setup.py && gh workflow run mirror.yml --repo pisanuw/claude-built-apps --ref main`
-- [ ] popup-check.netlify.app returned Netlify's "Page not found" (404) right after the deploy, where other apps 301 to pisan.me. The pisan.me site is fine. Check in the Netlify dashboard that the site's name is popup-check (and not a suffixed name because popup-check.netlify.app was taken); if it is, the 404 is harmless.
-- [ ] Un-built small-business ideas left (2026-11-05): Theme Conflict Merge, Health Page Tracker Watch (2026-11-04 #1, #3, both 17, Multi-week), Client Safe-Edit Pack for n8n (2026-11-04 #4, 17, Weekend MVP), Remittance Matcher for QBO (2026-11-05 #1, 16), Resale Ledger (2026-11-05 #2, 13)
-- [ ] Mirror run 41894506076 failed on pisan-labs/poincare-paint: push rejected (non-fast-forward, the mirror has commits the monorepo lacks; also failed on 41890384733). Someone pushed to that mirror directly; reconcile it (port the change into poincare-paint/ here, then let mirror.yml overwrite) before the next mirror run.
-- [ ] Tier b is down to two Micro-SaaS ideas (Lab Front Door 2026-10-27 #3, Camera-Ready Preflight 2026-10-29 #3), both aimed at academics; after them the build runs fall to tier c
-- [ ] Un-built small-business ideas left (2026-11-04): Popup Check (2026-11-03 #3), Theme Conflict Merge, Health Page Tracker Watch and Client Safe-Edit Pack for n8n (2026-11-04 #1, #3, #4), all score 17 and provisional
-- [x] Promotion picks (owner, 2026-11-02): Code Viva, Accessibility Lens, Fork Count, MyChessMaster (mychessmaster.net, private repo pisanuw/chess-analyzer). README "Start here" now shows these four plus Bombe Bench and Cache Miss Theater; drafts 3-6 in docs/launch-drafts.md
-- [x] Ideas site rewritten for customers and live (daily-project-ideas 9f5bb63, 2026-11-02): audience sections, plain-language idea pages (ideas/public.json), publicNotes for all 50 built apps checked against READMEs; owner notes at /notes/ behind NOTES_PASSWORD (edge function, fails closed). Consent Leak Watch link moved in the same build
-- [ ] Owner posts drafts 3-6 (one at a time, days apart)
-- [x] Netlify Analytics turned on by the owner for the sites that lacked it (2026-11-02). New sites may need it too: BUILD_ROUTINE.md lists it under owner actions
-- [x] deploy.mjs creates a new app's CNAME when CLOUDFLARE_API_TOKEN is set, and without it deploys on netlify.app only (no dead redirect); existing records are never changed (cloudflare-dns.mjs, 10 tests in CI)
-- [x] Cloudflare secrets added by the owner; "Check Cloudflare token" run 41450700693: token active, zone id set, reads bombe-bench.pisan.me's record. Creating a record is first exercised by the next new app's deploy.
-- [ ] Owner posts the launch drafts in docs/launch-drafts.md (Show HN: Bombe Bench; SIGCSE email: Cache Miss Theater)
-- [ ] Optional small bugs listed under Constraints
+## 3. Landed 2 to 5 November (this session, session_01JyJzMUtBZwWUSbZ6bDDS2Q)
 
-## 3. Current state
+- Ideas site rewritten for customers (public/notes split, audience sections, plain-language copy, publicNotes for all built apps); "Built and live" showcase (cefd94e, 5 Nov).
+- Ideas routine reworked for more and better ideas: spend pass, new sources A15 (no-code communities), A16 (Xero ideas board), B11 (freelancer.com API), B12 (Shopify app review pages, Atlassian); watchlist re-research; keep reviewing to 10; per-run provisional cap. Results: 4 Nov 4 ideas (3 with willingnessToPay 3 or 4), 5 Nov 2 ideas after 6 reviews (rule fixed afterwards, 6a0d49a).
+- Build routine (BUILD_ROUTINE.md): small-business pick order, customDomain from the first deploy, publicNotes, direct analytics link, no invented first-person facts, deletes only its own branches.
+- Deploy runner creates the Cloudflare CNAME (cloudflare-dns.mjs); "Check Cloudflare token" and "Attach custom domain" (attach-domain.yml, no deploy) workflows; chess-tournament-director.pisan.me attached, its netlify.app 301 merged (pisan-labs/chess-tournament-director#35).
+- Apps built by the build routine in this period: Consent Leak Watch, ACR Draft, Student Journey Check, Dossier Comment Reflector, Misrepresentation Preflight, Accessibility Fleet Log, Popup Check.
+- README and aiprojects: visitor-facing, test counts removed, StepWise and Digital Student Assistant featured.
 
-- claude-built-apps: `main` and `claude/intelligent-ptolemy-533qe5` carry this session's commits (see git log). Clean tree.
-- daily-project-ideas: `main` b0ba780 (small-business routine), clean. pisanorg/yusuf: `master` ab97a18, clean.
-- Last full deploy run 41416184263: 52/52 jobs success. Mirror run: success.
-- Handoff written 2026-11-02 about 10:30 CET.
+## 4. Branches not merged
 
-## 4. Next step
+- `claude/intelligent-ptolemy-533qe5` in claude-built-apps, daily-project-ideas and yusuf: this session's working branch, level with main (nothing unmerged).
 
-Check the first run of each changed routine: the ideas run's small-business count and validator result, and whether the build run followed BUILD_ROUTINE.md (only once the owner has swapped the task's prompt).
+## 5. Next, in order
 
-## 5. Decisions and why
+1. Report on the 6 Nov 10:51 CET ideas run (dated task trig_01RJWAcvrgHN2PpiyzEK2jVo fires at 11:15 CET into the relay session): ideas, reviews (did it reach 10 before settling for fewer than 3?), whether A16 or the watchlist produced an idea; small ROUTINE.md/sources.json fixes with [skip netlify].
+2. Poincaré Paint: the owner asked (6 Nov) for "save as PNG and JPG" plus a deploy; the owner stopped the first survey command before invoking the relay. Ask whether to go ahead before starting. Note: the pisan-labs/poincare-paint mirror rejected pushes on 4 Nov (non-fast-forward: someone committed to the mirror directly); reconcile before the next mirror run.
+3. Owner offered: a launch draft for Digital Student Assistant (SIGCSE list and LinkedIn, arXiv paper, demo account) in docs/launch-drafts.md.
+
+## 6. Waiting on the owner
+
+- Post launch drafts 1 to 6 in docs/launch-drafts.md, one at a time, days apart.
+- Netlify Analytics for the apps built since 3 Nov, if not done: student-journey-check, dossier-comment-reflector, misrepresentation-preflight, accessibility-fleet-log, popup-check (https://app.netlify.com/projects/<name>/analytics-and-metrics/analytics).
+- popup-check.netlify.app answered 404 after its deploy where others 301; check the site name in Netlify (harmless if the name is suffixed).
+
+## 7. Dated tasks
+
+| When (CET) | What | Routine |
+|---|---|---|
+| 6 Nov 11:15 | Report on the 6 Nov ideas run | trig_01RJWAcvrgHN2PpiyzEK2jVo (one-shot) |
+
+## 8. Decisions and why
 
 - Monorepo stays the source of truth; pisan-labs repos are `git subtree split` mirrors (mirror.yml + .github/mirrors.txt). One place for CI, deploy and footer; separate repos for discovery.
 - Each mirrored app folder carries its own LICENSE and `.github/workflows/ci.yml` (inert in the monorepo, active in the mirror).
 - tetromino-arcade not mirrored or promoted: Tetris trademark/trade-dress risk.
 - Subdomains are named after the package folder, not the Netlify site name.
-- Netlify deploys cost credits. A push deploys only targets whose target.yml changed (plus shortcut-sprint, code-analogy-forge, type-witness source changes; docs, GIFs, LICENSE and app CI files excluded). Runner/footer changes need a manual Deploy run naming apps or `all`.
+- Netlify deploys cost credits. A push deploys only targets whose target.yml changed (plus shortcut-sprint and code-analogy-forge source changes; docs, GIFs, LICENSE and app CI files excluded). Runner/footer changes need a manual Deploy run naming apps or `all`.
 - accessibility-lens runs rule-based only; no Claude on the owner's key for visitor scans.
 - game-palette-inspector suggests a fix only if it adds no confusion under any of 8 vision types; the Red/green trap preset therefore shows "no safe fix" (owner told; strict rule kept).
 - Ideas site keeps the name "Daily Project Ideas" (search terms), tagline does the pitch.
@@ -78,28 +60,31 @@ Check the first run of each changed routine: the ideas run's small-business coun
 - The build routine lives in BUILD_ROUTINE.md, read by the task, so it is versioned and editable from any session (the task itself can only be edited by the owner).
 - Every site's primary address is <app>.pisan.me (owner, 2026-11-02). New apps set customDomain from the start; the runner uses it only once DNS answers (creating the CNAME with the Cloudflare token), because a custom domain without a record 301s the working netlify.app address to a dead one.
 - pisan-labs: CI is checked only when the owner messages; a repo is attached to a session only when it gets an issue or PR.
+- Public pages are written for customers (owner, 2026-11-02): no scores, evidence, competitors, build time, tech stack or test counts on the ideas site, README or aiprojects; the owner's notes are at daily-project-ideas.pisan.me/notes/ behind NOTES_PASSWORD.
+- Ideas routine (owner, 2026-11-04): a first run ships 3 to 5 ideas, provisional capped per run (4 first, 3 extra), a day holds up to 10; gate numbers unchanged.
+- A deploy needs no yes when the owner asked for the change; any other Netlify deploy or site build waits for a yes. Pushes that change only docs or routine files in daily-project-ideas carry [skip netlify].
 
-## 6. Tried and rejected
+## 9. Tried and rejected
 
 - GIF of emoji-lingua via a mocked API: rejected, it would show output live visitors never get.
 - Proxied (orange-cloud) Cloudflare records: Netlify cannot issue certificates through the proxy.
 - Redeploying all apps on every deploy.mjs edit: ran Netlify out of credits on 2026-11-02; owner bought more.
 - `_redirects` rule written before the SPA fallback: the fallback step rewrote the file and erased it.
 
-## 7. Constraints and gotchas
+## 10. Constraints and gotchas
 
 - User preferences: ask before spending money (Netlify deploys, paid APIs), publishing outside the session, deleting what cannot be restored. Push to main is fine. Number questions. CHANGES.md is append-only, `YYYY-MM-DD [type] text`.
 - Conventional Commits enforced by `.git-hooks/commit-msg` (run `git config core.hooksPath .git-hooks`); merge commits need a conventional message too.
 - Another machine pushes to these branches: `git fetch` before work and before pushing; merge, never force-push.
 - This session's git proxy reset `origin` to the old Claude-capstone URL several times; `git remote set-url origin https://github.com/pisanuw/claude-built-apps` if pushes warn "repository moved".
 - Repo settings (description/topics/homepage) cannot be written from a cloud session; use scripts/pisan_labs_setup.py locally or the GitHub UI.
-- Secrets (names only): NETLIFY_AUTH_TOKEN, RENDER_API_KEY, MIRROR_TOKEN (fine-grained, pisan-labs, all repos, Contents+Workflows), ANTHROPIC_API_KEY, RESEND_API, ADMIN_EMAIL, COOKIE_SECRET. No Cloudflare token exists yet; DNS records are already in place for every app.
+- Secrets (names only): NETLIFY_AUTH_TOKEN, RENDER_API_KEY, MIRROR_TOKEN (fine-grained, pisan-labs, all repos, Contents+Workflows), CLOUDFLARE_API_TOKEN, CLOUDFLARE_ZONE_ID, ANTHROPIC_API_KEY, RESEND_API, ADMIN_EMAIL, COOKIE_SECRET.
 - Time zone: owner is travelling in Germany (CET) as of 2026-11-02; default is America/Los_Angeles. Report times in the zone they are in.
 - emoji-lingua now uses its dictionary engine only (key removed 2026-11-02). mult-streak-edge page load runs its idle-email sweep; do not load it in automated runs.
 - Known small issues not fixed: cron-cartographer refuses "last day of the month" (RRULE parser lacks BYMONTHDAY=-1); summit-navigator now/next bar shows the conference weekday for viewers far east of ET; pull-the-pin Instructor tab and analyzer rows still use clear+append re-render.
 - Netlify branch deploys for daily-project-ideas: unknown whether enabled (each would cost a build).
 
-## 8. How to run and verify
+## 11. How to run and verify
 
 - Per app (from its folder): `npm ci && npm run lint && npm run typecheck && npm run coverage && npm run build` (game-palette-inspector, pathfinding-playground: `npm test`; emoji-lingua has no lint).
 - Footer tests: `node --test scripts/site-footer.test.mjs`
@@ -108,7 +93,7 @@ Check the first run of each changed routine: the ideas run's small-business coun
 - Live check: `curl -s https://<app>.pisan.me/ | grep -c "Want something like this"`; old host `curl -sI https://<site>.netlify.app/` should 301.
 - Ideas site: `node build.js && node scripts/smoke_pages.js` in daily-project-ideas.
 
-## 9. Key files
+## 12. Key files
 
 - README.md, PROJECTS.md: public pitch and catalog
 - scripts/site-footer.mjs: footer text for every app
@@ -121,18 +106,34 @@ Check the first run of each changed routine: the ideas run's small-business coun
 - daily-project-ideas: web/, build.js, ROUTINE.md (lens table), implemented.json
 - pisanorg/yusuf: aiprojects.md, assets/css/style.scss
 
-## 10. Background jobs
+## 13. Background jobs
 
-None running from this session. Recurring jobs owned elsewhere: daily-project-ideas routine (daily 5am Pacific, Remote Trigger) and its notify-implemented email (9:10am Pacific, GitHub Actions). Each ideas commit to main triggers a Netlify build.
+Relay routines (Scheduling below) plus the owner's ideas and build routines (section 2). The notify-implemented email runs 9:10am Pacific (GitHub Actions). Each ideas commit to main triggers a Netlify build unless it carries [skip netlify].
 
-## 11. Open questions
+## Notes for the next session
 
-1. None open; see Remaining for owner actions.
+### Owner's standing instructions
+- Ask before spending money (Netlify deploys and builds the owner did not ask for, paid APIs), publishing outside the session, deleting the unrestorable. Push to main is fine. Number questions; recommend rather than survey.
+- Public pages are for customers (section 8). Never invent facts about the owner in his voice.
+- Report times in Europe/Berlin (owner travelling in Germany; home zone America/Los_Angeles).
+- CHANGES.md append-only, `YYYY-MM-DD [type] text`; Conventional Commits in claude-built-apps.
 
-## Session of 2026-11-02 to 2026-11-05 (session_01JyJzMUtBZwWUSbZ6bDDS2Q), where it stopped
+### Relay parameters (session-relay skill)
+| Parameter | Value |
+|---|---|
+| Repository | pisanuw/claude-built-apps (also daily-project-ideas, pisanorg/yusuf, pisan-labs/chess-tournament-director; read-only dashboards, chess-analyzer) |
+| Handoff document | HANDOFF.md (this file) |
+| Routine time zone | Europe/Berlin |
+| Report time zone | Europe/Berlin |
+| Handover check | 13:56 Europe/Berlin |
+| Session start | 14:52 Europe/Berlin |
+| Handoff marker | a commit on main titled `docs: the handoff of <D Month>` (this project pushes docs to main, no PR); no other commit may use that subject |
+| Merge rule | push to main after `node --test scripts/site-footer.test.mjs` passes |
 
-- Ideas routine reworked for more and better ideas (daily-project-ideas ROUTINE.md: spend pass, sources A15/A16/B11/B12, watchlist re-research, 3-5 ideas per first run, per-run provisional cap, keep reviewing to 10). Nov 5 first run shipped 2 ideas after 6 reviews; the rule now treats that as a failure. Next: check the Nov 6 10:51 CET run.
-- Attach custom domain workflow (attach-domain.yml) gave chess-tournament-director.pisan.me; PR pisan-labs/chess-tournament-director#35 (netlify.app 301) is open, not merged, CI not checked.
-- Digital Student Assistant featured in README and aiprojects (demo@hintwise.org, no code needed).
-- halflife pisan-labs sync installed (scripts/halflife/), setup script now reports actions.
-- Launch drafts 1-6 in docs/launch-drafts.md still unposted; a DSA draft was offered, not written.
+### Scheduling
+- Previous session: session_01JyJzMUtBZwWUSbZ6bDDS2Q ("Plabs", created 2026-11-02), lineage depth 0 of limit 8. It handed over on 6 November at 74% context.
+- Relay routines (aimed at the previous session until the takeover moves them):
+  - trig_016bUQ9asypUjHaWobD3Zdmq: Plabs hourly status report, `46 * * * *`
+  - trig_01FYuajYPqQe3JjKRHxh1MfW: Plabs handoff check, `CRON_TZ=Europe/Berlin 56 13 * * *`
+  - trig_01Ha5zaVwKx4JcDhMaS3jseE: Plabs session start, `CRON_TZ=Europe/Berlin 52 14 * * *`
+  - trig_01RJWAcvrgHN2PpiyzEK2jVo: one-shot, report on the 6 Nov ideas run, 2026-11-06 10:15 UTC

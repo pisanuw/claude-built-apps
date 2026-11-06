@@ -344,3 +344,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-05 [deploy] Popup Check live on https://popup-check.pisan.me (Deploy run 42017674116: site, CNAME and certificate created); links in README, PROJECTS.md, implemented.json and aiprojects.md. popup-check.netlify.app answered Netlify's 'Page not found' instead of the usual 301 at verification.
 
 2026-11-05 [doc] README: StepWise (stepwise.pisan.me, pisan-labs/visualizing-data-structures) added to Start here with a recorded AVL-insert GIF, and to Interactive CS lessons.
+
+2026-11-06 [doc] Session relay set up (hourly report, 13:56 handover check, 14:52 session start, Europe/Berlin); HANDOFF.md rewritten as the rolling handoff and handed over at 74% context.
