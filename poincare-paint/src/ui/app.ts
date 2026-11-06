@@ -3,6 +3,7 @@ import { distanceFromOrigin, geodesicLerp, hyperbolicWidth, measureTriangle, dis
 import { generateTiles, isHyperbolic, makeTiling, tilingFacts, fold, type Tile, type Tiling } from '../core/tiling';
 import { drawStrokes, drawTiles, geodesicTo, makeStroke, tileMatches, toScreen, validColor, type Doc, type Frame, type Stroke, type StrokeKind, type Symmetry, type TileStyle } from '../core/scene';
 import { exportSvg } from '../core/svg';
+import { RASTER_FORMATS, RASTER_PAD, RASTER_SIZE, exportFileName, formatBytes, type RasterFormat } from '../core/raster';
 import { decodeShare, encodeShare } from '../core/share';
 import { carry, dragView, easeInOut, rebase, recenterAt } from '../core/view';
 import { CanvasSink } from './canvasSink';
@@ -194,6 +195,8 @@ export function mountApp(root: HTMLElement): void {
   const clearBtn = h('button', { type: 'button', class: 'secondary', onclick: () => clearAll() }, 'Clear');
   const resetBtn = h('button', { type: 'button', class: 'secondary', onclick: () => animateTo(apply(state.view, 0, 0), () => (state.view = IDENTITY)) }, 'Re-centre');
   const svgBtn = h('button', { type: 'button', onclick: () => downloadSvg() }, 'Export SVG');
+  const pngBtn = h('button', { type: 'button', onclick: () => void downloadRaster('png') }, 'Save PNG');
+  const jpgBtn = h('button', { type: 'button', onclick: () => void downloadRaster('jpg') }, 'Save JPG');
   const linkBtn = h('button', { type: 'button', onclick: () => void copyLink() }, 'Copy share link');
 
   const measureOut = h('div', { class: 'measure-out', 'aria-live': 'polite' });
@@ -204,7 +207,7 @@ export function mountApp(root: HTMLElement): void {
     { class: 'panel' },
     h('section', {}, h('h2', {}, 'Tiling'), h('div', { class: 'row' }, presetSel, h('span', { class: 'pq' }, '{', pInput, ',', qInput, '}')), pqError, h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Symmetry'), symSel), h('div', { class: 'checks' }, check('Shade', () => state.shading, (v) => (state.shading = v)), check('Polygon edges', () => state.edges, (v) => (state.edges = v)), check('Mirror lines', () => state.mirrors, (v) => (state.mirrors = v)))),
     h('section', {}, h('h2', {}, 'Brush'), toolRow, swatches, wheel.el, h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Width at the centre ', widthOut), widthInput)),
-    h('section', {}, h('div', { class: 'button-row' }, undoBtn, redoBtn, clearBtn, resetBtn), h('div', { class: 'button-row' }, svgBtn, linkBtn)),
+    h('section', {}, h('div', { class: 'button-row' }, undoBtn, redoBtn, clearBtn, resetBtn), h('div', { class: 'button-row' }, pngBtn, jpgBtn, svgBtn), h('div', { class: 'button-row' }, linkBtn)),
     h('section', {}, h('h2', {}, 'Measure'), measureOut),
     h('details', {}, h('summary', {}, 'Detail'), h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Max mirror steps ', depthOut), depthInput), h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Smallest tile drawn ', fineOut), fineInput, h('small', {}, 'Smaller values draw further towards the rim and cost more time.'))),
     h('details', {}, h('summary', {}, 'This tiling'), factsOut),
@@ -679,13 +682,65 @@ export function mountApp(root: HTMLElement): void {
     const R = size / 2 - 4;
     const t = generateTiles(state.T, state.view, { maxDepth: state.depth, minSize: 1.5 / R, maxTiles: 60000 });
     const svg = exportSvg(state.doc, state.T, t, { size, background: cssVar('--bg'), disk: cssVar('--disk'), rim: cssVar('--rim'), style: tileStyle() });
-    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
-    const a = h('a', { href: url, download: `poincare-paint-${state.doc.p}-${state.doc.q}.svg` });
+    saveBlob(new Blob([svg], { type: 'image/svg+xml' }), exportFileName(state.doc.p, state.doc.q, 'svg'));
+    status.textContent = `Exported an SVG with ${t.length.toLocaleString()} triangles.`;
+  }
+
+  function saveBlob(blob: Blob, name: string): void {
+    const url = URL.createObjectURL(blob);
+    const a = h('a', { href: url, download: name });
     document.body.append(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    status.textContent = `Exported an SVG with ${t.length.toLocaleString()} triangles.`;
+  }
+
+  let rasterBusy = false;
+  async function downloadRaster(format: RasterFormat): Promise<void> {
+    if (rasterBusy) return;
+    rasterBusy = true;
+    const spec = RASTER_FORMATS[format];
+    pngBtn.disabled = jpgBtn.disabled = true;
+    status.textContent = `Drawing a ${RASTER_SIZE} × ${RASTER_SIZE} ${spec.label}…`;
+    // Let the status line paint before the (synchronous) drawing work starts.
+    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+    try {
+      const size = RASTER_SIZE;
+      const F: Frame = { ox: size / 2, oy: size / 2, R: size / 2 - RASTER_PAD };
+      const t = generateTiles(state.T, state.view, { maxDepth: state.depth, minSize: 1.5 / F.R, maxTiles: 60000 });
+      const c = document.createElement('canvas');
+      c.width = size;
+      c.height = size;
+      const ctx = c.getContext('2d');
+      if (!ctx) throw new Error('no 2D canvas');
+      // JPG has no transparency, so both formats get the page background, like the SVG.
+      ctx.fillStyle = cssVar('--bg');
+      ctx.fillRect(0, 0, size, size);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(F.ox, F.oy, F.R, 0, 2 * Math.PI);
+      ctx.fillStyle = cssVar('--disk');
+      ctx.fill();
+      ctx.clip();
+      const sink = new CanvasSink(ctx);
+      drawTiles(sink, state.T, t, F, tileStyle());
+      drawStrokes(sink, state.doc.strokes, t, F, state.doc.symmetry);
+      ctx.restore();
+      ctx.beginPath();
+      ctx.arc(F.ox, F.oy, F.R, 0, 2 * Math.PI);
+      ctx.strokeStyle = cssVar('--rim');
+      ctx.lineWidth = 1.5 * (size / 1200);
+      ctx.stroke();
+      const blob = await new Promise<Blob | null>((resolve) => c.toBlob(resolve, spec.mime, spec.quality));
+      if (!blob) throw new Error('encoder returned nothing');
+      saveBlob(blob, exportFileName(state.doc.p, state.doc.q, spec.ext));
+      status.textContent = `Saved a ${size} × ${size} ${spec.label} (${formatBytes(blob.size)}, ${t.length.toLocaleString()} triangles).`;
+    } catch (err) {
+      status.textContent = `Could not save the ${spec.label}: ${err instanceof Error ? err.message : String(err)}. Try Export SVG instead.`;
+    } finally {
+      rasterBusy = false;
+      pngBtn.disabled = jpgBtn.disabled = false;
+    }
   }
 
   async function copyLink(): Promise<void> {

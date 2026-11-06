@@ -346,3 +346,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-05 [doc] README: StepWise (stepwise.pisan.me, pisan-labs/visualizing-data-structures) added to Start here with a recorded AVL-insert GIF, and to Interactive CS lessons.
 
 2026-11-06 [doc] Session relay set up (hourly report, 13:56 handover check, 14:52 session start, Europe/Berlin); HANDOFF.md rewritten as the rolling handoff and handed over at 74% context.
+
+2026-11-06 [code] Poincaré Paint: Save PNG and Save JPG (2400 px, page background, same scene code as the canvas); owner-approved deploy. Mirror check: nothing to port.

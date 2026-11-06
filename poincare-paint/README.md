@@ -37,8 +37,9 @@ Everything runs in the browser; there is no backend.
   (π minus the angle sum). Marks stay put in the plane as you drag, and the
   numbers do not change.
 - **Undo / Redo / Clear**, with Ctrl+Z and Ctrl+Shift+Z.
-- **Export SVG** writes the current view at 1200 × 1200 with arcs as real SVG
-  arcs. **Copy share link** puts the whole drawing (tiling, symmetry, view and
+- **Save PNG** and **Save JPG** write the current view as a 2400 × 2400 image
+  on the page background, ready for slides, prints or a phone wallpaper.
+  **Export SVG** writes it at 1200 × 1200 with arcs as real SVG arcs. **Copy share link** puts the whole drawing (tiling, symmetry, view and
   strokes) in the URL fragment; nothing is uploaded. The last drawing is also
   kept in localStorage.
 
@@ -107,7 +108,7 @@ npm run coverage   # vitest with v8 coverage (core only)
 npm run build
 ```
 
-61 vitest tests, 100% statement coverage of `src/core`. The DOM glue in
+65 vitest tests, 100% statement coverage of `src/core`. The DOM glue in
 `src/ui` was checked by driving the built app in Playwright: drawing, dragging,
-measuring, export, share-link round trip, a 390 px phone width with no
+measuring, PNG, JPG and SVG export, share-link round trip, a 390 px phone width with no
 sideways scroll, and dark mode.

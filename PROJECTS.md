@@ -784,7 +784,7 @@ Rotation or kaleidoscope symmetry, any hyperbolic {p,q} up to 20, a geodesic
 brush, drag to translate the plane (the view is rebased onto a group element
 after each step so precision holds however far you go), double-click to glide
 a point to the centre, and a measure tool for hyperbolic distance and
-triangle angle sum and area. SVG export and share links that carry the whole
+triangle angle sum and area. PNG, JPG and SVG export and share links that carry the whole
 drawing in the URL. No backend. 58 vitest tests, 100% statement coverage on
 the core.
 Live: [poincare-paint.pisan.me](https://poincare-paint.pisan.me).
