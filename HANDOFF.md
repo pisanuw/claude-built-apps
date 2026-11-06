@@ -29,7 +29,7 @@ Owner's words (2026-11-02): "Get people using these projects, advertise these pr
 
 ## 5. Next, in order
 
-1. Report on the 6 Nov 10:51 CET ideas run (dated task trig_01RJWAcvrgHN2PpiyzEK2jVo fires at 11:15 CET into the relay session): ideas, reviews (did it reach 10 before settling for fewer than 3?), whether A16 or the watchlist produced an idea; small ROUTINE.md/sources.json fixes with [skip netlify].
+1. Report on the 6 Nov 10:51 CET ideas run (dated task trig_011quEkqoF96yu4PSnnWmevH fires at 11:15 CET into the relay session): ideas, reviews (did it reach 10 before settling for fewer than 3?), whether A16 or the watchlist produced an idea; small ROUTINE.md/sources.json fixes with [skip netlify].
 2. Poincaré Paint (https://poincare-paint.pisan.me): add "save as PNG" and "save as JPG" and deploy it. The owner asked for this on 6 Nov and confirmed it goes to the new session; the deploy is approved. First reconcile the pisan-labs/poincare-paint mirror, which rejected pushes on 4 Nov (non-fast-forward: someone committed to the mirror directly): port any change from it into poincare-paint/ here before the mirror run overwrites it.
 3. Owner offered: a launch draft for Digital Student Assistant (SIGCSE list and LinkedIn, arXiv paper, demo account) in docs/launch-drafts.md.
 
@@ -43,7 +43,7 @@ Owner's words (2026-11-02): "Get people using these projects, advertise these pr
 
 | When (CET) | What | Routine |
 |---|---|---|
-| 6 Nov 11:15 | Report on the 6 Nov ideas run | trig_01RJWAcvrgHN2PpiyzEK2jVo (one-shot) |
+| 6 Nov 11:15 | Report on the 6 Nov ideas run | trig_011quEkqoF96yu4PSnnWmevH (one-shot) |
 
 ## 8. Decisions and why
 
@@ -132,9 +132,9 @@ Relay routines (Scheduling below) plus the owner's ideas and build routines (sec
 
 ### Scheduling
 - Previous session: session_01JyJzMUtBZwWUSbZ6bDDS2Q ("Plabs", created 2026-11-02), lineage depth 0 of limit 8. It handed over on 6 November at 74% context. The owner asked for the handover at once, so the previous session started the new one by hand at about 09:00 CET with create_session, not at 14:52; the 14:52 start routine on 6 November must therefore do nothing. The new session records its id below as the current session.
-- Current session: (the new session writes its id here at takeover)
-- Relay routines (aimed at the previous session until the takeover moves them):
-  - trig_016bUQ9asypUjHaWobD3Zdmq: Plabs hourly status report, `46 * * * *`
-  - trig_01FYuajYPqQe3JjKRHxh1MfW: Plabs handoff check, `CRON_TZ=Europe/Berlin 56 13 * * *`
-  - trig_01Ha5zaVwKx4JcDhMaS3jseE: Plabs session start, `CRON_TZ=Europe/Berlin 52 14 * * *`
-  - trig_01RJWAcvrgHN2PpiyzEK2jVo: one-shot, report on the 6 Nov ideas run, 2026-11-06 10:15 UTC
+- Current session: session_01JyJzMYaEBiQ8ixgKSDb4Lu ("Plabs: Nov 6", created 2026-11-06 by create_session from the previous session), took over on 6 November 2026 at about 08:56 CET; lineage depth 1 of limit 8. This takeover is for the 6 November handoff, so the 14:52 start routine on 6 November does nothing.
+- Relay routines (aimed at the current session since the 6 November takeover; the previous session's copies are deleted):
+  - trig_01GdgQq1wKWYX3VUnV5jHppy: Plabs hourly status report, `46 * * * *`
+  - trig_01Te7E4X5YHgH4rXo9RyuW2Q: Plabs handoff check, `CRON_TZ=Europe/Berlin 56 13 * * *`
+  - trig_01Rbhw1b9k8mJoG4esixj6Aa: Plabs session start, `CRON_TZ=Europe/Berlin 52 14 * * *`
+  - trig_011quEkqoF96yu4PSnnWmevH: one-shot, report on the 6 Nov ideas run, 2026-11-06 10:15 UTC
