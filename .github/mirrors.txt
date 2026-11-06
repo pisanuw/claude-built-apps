@@ -56,3 +56,4 @@ ui-diff-lens ui-diff-lens
 where-does-it-say where-does-it-say
 misrepresentation-preflight misrepresentation-preflight
 popup-check popup-check
+health-page-tracker-watch health-page-tracker-watch

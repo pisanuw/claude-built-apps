@@ -352,3 +352,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-06 [doc] docs/launch-drafts.md: draft 7, Digital Student Assistant (SIGCSE list and LinkedIn), from README and arXiv abstract facts only.
 
 2026-11-06 [code] attach-domain.mjs keeps the old primary domain as a Netlify alias when it sets a new one (chess TD rename to chesstd.pisan.me).
+
+2026-11-06 [code] Health Page Tracker Watch (ideas 2026-11-04 #3, tier a: Small Business Ops) built in health-page-tracker-watch/: HAR or page-source check of a practice site's outside tools against an 82-tool BAA vendor table, health-page levels, monthly diff, .ics reminder. Browser-only.

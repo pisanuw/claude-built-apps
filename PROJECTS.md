@@ -1093,3 +1093,41 @@ WCAG 2.2 AA violations on the site, the report view and the panel in light
 and dark mode.
 Live: [popup-check.pisan.me](https://popup-check.pisan.me).
 See its [README](./popup-check/README.md).
+
+### [`health-page-tracker-watch/`](./health-page-tracker-watch)
+
+Health Page Tracker Watch: for therapists, small clinics, med spas and
+wellness studios and the people who run their websites, a monthly check of
+which outside tools on the booking, intake and service pages send visitor
+information to other companies. The owner records their pages in the
+browser (a HAR from the Network tab) or pastes a page's source. The HAR
+reader assigns every request to its page by `pageref` (falling back to
+navigation order), keeps only requests to other sites, and notes whether a
+request carried the full page address in its URL, POST body or Referer,
+which is what tells a vendor which service the visitor was reading about.
+The page-source reader takes `src`/`href`/`action` attributes and addresses
+inside inline scripts, after removing ordinary links, meta tags,
+canonical/alternate links, comments and JSON-LD. Pages are guessed as
+booking, intake, service/condition, contact, home or other from address and
+title keywords, and the owner can change any of them. A hand-kept vendor
+table of 82 tools (ad pixels, analytics, session recording, chat,
+accessibility widgets, booking and practice systems, forms, email
+marketing, call tracking, reviews, video, maps, fonts, code libraries,
+payments, website platforms) records each maker's public BAA position as
+signs, some plans, no, or "ask the vendor" when unconfirmed, with a dated
+review stamp on every report. Levels: Review now (a tool that sees what
+visitors do or type runs on a health page and its maker does not sign a
+BAA or it is unconfirmed), Confirm (BAA on some plans, a file server, or an
+unknown company on a health page), Not on health pages, and Signs a BAA.
+The practice profile (HIPAA-covered, wellness business, not sure; clients
+in Washington, Nevada or Connecticut) changes the explanations, not the
+findings. A saved check (JSON the owner keeps) is compared with the next
+one: new tools, tools that spread to more health pages, more urgent
+levels, tools gone from pages checked again, and vendors whose BAA status
+changed in the table. Exports: a Markdown summary for the web person, print
+to PDF, and a monthly `.ics` reminder. The idea's Playwright crawler,
+Supabase history and monthly email alerts were replaced by this
+browser-only core; the example practice uses the reserved `.example`
+domain. 53 vitest tests, 99% statement coverage.
+Live: [health-page-tracker-watch.pisan.me](https://health-page-tracker-watch.pisan.me).
+See its [README](./health-page-tracker-watch/README.md).

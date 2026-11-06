@@ -1,0 +1,26 @@
+# Deploy control file for Health Page Tracker Watch (Netlify, static site).
+#
+# No backend and no environment variables: recordings and page source are
+# read in the visitor's browser and never uploaded. The deploy workflow
+# auto-discovers this file via the `*/deploy/target.yml` glob.
+# package-lock.json is force-added (the root .gitignore excludes lockfiles)
+# because `npm ci` below needs it.
+#
+# Code-only pushes do not trigger a deploy: the workflow watches this file, so
+# touch it (or run the workflow manually) to ship UI changes.
+
+provider: netlify
+projectName: health-page-tracker-watch
+directory: health-page-tracker-watch
+build: npm ci && npm run build
+publish: dist
+
+envPassthrough: []
+
+netlify:
+  # No serverless functions; the whole app is static.
+  functionsDir: ''
+  siteName: health-page-tracker-watch
+  # Primary domain; the deploy runner creates its Cloudflare CNAME (DNS only).
+  customDomain: health-page-tracker-watch.pisan.me
+  accountSlug: yusuf-pisan
