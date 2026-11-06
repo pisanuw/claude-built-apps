@@ -356,3 +356,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-06 [code] Health Page Tracker Watch (ideas 2026-11-04 #3, tier a: Small Business Ops) built in health-page-tracker-watch/: HAR or page-source check of a practice site's outside tools against an 82-tool BAA vendor table, health-page levels, monthly diff, .ics reminder. Browser-only.
 
 2026-11-06 [deploy] Health Page Tracker Watch live on https://health-page-tracker-watch.pisan.me (Deploy run 42207616171: site, CNAME and certificate created, netlify.app 301s to it); ideas entry marked implemented, aiprojects section added.
+
+2026-11-06 [note] Ideas routine replaced by an agent-created copy, trig_01K986yzFbf3noGkLA6RgZkn (owner deleted the old trig_01SRpCBczLpJRc3VDeTtyBWG), so a failed run can be re-fired from a session.

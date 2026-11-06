@@ -11,7 +11,7 @@ Owner's words (2026-11-02): "Get people using these projects, advertise these pr
 - claude-built-apps: 59 apps with a deploy/target.yml, each at `<folder>.pisan.me`; README (visitor-facing, DEVELOPING.md for developers) with "My biggest project" (Digital Student Assistant) and a "Start here" grid incl. StepWise; 57 pisan-labs mirrors (.github/mirrors.txt; backend-hub and tetromino-arcade are not mirrored), synced daily by halflife (scripts/halflife/, launchd 04:13).
 - daily-project-ideas.pisan.me: customer-facing idea pages grouped by audience, "Built and live" showcase of 8 apps (6 demo GIFs, 2 screenshots) (web/showcase.json), owner notes at /notes/ (password).
 - pisanorg.github.io/yusuf/aiprojects.html: 99 projects, StepWise newest; Digital Student Assistant featured in the hire box (demo account demo@hintwise.org, no code needed).
-- Routines (owner's, not relay): ideas routine trig_01SRpCBczLpJRc3VDeTtyBWG daily 01:51 Pacific (10:51 CET), reads ROUTINE.md on main; build routine trig_01BAP9nsXTtxTdpMiwk5GdXE daily 02:49 Pacific (11:49 CET), reads BUILD_ROUTINE.md on main.
+- Routines (owner's, not relay): ideas routine trig_01K986yzFbf3noGkLA6RgZkn daily 01:51 Pacific (10:51 CET), reads ROUTINE.md on main (copy made 6 Nov so agents can fire it; the old http_api routine is deleted); build routine trig_01BAP9nsXTtxTdpMiwk5GdXE daily 02:49 Pacific (11:49 CET), reads BUILD_ROUTINE.md on main.
 - Heads at handoff: claude-built-apps main 411fd03, daily-project-ideas main cefd94e, yusuf master 1f5ca00.
 
 ## 3. Landed 2 to 5 November (this session, session_01JyJzMUtBZwWUSbZ6bDDS2Q)
