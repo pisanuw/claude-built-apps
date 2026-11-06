@@ -4,8 +4,8 @@
  * redeploying it (a deploy costs Netlify credits; this does not):
  *   1. create the Cloudflare CNAME <name> -> <site>.netlify.app, DNS only
  *      (cloudflare-dns.mjs; an existing record is never changed),
- *   2. make the domain the site's primary custom domain and ask for its
- *      certificate,
+ *   2. make the domain the site's primary custom domain (the old primary
+ *      stays as a domain alias, still serving) and ask for its certificate,
  *   3. wait until https://<domain>/ answers.
  *
  *   node attach-domain.mjs <netlify-site-name> <domain>
@@ -45,8 +45,11 @@ if (!dns.ready) die('DNS is not ready; nothing else changed');
 
 if (info.custom_domain === domain) say('', `Custom domain already ${domain}.`);
 else {
-  await netlify(`/sites/${info.id}`, { method: 'PATCH', body: JSON.stringify({ custom_domain: domain }) });
-  say('notice', `Custom domain set to ${domain} (was ${info.custom_domain || 'none'}).`);
+  // Keep the old primary domain as an alias so its links (and anything a
+  // browser stored for that origin) keep working; a rename should not break it.
+  const aliases = [...new Set([...(info.domain_aliases || []), ...(info.custom_domain ? [info.custom_domain] : [])])].filter((d) => d !== domain);
+  await netlify(`/sites/${info.id}`, { method: 'PATCH', body: JSON.stringify({ custom_domain: domain, domain_aliases: aliases }) });
+  say('notice', `Custom domain set to ${domain} (was ${info.custom_domain || 'none'}); aliases: ${aliases.join(', ') || 'none'}.`);
 }
 try {
   await netlify(`/sites/${info.id}/ssl`, { method: 'POST' });
