@@ -1,6 +1,6 @@
 # Launch drafts
 
-Six posts, written to sound like you. Edit freely; nothing has been posted.
+Seven posts, written to sound like you. Edit freely; nothing has been posted.
 Sections 3 to 6 were added on 2026-11-02 for the next round (picked from the 30-day analytics).
 
 ---
@@ -150,6 +150,45 @@ Sections 3 to 6 were added on 2026-11-02 for the next round (picked from the 30-
     Built with Claude Code. I am happy to hear what a stronger player thinks it gets wrong.
 
 **Before posting:** check that membership requests are being answered before you send people to "Become a member".
+
+---
+
+## 7. Instructors: Digital Student Assistant
+
+Added 2026-11-06. Facts are from the README's "My biggest project" section and the arXiv abstract; nothing else is assumed.
+
+**Where:** the SIGCSE members mailing list (plain-text email). A shorter LinkedIn version follows.
+
+**Subject:**
+
+    An AI tutor that withholds the answer: deployed in my data structures courses, paper and demo
+
+**Body:**
+
+    Hi all,
+
+    I have been running an AI teaching assistant, Digital Student Assistant, in my data structures courses at UW Bothell, and my students are using it now. It guides rather than answers: it asks before it tells, it will not hand over homework solutions, and it teaches from my own lectures and recordings rather than the internet.
+
+    The hard part was getting it to hold back reliably. A capable model pressed by a frustrated student does not withhold on a prompt alone, so the tutor treats withholding as a per-turn contract it can check: a non-LLM policy core sets a ceiling on an eight-rung help ladder, a deterministic detector strips solution code, and a separate LLM judge checks each risky reply. I tuned it with scripted student personas driven through the live pipeline, and recorded why each reply was rejected so each failure could be fixed by cause.
+
+    The write-up: "Teaching a Large Language Model Tutor to Withhold the Answer" https://arxiv.org/abs/2608.12292
+
+    To look around: https://digital-student-assistant.com/ and sign in with demo@hintwise.org (no code needed). Student accounts are limited to UW addresses for now, and the code is private.
+
+    [Optional, yours to add: a sentence on what you have seen students do with it, or whether you would like to hear from others who want to try it in their own course.]
+
+    Yusuf Pisan
+
+**LinkedIn:**
+
+    My students at UW Bothell are using an AI teaching assistant I built for my data structures courses. It asks before it tells and will not hand over homework solutions.
+
+    Getting a capable model to hold back the answer when a frustrated student pushes is the hard part. The paper describes how: a per-turn contract the system checks, an eight-rung help ladder, and evidence-driven tuning with scripted student personas.
+
+    Paper: https://arxiv.org/abs/2608.12292
+    Demo: https://digital-student-assistant.com/ (sign in as demo@hintwise.org)
+
+**Before posting:** decide whether to say how it was built (for example with Claude Code); I left that out because neither the README nor the paper abstract says it. Check that the demo account signs in on the day you post.
 
 ---
 

@@ -348,3 +348,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-06 [doc] Session relay set up (hourly report, 13:56 handover check, 14:52 session start, Europe/Berlin); HANDOFF.md rewritten as the rolling handoff and handed over at 74% context.
 
 2026-11-06 [code] Poincaré Paint: Save PNG and Save JPG (2400 px, page background, same scene code as the canvas); owner-approved deploy. Mirror check: nothing to port.
+
+2026-11-06 [doc] docs/launch-drafts.md: draft 7, Digital Student Assistant (SIGCSE list and LinkedIn), from README and arXiv abstract facts only.
