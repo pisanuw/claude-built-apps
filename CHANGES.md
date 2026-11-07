@@ -367,3 +367,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-07 [note] Owner turned on Netlify Analytics for the seven apps built since 3 Nov (through donation-receipts).
 
 2026-11-07 [note] popup-check.pisan.me answers 200 (owner checked); popup-check.netlify.app still 404s, most likely because the Netlify site name is suffixed. Nothing links to it, so closed.
+
+2026-11-07 [code] deploy.mjs uses the Netlify site name it actually gets (a taken name is suffixed, as popup-check-629) and finds existing sites by custom domain, so a later deploy does not create a duplicate site.

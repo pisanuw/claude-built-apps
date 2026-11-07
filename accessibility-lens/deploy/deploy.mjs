@@ -379,7 +379,10 @@ async function deployNetlify(cfg) {
 
   // Netlify site subdomains are GLOBALLY unique, so the site name often needs
   // to differ from the (Render) projectName. Prefer an explicit id when given.
-  const siteName = n.siteName || cfg.projectName;
+  // `let`: Netlify may give the site a different name than the one asked for
+  // (a taken name gets a numeric suffix, e.g. popup-check-629), and the
+  // redirect rule and DNS target must use the real one.
+  let siteName = n.siteName || cfg.projectName;
 
   try {
     log('Netlify CLI version:', netlify(['--version'], { capture: true }).trim());
@@ -406,7 +409,16 @@ async function deployNetlify(cfg) {
     try {
       const sitesJson = netlify(['api', 'listSites', '--data', '{}'], { capture: true });
       const sites = JSON.parse(sitesJson || '[]');
-      siteId = sites.find((s) => s.name === siteName)?.id ?? '';
+      // Match by name, or by the custom domain: a site Netlify created under a
+      // suffixed name is still found on later deploys instead of duplicated.
+      const found =
+        sites.find((s) => s.name === siteName) ||
+        (n.customDomain ? sites.find((s) => s.custom_domain === n.customDomain) : undefined);
+      siteId = found?.id ?? '';
+      if (found && found.name && found.name !== siteName) {
+        ghNotice(`warning: ${cfg.projectName}: Netlify site is named "${found.name}", not "${siteName}"; set netlify.siteName: ${found.name} in target.yml.`);
+        siteName = found.name;
+      }
       if (siteId) log(`Found existing site "${siteName}" (${siteId}).`);
     } catch (e) {
       log('Could not list sites (will try to create):', String(e).slice(0, 160));
@@ -432,6 +444,10 @@ async function deployNetlify(cfg) {
     try {
       const obj = JSON.parse(created);
       siteId = obj.site_id || obj.id || '';
+      if (obj.name && obj.name !== siteName) {
+        ghNotice(`warning: ${cfg.projectName}: Netlify created the site as "${obj.name}" (the name "${siteName}" was taken); set netlify.siteName: ${obj.name} in target.yml.`);
+        siteName = obj.name;
+      }
     } catch {
       siteId = created.match(/Site ID:\s*([a-f0-9-]+)/i)?.[1] ?? '';
     }
