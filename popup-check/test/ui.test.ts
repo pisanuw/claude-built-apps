@@ -62,8 +62,8 @@ describe('panel', () => {
     expect(root.textContent).toMatch(/Recorded 1 Tab press\./);
 
     button(root, 'Copy report code').click();
-    await tick();
-    await tick();
+    // Encoding the report is async; a fixed number of ticks was flaky on CI.
+    await waitFor(() => copied.length > 0 && /Report code copied/.test(root.textContent ?? ''), 'report code copied');
     expect(copied[0]).toMatch(/^[01]\./);
     expect(root.textContent).toMatch(/Report code copied/);
 
