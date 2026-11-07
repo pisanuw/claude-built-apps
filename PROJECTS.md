@@ -1131,3 +1131,41 @@ browser-only core; the example practice uses the reserved `.example`
 domain. 53 vitest tests, 99% statement coverage.
 Live: [health-page-tracker-watch.pisan.me](https://health-page-tracker-watch.pisan.me).
 See its [README](./health-page-tracker-watch/README.md).
+
+### [`donation-receipts/`](./donation-receipts)
+
+Donation Receipts: for volunteer treasurers of small Australian charities,
+churches and community groups, and the bookkeepers who serve several of
+them, numbered donation receipts and 30 June statements made from the gifts
+already in Xero or the bank, without invoicing each gift. The treasurer
+drops in Xero's Account Transactions report (Excel .xlsx, read by a small
+built-in reader: ZIP central directory, `DecompressionStream('deflate-raw')`,
+shared and inline strings, sheet found through the workbook relationships)
+or a bank CSV. Columns are guessed from the header row, or from cell
+contents when a bank file has no header; Xero's per-account section rows
+become an account filter that defaults to the donations account; credit,
+debit, positive or negative amounts and day- or month-first dates can be
+switched with a live preview. Re-importing is safe: lines are keyed by date,
+amount and normalised bank text, and only the surplus of identical lines is
+added. Donor suggestions come from the bank text after removing bank noise
+words (full name, initial plus surname, surname only, first name), from
+bank text and envelope or member numbers learned when a gift is linked, and
+a bonus for a repeat amount; "link clear matches" links only where one
+donor clearly wins. Receipts are numbered with a prefix and a next number
+that skips any number already used; voiding needs a reason, keeps the
+number in the register and frees the gift for a new receipt. Wording
+depends on DGR status and the $2 deductibility floor; the ABN is checked
+with the ATO check-digit rule. Statements list each donor's gifts in a
+financial year with receipt numbers and the deductible total, and flag
+gifts with no donor. Output: PDFs from a small writer using the built-in
+Helvetica fonts (WinAnsi, AFM widths for wrapping, one page per receipt or
+statement, verified with pdfinfo/pdftoppm), mailto links with the receipt
+text, a receipt register CSV, a statement list CSV and a JSON backup.
+Several organisations per browser for bookkeepers; data in localStorage
+with a warning when the browser will not save. The idea's Xero OAuth,
+Supabase and Resend email were replaced by this browser-only core.
+Example: a made-up community pantry with a Xero-style export. 74 vitest
+tests, 99.7% statement coverage; zero axe WCAG 2.2 AA violations in light
+and dark mode.
+Live: [donation-receipts.pisan.me](https://donation-receipts.pisan.me).
+See its [README](./donation-receipts/README.md).
