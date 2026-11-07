@@ -14,6 +14,10 @@
  * footer and the footer's CSS cannot leak into the app. It inherits the page's
  * text color, so it matches light and dark pages alike.
  *
+ * The line breaks are part of the text: each sentence group starts its own
+ * line (<br>), and "free :-)" is joined by a no-break space so the smiley
+ * never wraps onto a line by itself.
+ *
  * Usage: node scripts/site-footer.mjs <publishDir> <appName>
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -50,9 +54,9 @@ export function footerHtml(app) {
   return (
     `<site-footer ${MARKER}><template shadowrootmode="open"><style>${STYLE}</style>` +
     `<aside aria-label="About the builder"><p>` +
-    `Built by Claude, guided by me. I create tools like this for small businesses, startups and educators. ` +
-    `Want something like this for your own work? Email <a href="${mailto}">${CONTACT_EMAIL}</a>. ` +
-    `Paid projects welcome, interesting ones may be done for free :-) ` +
+    `Built by Claude, guided by me. I create tools like this for small businesses, startups and educators.<br>` +
+    `Want something like this for your own work? Email <a href="${mailto}">${CONTACT_EMAIL}</a>.<br>` +
+    `Paid projects welcome, interesting ones may be done for free&nbsp;:-)<br>` +
     `More apps: <a href="${PROJECTS_URL}">${PROJECTS_LABEL}</a>.` +
     `</p><p>Yusuf Pisan</p></aside></template></site-footer>`
   );

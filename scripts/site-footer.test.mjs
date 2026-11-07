@@ -21,6 +21,17 @@ test('footer links the projects page and email, naming the app in the subject', 
   assert.ok(html.includes('Want something like this for your own work?'));
 });
 
+test('footer keeps its four lines and the smiley on its line', () => {
+  const html = footerHtml('app');
+  const body = html.slice(html.indexOf('<p>') + 3, html.indexOf('</p>'));
+  const lines = body.split('<br>');
+  assert.equal(lines.length, 4);
+  assert.ok(lines[0].startsWith('Built by Claude'));
+  assert.ok(lines[1].startsWith('Want something like this'));
+  assert.ok(lines[2].endsWith('free&nbsp;:-)'));
+  assert.ok(lines[3].startsWith('More apps:'));
+});
+
 test('footer markup is ASCII, so it survives a page without a UTF-8 charset', () => {
   assert.match(footerHtml('app'), /^[\x20-\x7e]*$/);
 });
