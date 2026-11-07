@@ -358,3 +358,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-06 [deploy] Health Page Tracker Watch live on https://health-page-tracker-watch.pisan.me (Deploy run 42207616171: site, CNAME and certificate created, netlify.app 301s to it); ideas entry marked implemented, aiprojects section added.
 
 2026-11-06 [note] Ideas routine replaced by an agent-created copy, trig_01K986yzFbf3noGkLA6RgZkn (owner deleted the old trig_01SRpCBczLpJRc3VDeTtyBWG), so a failed run can be re-fired from a session.
+
+2026-11-07 [doc] PROJECTS.md Poincaré Paint entry: add the colour wheel, test count 58 -> 65. Monorepo and pisan-labs/poincare-paint trees already match at 8870751.
