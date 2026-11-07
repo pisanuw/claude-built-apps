@@ -16,7 +16,8 @@
  *
  * The line breaks are part of the text: each sentence group starts its own
  * line (<br>), and "free :-)" is joined by a no-break space so the smiley
- * never wraps onto a line by itself.
+ * never wraps onto a line by itself. "Email builder@pisan.me." does not wrap
+ * (.nb), so on a phone the address never sits on a line alone.
  *
  * Usage: node scripts/site-footer.mjs <publishDir> <appName>
  */
@@ -36,6 +37,7 @@ const STYLE = `
 :host { display: block; box-sizing: border-box; width: 100%; grid-column: 1 / -1; align-self: stretch; clear: both; }
 aside { box-sizing: border-box; max-width: 46rem; margin: 2.5rem auto 0; padding: 1rem 16px 1.5rem; border-top: 1px solid color-mix(in srgb, currentColor 22%, transparent); font: 13px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; text-align: center; overflow-wrap: anywhere; }
 p { margin: 0; }
+.nb { white-space: nowrap; }
 p + p { margin-top: 0.4em; }
 a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 a:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
@@ -55,7 +57,7 @@ export function footerHtml(app) {
     `<site-footer ${MARKER}><template shadowrootmode="open"><style>${STYLE}</style>` +
     `<aside aria-label="About the builder"><p>` +
     `Built by Claude, guided by me. I create tools like this for small businesses, startups and educators.<br>` +
-    `Want something like this for your own work? Email <a href="${mailto}">${CONTACT_EMAIL}</a>.<br>` +
+    `Want something like this for your own work? <span class="nb">Email <a href="${mailto}">${CONTACT_EMAIL}</a>.</span><br>` +
     `Paid projects welcome, interesting ones may be done for free&nbsp;:-)<br>` +
     `More apps: <a href="${PROJECTS_URL}">${PROJECTS_LABEL}</a>.` +
     `</p><p>Yusuf Pisan</p></aside></template></site-footer>`

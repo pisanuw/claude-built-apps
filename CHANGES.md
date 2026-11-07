@@ -371,3 +371,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-07 [code] deploy.mjs uses the Netlify site name it actually gets (a taken name is suffixed, as popup-check-629) and finds existing sites by custom domain, so a later deploy does not create a duplicate site.
 
 2026-11-07 [code] Site footer keeps its line breaks: four lines (<br>) and a no-break space so ":-)" never wraps alone. Not deployed; needs a manual Deploy run.
+2026-11-07 [decision] Footer: "Email builder@pisan.me." stays together on phones. Owner: no footer deploy; apps pick it up on their next deploy for another reason.

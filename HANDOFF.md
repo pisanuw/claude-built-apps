@@ -55,6 +55,7 @@ Owner's words (2026-11-02): "Get people using these projects, advertise these pr
 - game-palette-inspector suggests a fix only if it adds no confusion under any of 8 vision types; the Red/green trap preset therefore shows "no safe fix" (owner told; strict rule kept).
 - Ideas site keeps the name "Daily Project Ideas" (search terms), tagline does the pitch.
 - Footer links to pisanorg.github.io/yusuf/aiprojects.html (owner's choice), URL not renamed.
+- Footer line breaks are part of the text (owner, 2026-11-07): four lines plus "Yusuf Pisan", "free :-)" never split, "Email builder@pisan.me." kept together on phones (fd55877 and the next commit). Not deployed on purpose (owner): each app picks it up on its next deploy for another reason; no `all` run.
 - Small business first for new ideas and builds (owner, 2026-11-02). The ideas floor moved from one EdTech idea to one small-business idea.
 - The build routine lives in BUILD_ROUTINE.md, read by the task, so it is versioned and editable from any session (the task itself can only be edited by the owner).
 - Every site's primary address is <app>.pisan.me (owner, 2026-11-02). New apps set customDomain from the start; the runner uses it only once DNS answers (creating the CNAME with the Cloudflare token), because a custom domain without a record 301s the working netlify.app address to a dead one.

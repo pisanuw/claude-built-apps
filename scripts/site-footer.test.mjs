@@ -29,6 +29,8 @@ test('footer keeps its four lines and the smiley on its line', () => {
   assert.ok(lines[0].startsWith('Built by Claude'));
   assert.ok(lines[1].startsWith('Want something like this'));
   assert.ok(lines[2].endsWith('free&nbsp;:-)'));
+  assert.ok(lines[1].includes('<span class="nb">Email <a '));
+  assert.ok(html.includes('.nb { white-space: nowrap; }'));
   assert.ok(lines[3].startsWith('More apps:'));
 });
 
