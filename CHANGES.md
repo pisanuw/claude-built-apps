@@ -365,3 +365,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-07 [deploy] Donation Receipts live on https://donation-receipts.pisan.me (Deploy run 42375748144: site, CNAME and certificate created, netlify.app 301s to it); ideas entry marked implemented, aiprojects section added (Student Journey Check moved out of Latest; Course & Department Tools split, new group Grades & Evaluations).
 
 2026-11-07 [note] Owner turned on Netlify Analytics for the seven apps built since 3 Nov (through donation-receipts).
+
+2026-11-07 [note] popup-check.pisan.me answers 200 (owner checked); popup-check.netlify.app still 404s, most likely because the Netlify site name is suffixed. Nothing links to it, so closed.
