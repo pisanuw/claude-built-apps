@@ -35,10 +35,9 @@ Owner's words (2026-11-02): "Get people using these projects, advertise these pr
 
 ## 6. Waiting on the owner
 
-- Post launch drafts 1 to 6 in docs/launch-drafts.md, one at a time, days apart.
-- Netlify Analytics for the apps built since 3 Nov, if not done: student-journey-check, dossier-comment-reflector, misrepresentation-preflight, accessibility-fleet-log, popup-check, health-page-tracker-watch (https://app.netlify.com/projects/<name>/analytics-and-metrics/analytics).
+- Post launch drafts 1 to 7 in docs/launch-drafts.md, one at a time, days apart.
 - pisan-labs/health-page-tracker-watch: created and mirrored by the halflife job (04:13), or by hand with `python3 scripts/pisan_labs_setup.py && gh workflow run mirror.yml --repo pisanuw/claude-built-apps --ref main`.
-- Donation Receipts (built 7 Nov): turn on Netlify Analytics at https://app.netlify.com/projects/donation-receipts/analytics-and-metrics/analytics; pisan-labs/donation-receipts is created and mirrored by the halflife job (04:13), or by hand with `git pull && python3 scripts/pisan_labs_setup.py && gh workflow run mirror.yml --repo pisanuw/claude-built-apps --ref main`.
+- pisan-labs/donation-receipts (built 7 Nov) is created and mirrored by the halflife job (04:13), or by hand with `git pull && python3 scripts/pisan_labs_setup.py && gh workflow run mirror.yml --repo pisanuw/claude-built-apps --ref main`.
 - popup-check.netlify.app answered 404 after its deploy where others 301; check the site name in Netlify (harmless if the name is suffixed).
 
 ## 7. Dated tasks

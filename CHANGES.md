@@ -363,3 +363,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-07 [code] Donation Receipts (ideas 2026-11-07 #1, tier a: buyer is a small organisation or its bookkeeper; no idea anywhere is validated, so picked by score 21) built in donation-receipts/: Xero Account Transactions (.xlsx/CSV) or bank CSV import, donor suggestions learned from bank text, numbered ABN/DGR receipts with void, 30 June statements, register CSV, PDFs. Browser-only; named without "Xero" in the domain.
 
 2026-11-07 [deploy] Donation Receipts live on https://donation-receipts.pisan.me (Deploy run 42375748144: site, CNAME and certificate created, netlify.app 301s to it); ideas entry marked implemented, aiprojects section added (Student Journey Check moved out of Latest; Course & Department Tools split, new group Grades & Evaluations).
+
+2026-11-07 [note] Owner turned on Netlify Analytics for the seven apps built since 3 Nov (through donation-receipts).
