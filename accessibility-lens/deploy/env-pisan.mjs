@@ -32,16 +32,19 @@ for (const s of sites) {
   try { env = await call(N, nt, `/accounts/${s.account_id}/env?site_id=${s.id}`); } catch { continue; }
   let changed = false;
   for (const e of env) {
-    for (const val of e.values || []) {
-      const { out, hosts } = rewrite(String(val.value ?? ''));
-      if (!hosts.length) continue;
-      console.log(`netlify ${s.name}: ${e.key} [${val.context}] mentions ${[...new Set(hosts)].join(', ')}`);
-      if (!fix) continue;
-      try {
-        await call(N, nt, `/accounts/${s.account_id}/env/${e.key}?site_id=${s.id}`, { method: 'PATCH', body: JSON.stringify({ context: val.context, value: out }) });
-        console.log('  fixed'); changed = true;
-      } catch (err) { failed++; console.log(`::error::${s.name} ${e.key}: ${String(err).slice(0, 200)}`); }
-    }
+    const vals = (e.values || []).map((v) => ({ ...v, ...rewrite(String(v.value ?? '')) }));
+    const hit = vals.filter((v) => v.hosts.length);
+    if (!hit.length) continue;
+    console.log(`netlify ${s.name}: ${e.key} [${hit.map((v) => v.context).join(',')}] mentions ${[...new Set(hit.flatMap((v) => v.hosts))].join(', ')}`);
+    if (!fix) continue;
+    try {
+      // PUT the whole variable: PATCH cannot set the "all" context.
+      await call(N, nt, `/accounts/${s.account_id}/env/${e.key}?site_id=${s.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ key: e.key, scopes: e.scopes, values: vals.map((v) => ({ context: v.context, value: v.out, ...(v.context_parameter ? { context_parameter: v.context_parameter } : {}) })) }),
+      });
+      console.log('  fixed'); changed = true;
+    } catch (err) { failed++; console.log(`::error::${s.name} ${e.key}: ${String(err).slice(0, 200)}`); }
   }
   if (fix && changed && s.build_settings?.repo_url) {
     try { await call(N, nt, `/sites/${s.id}/builds`, { method: 'POST', body: '{}' }); console.log('  build started'); } catch (err) { failed++; console.log(`::error::${s.name} build: ${String(err).slice(0, 200)}`); }
