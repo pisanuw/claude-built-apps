@@ -35,12 +35,13 @@ describe('exports', () => {
   });
 
   it('writes a monthly calendar reminder', () => {
-    const ics = reminderIcs('clinic.test', 'https://health-page-tracker-watch.pisan.me', new Date('2026-01-31T10:00:00Z'));
+    const ics = reminderIcs('clinic.test', 'https://health-page-tracker-watch.hintwise.org', new Date('2026-01-31T10:00:00Z'));
     expect(ics).toContain('RRULE:FREQ=MONTHLY');
     expect(ics).toContain('DTSTART;VALUE=DATE:20260228');
     expect(ics).toContain('DTEND;VALUE=DATE:20260301');
     expect(ics).toContain('SUMMARY:Check clinic.test health pages for new trackers');
     expect(ics).toContain('DTSTAMP:20260131T100000Z');
+    expect(ics).toMatch(/^UID:health-page-tracker-watch-clinic\.test-\d{8}@hintwise\.org\r$/m);
     expect(ics.split('\r\n')[0]).toBe('BEGIN:VCALENDAR');
     expect(reminderIcs('a;b,c', 'u', new Date('2026-12-05T00:00:00Z'))).toContain(String.raw`SUMMARY:Check a\;b\,c health`);
     expect(reminderIcs('x', 'u', new Date('2026-12-05T00:00:00Z'))).toContain('DTSTART;VALUE=DATE:20270105');

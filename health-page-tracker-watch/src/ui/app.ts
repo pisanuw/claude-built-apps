@@ -11,7 +11,7 @@ import { sampleHar } from '../core/sample';
 import { BAA_LABEL, KINDS, TABLE_REVIEWED, vendorList } from '../core/vendors';
 import { download, h } from './dom';
 
-export const APP_URL = 'https://health-page-tracker-watch.pisan.me';
+export const APP_URL = 'https://health-page-tracker-watch.hintwise.org';
 
 interface Input {
   id: number;
