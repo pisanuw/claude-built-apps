@@ -24,7 +24,7 @@ env:
   # Idle threshold before the "player stopped" email fires. Kept at 5 minutes
   # so the email reliably sends before a free Render instance spins down.
   IDLE_MINUTES: '5'
-  FROM_EMAIL: mult-streak@pisan.me
+  FROM_EMAIL: mult-streak@hintwise.org
 
 # Secret values forwarded from the workflow environment (GitHub repo secrets).
 # Names only; values never live in this file.
