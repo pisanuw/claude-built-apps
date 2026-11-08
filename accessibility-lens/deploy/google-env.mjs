@@ -21,6 +21,8 @@ async function call(base, tok, route, init = {}) {
   return t ? JSON.parse(t) : {};
 }
 const isGoogle = (k) => /GOOGLE/.test(k) && /(CLIENT_ID|_ID|SECRET)$/.test(k) && !/REDIRECT|URI|PROJECT|ANALYTICS|API_KEY|MAPS/.test(k);
+// yes / no / hidden (a secret Netlify will not return) / ? (secrets not given); never the value
+const matches = (k, v) => (v === undefined || v === null || v === '' ? 'hidden' : !process.env.HINTWISE_AUTH_GOOGLE_ID ? '?' : v === valueFor(k) ? 'yes' : 'no');
 const valueFor = (k) => (/SECRET$/.test(k) ? process.env.HINTWISE_AUTH_GOOGLE_SECRET : process.env.HINTWISE_AUTH_GOOGLE_ID);
 if (cmd === 'apply' && (!process.env.HINTWISE_AUTH_GOOGLE_ID || !process.env.HINTWISE_AUTH_GOOGLE_SECRET)) {
   console.log('::error::HINTWISE_AUTH_GOOGLE_ID and HINTWISE_AUTH_GOOGLE_SECRET secrets are not set'); process.exit(1);
@@ -38,7 +40,10 @@ for (const s of sites) {
   console.log(`netlify ${s.name}: ${keys.join(', ')}`);
   if (cmd !== 'apply') {
     // who last changed each var, and when (never the value)
-    for (const e of envs) console.log(`  ${e.key}: updated ${e.updated_at || '?'} by ${e.updated_by?.full_name || e.updated_by?.email || '?'}`);
+    for (const e of envs) {
+      const ctx = (e.values || []).map((v) => `${v.context}${v.context_parameter ? ':' + v.context_parameter : ''}=${matches(e.key, v.value)}`).join(' ');
+      console.log(`  ${e.key}: updated ${e.updated_at || '?'} by ${e.updated_by?.full_name || e.updated_by?.email || '?'}; ${e.is_secret ? 'secret' : 'plain'}; level ${e.site_id ? 'site' : 'shared'}; HintWise? ${ctx || 'no values'}`);
+    }
     continue;
   }
   for (const k of keys) {
@@ -57,10 +62,15 @@ for (const s of sites) {
 const svcs = (await call(R, rt, '/services?limit=100')).map((x) => x.service);
 for (const s of svcs) {
   let keys = [];
-  try { keys = (await call(R, rt, `/services/${s.id}/env-vars?limit=100`)).map((e) => e.envVar.key).filter(isGoogle); } catch { continue; }
+  let rvars = [];
+  try { rvars = (await call(R, rt, `/services/${s.id}/env-vars?limit=100`)).map((e) => e.envVar).filter((e) => isGoogle(e.key)); } catch { continue; }
+  keys = rvars.map((e) => e.key);
   if (!keys.length) continue;
   console.log(`render ${s.name}: ${keys.join(', ')}`);
-  if (cmd !== 'apply') continue;
+  if (cmd !== 'apply') {
+    for (const e of rvars) console.log(`  ${e.key}: HintWise? ${matches(e.key, e.value)}`);
+    continue;
+  }
   for (const k of keys) {
     if (dry) { console.log(`  would set ${k}`); continue; }
     try { await call(R, rt, `/services/${s.id}/env-vars/${k}`, { method: 'PUT', body: JSON.stringify({ value: valueFor(k) }) }); console.log(`  set ${k}`); }
