@@ -26,10 +26,10 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const PROJECTS_URL = 'https://pisanorg.github.io/yusuf/aiprojects.html';
+export const PROJECTS_URL = 'https://studio.hintwise.org/';
 export const CONTACT_EMAIL = 'builder@hintwise.org';
 /** Visible text for PROJECTS_URL: the URL without its scheme and extension. */
-export const PROJECTS_LABEL = 'pisanorg.github.io/yusuf/aiprojects';
+export const PROJECTS_LABEL = 'studio.hintwise.org';
 /** Yusuf Pisan's academic page. Not known yet: while empty, the footer omits the link. */
 export const ACADEMIC_URL = 'https://pisanorg.github.io/yusuf/';
 /** Visible text for ACADEMIC_URL. */
