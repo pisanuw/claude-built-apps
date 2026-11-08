@@ -11,8 +11,13 @@
  * the environment only:
  *   - Render:  RENDER_API_KEY
  *   - Netlify: NETLIFY_AUTH_TOKEN
- *   - Custom domains: CLOUDFLARE_API_TOKEN (optional, DNS edit on the zone)
- *     and CLOUDFLARE_ZONE_ID (optional); see cloudflare-dns.mjs
+ *   - Custom domains: CLOUDFLARE_API_TOKEN (optional, DNS edit and Zone:Read on
+ *     hintwise.org and pisan.me) and CLOUDFLARE_ZONE_ID (optional fallback);
+ *     see cloudflare-dns.mjs
+ *
+ * netlify.customDomain in target.yml still says <app>.pisan.me; the address
+ * actually used is appDomainFor() of it (scripts/domains.mjs), i.e.
+ * <app>.hintwise.org, so no target.yml needs editing for the move.
  *
  * Usage:
  *   node deploy.mjs                 # real deploy
@@ -27,7 +32,8 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { injectFooterIntoDir } from '../../scripts/site-footer.mjs';
-import { ensureDomainDns } from './cloudflare-dns.mjs';
+import { ensureDomainDns, keepOldAlias, resolves } from './cloudflare-dns.mjs';
+import { appDomainFor, oldDomainFor } from '../../scripts/domains.mjs';
 
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
@@ -367,7 +373,8 @@ async function deployNetlify(cfg) {
     envVarsForwarded: Object.keys(env),
     envVarsRemoved: cfg.envRemove,
     siteFooter: cfg.footer !== false,
-    customDomain: n.customDomain || '(none)',
+    customDomain: appDomainFor(n.customDomain) || '(none)',
+    ...(n.customDomain && appDomainFor(n.customDomain) !== n.customDomain ? { customDomainInTargetYml: n.customDomain } : {}),
   };
   log('Netlify plan:\n' + JSON.stringify(plan, null, 2));
 
@@ -413,7 +420,9 @@ async function deployNetlify(cfg) {
       // suffixed name is still found on later deploys instead of duplicated.
       const found =
         sites.find((s) => s.name === siteName) ||
-        (n.customDomain ? sites.find((s) => s.custom_domain === n.customDomain) : undefined);
+        (n.customDomain
+          ? sites.find((s) => [appDomainFor(n.customDomain), n.customDomain].includes(s.custom_domain))
+          : undefined);
       siteId = found?.id ?? '';
       if (found && found.name && found.name !== siteName) {
         ghNotice(`warning: ${cfg.projectName}: Netlify site is named "${found.name}", not "${siteName}"; set netlify.siteName: ${found.name} in target.yml.`);
@@ -458,7 +467,8 @@ async function deployNetlify(cfg) {
   // A custom domain is used only once its DNS record exists (created here when
   // CLOUDFLARE_API_TOKEN is set): the redirect rule below would otherwise send
   // the working .netlify.app address to a name that does not resolve.
-  let customDomain = n.customDomain || '';
+  // target.yml's <app>.pisan.me becomes <app>.hintwise.org (scripts/domains.mjs).
+  let customDomain = appDomainFor(n.customDomain);
   if (customDomain) {
     try {
       const dns = await ensureDomainDns({ domain: customDomain, target: `${siteName}.netlify.app` });
@@ -466,9 +476,16 @@ async function deployNetlify(cfg) {
       else log(dns.message);
       if (!dns.ready) customDomain = '';
     } catch (e) {
-      // A DNS or Cloudflare API failure keeps the domain, as before this check
-      // existed: every app deployed so far already has its record.
-      ghNotice(`warning: ${cfg.projectName}: DNS check failed, using ${customDomain} anyway: ${String(e).slice(0, 200)}`);
+      // A DNS or Cloudflare API failure keeps the domain only if public DNS
+      // already answers for it. (Before the move to hintwise.org every app
+      // had its record, so the domain was always kept; a hintwise name may
+      // not exist yet, and a redirect to it would break the site.)
+      const ok = await resolves(customDomain).catch(() => false);
+      ghNotice(
+        `warning: ${cfg.projectName}: DNS check failed (${String(e).slice(0, 200)}); ` +
+          (ok ? `${customDomain} resolves, using it.` : `${customDomain} does not resolve, so no custom domain this deploy.`),
+      );
+      if (!ok) customDomain = '';
     }
   }
 
@@ -561,8 +578,8 @@ async function deployNetlify(cfg) {
   } catch {
     /* fall back to the conventional site URL */
   }
-  // netlify.customDomain (e.g. bombe-bench.pisan.me) becomes the site's
-  // primary domain, so Netlify redirects the .netlify.app address to it. The
+  // netlify.customDomain, mapped to hintwise.org (e.g. bombe-bench.hintwise.org),
+  // becomes the site's primary domain, so Netlify redirects the .netlify.app address to it. The
   // DNS CNAME must point at <siteName>.netlify.app (DNS only, not
   // proxied), or Netlify cannot issue the certificate.
   if (customDomain) {
@@ -596,14 +613,34 @@ async function netlifyApi(route, init = {}) {
   return text ? JSON.parse(text) : {};
 }
 
-/** Make `domain` the site's primary custom domain and ask for its certificate. */
+/**
+ * Make `domain` the site's primary custom domain and ask for its certificate.
+ * The app's old pisan.me name is not kept as an alias once Cloudflare answers
+ * it (proxied record + redirect rule); while its record is still DNS only it
+ * stays an alias, so the old address keeps working until the switch.
+ */
 async function ensureCustomDomain(siteId, domain) {
   const site = await netlifyApi(`/sites/${siteId}`);
-  if (site.custom_domain === domain) {
+  const oldDomain = oldDomainFor(domain);
+  const aliases = (site.domain_aliases || []).filter((d) => d !== domain);
+  let wanted = aliases;
+  if (oldDomain !== domain) {
+    const onSite = site.custom_domain === oldDomain || aliases.includes(oldDomain);
+    const { keep, reason } = onSite ? await keepOldAlias({ oldDomain }) : { keep: false };
+    wanted = aliases.filter((d) => d !== oldDomain);
+    if (onSite && keep) wanted.push(oldDomain);
+    if (onSite) log(`${oldDomain} ${keep ? 'stays a domain alias' : 'is dropped from the site'}: ${reason}.`);
+  }
+  const current = site.domain_aliases || [];
+  const sameAliases = wanted.length === current.length && wanted.every((d) => current.includes(d));
+  if (site.custom_domain === domain && sameAliases) {
     log(`Custom domain already ${domain}.`);
   } else {
-    log(`Setting custom domain ${domain} (was ${site.custom_domain || 'none'}).`);
-    await netlifyApi(`/sites/${siteId}`, { method: 'PATCH', body: JSON.stringify({ custom_domain: domain }) });
+    log(`Setting custom domain ${domain} (was ${site.custom_domain || 'none'}); aliases: ${wanted.join(', ') || 'none'}.`);
+    await netlifyApi(`/sites/${siteId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ custom_domain: domain, domain_aliases: wanted }),
+    });
   }
   // Netlify provisions the Let's Encrypt certificate on its own once DNS
   // resolves; asking now saves waiting for its next check. A failure here is

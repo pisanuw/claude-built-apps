@@ -1,4 +1,4 @@
-# Give an existing Netlify site a <name>.pisan.me address without a deploy:
+# Give an existing Netlify site a <name>.hintwise.org (or pisan.me) address without a deploy:
 # creates the Cloudflare CNAME, sets the site's primary domain, requests the
 # certificate. For sites outside this repo too (any site on the account).
 name: Attach custom domain
@@ -11,7 +11,7 @@ on:
         required: true
         type: string
       domain:
-        description: 'Domain to attach, e.g. chess-tournament-director.pisan.me'
+        description: 'Domain to attach, e.g. chess-tournament-director.hintwise.org'
         required: true
         type: string
 

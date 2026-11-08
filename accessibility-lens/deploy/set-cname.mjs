@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Point <host>.pisan.me at any target with a DNS-only CNAME, for sites hosted
+ * Point <host>.hintwise.org or <host>.pisan.me at any target with a DNS-only CNAME, for sites hosted
  * outside Netlify (e.g. Render). Run by .github/workflows/set-cname.yml, since
  * the Cloudflare token exists only as a repo secret.
  *
@@ -10,9 +10,10 @@
  * - The record is always DNS only (not proxied).
  *
  * Usage: node set-cname.mjs <domain> <target>
- * Env: CLOUDFLARE_API_TOKEN (DNS edit), CLOUDFLARE_ZONE_ID (optional).
+ * Env: CLOUDFLARE_API_TOKEN (DNS edit + Zone:Read), CLOUDFLARE_ZONE_ID (optional fallback).
+ * The zone is looked up by name, so either zone works.
  */
-import { zoneNameOf } from './cloudflare-dns.mjs';
+import { zoneIdFor } from './cloudflare-dns.mjs';
 
 const CF_API = 'https://api.cloudflare.com/client/v4';
 
@@ -39,12 +40,7 @@ async function main() {
   }
   const token = process.env.CLOUDFLARE_API_TOKEN;
   if (!token) throw new Error('CLOUDFLARE_API_TOKEN is not set');
-  let zoneId = process.env.CLOUDFLARE_ZONE_ID;
-  if (!zoneId) {
-    const zones = await cf(token, `/zones?name=${encodeURIComponent(zoneNameOf(domain))}`);
-    zoneId = zones?.[0]?.id;
-    if (!zoneId) throw new Error(`zone for ${domain} not found`);
-  }
+  const zoneId = await zoneIdFor({ domain, token });
   const records = (await cf(token, `/zones/${zoneId}/dns_records?name=${encodeURIComponent(domain)}`)) || [];
   console.log(`Before: ${records.length ? records.map(show).join('; ') : 'no records'}`);
 

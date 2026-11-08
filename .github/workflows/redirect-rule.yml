@@ -1,0 +1,57 @@
+# Create or update the Single Redirect rule on the pisan.me zone that sends
+# <x>.pisan.me/<path>?<query> to <x>.hintwise.org/<path>?<query> (301).
+# Names given are merged with the hosts the rule already holds; nothing is
+# removed, other rules in the zone are never touched, and the personal-site
+# and email names are refused. Renamed hosts (HOST_RENAMES in
+# scripts/domains.mjs) get their own rule. A redirect only runs once the
+# <x>.pisan.me record is proxied: the "Migrate domains" workflow, step
+# switch, adds hosts here and proxies them in one run.
+# hintwise_apex: one more rule, on the hintwise.org zone, sending the apex and
+# www to studio.hintwise.org<path> (both records are proxied CNAMEs today;
+# this workflow never changes DNS records).
+name: Redirect rule
+
+on:
+  workflow_dispatch:
+    inputs:
+      hosts:
+        description: "App names to add (e.g. bombe-bench pull-the-pin); blank: just show the rule. td only if named."
+        required: false
+        type: string
+      hintwise_apex:
+        description: 'Also make hintwise.org and www.hintwise.org 301 to studio.hintwise.org'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Only show what would change'
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: hintwise-dns
+  cancel-in-progress: false
+
+jobs:
+  rule:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Redirect rule${{ inputs.dry_run && ' (dry run)' || '' }}
+        run: |
+          set -f  # no globbing of the host list
+          args=()
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          if [ "$APEX" = "true" ]; then args+=(--hintwise-apex); fi
+          # shellcheck disable=SC2086
+          node accessibility-lens/deploy/redirect-rule.mjs "${args[@]}" $HOSTS
+        env:
+          HOSTS: ${{ inputs.hosts }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          APEX: ${{ inputs.hintwise_apex }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
