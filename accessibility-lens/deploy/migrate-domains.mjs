@@ -137,9 +137,23 @@ async function inspect(ctx, zones, name) {
   try {
     info.site = await ctx.netlify(`/sites/${target}`);
   } catch (e) {
-    // Renamed by an earlier run whose DNS update did not happen: find it by its new name.
-    if (!SITE_RENAMES[fromTarget]) throw e;
-    info.site = await ctx.netlify(`/sites/${SITE_RENAMES[fromTarget]}${NETLIFY}`);
+    if (SITE_RENAMES[fromTarget]) {
+      // Renamed by an earlier run whose DNS update did not happen: find it by its new name.
+      info.site = await ctx.netlify(`/sites/${SITE_RENAMES[fromTarget]}${NETLIFY}`);
+    } else {
+      // The CNAME can name a site that does not exist (popup-check.pisan.me
+      // points at popup-check.netlify.app while the site is popup-check-629;
+      // Netlify routes by Host header): find the site that holds the domain.
+      const all = [];
+      for (let page = 1; page <= 20; page++) {
+        const batch = await ctx.netlify(`/sites?filter=all&per_page=100&page=${page}`);
+        all.push(...batch);
+        if (batch.length < 100) break;
+      }
+      info.site = all.find((s) => [s.custom_domain, ...(s.domain_aliases || [])].includes(oldHost));
+      if (!info.site) throw e;
+      ctx.log(`  ${target} is not a Netlify site; ${oldHost} belongs to ${info.site.name}.`);
+    }
   }
   return info;
 }
