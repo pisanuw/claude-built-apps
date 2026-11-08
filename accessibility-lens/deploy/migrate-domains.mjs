@@ -226,8 +226,18 @@ async function hostsStep(ctx, zones, name) {
     return 'dry-run';
   }
   try {
-    await ctx.netlify(`/sites/${site.id}/ssl`, { method: 'POST' });
-    ctx.log('  Certificate requested.');
+    try {
+      await ctx.netlify(`/sites/${site.id}/ssl`, { method: 'POST' });
+      ctx.log('  Certificate requested.');
+    } catch (e) {
+      // A site that already has a Let's Encrypt certificate answers 422
+      // "certificate parameter is required when updating an existing
+      // certificate"; adding a domain then needs the renew endpoint (what the
+      // dashboard's Renew certificate button calls).
+      if (!String(e.message).includes('existing certificate')) throw e;
+      await ctx.netlify(`/sites/${site.id}/ssl/renew`, { method: 'POST' });
+      ctx.log('  Certificate renewal requested (adds the new domain).');
+    }
   } catch (e) {
     ctx.log(`  Certificate request not accepted yet (Netlify retries on its own): ${String(e.message).slice(0, 160)}`);
   }

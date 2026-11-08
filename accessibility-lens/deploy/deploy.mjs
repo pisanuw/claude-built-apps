@@ -650,7 +650,15 @@ async function ensureCustomDomain(siteId, domain) {
     log(`Requested a TLS certificate for ${domain}.`);
   } catch (e) {
     const msg = String(e);
-    if (msg.includes('existing certificate')) log(`${domain} already has a certificate.`);
+    if (msg.includes('existing certificate')) {
+      // Renew so an added domain joins the certificate (the dashboard's Renew button).
+      try {
+        await netlifyApi(`/sites/${siteId}/ssl/renew`, { method: 'POST' });
+        log(`Asked Netlify to renew the certificate so it covers ${domain}.`);
+      } catch (e2) {
+        log(`Certificate renewal did not go through: ${String(e2).slice(0, 300)}`);
+      }
+    }
     else log(`TLS certificate request did not go through yet: ${msg.slice(0, 300)}`);
   }
 }
