@@ -386,3 +386,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-08 [note] Resend: hintwise.org verified by owner; test email from builder@hintwise.org delivered (Test email workflow, Resend id 01a1ba54). Phase 1 combined on branch hintwise (9b694fd); sender target.yml change held on hintwise-apps fcb3044.
 2026-11-08 [doc] docs/google-oauth.md: every app using Google sign-in, its redirect URIs / JS origins for the new HintWise Google Cloud client, and where to set the new IDs.
 2026-11-08 [note] Pilot: bombe-bench.hintwise.org live (CNAME + Netlify alias; cert needed POST /ssl/renew, fixed 7f70a3a). Switch step blocked: Cloudflare token lacks the redirect-rules permission.
+2026-11-08 [code] hintwise merged to main (owner: do the whole move incl. redeploying all Netlify sites). Chess TD hintwise merged; td/chesstd.hintwise.org on Render; WEB_ORIGINS both, SMTP_FROM td@hintwise.org.
