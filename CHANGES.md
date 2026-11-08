@@ -392,3 +392,7 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-08 [code] hintwise move done for all 64 Netlify hosts: <x>.hintwise.org live (DNS only, direct to Netlify), <x>.pisan.me proxied + one Single Redirect rule (wildcard_replace) 301s with path and query; hintwise.org apex -> studio (rule moved above two older rules); daily-project-ideas site renamed hintwise at studio.hintwise.org. Deploy all started for the new footer.
 2026-11-08 [code] Deploy all succeeded (63 jobs): HintWise footer live, netlify.app -> hintwise.org. Google sign-in switched to the HintWise client on 9 hosts (Netlify builds + Render deploys); chess-td-server PUBLIC_URL=https://td.hintwise.org; chesstd.pisan.me now redirects (td.pisan.me does not).
 2026-11-08 [code] Sign-in fixes after the move: meetme-2 APP_URL -> meetme.hintwise.org (Env pisan.me workflow); digitalme backend CORS allows ypai.hintwise.org (pisanuw/digitalme f93102b). Owner confirmed DSA Google sign-in works. ypai email uses reply.pisan.me (Resend inbound) - answers the open reply.pisan.me question.
+
+2026-11-08 [code] Google switch incomplete: 6 secret Netlify vars (paste-md, upvoteme AUTH_GOOGLE_*, chatwithdigitalme VITE_GOOGLE_CLIENT_ID) kept old client; PUT asked post_processing scope, 200 no-op. Apply fixed (1e61568); re-run awaits owner yes.
+
+2026-11-08 [note] poincare-paint mirror failure cause: mirror main (6 Nov reset) is a different split than CI's full-history split; files equal but README link. Fix = one force_app run (ecda717), awaits owner yes.
