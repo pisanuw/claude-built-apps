@@ -142,9 +142,9 @@ Relay routines (Scheduling below) plus the owner's ideas and build routines (sec
 
 ### Scheduling
 - Previous session: session_01JyJzMYaEBiQ8ixgKSDb4Lu ("Plabs: Nov 6", created 2026-11-06 by create_session from session_01JyJzMUtBZwWUSbZ6bDDS2Q), lineage depth 1 of limit 8. Handed over on 8 November 2026 at 59% context (586,845 of 1,000,000 tokens). The 14:52 Europe/Berlin start routine creates the next session (depth 2 of 8).
-- Current session: the new session records its id here on takeover.
-- Relay routines (aimed at the previous session until the new session moves them):
-  - trig_01GdgQq1wKWYX3VUnV5jHppy: Plabs hourly status report, `46 * * * *`
-  - trig_01Te7E4X5YHgH4rXo9RyuW2Q: Plabs handoff check, `CRON_TZ=Europe/Berlin 56 13 * * *`
-  - trig_01Rbhw1b9k8mJoG4esixj6Aa: Plabs session start, `CRON_TZ=Europe/Berlin 52 14 * * *`
+- Current session: session_01JyJzMZ1aBTZCRkUXLJnRG4 ("Plabs: Nov 8"), took over on 8 November 2026 at 14:54 Europe/Berlin; created by create_session from session_01JyJzMYaEBiQ8ixgKSDb4Lu, lineage depth 2 of limit 8.
+- Relay routines (moved to the current session on 8 November; the old ids trig_01GdgQq1wKWYX3VUnV5jHppy, trig_01Te7E4X5YHgH4rXo9RyuW2Q, trig_01Rbhw1b9k8mJoG4esixj6Aa are deleted):
+  - trig_01NAfm62qztXkR5RUrYuPXZy: Plabs hourly status report, `46 * * * *`
+  - trig_01DDT69peni1JYMUF8dyCCCK: Plabs handoff check, `CRON_TZ=Europe/Berlin 56 13 * * *`
+  - trig_01GfNe88huewMUQ7tk5Rxx4t: Plabs session start, `CRON_TZ=Europe/Berlin 52 14 * * *`
 - Not relay, leave alone: the owner's ideas (trig_01K986yzFbf3noGkLA6RgZkn) and build (trig_01BAP9nsXTtxTdpMiwk5GdXE) routines; the Chess TD, Chess Analyzer, DSA and StepWise relays (other sessions); TPT daily product builder; SIGCSE poster reminder.
