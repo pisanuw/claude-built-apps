@@ -111,6 +111,12 @@ Owner's words (2026-11-02): "Get people using these projects, advertise these pr
 
 Relay routines (Scheduling below) plus the owner's ideas and build routines (section 2). The notify-implemented email runs 9:10am Pacific (GitHub Actions). Each ideas commit to main triggers a Netlify build unless it carries [skip netlify].
 
+## hintwise.org move (8 Nov)
+- Done: every app at <app>.hintwise.org (Cloudflare CNAME, DNS only, straight to Netlify/Render); <app>.pisan.me records proxied and covered by one Single Redirect rule on pisan.me (ref hintwise_moved_apps, wildcard_replace; regex_replace needs Business plan); daily-project-ideas.pisan.me -> studio.hintwise.org (own rule); hintwise.org + www -> studio.hintwise.org (rule hintwise_apex_to_studio, first in the zone; two older rules below it are unused).
+- Tools: Migrate domains (hosts/switch), Redirect rule, Set CNAME, Render domain, List DNS, List hosts, Google env, Test email workflows. Plan and decisions: docs/hintwise-migration.md; Google sign-in inventory: docs/google-oauth.md.
+- Netlify certificates for an added domain need POST /sites/{id}/ssl/renew and take 5-15 min.
+- Open: Google sign-in switch waits for GitHub secrets HINTWISE_AUTH_GOOGLE_ID/SECRET; Chess TD PUBLIC_URL -> td.hintwise.org with it; td.pisan.me is never redirected; StockReptile has its Google client in code (pisanuw/notstockfish).
+
 ## Notes for the next session
 
 ### Owner's standing instructions
