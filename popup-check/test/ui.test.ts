@@ -35,7 +35,7 @@ describe('panel', () => {
     popup();
     const opened: string[] = [];
     const copied: string[] = [];
-    const panel = new Panel({ siteUrl: 'https://popup-check.pisan.me/', env: testEnv(), now: NOW, open: (u) => opened.push(u), copy: async (t) => void copied.push(t) });
+    const panel = new Panel({ siteUrl: 'https://popup-check.hintwise.org/', env: testEnv(), now: NOW, open: (u) => opened.push(u), copy: async (t) => void copied.push(t) });
     await tick();
     await tick();
     const root = panel.root;
@@ -69,7 +69,7 @@ describe('panel', () => {
 
     const url = await panel.openReport();
     expect(opened[0]).toBe(url);
-    expect(url).toMatch(/^https:\/\/popup-check\.pisan\.me\/#report=/);
+    expect(url).toMatch(/^https:\/\/popup-check\.hintwise\.org\/#report=/);
 
     button(root, 'Test Escape (may close it)').click();
     await tick();

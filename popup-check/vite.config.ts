@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 import { buildBookmarklet } from './scripts/bookmarklet.mjs';
 
-const SITE_URL = process.env.POPUP_CHECK_SITE_URL ?? 'https://popup-check.pisan.me/';
+const SITE_URL = process.env.POPUP_CHECK_SITE_URL ?? 'https://popup-check.hintwise.org/';
 
 /** Bundles src/panel/entry.ts into one script and exposes it as `virtual:bookmarklet`. */
 function bookmarklet(): Plugin {
