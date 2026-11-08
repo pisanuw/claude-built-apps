@@ -1,0 +1,19 @@
+# Read-only: list Netlify sites and Render services with their domains.
+name: List hosts
+
+on:
+  workflow_dispatch:
+
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: List
+        run: node accessibility-lens/deploy/list-hosts.mjs
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
