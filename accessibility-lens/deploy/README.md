@@ -59,13 +59,17 @@ the delete fails).
 
 ## Custom domain
 
-Set `netlify.customDomain: <app>.pisan.me` in `target.yml` to serve an app
-from pisan.me. The deploy makes it the site's primary domain (Netlify then
-redirects `<siteName>.netlify.app` to it with a `_redirects` rule the
-deploy writes first in the publish directory), asks Netlify for the Let's Encrypt
-certificate, and checks the page for up to five minutes while the certificate
-arrives. The DNS side is a CNAME `<app>` -> `<siteName>.netlify.app` in
-Cloudflare, set to DNS only (grey cloud); every app already has one.
+Set `netlify.customDomain: <app>.pisan.me` in `target.yml`. The runner maps
+it through `scripts/domains.mjs` (APP_DOMAIN) and serves the app at
+`<app>.hintwise.org` (exceptions such as daily-project-ideas -> studio live in
+`HOST_RENAMES`), so no target.yml needs editing. The deploy creates the
+hintwise CNAME `<app>` -> `<siteName>.netlify.app` in Cloudflare, DNS only
+(grey cloud), makes it the site's primary domain (Netlify then redirects
+`<siteName>.netlify.app` to it with a `_redirects` rule the deploy writes first
+in the publish directory), asks Netlify for the Let's Encrypt certificate, and
+checks the page for up to five minutes while the certificate arrives. The old
+`<app>.pisan.me` name is answered by Cloudflare: its record is proxied and a
+Single Redirect rule (redirect-rule.mjs) sends it to the hintwise address.
 
 ## Try it safely first
 
