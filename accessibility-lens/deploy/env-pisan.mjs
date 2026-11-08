@@ -38,7 +38,7 @@ for (const s of sites) {
       console.log(`netlify ${s.name}: ${e.key} [${val.context}] mentions ${[...new Set(hosts)].join(', ')}`);
       if (!fix) continue;
       try {
-        await call(N, nt, `/accounts/${s.account_id}/env/${e.key}/value?site_id=${s.id}`, { method: 'PATCH', body: JSON.stringify({ context: val.context, value: out }) });
+        await call(N, nt, `/accounts/${s.account_id}/env/${e.key}?site_id=${s.id}`, { method: 'PATCH', body: JSON.stringify({ context: val.context, value: out }) });
         console.log('  fixed'); changed = true;
       } catch (err) { failed++; console.log(`::error::${s.name} ${e.key}: ${String(err).slice(0, 200)}`); }
     }
