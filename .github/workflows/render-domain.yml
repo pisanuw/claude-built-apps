@@ -1,0 +1,40 @@
+# Render helpers for the hintwise.org move: add a custom domain, set one env
+# var, start a deploy, or show a service. Values are not printed.
+name: Render domain
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'add-domain | set-env | deploy | show'
+        required: true
+        type: string
+      service:
+        description: 'Render service name, e.g. chess-td-server'
+        required: true
+        type: string
+      arg1:
+        description: 'domain (add-domain) or KEY (set-env)'
+        required: false
+        type: string
+      arg2:
+        description: 'value (set-env)'
+        required: false
+        type: string
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run
+        run: node accessibility-lens/deploy/render-domain.mjs "$CMD" "$SERVICE" "$ARG1" "$ARG2"
+        env:
+          CMD: ${{ inputs.command }}
+          SERVICE: ${{ inputs.service }}
+          ARG1: ${{ inputs.arg1 }}
+          ARG2: ${{ inputs.arg2 }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
