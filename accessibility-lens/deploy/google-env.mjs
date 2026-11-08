@@ -58,9 +58,13 @@ for (const s of sites) {
       // Keep the var's own shape: a secret var cannot take the 'all' context or
       // the post-processing scope, and a PUT that ignores that answers 200 and
       // changes nothing (paste-md, upvoteme, chatwithdigitalme on 8 Nov).
-      const values = e.is_secret && e.values?.length
-        ? e.values.map((v) => ({ context: v.context, ...(v.context_parameter ? { context_parameter: v.context_parameter } : {}), value: valueFor(k) }))
-        : [{ context: 'all', value: valueFor(k) }];
+      // Netlify refuses 'all' for a secret (HTTP 422), even when the old value
+      // is stored that way: write a secret once per deploy context instead.
+      const SECRET_CONTEXTS = ['production', 'deploy-preview', 'branch-deploy'];
+      const ctxs = e.is_secret
+        ? [...new Set((e.values || []).flatMap((v) => (v.context === 'all' || v.context === 'dev' ? SECRET_CONTEXTS : [v.context])))]
+        : ['all'];
+      const values = (ctxs.length ? ctxs : SECRET_CONTEXTS).map((context) => ({ context, value: valueFor(k) }));
       const scopes = e.scopes?.length ? e.scopes : ['builds', 'functions', 'runtime', 'post-processing'];
       const route = `/accounts/${s.account_id}/env/${encodeURIComponent(k)}?site_id=${s.id}`;
       await call(N, nt, route, { method: 'PUT', body: JSON.stringify({ key: k, scopes, is_secret: !!e.is_secret, values }) });
