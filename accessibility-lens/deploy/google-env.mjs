@@ -7,13 +7,17 @@
  *   apply [--dry-run] set every such *_ID / CLIENT_ID var to
  *                   HINTWISE_AUTH_GOOGLE_ID and every *_SECRET var to
  *                   HINTWISE_AUTH_GOOGLE_SECRET, then trigger a build/deploy
- * Env: NETLIFY_AUTH_TOKEN, RENDER_API_KEY, HINTWISE_AUTH_GOOGLE_ID/SECRET.
+ * Env: NETLIFY_AUTH_TOKEN, RENDER_API_KEY, HINTWISE_AUTH_GOOGLE_ID/SECRET,
+ *      ONLY (optional: comma-separated site/service names; default all).
  * Values are never printed.
  */
 const N = 'https://api.netlify.com/api/v1', R = 'https://api.render.com/v1';
 const nt = process.env.NETLIFY_AUTH_TOKEN, rt = process.env.RENDER_API_KEY;
 const [cmd, flag] = process.argv.slice(2);
 const dry = flag === '--dry-run';
+// ONLY: comma-separated Netlify site / Render service names to touch (empty: all)
+const only = new Set((process.env.ONLY || '').split(',').map((x) => x.trim()).filter(Boolean));
+const wanted = (name) => !only.size || only.has(name);
 async function call(base, tok, route, init = {}) {
   const res = await fetch(`${base}${route}`, { ...init, headers: { authorization: `Bearer ${tok}`, accept: 'application/json', 'content-type': 'application/json' } });
   const t = await res.text();
@@ -32,6 +36,7 @@ let failed = 0;
 const sites = [];
 for (let p = 1; p <= 20; p++) { const b = await call(N, nt, `/sites?filter=all&per_page=100&page=${p}`); sites.push(...b); if (b.length < 100) break; }
 for (const s of sites) {
+  if (!wanted(s.name)) continue;
   let envs = [];
   try { envs = (await call(N, nt, `/accounts/${s.account_id}/env?site_id=${s.id}`)).filter((e) => isGoogle(e.key)); }
   catch (e) { console.log(`netlify ${s.name}: cannot read env (${String(e).slice(0, 120)})`); continue; }
@@ -42,16 +47,27 @@ for (const s of sites) {
     // who last changed each var, and when (never the value)
     for (const e of envs) {
       const ctx = (e.values || []).map((v) => `${v.context}${v.context_parameter ? ':' + v.context_parameter : ''}=${matches(e.key, v.value)}`).join(' ');
-      console.log(`  ${e.key}: updated ${e.updated_at || '?'} by ${e.updated_by?.full_name || e.updated_by?.email || '?'}; ${e.is_secret ? 'secret' : 'plain'}; level ${e.site_id ? 'site' : 'shared'}; HintWise? ${ctx || 'no values'}`);
+      console.log(`  ${e.key}: updated ${e.updated_at || '?'} by ${e.updated_by?.full_name || e.updated_by?.email || '?'}; ${e.is_secret ? 'secret' : 'plain'}; scopes ${(e.scopes || []).join('+') || '?'}; HintWise? ${ctx || 'no values'}`);
     }
     continue;
   }
-  for (const k of keys) {
-    if (dry) { console.log(`  would set ${k}`); continue; }
+  for (const e of envs) {
+    const k = e.key;
+    if (dry) { console.log(`  would set ${k}${e.is_secret ? ' (secret)' : ''}`); continue; }
     try {
-      await call(N, nt, `/accounts/${s.account_id}/env/${k}?site_id=${s.id}`, { method: 'PUT', body: JSON.stringify({ key: k, scopes: ['builds', 'functions', 'runtime', 'post-processing'], values: [{ context: 'all', value: valueFor(k) }] }) });
+      // Keep the var's own shape: a secret var cannot take the 'all' context or
+      // the post-processing scope, and a PUT that ignores that answers 200 and
+      // changes nothing (paste-md, upvoteme, chatwithdigitalme on 8 Nov).
+      const values = e.is_secret && e.values?.length
+        ? e.values.map((v) => ({ context: v.context, ...(v.context_parameter ? { context_parameter: v.context_parameter } : {}), value: valueFor(k) }))
+        : [{ context: 'all', value: valueFor(k) }];
+      const scopes = e.scopes?.length ? e.scopes : ['builds', 'functions', 'runtime', 'post-processing'];
+      const route = `/accounts/${s.account_id}/env/${encodeURIComponent(k)}?site_id=${s.id}`;
+      await call(N, nt, route, { method: 'PUT', body: JSON.stringify({ key: k, scopes, is_secret: !!e.is_secret, values }) });
+      const after = await call(N, nt, route);
+      if (after.updated_at === e.updated_at) throw new Error('Netlify answered OK but the variable did not change');
       console.log(`  set ${k}`);
-    } catch (e) { failed++; console.log(`::error::netlify ${s.name} ${k}: ${String(e).slice(0, 200)}`); }
+    } catch (err) { failed++; console.log(`::error::netlify ${s.name} ${k}: ${String(err).slice(0, 200)}`); }
   }
   if (!dry && s.build_settings?.repo_url) {
     try { await call(N, nt, `/sites/${s.id}/builds`, { method: 'POST', body: '{}' }); console.log('  build started'); }
@@ -61,6 +77,7 @@ for (const s of sites) {
 // Render
 const svcs = (await call(R, rt, '/services?limit=100')).map((x) => x.service);
 for (const s of svcs) {
+  if (!wanted(s.name)) continue;
   let keys = [];
   let rvars = [];
   try { rvars = (await call(R, rt, `/services/${s.id}/env-vars?limit=100`)).map((e) => e.envVar).filter((e) => isGoogle(e.key)); } catch { continue; }

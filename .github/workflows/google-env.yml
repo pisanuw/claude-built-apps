@@ -16,6 +16,11 @@ on:
         required: false
         default: true
         type: boolean
+      only:
+        description: 'optional: comma-separated Netlify site / Render service names (empty: all)'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   run:
@@ -30,6 +35,7 @@ jobs:
         env:
           CMD: ${{ inputs.command }}
           DRY: ${{ inputs.dry_run }}
+          ONLY: ${{ inputs.only }}
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           HINTWISE_AUTH_GOOGLE_ID: ${{ secrets.HINTWISE_AUTH_GOOGLE_ID }}
