@@ -11,7 +11,7 @@ those logs into a gap report: the questions the syllabus does not answer,
 grouped by week and by similar wording, plus the words students used that the
 documents never contain. Everything runs in the browser; nothing is uploaded.
 
-Live: [where-does-it-say.pisan.me](https://where-does-it-say.pisan.me)
+Live: [where-does-it-say.hintwise.org](https://where-does-it-say.hintwise.org)
 
 ![Asking the sample course "Can I use ChatGPT on lab 3?" returns the exact AI-policy sentence, verified word for word and highlighted in the document, while "Will there be extra credit?" gets "Not stated in the course documents"](demo.gif)
 

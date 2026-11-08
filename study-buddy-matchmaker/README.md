@@ -8,7 +8,7 @@ the other is not. Every group gets a short shared agenda (who leads which
 topic, with links), and every student gets a private card that shows their
 own levels and gaps, never a groupmate's.
 
-Live: [study-buddy-matchmaker.pisan.me](https://study-buddy-matchmaker.pisan.me)
+Live: [study-buddy-matchmaker.hintwise.org](https://study-buddy-matchmaker.hintwise.org)
 
 ![The sample class's per-topic mastery heatmap, the study pairs it forms so each student leads a topic their partner is still learning, and the private card each student gets](demo.gif)
 

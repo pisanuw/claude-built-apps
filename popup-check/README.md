@@ -1,6 +1,6 @@
 # Popup Check
 
-**Live:** https://popup-check.pisan.me
+**Live:** https://popup-check.hintwise.org
 
 Find out whether the popups on your store lock out shoppers who use a
 keyboard or a screen reader, before someone else finds out for you.

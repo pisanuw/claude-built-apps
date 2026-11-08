@@ -31,7 +31,7 @@ ACR Draft gets a small team most of the way there in an afternoon:
 
 Everything happens in your browser tab. Nothing you type or scan is uploaded.
 
-**Live:** https://acr-draft.pisan.me · **Try it without your own product:**
+**Live:** https://acr-draft.hintwise.org · **Try it without your own product:**
 click "Try the example" for QuizNest, a made-up quiz platform that is part
 way through its review.
 

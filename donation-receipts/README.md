@@ -1,6 +1,6 @@
 # Donation Receipts
 
-**Live: https://donation-receipts.pisan.me**
+**Live: https://donation-receipts.hintwise.org**
 
 Numbered donation receipts and 30 June statements for small Australian
 charities, churches, parishes and community groups, made from the gifts

@@ -10,7 +10,7 @@ of keys, a 180 MB CSV) and writes the `.gitignore` lines to fix them. Your root
 *already ignored* rather than counted against you. Nothing leaves the tab: the
 folder is walked for names and sizes only.
 
-Live: [repo-weight-map.pisan.me](https://repo-weight-map.pisan.me)
+Live: [repo-weight-map.hintwise.org](https://repo-weight-map.hintwise.org)
 (add `?sample` to load the demo repo straight away).
 
 ![Loading the sample student repo as a treemap, zooming into its data folder, then unticking the virtualenv finding so its lines leave the proposed .gitignore](demo.gif)

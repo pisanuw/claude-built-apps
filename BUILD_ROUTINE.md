@@ -69,7 +69,7 @@ pisan-labs GitHub org, so people can find, star and fork it.
      adjusting the commands if this app's scripts differ;
    - add `<slug> <slug>` to .github/mirrors.txt;
    - add a row to scripts/pisan-labs-repos.csv: folder, repo, homepage
-     https://<slug>.pisan.me, a one-sentence description ending "Built with
+     https://<slug>.hintwise.org, a one-sentence description ending "Built with
      Claude Code.", and space-separated topics (include claude-code, and
      small-business for a small-business tool).
    The token cannot create repos, so the mirror workflow skips this app with
@@ -82,17 +82,19 @@ pisan-labs GitHub org, so people can find, star and fork it.
 
 5. DEPLOY. Deploys run from GitHub Actions: a push to main deploys every
    target whose deploy/target.yml changed. Do not deploy with a connector.
-   Every site's primary address is https://<slug>.pisan.me (owner,
-   2026-11-02), and every link to the app uses it. Netlify: in target.yml
-   set provider netlify, netlify.siteName <slug>, accountSlug yusuf-pisan and
-   customDomain <slug>.pisan.me. The deploy runner creates the Cloudflare
-   CNAME (DNS only) with the CLOUDFLARE_API_TOKEN secret, makes the domain
+   Every site's primary address is https://<slug>.hintwise.org (owner,
+   2026-11-08; it was <slug>.pisan.me from 2026-11-02), and every link to the
+   app uses it. Netlify: in target.yml set provider netlify, netlify.siteName
+   <slug>, accountSlug yusuf-pisan and customDomain <slug>.pisan.me, like
+   every other app: the runner swaps the base domain for APP_DOMAIN
+   (scripts/domains.mjs) and serves <slug>.hintwise.org. It creates the
+   Cloudflare CNAME (DNS only) with the CLOUDFLARE_API_TOKEN secret, makes the domain
    primary and 301s <slug>.netlify.app to it. If the Deploy run's
    annotations carry a "warning:" that the domain was skipped, the runner
    could not create the record: report that as a failure to fix (with the
    annotation text), fall back to https://<slug>.netlify.app as LIVE_URL for
    this run, and list the DNS step under owner actions. Otherwise LIVE_URL is
-   https://<slug>.pisan.me. Render backends go into backend-hub when
+   https://<slug>.hintwise.org. Render backends go into backend-hub when
    possible. Verify LIVE_URL returns 200, renders the app, and carries the
    footer (`curl -s LIVE_URL | grep -c "Want something like this"`). Each
    Netlify deploy costs credits: do not redeploy other apps.
@@ -119,7 +121,7 @@ pisan-labs GitHub org, so people can find, star and fork it.
 
 8. OWNER ACTIONS. End the run with a short message to the owner listing,
    with exact copy-paste steps, what only they can do:
-   a. Only if the deploy stayed on netlify.app: Cloudflare DNS for pisan.me,
+   a. Only if the deploy stayed on netlify.app: Cloudflare DNS for hintwise.org,
       add CNAME `<slug>` -> `<slug>.netlify.app`, DNS only (grey cloud).
    b. Nothing to do for the pisan-labs repo if the daily halflife job
       (scripts/halflife/, 04:13) is installed: it creates pisan-labs/<slug>
@@ -134,7 +136,7 @@ pisan-labs GitHub org, so people can find, star and fork it.
       (<slug> is netlify.siteName in target.yml.)
    If (a) applies, say that once it is done, any session re-runs the deploy
    for <slug> and moves the links in README, implemented.json and
-   aiprojects.md to https://<slug>.pisan.me. Record the pending actions in
+   aiprojects.md to https://<slug>.hintwise.org. Record the pending actions in
    claude-built-apps/HANDOFF.md under Remaining.
 
 Success: live site verified, ideas page shows the project as Implemented,

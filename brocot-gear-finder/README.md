@@ -8,7 +8,7 @@ trains inside your tooth range, shows the continued fraction and Stern-Brocot
 path toward the target, and animates the chosen train in SVG next to a dial
 that shows how far it drifts from an ideal hand.
 
-Live: [brocot-gear-finder.pisan.me](https://brocot-gear-finder.pisan.me)
+Live: [brocot-gear-finder.hintwise.org](https://brocot-gear-finder.hintwise.org)
 
 ![Picking the moon-phase preset lists the most accurate 1 to 3 stage gear trains for 29.530589, then the chosen three-stage train turns in SVG and dragging the drift slider shows it 74 degrees ahead of an ideal hand after 100 million turns](demo.gif)
 

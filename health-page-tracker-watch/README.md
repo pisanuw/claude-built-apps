@@ -20,7 +20,7 @@ studios, and the people who run their websites. It:
 
 Everything happens inside your browser tab. Nothing you add is uploaded.
 
-**Live:** https://health-page-tracker-watch.pisan.me · **Try it without your
+**Live:** https://health-page-tracker-watch.hintwise.org · **Try it without your
 own site:** click "Try the example practice" for a made-up counseling
 practice where a plugin update put the Meta Pixel on the booking page.
 

@@ -14,7 +14,7 @@ Sections 3 to 6 were added on 2026-11-02 for the next round (picked from the 30-
 
     Show HN: Bombe Bench – an Enigma you can open up, and the Bombe that broke it
 
-**URL:** https://bombe-bench.pisan.me/
+**URL:** https://bombe-bench.hintwise.org/
 
 **Text** (HN shows it under the link; plain text, no markdown):
 
@@ -54,7 +54,7 @@ Sections 3 to 6 were added on 2026-11-02 for the next round (picked from the 30-
 
     If you teach architecture or systems, this may be useful.
 
-    Cache Miss Theater (https://cache-miss-theater.pisan.me) takes a C loop nest, generates its exact address trace and runs it through a cache you configure: size, line size, associativity, LRU/FIFO/random, write-allocate and write-back or not. Every miss is labelled compulsory, capacity or conflict. Play or step through the trace and watch lines arrive in their sets and get evicted, while a memory map shows which array elements are cached.
+    Cache Miss Theater (https://cache-miss-theater.hintwise.org) takes a C loop nest, generates its exact address trace and runs it through a cache you configure: size, line size, associativity, LRU/FIFO/random, write-allocate and write-back or not. Every miss is labelled compulsory, capacity or conflict. Play or step through the trace and watch lines arrive in their sets and get evicted, while a memory map shows which array elements are cached.
 
     Things that might help in class:
     - Two kernels side by side (row vs column order, ijk vs ikj, naive vs blocked transpose), or a sweep over block size or a cache parameter with the miss rate plotted.
@@ -81,11 +81,11 @@ Sections 3 to 6 were added on 2026-11-02 for the next round (picked from the 30-
 
     Is your website usable by someone who cannot see it?
 
-    Accessibility Lens (https://accessibility-lens.pisan.me) takes the address of a public page and runs eleven WCAG 2.1 checks on it: missing alt text, unlabelled form fields, empty links, heading order and so on. Then it replays the page the way four groups of visitors get it: as the linear stream a screen reader reads out, blurred for low vision, filtered for color blindness, and keyboard only. Every problem comes with a suggested fix.
+    Accessibility Lens (https://accessibility-lens.hintwise.org) takes the address of a public page and runs eleven WCAG 2.1 checks on it: missing alt text, unlabelled form fields, empty links, heading order and so on. Then it replays the page the way four groups of visitors get it: as the linear stream a screen reader reads out, blurred for low vision, filtered for color blindness, and keyboard only. Every problem comes with a suggested fix.
 
     Free, no sign-up. It is not a full audit (it reads the HTML your server sends, so anything added later by JavaScript is invisible to it), but it is a quick way to find the obvious problems before a customer does.
 
-    Claude Code wrote it; I set the rules and reviewed it. If you run a small business and want a tool like this built for your own site or workflow, email builder@pisan.me.
+    Claude Code wrote it; I set the rules and reviewed it. If you run a small business and want a tool like this built for your own site or workflow, email builder@hintwise.org.
 
 **Have ready:** "Does this make my site ADA compliant?" Nope. Say it finds common problems and is a starting point, not a legal opinion.
 
@@ -105,7 +105,7 @@ Sections 3 to 6 were added on 2026-11-02 for the next round (picked from the 30-
 
     If you ever wonder how much of a submitted assignment the student actually understands, this may help.
 
-    Code Viva (https://code-viva.pisan.me) imports a Gradescope or Canvas export or a GitHub Classroom assignment, reads each student's code and commit history, and writes 4 to 6 questions anchored to *their* functions, guards and odd commits. Students answer in a timed text session from a personal link, with up to two follow-ups when an answer is vague. You get transcripts with proposed rubric scores and a flag queue, so TA time goes to the few students who need a real conversation.
+    Code Viva (https://code-viva.hintwise.org) imports a Gradescope or Canvas export or a GitHub Classroom assignment, reads each student's code and commit history, and writes 4 to 6 questions anchored to *their* functions, guards and odd commits. Students answer in a timed text session from a personal link, with up to two follow-ups when an answer is vague. You get transcripts with proposed rubric scores and a flag queue, so TA time goes to the few students who need a real conversation.
 
     No LLM: questions come from templates over a source analyser, so they are less fluent than a chatbot's but cannot invent code the student never wrote. Extended time for accommodations is built in.
 
@@ -127,7 +127,7 @@ Sections 3 to 6 were added on 2026-11-02 for the next round (picked from the 30-
 
     "How many times is hello printed?" is on nearly every operating systems exam, and most students guess.
 
-    Fork Count (https://fork-count.pisan.me) takes a short C snippet with fork, wait, exit, printf and pipes, runs every process it creates, draws the process tree and lists every output the scheduler could produce (stdio buffers copied at fork included). Type an output and it tells you whether some schedule prints it; if not, it names the happens-before edge that rules it out. Forgotten close() deadlocks show up too. A generator makes new exam questions whose answers are checked against every schedule.
+    Fork Count (https://fork-count.hintwise.org) takes a short C snippet with fork, wait, exit, printf and pipes, runs every process it creates, draws the process tree and lists every output the scheduler could produce (stdio buffers copied at fork included). Type an output and it tells you whether some schedule prints it; if not, it names the happens-before edge that rules it out. Forgotten close() deadlocks show up too. A generator makes new exam questions whose answers are checked against every schedule.
 
     Free, runs in the browser. Source (MIT): https://github.com/pisan-labs/fork-count
 

@@ -11,7 +11,7 @@ schedule prints it; if none does, it names the happens-before edge that rules
 it out. A generator turns templates into new exam questions whose answers are
 checked against every schedule.
 
-Live: [fork-count.pisan.me](https://fork-count.pisan.me)
+Live: [fork-count.hintwise.org](https://fork-count.hintwise.org)
 
 ![Loading the loop-counter example shows 4 processes and 3 possible outputs, then checking an output that starts with 1 reports it impossible and names the program-order and fork edges that rule it out](demo.gif)
 

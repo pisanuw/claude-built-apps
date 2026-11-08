@@ -7,7 +7,7 @@ Atlanta, Aug 30 – Sep 2, 2026): sticky day tabs, color-coded track chips,
 full-text search, a starred personal agenda saved in your browser, and a
 timezone-aware now/next banner.
 
-Live: [summit-navigator.pisan.me](https://summit-navigator.pisan.me)
+Live: [summit-navigator.hintwise.org](https://summit-navigator.hintwise.org)
 
 ![Switching to Monday, filtering by the Plenary track, starring two keynotes and a session found by searching "agentic", then showing only the starred agenda with times flipped to the viewer's time zone](demo.gif)
 

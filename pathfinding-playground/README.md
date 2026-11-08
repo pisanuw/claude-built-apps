@@ -2,13 +2,13 @@
 
 Draw a grid map, then watch A*, Dijkstra, BFS, DFS, and Greedy best-first think, one expansion at a time. Every step comes with a narrated explanation derived from the actual algorithm state: which cell got picked, why, and what the numbers were.
 
-**Live:** https://pathfinding-playground.pisan.me
+**Live:** https://pathfinding-playground.hintwise.org
 
 ![Sprinkling mud on an open map and running BFS against Dijkstra side by side: BFS takes the 17-step path through the mud at cost 21, Dijkstra detours to a 19-step path at cost 19](demo.gif)
 
 ![A* finding a route through a maze](docs/screenshot.png)
 
-Weekend idea 2026-07-26 from [Daily Project Ideas](https://daily-project-ideas.pisan.me/). The idea suggested Claude API calls for the narration. I skipped that: every line is a template filled with the g, h, and f values the algorithm just computed, so narration is free, instant, deterministic, and works offline. The explanation always matches what the algorithm actually did, which an LLM cannot promise.
+Weekend idea 2026-07-26 from [Daily Project Ideas](https://daily-project-ideas.hintwise.org/). The idea suggested Claude API calls for the narration. I skipped that: every line is a template filled with the g, h, and f values the algorithm just computed, so narration is free, instant, deterministic, and works offline. The explanation always matches what the algorithm actually did, which an LLM cannot promise.
 
 ## What you can do
 
@@ -56,7 +56,7 @@ standalone `pisanuw/pathfinding-playground` repo, and now deploys the same way
 as every other package here: the repo-level `Deploy` workflow discovers
 [`deploy/target.yml`](./deploy/target.yml) and pushes a build to Netlify with
 the CLI. The Netlify site id is pinned in that file and is the same site the old
-repo published to, so <https://pathfinding-playground.pisan.me> is
+repo published to, so <https://pathfinding-playground.hintwise.org> is
 unchanged.
 
 ## License

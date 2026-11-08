@@ -1,6 +1,6 @@
 # Agent Blast Radius
 
-**Live:** https://agent-blast-radius.pisan.me
+**Live:** https://agent-blast-radius.hintwise.org
 
 ![Clicking Try a sample scans twelve bundled AI tool configs, then scrolls through cards scoring each tool's reach across filesystem, shell, network, credentials and browser data, with the config line behind every capability](demo.gif)
 

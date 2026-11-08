@@ -9,7 +9,7 @@ number, and searches for the smallest edit that removes the ambiguity. A
 guess-free board becomes a share link that friends can play to uncover the
 hidden drawing.
 
-Live: [reverse-minesweeper-studio.pisan.me](https://reverse-minesweeper-studio.pisan.me)
+Live: [reverse-minesweeper-studio.hintwise.org](https://reverse-minesweeper-studio.hintwise.org)
 
 ![Adding one mine to the heart drawing turns the board Needs a guess with amber cells, the two ambiguous layouts are shown, and a suggested one-cell fix makes it guess-free again](demo.gif)
 

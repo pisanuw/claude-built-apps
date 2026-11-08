@@ -13,7 +13,7 @@ every issue and optional Claude-generated code rewrites.
 
 TypeScript monorepo (Express + a pure analysis engine on the server, React + Vite +
 Tailwind on the client), 107 tests, deployable as a single Node service.
-Live: [accessibility-lens.pisan.me](https://accessibility-lens.pisan.me).
+Live: [accessibility-lens.hintwise.org](https://accessibility-lens.hintwise.org).
 See its [README](./accessibility-lens/README.md) and
 [ASSUMPTIONS](./accessibility-lens/ASSUMPTIONS.md).
 
@@ -51,7 +51,7 @@ hand-written parser and a fixed rule set replace the idea's suggested LLM calls,
 so the output is free, offline, and reproducible. Deployed on **Netlify**
 (static site, no backend).
 
-Live: [schema-storyteller.pisan.me](https://schema-storyteller.pisan.me).
+Live: [schema-storyteller.hintwise.org](https://schema-storyteller.hintwise.org).
 See its [README](./schema-storyteller/README.md).
 
 ### [`migration-diff-narrator/`](./migration-diff-narrator)
@@ -64,7 +64,7 @@ replaces the idea's suggested Claude API classification, so verdicts are
 instant, offline, and reproducible. Deployed on **Netlify** (static site, no
 backend).
 
-Live: [migration-diff-narrator.pisan.me](https://migration-diff-narrator.pisan.me).
+Live: [migration-diff-narrator.hintwise.org](https://migration-diff-narrator.hintwise.org).
 See its [README](./migration-diff-narrator/README.md).
 
 ### [`shortcut-sprint/`](./shortcut-sprint)
@@ -78,7 +78,7 @@ a daily streak. Entirely client-side: SM-2 replaces the idea's suggested
 backend, progress lives in localStorage.
 Deployed on **Netlify** (static site, no backend).
 
-Live: [shortcut-sprint.pisan.me](https://shortcut-sprint.pisan.me).
+Live: [shortcut-sprint.hintwise.org](https://shortcut-sprint.hintwise.org).
 See its [README](./shortcut-sprint/README.md).
 
 ### [`ui-diff-lens/`](./ui-diff-lens)
@@ -93,7 +93,7 @@ calls, so results are deterministic and screenshots never leave the machine.
 Exports an annotated PNG or a standalone HTML report. Deployed on **Netlify**
 (static site, no backend).
 
-Live: [ui-diff-lens.pisan.me](https://ui-diff-lens.pisan.me).
+Live: [ui-diff-lens.hintwise.org](https://ui-diff-lens.hintwise.org).
 See its [README](./ui-diff-lens/README.md).
 
 ### [`code-review-gauntlet/`](./code-review-gauntlet)
@@ -108,7 +108,7 @@ skill radar replace the suggested Supabase leaderboard, so the game is
 deterministic, offline, and free. Deployed on **Netlify** (static site, no
 backend).
 
-Live: [code-review-gauntlet.pisan.me](https://code-review-gauntlet.pisan.me).
+Live: [code-review-gauntlet.hintwise.org](https://code-review-gauntlet.hintwise.org).
 See its [README](./code-review-gauntlet/README.md).
 
 ### [`sound-sketchpad/`](./sound-sketchpad)
@@ -124,7 +124,7 @@ exact samples the user hears. Oscilloscope, signal-chain view, tuning
 sliders, and 16/24-bit WAV export. Deployed on **Netlify** (static site, no
 backend).
 
-Live: [sound-sketchpad.pisan.me](https://sound-sketchpad.pisan.me).
+Live: [sound-sketchpad.hintwise.org](https://sound-sketchpad.hintwise.org).
 See its [README](./sound-sketchpad/README.md).
 
 ### [`sql-replay/`](./sql-replay)
@@ -140,7 +140,7 @@ the real execution stats, replacing the idea's suggested Claude API narrator,
 and share links encode the whole workspace into the URL hash. Deployed on
 **Netlify** (static site, no backend).
 
-Live: [sql-replay.pisan.me](https://sql-replay.pisan.me).
+Live: [sql-replay.hintwise.org](https://sql-replay.hintwise.org).
 See its [README](./sql-replay/README.md).
 
 ### [`har-detective/`](./har-detective)
@@ -155,7 +155,7 @@ hand-written deterministic detectors replace the idea's suggested Claude API
 analysis, so results are instant, reproducible, and the HAR never leaves the
 browser. Deployed on **Netlify** (static site, no backend).
 
-Live: [har-detective.pisan.me](https://har-detective.pisan.me).
+Live: [har-detective.hintwise.org](https://har-detective.hintwise.org).
 See its [README](./har-detective/README.md).
 
 ### [`code-analogy-forge/`](./code-analogy-forge)
@@ -172,7 +172,7 @@ and serverless read-only share links replaces Supabase; a 47-example menu
 covers every concept, grouped into ten themed sections. Deployed on **Netlify**
 (static site, no backend).
 
-Live: [code-analogy-forge.pisan.me](https://code-analogy-forge.pisan.me).
+Live: [code-analogy-forge.hintwise.org](https://code-analogy-forge.hintwise.org).
 See its [README](./code-analogy-forge/README.md).
 
 ### [`prompt-genome/`](./prompt-genome)
@@ -191,7 +191,7 @@ reordered, a localStorage library keeps reusable genes with tags and search,
 and share links carry the whole genome in the URL hash. Deployed on
 **Netlify** (static site, no backend).
 
-Live: [prompt-genome.pisan.me](https://prompt-genome.pisan.me).
+Live: [prompt-genome.hintwise.org](https://prompt-genome.hintwise.org).
 See its [README](./prompt-genome/README.md).
 
 ### [`type-witness/`](./type-witness)
@@ -210,7 +210,7 @@ any expression for its type, click to jump to its step, autoplay the story, or
 share a snippet via a URL-hash link. Deployed on **Netlify** (static site, no
 backend).
 
-Live: [type-witness.pisan.me](https://type-witness.pisan.me).
+Live: [type-witness.hintwise.org](https://type-witness.hintwise.org).
 See its [README](./type-witness/README.md).
 
 ### [`cron-cartographer/`](./cron-cartographer)
@@ -230,7 +230,7 @@ app has zero runtime dependencies and works offline. Share links carry the
 whole state in query params. Deployed on **Netlify** (static site, no
 backend).
 
-Live: [cron-cartographer.pisan.me](https://cron-cartographer.pisan.me).
+Live: [cron-cartographer.hintwise.org](https://cron-cartographer.hintwise.org).
 See its [README](./cron-cartographer/README.md).
 
 ### [`summit-navigator/`](./summit-navigator)
@@ -249,7 +249,7 @@ bundled data is an unofficial snapshot reconstructed from ACM's public
 announcements, and the app's footer says so. Deployed on **Netlify** (static
 site, no backend).
 
-Live: [summit-navigator.pisan.me](https://summit-navigator.pisan.me).
+Live: [summit-navigator.hintwise.org](https://summit-navigator.hintwise.org).
 See its [README](./summit-navigator/README.md).
 
 ### [`game-palette-inspector/`](./game-palette-inspector)
@@ -272,7 +272,7 @@ The one deviation from the house layout: this app predates it and is plain
 JavaScript with `node --test`, not TypeScript with vitest, so it has no `lint`,
 `typecheck`, or `coverage` script and its CI job runs install, test, and build
 only. 11 tests, no backend, no runtime dependencies beyond React.
-Live: [game-palette-inspector.pisan.me](https://game-palette-inspector.pisan.me).
+Live: [game-palette-inspector.hintwise.org](https://game-palette-inspector.hintwise.org).
 See its [README](./game-palette-inspector/README.md).
 
 ### [`pathfinding-playground/`](./pathfinding-playground)
@@ -297,7 +297,7 @@ Like `game-palette-inspector`, this app predates the TypeScript house style: it
 is plain JavaScript, and while it does use vitest it has no `lint`, `typecheck`,
 or `coverage` script, so its CI job runs install, test, and build only. 20 tests
 covering optimality, path validity, maze solvability, and trace determinism.
-Live: [pathfinding-playground.pisan.me](https://pathfinding-playground.pisan.me).
+Live: [pathfinding-playground.hintwise.org](https://pathfinding-playground.hintwise.org).
 See its [README](./pathfinding-playground/README.md).
 
 ### [`prompt-shrink-ray/`](./prompt-shrink-ray)
@@ -313,7 +313,7 @@ compression call and Claude Sonnet equivalence check, so results are instant,
 offline, and reproducible. Deployed on **Netlify** (static site, no backend).
 
 76 vitest tests, 100% statement coverage.
-Live: [prompt-shrink-ray.pisan.me](https://prompt-shrink-ray.pisan.me).
+Live: [prompt-shrink-ray.hintwise.org](https://prompt-shrink-ray.hintwise.org).
 See its [README](./prompt-shrink-ray/README.md).
 
 ### [`agent-blast-radius/`](./agent-blast-radius)
@@ -330,7 +330,7 @@ local CLI became a static web app (no install, but you pick the files).
 Deployed on **Netlify** (static site, no backend).
 
 95 vitest tests, >99% statement coverage.
-Live: [agent-blast-radius.pisan.me](https://agent-blast-radius.pisan.me).
+Live: [agent-blast-radius.hintwise.org](https://agent-blast-radius.hintwise.org).
 See its [README](./agent-blast-radius/README.md).
 
 ### [`repo-weight-map/`](./repo-weight-map)
@@ -347,7 +347,7 @@ uploaded; the treemap layout is hand-written (no d3). The idea's git history
 mode was left out. Deployed on **Netlify** (static site, no backend).
 
 40 vitest tests, 100% statement coverage on the core.
-Live: [repo-weight-map.pisan.me](https://repo-weight-map.pisan.me).
+Live: [repo-weight-map.hintwise.org](https://repo-weight-map.hintwise.org).
 See its [README](./repo-weight-map/README.md).
 
 ### [`cipher-ladder/`](./cipher-ladder)
@@ -365,7 +365,7 @@ exported progress files in a dashboard (no Supabase, no accounts). Deployed on
 **Netlify** (static site, no backend).
 
 65 vitest tests, 100% statement coverage on the core.
-Live: [cipher-ladder.pisan.me](https://cipher-ladder.pisan.me).
+Live: [cipher-ladder.hintwise.org](https://cipher-ladder.hintwise.org).
 See its [README](./cipher-ladder/README.md).
 
 ### [`where-does-it-say/`](./where-does-it-say)
@@ -383,7 +383,7 @@ idea's Claude Haiku function; course packs travel compressed in the share
 link. Deployed on **Netlify** (static site, no backend).
 
 91 vitest tests, 99.7% statement coverage on the core.
-Live: [where-does-it-say.pisan.me](https://where-does-it-say.pisan.me).
+Live: [where-does-it-say.hintwise.org](https://where-does-it-say.hintwise.org).
 See its [README](./where-does-it-say/README.md).
 
 ### [`elevator-algorithm-lab/`](./elevator-algorithm-lab)
@@ -403,7 +403,7 @@ locally, with CSV/JSON export and import in place of the idea's Supabase.
 Deployed on **Netlify** (static site, no backend).
 
 53 vitest tests, 100% statement coverage on the core.
-Live: [elevator-algorithm-lab.pisan.me](https://elevator-algorithm-lab.pisan.me).
+Live: [elevator-algorithm-lab.hintwise.org](https://elevator-algorithm-lab.hintwise.org).
 See its [README](./elevator-algorithm-lab/README.md).
 
 ### [`reverse-minesweeper-studio/`](./reverse-minesweeper-studio)
@@ -419,7 +419,7 @@ as playable URL-fragment links that reveal the drawing on a win. Deployed on
 **Netlify** (static site, no backend).
 
 41 vitest tests, 99.9% statement coverage on the core.
-Live: [reverse-minesweeper-studio.pisan.me](https://reverse-minesweeper-studio.pisan.me).
+Live: [reverse-minesweeper-studio.hintwise.org](https://reverse-minesweeper-studio.hintwise.org).
 See its [README](./reverse-minesweeper-studio/README.md).
 
 ### [`heap-arena-replay/`](./heap-arena-replay)
@@ -440,7 +440,7 @@ diverge and flags misalignment, overlap and bounds bugs. Deployed on
 **Netlify** (static site, no backend).
 
 57 vitest tests, 99.1% statement coverage on the core.
-Live: [heap-arena-replay.pisan.me](https://heap-arena-replay.pisan.me).
+Live: [heap-arena-replay.hintwise.org](https://heap-arena-replay.hintwise.org).
 See its [README](./heap-arena-replay/README.md).
 
 ### [`bombe-bench/`](./bombe-bench)
@@ -458,7 +458,7 @@ messages with hidden settings as links; answers are graded in the page.
 Deployed on **Netlify** (static site, no backend).
 
 55 vitest tests, 98.8% statement coverage on the core.
-Live: [bombe-bench.pisan.me](https://bombe-bench.pisan.me/).
+Live: [bombe-bench.hintwise.org](https://bombe-bench.hintwise.org/).
 See its [README](./bombe-bench/README.md).
 
 ### [`state-space-atlas/`](./state-space-atlas)
@@ -476,7 +476,7 @@ instructors export "expand fewer than N nodes" challenges as links. Deployed
 on **Netlify** (static site, no backend).
 
 65 vitest tests, 99.6% statement coverage on the core.
-Live: [state-space-atlas.pisan.me](https://state-space-atlas.pisan.me).
+Live: [state-space-atlas.hintwise.org](https://state-space-atlas.hintwise.org).
 See its [README](./state-space-atlas/README.md).
 
 ### [`program-alarm-1202/`](./program-alarm-1202)
@@ -493,7 +493,7 @@ sweep and the real Apollo 11 alarm timeline. Deployed on **Netlify** (static
 site, no backend).
 
 36 vitest tests, 100% statement coverage on the core.
-Live: [program-alarm-1202.pisan.me](https://program-alarm-1202.pisan.me).
+Live: [program-alarm-1202.hintwise.org](https://program-alarm-1202.hintwise.org).
 See its [README](./program-alarm-1202/README.md).
 
 ### [`outguess-me/`](./outguess-me)
@@ -510,7 +510,7 @@ run 200 real coin flips as a control; share links replay the oracle on open.
 Deployed on **Netlify** (static site, no backend).
 
 43 vitest tests, 100% statement coverage on the core.
-Live: [outguess-me.pisan.me](https://outguess-me.pisan.me).
+Live: [outguess-me.hintwise.org](https://outguess-me.hintwise.org).
 See its [README](./outguess-me/README.md).
 
 ### [`code-viva/`](./code-viva)
@@ -532,7 +532,7 @@ a keyword rubric replace the idea's Claude API calls. Deployed on **Netlify**
 (static site, no backend).
 
 117 vitest tests, 99.7% statement coverage on the core.
-Live: [code-viva.pisan.me](https://code-viva.pisan.me).
+Live: [code-viva.hintwise.org](https://code-viva.hintwise.org).
 See its [README](./code-viva/README.md).
 
 ### [`diagram-layout-engine/`](./diagram-layout-engine)
@@ -554,7 +554,7 @@ ranks five configurations. Ten bundled examples. Deployed on **Netlify**
 (static site, no backend).
 
 88 vitest tests, 98.9% statement coverage on the core.
-Live: [diagram-layout-engine.pisan.me](https://diagram-layout-engine.pisan.me).
+Live: [diagram-layout-engine.hintwise.org](https://diagram-layout-engine.hintwise.org).
 See its [README](./diagram-layout-engine/README.md).
 
 ### [`letter-ledger/`](./letter-ledger)
@@ -571,7 +571,7 @@ during the term) feeds a Markdown fact outline per program that leaves grades
 out unless the release covers them. Encrypted backups, deletion on request, a
 demo ledger. Deployed on **Netlify** (static site, no backend).
 
-Live: [letter-ledger.pisan.me](https://letter-ledger.pisan.me).
+Live: [letter-ledger.hintwise.org](https://letter-ledger.hintwise.org).
 See its [README](./letter-ledger/README.md).
 
 ### [`brocot-gear-finder/`](./brocot-gear-finder)
@@ -587,7 +587,7 @@ an ideal hand, and an SVG cut sheet exports for laser cutting. Share links in
 the URL fragment. Deployed on **Netlify** (static site, no backend).
 
 44 vitest tests, 100% statement coverage on the core.
-Live: [brocot-gear-finder.pisan.me](https://brocot-gear-finder.pisan.me).
+Live: [brocot-gear-finder.hintwise.org](https://brocot-gear-finder.hintwise.org).
 See its [README](./brocot-gear-finder/README.md).
 
 ### [`fork-count/`](./fork-count)
@@ -606,7 +606,7 @@ answers are verified against every schedule and exports Markdown or QTI 1.2.
 Deployed on **Netlify** (static site, no backend).
 
 165 vitest tests (including a brute-force soundness check), 99% statement coverage on the core.
-Live: [fork-count.pisan.me](https://fork-count.pisan.me).
+Live: [fork-count.hintwise.org](https://fork-count.hintwise.org).
 See its [README](./fork-count/README.md).
 
 ### [`assignment-stress-test/`](./assignment-stress-test)
@@ -626,7 +626,7 @@ Ships with a real recorded demo on two sample assignments. Deployed on
 **Netlify** (static site, no backend).
 
 53 vitest tests (the pytest harness runs for real under CPython), 99.8% statement coverage on the core.
-Live: [assignment-stress-test.pisan.me](https://assignment-stress-test.pisan.me).
+Live: [assignment-stress-test.hintwise.org](https://assignment-stress-test.hintwise.org).
 See its [README](./assignment-stress-test/README.md).
 
 ### [`cache-miss-theater/`](./cache-miss-theater)
@@ -643,7 +643,7 @@ questions answered by the simulator (Markdown or QTI 1.2). Deployed on
 **Netlify** (static site, no backend).
 
 62 vitest tests (the cache is cross-checked against a naive reference), 99.7% statement coverage on the core.
-Live: [cache-miss-theater.pisan.me](https://cache-miss-theater.pisan.me/).
+Live: [cache-miss-theater.hintwise.org](https://cache-miss-theater.hintwise.org/).
 See its [README](./cache-miss-theater/README.md).
 
 ### [`edit-graph-lab/`](./edit-graph-lab)
@@ -659,7 +659,7 @@ generator (predict D, fill in V[k], spot the patience diff, count the hunks)
 exports Markdown or QTI 1.2. Deployed on **Netlify** (static site, no backend).
 
 36 vitest tests (cross-checked against the `diff` npm package), 99.4% statement coverage on the core.
-Live: [edit-graph-lab.pisan.me](https://edit-graph-lab.pisan.me).
+Live: [edit-graph-lab.hintwise.org](https://edit-graph-lab.hintwise.org).
 See its [README](./edit-graph-lab/README.md).
 
 ### [`lockstep-lab/`](./lockstep-lab)
@@ -675,7 +675,7 @@ exercises ask students to make a step function survive 10,000 ticks on two
 simulated machines. Deployed on **Netlify** (static site, no backend).
 
 46 vitest tests (rollback's confirmed states are checked against lockstep's), 100% statement coverage on the core.
-Live: [lockstep-lab.pisan.me](https://lockstep-lab.pisan.me).
+Live: [lockstep-lab.hintwise.org](https://lockstep-lab.hintwise.org).
 See its [README](./lockstep-lab/README.md).
 
 ### [`tetromino-arcade/`](./tetromino-arcade)
@@ -688,7 +688,7 @@ a Daily Sprint and Versus against a Dellacherie/El-Tetris CPU with garbage
 exchange. Rebindable keys with DAS/ARR, gamepad and touch controls, themes,
 synthesised sound, records, and exact replays from seed plus key log.
 58 vitest tests, 99% statement coverage on the core.
-Live: [tetromino-arcade.pisan.me](https://tetromino-arcade.pisan.me).
+Live: [tetromino-arcade.hintwise.org](https://tetromino-arcade.hintwise.org).
 See its [README](./tetromino-arcade/README.md).
 
 ### [`net-units/`](./net-units)
@@ -701,7 +701,7 @@ a per-function breakdown, and a guess-the-author round with an anonymized
 annotation export. Hand-written lexer for Python, JavaScript/TypeScript, Java
 and C/C++; no backend or LLM. 39 vitest tests, 99% statement coverage on the
 core.
-Live: [net-units.pisan.me](https://net-units.pisan.me).
+Live: [net-units.hintwise.org](https://net-units.hintwise.org).
 See its [README](./net-units/README.md).
 
 ### [`study-buddy-matchmaker/`](./study-buddy-matchmaker)
@@ -716,7 +716,7 @@ gets an agenda (who leads which topic, with links) and each student a private
 printable card that never shows a groupmate's scores. No backend or LLM;
 nothing leaves the browser. 29 vitest tests, 100% statement coverage on the
 core.
-Live: [study-buddy-matchmaker.pisan.me](https://study-buddy-matchmaker.pisan.me).
+Live: [study-buddy-matchmaker.hintwise.org](https://study-buddy-matchmaker.hintwise.org).
 See its [README](./study-buddy-matchmaker/README.md).
 
 ### [`pluck-lab/`](./pluck-lab)
@@ -732,7 +732,7 @@ strum timing) and an editable loop filter that is analysed deterministically
 (linearity, gain and delay per frequency, predicted ring times) instead of by
 an LLM. No samples, no backend. 53 vitest tests, 100% statement coverage on
 the core.
-Live: [pluck-lab.pisan.me](https://pluck-lab.pisan.me).
+Live: [pluck-lab.hintwise.org](https://pluck-lab.hintwise.org).
 See its [README](./pluck-lab/README.md).
 
 ### [`pull-the-pin/`](./pull-the-pin)
@@ -747,7 +747,7 @@ and compared by waveform hash). A deterministic "next probe" suggestion
 replaces the LLM tutor. Sandbox with healthy-vs-faulty diffs, seeded and
 hand-picked challenge links, local attempt log. No backend. 74 vitest tests,
 99% statement coverage on the core.
-Live: [pull-the-pin.pisan.me](https://pull-the-pin.pisan.me).
+Live: [pull-the-pin.hintwise.org](https://pull-the-pin.hintwise.org).
 See its [README](./pull-the-pin/README.md).
 
 ### [`leap-second-lab/`](./leap-second-lab)
@@ -760,7 +760,7 @@ leap-second edge cases recorded from real JS Date, Temporal, Python and
 Postgres runs. Four fix-the-bug exercises run hidden tests in a Web Worker.
 Hand-written notes replace the LLM explainer. No backend. 47 vitest tests,
 99.7% statement coverage on the core.
-Live: [leap-second-lab.pisan.me](https://leap-second-lab.pisan.me).
+Live: [leap-second-lab.hintwise.org](https://leap-second-lab.hintwise.org).
 See its [README](./leap-second-lab/README.md).
 
 ### [`data-structure-city/`](./data-structure-city)
@@ -772,7 +772,7 @@ and each building has a cost meter with last, amortized and worst-case figures.
 Five predict-then-reveal guided tours; instructors share their own as JSON in
 a URL fragment. Keyboard navigation and a text narration mode. No backend.
 71 vitest tests, 99.8% statement coverage on the core.
-Live: [data-structure-city.pisan.me](https://data-structure-city.pisan.me).
+Live: [data-structure-city.hintwise.org](https://data-structure-city.hintwise.org).
 See its [README](./data-structure-city/README.md).
 
 ### [`poincare-paint/`](./poincare-paint)
@@ -787,7 +787,7 @@ a point to the centre, and a measure tool for hyperbolic distance and
 triangle angle sum and area. PNG, JPG and SVG export and share links that carry the whole
 drawing in the URL. No backend. 65 vitest tests, 100% statement coverage on
 the core.
-Live: [poincare-paint.pisan.me](https://poincare-paint.pisan.me).
+Live: [poincare-paint.hintwise.org](https://poincare-paint.hintwise.org).
 See its [README](./poincare-paint/README.md).
 
 ### [`tamerlane-board/`](./tamerlane-board)
@@ -801,7 +801,7 @@ value from mobility, drops it into Timur or classic chess, runs
 engine-vs-engine balance games and shares it as a link. The LLM
 English-to-notation step is replaced by examples and a syntax table. No
 backend. 82 vitest tests, 99% statement coverage on the core.
-Live: [tamerlane-board.pisan.me](https://tamerlane-board.pisan.me).
+Live: [tamerlane-board.hintwise.org](https://tamerlane-board.hintwise.org).
 See its [README](./tamerlane-board/README.md).
 
 ### [`tiny-brains-league/`](./tiny-brains-league)
@@ -816,7 +816,7 @@ Elo fit plus an Elo-per-1k-parameters board, with milestone badges, a replay
 viewer that flags missed wins and blocks, an ablation log export, and a NumPy
 reference runtime checked against the browser by a parity fixture. No
 backend. 46 vitest tests, 100% statement coverage on the core.
-Live: [tiny-brains-league.pisan.me](https://tiny-brains-league.pisan.me).
+Live: [tiny-brains-league.hintwise.org](https://tiny-brains-league.hintwise.org).
 See its [README](./tiny-brains-league/README.md).
 
 ### [`gpu-parallel-puzzler/`](./gpu-parallel-puzzler)
@@ -828,7 +828,7 @@ detector, star grading against par, a warp inspector and deterministic hints
 in place of the suggested Claude tutor. Students export progress files and
 instructors load them into a class table. No backend. 36 vitest tests, 99.2%
 statement coverage on the core.
-Live: [gpu-parallel-puzzler.pisan.me](https://gpu-parallel-puzzler.pisan.me).
+Live: [gpu-parallel-puzzler.hintwise.org](https://gpu-parallel-puzzler.hintwise.org).
 See its [README](./gpu-parallel-puzzler/README.md).
 
 ### [`modulo-bias-microscope/`](./modulo-bias-microscope)
@@ -842,7 +842,7 @@ stream. Seven-bug gallery with fixes, a shuffle position heat map,
 permalinks, and instructor exercise links with an exact-first autograder.
 JavaScript only (no Pyodide), no LLM, no backend. 68 vitest tests, 100%
 statement coverage on the core.
-Live: [modulo-bias-microscope.pisan.me](https://modulo-bias-microscope.pisan.me).
+Live: [modulo-bias-microscope.hintwise.org](https://modulo-bias-microscope.hintwise.org).
 See its [README](./modulo-bias-microscope/README.md).
 
 
@@ -865,7 +865,7 @@ now sits behind a new leak. The idea's hosted headless-Chromium scanner with
 weekly rescans and email diffs was replaced by this do-it-yourself, fully
 client-side core: nothing is uploaded and nothing runs on a schedule. 44
 vitest tests, 100% statement coverage.
-Live: [consent-leak-watch.pisan.me](https://consent-leak-watch.pisan.me).
+Live: [consent-leak-watch.hintwise.org](https://consent-leak-watch.hintwise.org).
 See its [README](./consent-leak-watch/README.md).
 
 
@@ -892,7 +892,7 @@ compared release to release (level changes, new and fixed failures, screens
 dropped). The idea's hosted Playwright crawler, Supabase storage and Claude
 remark drafting were replaced by this fully client-side, rule-based core.
 48 vitest tests, 99% statement coverage.
-Live: [acr-draft.pisan.me](https://acr-draft.pisan.me).
+Live: [acr-draft.hintwise.org](https://acr-draft.hintwise.org).
 See its [README](./acr-draft/README.md).
 
 
@@ -924,7 +924,7 @@ Playwright worker, screenshots, Supabase schedules and daily email alerts
 were replaced by this on-demand, HTML-reading core: no browser runs, so
 script-only problems and actual video playback are out of reach. 141 vitest
 tests, 99% statement coverage.
-Live: [student-journey-check.pisan.me](https://student-journey-check.pisan.me).
+Live: [student-journey-check.hintwise.org](https://student-journey-check.hintwise.org).
 See its [README](./student-journey-check/README.md).
 
 
@@ -955,7 +955,7 @@ projects save to a local JSON file and nothing is stored or uploaded. The idea's
 Claude clustering and drafting, Supabase and Stripe were replaced by this
 deterministic, browser-only core. 101 vitest tests, 99% statement coverage;
 zero axe WCAG 2.1 AA violations in light and dark mode.
-Live: [dossier-comment-reflector.pisan.me](https://dossier-comment-reflector.pisan.me).
+Live: [dossier-comment-reflector.hintwise.org](https://dossier-comment-reflector.hintwise.org).
 See its [README](./dossier-comment-reflector/README.md).
 
 
@@ -991,7 +991,7 @@ with a fleet-file backup. The idea's companion WordPress plugin, Supabase
 dashboard and server-side PDFs were replaced by this browser-only core.
 72 vitest tests, 99% statement coverage; zero axe WCAG 2.2 AA violations in
 light and dark mode.
-Live: [accessibility-fleet-log.pisan.me](https://accessibility-fleet-log.pisan.me).
+Live: [accessibility-fleet-log.hintwise.org](https://accessibility-fleet-log.hintwise.org).
 See its [README](./accessibility-fleet-log/README.md).
 
 
@@ -1042,7 +1042,7 @@ and WooCommerce stores during the build, which removed false positives (tel:
 links with encoded spaces, section numbers read as phones, "Non-Returnable
 Items" headings, conditional no-returns sentences). 99 vitest tests, 99%
 statement coverage.
-Live: [misrepresentation-preflight.pisan.me](https://misrepresentation-preflight.pisan.me).
+Live: [misrepresentation-preflight.hintwise.org](https://misrepresentation-preflight.hintwise.org).
 See its [README](./misrepresentation-preflight/README.md).
 
 ### [`popup-check/`](./popup-check)
@@ -1091,7 +1091,7 @@ with a Klaviyo-style popup, including the guided test with real key presses
 and the report window. 54 vitest tests, 99% statement coverage; zero axe
 WCAG 2.2 AA violations on the site, the report view and the panel in light
 and dark mode.
-Live: [popup-check.pisan.me](https://popup-check.pisan.me).
+Live: [popup-check.hintwise.org](https://popup-check.hintwise.org).
 See its [README](./popup-check/README.md).
 
 ### [`health-page-tracker-watch/`](./health-page-tracker-watch)
@@ -1129,7 +1129,7 @@ to PDF, and a monthly `.ics` reminder. The idea's Playwright crawler,
 Supabase history and monthly email alerts were replaced by this
 browser-only core; the example practice uses the reserved `.example`
 domain. 53 vitest tests, 99% statement coverage.
-Live: [health-page-tracker-watch.pisan.me](https://health-page-tracker-watch.pisan.me).
+Live: [health-page-tracker-watch.hintwise.org](https://health-page-tracker-watch.hintwise.org).
 See its [README](./health-page-tracker-watch/README.md).
 
 ### [`donation-receipts/`](./donation-receipts)
@@ -1167,5 +1167,5 @@ Supabase and Resend email were replaced by this browser-only core.
 Example: a made-up community pantry with a Xero-style export. 74 vitest
 tests, 99.7% statement coverage; zero axe WCAG 2.2 AA violations in light
 and dark mode.
-Live: [donation-receipts.pisan.me](https://donation-receipts.pisan.me).
+Live: [donation-receipts.hintwise.org](https://donation-receipts.hintwise.org).
 See its [README](./donation-receipts/README.md).

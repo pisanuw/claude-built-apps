@@ -13,7 +13,7 @@ takes **SQL DDL**, a **Prisma schema**, or a **JSON Schema**, and produces:
 The result exports as a Markdown document you can drop straight into an
 onboarding wiki.
 
-**Live:** https://schema-storyteller.pisan.me/
+**Live:** https://schema-storyteller.hintwise.org/
 
 ![Loading the SQL blog sample and scrolling through the plain-English story, the review findings and the per-entity descriptions](demo.gif)
 

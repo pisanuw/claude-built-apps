@@ -6,7 +6,7 @@ and hear it synthesized instantly in your browser. Tune pitch, length,
 brightness, echo, and volume with sliders, watch the waveform and the full
 signal chain, then export a WAV at your chosen sample rate and bit depth.
 
-**Live:** <https://sound-sketchpad.pisan.me>
+**Live:** <https://sound-sketchpad.hintwise.org>
 
 ![Typing tiny retro laser, echoing and seeing which words matched and the waveform, playing it with a moving playhead, switching to the metallic door slam preset and dragging the pitch slider](demo.gif)
 

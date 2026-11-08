@@ -42,7 +42,7 @@ This is a monorepo of capstone projects built autonomously from prompts in
 2. Build in a new subdirectory. Follow the same structure: TypeScript, vitest tests (≥85% coverage), `.env.example`, `deploy/target.yml`.
 3. Add a row to the matching audience table in the root README and a write-up section at the end of PROJECTS.md.
 4. The deploy workflow auto-discovers any `*/deploy/target.yml`, so no workflow changes are needed.
-   Every app's primary address is `https://<app>.pisan.me`: set `netlify.customDomain: <app>.pisan.me` in `target.yml` from the first deploy. The runner creates the Cloudflare CNAME (secret `CLOUDFLARE_API_TOKEN`) and redirects the `.netlify.app` address there. Link to the pisan.me address everywhere.
+   Every app's primary address is `https://<app>.hintwise.org`. In `target.yml`, still write `netlify.customDomain: <app>.pisan.me` from the first deploy, like every other app: the runner swaps the base domain for `APP_DOMAIN` from `scripts/domains.mjs`, so it serves `<app>.hintwise.org` (this keeps the 60 existing `target.yml` files, and their paid deploys, untouched). The runner creates the Cloudflare CNAME (secret `CLOUDFLARE_API_TOKEN`) and redirects the `.netlify.app` address there. Link to the hintwise.org address everywhere; old `<app>.pisan.me` links 301 to it.
 5. Do not add the "built by" footer to the app: the deploy adds it from `scripts/site-footer.mjs`. Do not make `body` a row flexbox (that puts the footer beside the app; column flex and grid are fine), and set `footer: false` in `target.yml` only if the app cannot host it.
 
 ## Quality gates (all must pass before push)

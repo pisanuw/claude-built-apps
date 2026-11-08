@@ -36,7 +36,7 @@ email you could forward to whoever looks after your site, a text report to
 download, and "since your last check" (new problems, fixed ones) for checks
 run on the same device.
 
-**Live:** https://student-journey-check.pisan.me · **Try it without a site:**
+**Live:** https://student-journey-check.hintwise.org · **Try it without a site:**
 the demo tab runs the real checker against Lotus Yoga Academy, a pretend
 course site inside the page. Tick what to break and watch the test student
 run into it.

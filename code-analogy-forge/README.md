@@ -2,7 +2,7 @@
 
 Paste any code snippet or name a CS concept, pick your audience, and get **three sharply framed analogies from different everyday domains**, ready for a lecture slide, a blog post, or a meeting with stakeholders.
 
-Live: **<https://code-analogy-forge.pisan.me>**
+Live: **<https://code-analogy-forge.hintwise.org>**
 
 ![Pasting a recursive factorial function detects recursion from its self-call and forges three analogies (post office, school, cooking) with code-to-analogy tables, then switching the audience to curious child and non-technical adult rewrites every card](demo.gif)
 
