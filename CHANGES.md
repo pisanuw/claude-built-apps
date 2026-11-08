@@ -396,3 +396,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-08 [code] Google switch incomplete: 6 secret Netlify vars (paste-md, upvoteme AUTH_GOOGLE_*, chatwithdigitalme VITE_GOOGLE_CLIENT_ID) kept old client; PUT asked post_processing scope, 200 no-op. Apply fixed (1e61568); re-run awaits owner yes.
 
 2026-11-08 [note] poincare-paint mirror failure cause: mirror main (6 Nov reset) is a different split than CI's full-history split; files equal but README link. Fix = one force_app run (ecda717), awaits owner yes.
+
+2026-11-08 [code] Owner said yes: Google client re-applied to the 6 secret vars (per deploy context; 3955226), poincare-paint mirror force-reset to fcd51f9. Owner added GOOGLE_SECRET himself. Studio restyled (daily-project-ideas 307ba51).
