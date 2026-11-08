@@ -199,3 +199,23 @@ Yusuf Pisan, Chief Education Officer, HintWise
 - The web app and the API must change domain together: the server only accepts same-site web origins (its session cookie), so chesstd.hintwise.org cannot talk to td.pisan.me.
 - No app in claude-built-apps uses Google sign-in (the .env.example entries are unused templates); agent-blast-radius only mentions accounts.google.com in its analysis rules.
 
+## Email sending through Resend (owner, 8 Nov: "Resend will need to send all emails from hintwise.org")
+This replaces open decision 6: sending moves to hintwise.org.
+- **Senders today, all on pisan.me:**
+  - mult-streak (backend-hub on Render): `mult-streak@pisan.me`;
+  - mult-streak-edge (Netlify): `mult-streak-edge@pisan.me`;
+  - Chess TD server: `td@pisan.me`;
+  - daily-project-ideas digest: the `FROM_EMAIL` GitHub secret in that repo.
+  - DNS shows the Resend and SES records `send`, `reply` and `send.reply` on pisan.me. `reply.pisan.me` takes inbound mail, and no code in these repos refers to it; find out what uses it before it changes.
+- **Owner steps first (Phase 0):**
+  - In Resend, Domains, Add Domain `hintwise.org`, in the same region as pisan.me (us-east-1).
+  - Resend shows the DNS records: a DKIM TXT at `resend._domainkey`, plus an MX and an SPF TXT at `send`. Use Resend's "Auto configure" with Cloudflare, or send me the values and I'll add them with the token. These records don't clash with the Email Routing MX records on the hintwise.org apex.
+  - Add a DMARC record `_dmarc.hintwise.org`, copied from pisan.me's.
+  - Wait until Resend shows the domain as Verified.
+- **Code (branch hintwise-apps):**
+  - The defaults in mult-streak and mult-streak-edge are now `mult-streak@hintwise.org` (4b27991).
+  - The `target.yml` FROM_EMAIL values for backend-hub and mult-streak-edge are in a separate commit, fcb3044, marked DEPLOYS ON MERGE. Merging it redeploys backend-hub (Render) and mult-streak-edge (Netlify, paid), so it is merged only once hintwise.org is verified and with the owner's yes.
+- **Chess TD:** `td@hintwise.org`, on its hintwise branch. The Render env var changes after verification.
+- **daily-project-ideas:** the owner sets the `FROM_EMAIL` secret to an @hintwise.org address after verification.
+- **Rule:** never switch a sender before Resend shows hintwise.org as verified, or that app's email will fail.
+
