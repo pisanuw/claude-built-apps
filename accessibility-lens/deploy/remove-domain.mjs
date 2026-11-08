@@ -28,7 +28,22 @@ async function netlify(route, init = {}) {
 }
 
 const show = (s) => `primary ${s.custom_domain || 'none'}; aliases ${(s.domain_aliases || []).join(', ') || 'none'}`;
-const info = await netlify(`/sites/${site}.netlify.app`).catch((e) => die(`no Netlify site ${site}: ${e.message}`));
+let info = await netlify(`/sites/${site}.netlify.app`).catch(() => null);
+if (!info) {
+  // The named site is gone or renamed: look for the domain on every site in the account.
+  const all = [];
+  for (let page = 1; page <= 20; page++) {
+    const batch = await netlify(`/sites?filter=all&per_page=100&page=${page}`);
+    all.push(...batch);
+    if (batch.length < 100) break;
+  }
+  info = all.find((s) => s.custom_domain === domain || (s.domain_aliases || []).includes(domain));
+  if (!info) {
+    console.log(`::notice::No Netlify site named ${site}, and none of the ${all.length} sites in the account has ${domain}; nothing to do.`);
+    process.exit(0);
+  }
+  console.log(`::warning::No site named ${site}; ${domain} is on ${info.name}, removing it there.`);
+}
 console.log(`Before: ${show(info)}`);
 
 const aliases = info.domain_aliases || [];
