@@ -189,3 +189,13 @@ Yusuf Pisan, Chief Education Officer, HintWise
 - The daily ideas stay public, renamed "Next up".
 - Featured apps: StepWise, Poincare Paint, Digital Student Assistant, Bombe Bench, Cache Miss Theater, Health Page Tracker Watch.
 
+## Google sign-in (owner, 8 Nov: "will also need to update google auth")
+- Chess TD's API (chess-td-server) has "Continue with Google". Its OAuth redirect URI is `<PUBLIC_URL>/api/auth/google/callback`.
+- Owner steps in Google Cloud Console (APIs & Services, Credentials, the Chess TD OAuth client), done in Phase 2 before the switch:
+  - add `https://td.hintwise.org/api/auth/google/callback` as an authorized redirect URI, keeping the td.pisan.me one;
+  - add `https://chesstd.hintwise.org` as an authorized JavaScript origin;
+  - add hintwise.org to the OAuth consent screen's authorized domains (Google may ask you to verify the domain in Search Console first).
+- Then set PUBLIC_URL on Render to the td.hintwise.org address.
+- The web app and the API must change domain together: the server only accepts same-site web origins (its session cookie), so chesstd.hintwise.org cannot talk to td.pisan.me.
+- No app in claude-built-apps uses Google sign-in (the .env.example entries are unused templates); agent-blast-radius only mentions accounts.google.com in its analysis rules.
+
