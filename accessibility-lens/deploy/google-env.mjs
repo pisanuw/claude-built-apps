@@ -2,7 +2,8 @@
 /**
  * Google sign-in client switch (docs/google-oauth.md).
  *   list            print, for every Netlify site and Render service, the
- *                   names (never values) of env vars containing GOOGLE
+ *                   names (never values) of env vars containing GOOGLE,
+ *                   and for Netlify when and by whom each was last changed
  *   apply [--dry-run] set every such *_ID / CLIENT_ID var to
  *                   HINTWISE_AUTH_GOOGLE_ID and every *_SECRET var to
  *                   HINTWISE_AUTH_GOOGLE_SECRET, then trigger a build/deploy
@@ -29,12 +30,17 @@ let failed = 0;
 const sites = [];
 for (let p = 1; p <= 20; p++) { const b = await call(N, nt, `/sites?filter=all&per_page=100&page=${p}`); sites.push(...b); if (b.length < 100) break; }
 for (const s of sites) {
-  let keys = [];
-  try { keys = (await call(N, nt, `/accounts/${s.account_id}/env?site_id=${s.id}`)).map((e) => e.key).filter(isGoogle); }
+  let envs = [];
+  try { envs = (await call(N, nt, `/accounts/${s.account_id}/env?site_id=${s.id}`)).filter((e) => isGoogle(e.key)); }
   catch (e) { console.log(`netlify ${s.name}: cannot read env (${String(e).slice(0, 120)})`); continue; }
+  const keys = envs.map((e) => e.key);
   if (!keys.length) continue;
   console.log(`netlify ${s.name}: ${keys.join(', ')}`);
-  if (cmd !== 'apply') continue;
+  if (cmd !== 'apply') {
+    // who last changed each var, and when (never the value)
+    for (const e of envs) console.log(`  ${e.key}: updated ${e.updated_at || '?'} by ${e.updated_by?.full_name || e.updated_by?.email || '?'}`);
+    continue;
+  }
   for (const k of keys) {
     if (dry) { console.log(`  would set ${k}`); continue; }
     try {
