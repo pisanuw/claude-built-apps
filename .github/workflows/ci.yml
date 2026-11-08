@@ -1886,4 +1886,4 @@ jobs:
           node-version: '20'
 
       - name: Test
-        run: node --test scripts/site-footer.test.mjs accessibility-lens/deploy/cloudflare-dns.test.mjs
+        run: node --test scripts/site-footer.test.mjs scripts/domains.test.mjs accessibility-lens/deploy/cloudflare-dns.test.mjs accessibility-lens/deploy/redirect-rule.test.mjs accessibility-lens/deploy/migrate-domains.test.mjs

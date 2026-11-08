@@ -20,7 +20,8 @@
 #   ANTHROPIC_API_KEY                    forwarded to accessibility-lens
 #   RESEND_API, ADMIN_EMAIL, COOKIE_SECRET   forwarded to mult-streak apps
 #   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ZONE_ID   optional: create a new app's
-#     <app>.pisan.me CNAME (see accessibility-lens/deploy/cloudflare-dns.mjs)
+#     <app>.hintwise.org CNAME (see accessibility-lens/deploy/cloudflare-dns.mjs;
+#     target.yml's <app>.pisan.me is mapped by scripts/domains.mjs)
 name: Deploy
 
 on:
@@ -131,7 +132,7 @@ jobs:
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          # Optional: lets the runner create a new app's <app>.pisan.me CNAME.
+          # Optional: lets the runner create a new app's <app>.hintwise.org CNAME.
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

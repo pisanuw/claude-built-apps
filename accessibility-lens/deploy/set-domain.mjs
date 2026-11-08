@@ -1,15 +1,16 @@
 /**
  * Point an existing Netlify site (one this repo does not deploy, such as a
- * pisan-labs repo built by Netlify's own Git integration) at a pisan.me
- * custom domain: create the Cloudflare CNAME if missing, set the site's
+ * pisan-labs repo built by Netlify's own Git integration) at a hintwise.org
+ * (or pisan.me) custom domain: create the Cloudflare CNAME if missing, set the site's
  * primary custom domain, and request its certificate.
  *
- *   node set-domain.mjs --site stepwise-pisan-labs --domain stepwise.pisan.me
+ *   node set-domain.mjs --site stepwise-pisan-labs --domain stepwise.hintwise.org
  *
- * Needs NETLIFY_AUTH_TOKEN; CLOUDFLARE_API_TOKEN (+ CLOUDFLARE_ZONE_ID) to
+ * Needs NETLIFY_AUTH_TOKEN; CLOUDFLARE_API_TOKEN (CLOUDFLARE_ZONE_ID only as a fallback) to
  * create the DNS record. Run it from the "Set Netlify domain" workflow.
  */
 import { ensureDomainDns } from "./cloudflare-dns.mjs";
+import { APP_DOMAIN, OLD_DOMAIN } from "../../scripts/domains.mjs";
 
 const arg = (name) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -19,11 +20,19 @@ const site = arg("site");
 const domain = arg("domain");
 if (!site || !domain)
   throw new Error(
-    "usage: set-domain.mjs --site <netlify-site-name> --domain <host.pisan.me>",
+    `usage: set-domain.mjs --site <netlify-site-name> --domain <host.${APP_DOMAIN}>`,
   );
 if (!/^[a-z0-9-]+$/.test(site)) throw new Error(`bad site name: ${site}`);
-if (!/^[a-z0-9-]+\.pisan\.me$/.test(domain))
-  throw new Error(`domain must be <host>.pisan.me: ${domain}`);
+if (
+  ![APP_DOMAIN, OLD_DOMAIN].some(
+    (z) =>
+      domain.endsWith(`.${z}`) &&
+      /^[a-z0-9-]+$/.test(domain.slice(0, -(z.length + 1))),
+  )
+)
+  throw new Error(
+    `domain must be <host>.${APP_DOMAIN} or <host>.${OLD_DOMAIN}: ${domain}`,
+  );
 const token = process.env.NETLIFY_AUTH_TOKEN;
 if (!token) throw new Error("NETLIFY_AUTH_TOKEN is not set");
 

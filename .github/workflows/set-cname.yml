@@ -1,4 +1,4 @@
-# Point a pisan.me name at a host outside Netlify (e.g. Render) with a
+# Point a hintwise.org or pisan.me name at a host outside Netlify (e.g. Render) with a
 # DNS-only CNAME, deleting any A/AAAA record for that name. Deploys nothing.
 name: Set CNAME
 
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       domain:
-        description: 'Name to set, e.g. chesstd.pisan.me'
+        description: 'Name to set, e.g. chesstd.hintwise.org'
         required: true
         type: string
       target:
