@@ -39,7 +39,7 @@ export interface Page {
 
 const MAX_REDIRECTS = 6;
 export const USER_AGENT =
-  'Mozilla/5.0 (compatible; StudentJourneyCheck/1.0; +https://student-journey-check.pisan.me)';
+  'Mozilla/5.0 (compatible; StudentJourneyCheck/1.0; +https://student-journey-check.hintwise.org)';
 
 /** Strip a leading "www." so example.com and www.example.com count as the same site. */
 export function bareHost(host: string): string {
