@@ -17,8 +17,9 @@
  * The line breaks are part of the text (owner's wording, 2026-11-08): six
  * lines separated by <br>, then the name in its own paragraph. "free :-)" is
  * joined by a no-break space so the smiley never wraps onto a line by itself,
- * and "Email builder@hintwise.org." does not wrap (.nb), so on a phone the
- * address never sits on a line alone.
+ * "Email builder@hintwise.org." and "interesting ones may be done for free
+ * :-)" do not wrap (.nb), so on a phone the address never sits alone and the
+ * second half of the paid-projects line moves down whole.
  *
  * Usage: node scripts/site-footer.mjs <publishDir> <appName>
  */
@@ -68,7 +69,7 @@ export function footerHtml(app) {
     `HintWise builds tools like this for small businesses, startups and educators.<br>` +
     `Built with Claude, guided by experts.<br>` +
     `Want something like this for your own work? <span class="nb">Email <a href="${mailto}">${CONTACT_EMAIL}</a>.</span><br>` +
-    `Paid projects welcome, interesting ones may be done for free&nbsp;:-)<br>` +
+    `Paid projects welcome, <span class="nb">interesting ones may be done for free&nbsp;:-)</span><br>` +
     `Academic page: <a href="${ACADEMIC_URL}">${ACADEMIC_LABEL}</a><br>` +
     `More apps: <a href="${PROJECTS_URL}">${PROJECTS_LABEL}</a>` +
     `</p><p>Yusuf Pisan, Chief Education Officer, HintWise</p></aside></template></site-footer>`

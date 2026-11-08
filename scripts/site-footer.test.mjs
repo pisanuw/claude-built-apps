@@ -38,7 +38,7 @@ test('footer keeps the owner\'s six lines and the smiley on its line', () => {
   assert.ok(lines[2].includes('<span class="nb">Email <a '));
   assert.ok(lines[2].includes(`>${CONTACT_EMAIL}</a>.</span>`));
   assert.ok(html.includes('.nb { white-space: nowrap; }'));
-  assert.ok(lines[3].endsWith('free&nbsp;:-)'));
+  assert.equal(lines[3], 'Paid projects welcome, <span class="nb">interesting ones may be done for free&nbsp;:-)</span>');
   assert.equal(lines[4], `Academic page: <a href="${ACADEMIC_URL}">${ACADEMIC_LABEL}</a>`);
   assert.equal(lines[5], `More apps: <a href="${PROJECTS_URL}">${PROJECTS_LABEL}</a>`);
   assert.equal((html.match(/<p>/g) || []).length, 2);
