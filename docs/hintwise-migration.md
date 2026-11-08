@@ -219,3 +219,13 @@ This replaces open decision 6: sending moves to hintwise.org.
 - **daily-project-ideas:** the owner sets the `FROM_EMAIL` secret to an @hintwise.org address after verification.
 - **Rule:** never switch a sender before Resend shows hintwise.org as verified, or that app's email will fail.
 
+## Owner answers (8 Nov, ~09:50 CET)
+1. The apex hintwise.org and `www` 301 to studio.hintwise.org. They no longer forward to digital-student-assistant.com.
+2. The footer's "More apps" link goes to studio.hintwise.org (done on hintwise-apps, 77d4714).
+3. Resend: the owner adds hintwise.org as a sending domain.
+4. `reply.pisan.me` (Resend inbound): the owner is checking. It may be pisanuw/cagent. It stays on pisan.me until we know.
+5. meetme moves to meetme.hintwise.org (DNS and Netlify domain only).
+6. ypdsa stays on pisan.me for now.
+7. Rename the Netlify site `daily-project-ideas` to `hintwise`. Do this in Phase 2 at the same moment the DNS records are repointed, because `daily-project-ideas.pisan.me` currently points at `daily-project-ideas.netlify.app` and would break the moment the old name disappears.
+8. The showcase lists all apps, with audience filters.
+
