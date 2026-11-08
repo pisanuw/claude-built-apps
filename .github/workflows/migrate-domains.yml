@@ -30,8 +30,11 @@ on:
         type: boolean
         default: true
 
+# switch edits the shared redirect rule, so switch runs (and redirect-rule.yml)
+# go one at a time; hosts runs only touch their own apps and may run in
+# parallel batches (about 4-5 minutes per app, mostly certificate waits).
 concurrency:
-  group: hintwise-dns
+  group: ${{ inputs.step == 'switch' && 'hintwise-dns' || format('hintwise-hosts-{0}', github.run_id) }}
   cancel-in-progress: false
 
 jobs:
