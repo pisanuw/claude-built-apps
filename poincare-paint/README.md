@@ -6,7 +6,7 @@ an Escher-style Circle Limit pattern. Drag the plane to re-centre it on any
 point: the picture slides, nothing reaches the rim, and every spot turns out
 to be as central as any other.
 
-Live: [poincare-paint.pisan.me](https://poincare-paint.pisan.me)
+Live: [poincare-paint.hintwise.org](https://poincare-paint.hintwise.org)
 
 ![Drawing a blue curl and a red wave in a {7,3} tiling copies each stroke into every tile, then dragging with the Move tool slides the whole pattern across the disk](demo.gif)
 

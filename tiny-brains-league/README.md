@@ -5,7 +5,7 @@ neural network you can to play Connect Four, under a hard budget of 5,000
 weights and biases, then climb a class ladder where Elo is weighed against
 parameter count.
 
-Live: [tiny-brains-league.pisan.me](https://tiny-brains-league.pisan.me)
+Live: [tiny-brains-league.hintwise.org](https://tiny-brains-league.hintwise.org)
 
 ![Running the class ladder on the two sample brains and three house bots, the efficiency board ranking the 1,111-parameter Pocket-12 first, then replaying its win over Starter-48 with the network's move probabilities drawn above each column](demo.gif)
 

@@ -11,7 +11,7 @@ page is checked for admissibility and consistency on every single state, and
 the states where it overestimates light up red. Instructors export "beat
 this node count" challenges as links. Everything runs in the browser.
 
-Live: [state-space-atlas.pisan.me](https://state-space-atlas.pisan.me)
+Live: [state-space-atlas.hintwise.org](https://state-space-atlas.hintwise.org)
 
 ![BFS sweeps across all 20,160 states of the 7-puzzle atlas layer by layer, then A* with Manhattan distance reaches the same optimal 36-move solution after expanding 10,519, and the run table compares the two](demo.gif)
 

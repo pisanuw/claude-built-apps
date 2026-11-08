@@ -8,7 +8,7 @@ and the engine read the same definitions. A piece lab lets you write a new
 piece, watch where it reaches, drop it into Timur or classic chess and play
 it, or have the engine play itself to see whether the piece is too strong.
 
-Live: [tamerlane-board.pisan.me](https://tamerlane-board.pisan.me)
+Live: [tamerlane-board.hintwise.org](https://tamerlane-board.hintwise.org)
 
 ![In the piece lab, the giraffe's F>R{3,} reach animates outward on the 11x10 board, then typing the cannon notation mR cpR and placing two enemy blockers shows it capturing by hopping over one](demo.gif)
 

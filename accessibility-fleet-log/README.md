@@ -1,6 +1,6 @@
 # Accessibility Fleet Log
 
-**Live:** https://accessibility-fleet-log.pisan.me
+**Live:** https://accessibility-fleet-log.hintwise.org
 
 For web agencies and freelancers who look after a few dozen small-business
 websites. Every client site's accessibility status on one screen, a dated log

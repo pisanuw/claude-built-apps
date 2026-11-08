@@ -1,6 +1,6 @@
 # Accessibility Lens
 
-**Live:** [accessibility-lens.pisan.me](https://accessibility-lens.pisan.me) | TypeScript monorepo | 107 tests | MIT
+**Live:** [accessibility-lens.hintwise.org](https://accessibility-lens.hintwise.org) | TypeScript monorepo | 107 tests | MIT
 
 ![Scanning the W3C's deliberately inaccessible demo page gives a score of 0, then the profile tabs replay it as a screen reader's linear stream, a blurred low-vision view and a deuteranopia filter on status colors](demo.gif)
 

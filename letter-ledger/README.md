@@ -9,7 +9,7 @@ program, sends status updates from their own mail app, keeps a notes timeline
 on students during the term, and exports a fact outline when it is time to
 write.
 
-Live: [letter-ledger.pisan.me](https://letter-ledger.pisan.me)
+Live: [letter-ledger.hintwise.org](https://letter-ledger.hintwise.org)
 
 ![Loading the demo ledger fills the deadline dashboard; on the Requests tab a request that breaks the 21-day notice policy is accepted and its fact outline is generated](demo.gif)
 

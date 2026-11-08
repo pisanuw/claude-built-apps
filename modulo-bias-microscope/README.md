@@ -6,7 +6,7 @@ and see how far its output distribution drifts from the one you meant, both
 unit test; this makes them visible, and turns "is my shuffle fair?" into
 fractions a student can check by hand.
 
-Live: [modulo-bias-microscope.pisan.me](https://modulo-bias-microscope.pisan.me)
+Live: [modulo-bias-microscope.hintwise.org](https://modulo-bias-microscope.hintwise.org)
 
 ![Picking the naive shuffle from the bug gallery shows three permutations at 5/27 and three at 4/27, off by 1/18; Show the fix swaps in Fisher-Yates and every permutation lands exactly on 1/6](demo.gif)
 

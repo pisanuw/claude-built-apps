@@ -3,7 +3,7 @@
 A Duolingo-style trainer for keyboard shortcuts. Pick a tool, get a task
 prompt ("Go to definition"), press the shortcut, and an SM-2 spaced-repetition
 scheduler decides when you see each one again. Live at
-**<https://shortcut-sprint.pisan.me>**.
+**<https://shortcut-sprint.hintwise.org>**.
 
 ![A VS Code practice session: three shortcuts pressed correctly, one wrong key that gets Not quite, then Show answer revealing the combo](demo.gif)
 

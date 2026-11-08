@@ -12,7 +12,7 @@ across input delays, and five autograded exercises ask students to fix a
 nondeterministic step function until it survives 10,000 ticks on two
 simulated machines.
 
-Live: [lockstep-lab.pisan.me](https://lockstep-lab.pisan.me)
+Live: [lockstep-lab.hintwise.org](https://lockstep-lab.hintwise.org)
 
 ![Two simulated clients keep matching state hashes until the Map iteration order scenario is switched on; client B's units then drift from client A's ghost outlines and the hash strip turns red, naming the first differing field](demo.gif)
 

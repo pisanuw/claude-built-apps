@@ -382,3 +382,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-08 [decision] Owner: Resend sends all email from hintwise.org; Google sign-in (Chess TD) must be updated in the move. Steps in docs/hintwise-migration.md.
 2026-11-08 [decision] Showcase address is studio.hintwise.org (owner correction); hintwise.org apex will 301 there.
 2026-11-08 [decision] Owner answers on the hintwise move: apex->studio, meetme moves, ypdsa stays, Netlify site renamed to hintwise in Phase 2, showcase lists all apps.
+2026-11-08 [doc] Docs move app and site addresses from <x>.pisan.me to <x>.hintwise.org and builder@ to hintwise.org (README, PROJECTS, app READMEs, CLAUDE.md, BUILD_ROUTINE, DEVELOPING, HANDOFF, launch drafts); target.yml keeps the pisan.me form, mapped by APP_DOMAIN. Kept: ypdsa, td, mult-streak@, personal site, history.

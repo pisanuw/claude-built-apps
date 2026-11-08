@@ -6,7 +6,7 @@ flags anything load-bearing the compressor may have dropped.
 
 ![Loading the example prompt, then switching from Light to Medium to Aggressive compression while the token count drops and the word-level diff shows what was cut](demo.gif)
 
-- **Live site:** https://prompt-shrink-ray.pisan.me
+- **Live site:** https://prompt-shrink-ray.hintwise.org
 - **Source:** https://github.com/pisanuw/Claude-capstone/tree/main/prompt-shrink-ray
 - **Host:** Netlify (fully static, no backend, no API keys)
 

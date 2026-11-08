@@ -2,7 +2,7 @@
 
 **Watch a SQL SELECT execute one stage at a time, narrated in plain English.**
 
-Live: **<https://sql-replay.pisan.me>**
+Live: **<https://sql-replay.hintwise.org>**
 
 ![Stepping the Filter and sort demo query through FROM, WHERE (the failing row struck through), SELECT, ORDER BY and the final result, each with its narration](demo.gif)
 

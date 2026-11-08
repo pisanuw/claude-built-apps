@@ -5,7 +5,7 @@ mutate, and reassemble it, then keep the genes worth reusing.
 
 ![Loading the code-review example splits it into colour-coded role, context, task, constraint, format and persona genes, then the constraint's Make it checkable mutation is previewed and applied](demo.gif)
 
-- **Live site:** https://prompt-genome.pisan.me
+- **Live site:** https://prompt-genome.hintwise.org
 - **Source:** https://github.com/pisanuw/Claude-capstone/tree/main/prompt-genome
 - **Host:** Netlify (static site; no backend).
 - **Idea:** [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas), 2026-08-23 idea 1.

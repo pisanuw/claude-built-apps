@@ -15,7 +15,7 @@ people working on them.
    `deploy/target.yml`.
 3. CI checks every package on every push. The deploy workflow finds every
    `*/deploy/target.yml` and ships changed apps to Netlify or Render, each at
-   `<app>.pisan.me` (the runner creates the Cloudflare DNS record).
+   `<app>.hintwise.org` (the runner creates the Cloudflare DNS record).
 4. A shared footer from [`scripts/site-footer.mjs`](./scripts/site-footer.mjs)
    is added to every app at deploy time.
 5. The mirror workflow copies each app into its own repo in the

@@ -7,7 +7,7 @@ coalesced and uncoalesced memory, shared-memory bank conflicts, barriers,
 atomics and data races. Every run is graded for correctness and against a
 par time, with a CPU-vs-GPU estimate and plain-language hints.
 
-Live: [gpu-parallel-puzzler.pisan.me](https://gpu-parallel-puzzler.pisan.me)
+Live: [gpu-parallel-puzzler.hintwise.org](https://gpu-parallel-puzzler.hintwise.org)
 
 ![Level 4 of GPU Parallel Puzzler: the divergent starter kernel earns one star with 128 divergent branches and 52% of lanes busy, then the 3-star solution runs at par with every lane busy and no divergence](demo.gif)
 

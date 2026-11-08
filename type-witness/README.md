@@ -8,7 +8,7 @@ compiler computed for it, narrated in plain English. Step through with
 prev/next, a slider, or autoplay; hover any expression in the witness view for
 its exact type; click it to jump to its step.
 
-Live: [type-witness.pisan.me](https://type-witness.pisan.me)
+Live: [type-witness.hintwise.org](https://type-witness.hintwise.org)
 
 ![Loading the typeof-narrowing example and stepping through its inference story, where the same value is string | number at the check, string inside the if branch and number after it, then hovering each value in the witness view to see its type](demo.gif)
 

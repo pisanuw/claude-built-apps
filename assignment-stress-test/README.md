@@ -5,7 +5,7 @@ Doing that by hand across several models, then grading each reply against your
 own rubric, takes an evening. This app does it in a few minutes and gives you a
 one-page report of which rubric rows AI already meets.
 
-Live: [assignment-stress-test.pisan.me](https://assignment-stress-test.pisan.me)
+Live: [assignment-stress-test.hintwise.org](https://assignment-stress-test.hintwise.org)
 
 ![Opening the recorded demo for a run-length-encoding lab shows a score matrix for three Claude models by three prompt styles, a verdict per rubric row, and one attempt's judge reasons and passing pytest results](demo.gif)
 

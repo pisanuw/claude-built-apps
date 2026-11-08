@@ -4,12 +4,12 @@ Rolling handoff for the Plabs relay (session-relay skill). Rewritten at each han
 
 ## 1. Goal
 
-Owner's words (2026-11-02): "Get people using these projects, advertise these projects to get customers that may want me to build similar projects for them." "One way to be noticed is for github repos to be noticed, forked and get stars." Paid custom builds are the offer, part-time; "I care more about connections and being useful than money." "Built by Claude" is the headline. Customer priority: small businesses, startups, edtech, universities. Domain: pisan.me.
+Owner's words (2026-11-02): "Get people using these projects, advertise these projects to get customers that may want me to build similar projects for them." "One way to be noticed is for github repos to be noticed, forked and get stars." Paid custom builds are the offer, part-time; "I care more about connections and being useful than money." "Built by Claude" is the headline. Customer priority: small businesses, startups, edtech, universities. Domain: hintwise.org (apps moved from pisan.me, owner, 2026-11-08; plan in docs/hintwise-migration.md).
 
 ## 2. What is live (6 November)
 
-- claude-built-apps: 59 apps with a deploy/target.yml, each at `<folder>.pisan.me`; README (visitor-facing, DEVELOPING.md for developers) with "My biggest project" (Digital Student Assistant) and a "Start here" grid incl. StepWise; 57 pisan-labs mirrors (.github/mirrors.txt; backend-hub and tetromino-arcade are not mirrored), synced daily by halflife (scripts/halflife/, launchd 04:13).
-- daily-project-ideas.pisan.me: customer-facing idea pages grouped by audience, "Built and live" showcase of 8 apps (6 demo GIFs, 2 screenshots) (web/showcase.json), owner notes at /notes/ (password).
+- claude-built-apps: 59 apps with a deploy/target.yml, each at `<folder>.hintwise.org` (old `<folder>.pisan.me` addresses 301 there); README (visitor-facing, DEVELOPING.md for developers) with "My biggest project" (Digital Student Assistant) and a "Start here" grid incl. StepWise; 57 pisan-labs mirrors (.github/mirrors.txt; backend-hub and tetromino-arcade are not mirrored), synced daily by halflife (scripts/halflife/, launchd 04:13).
+- studio.hintwise.org: customer-facing idea pages grouped by audience, "Built and live" showcase of 8 apps (6 demo GIFs, 2 screenshots) (web/showcase.json), owner notes at /notes/ (password).
 - pisanorg.github.io/yusuf/aiprojects.html: 99 projects, StepWise newest; Digital Student Assistant featured in the hire box (demo account demo@hintwise.org, no code needed).
 - Routines (owner's, not relay): ideas routine trig_01K986yzFbf3noGkLA6RgZkn daily 01:51 Pacific (10:51 CET), reads ROUTINE.md on main (copy made 6 Nov so agents can fire it; the old http_api routine is deleted); build routine trig_01BAP9nsXTtxTdpMiwk5GdXE daily 02:49 Pacific (11:49 CET), reads BUILD_ROUTINE.md on main.
 - Heads at handoff: claude-built-apps main 411fd03, daily-project-ideas main cefd94e, yusuf master 1f5ca00.
@@ -30,7 +30,7 @@ Owner's words (2026-11-02): "Get people using these projects, advertise these pr
 ## 5. Next, in order
 
 1. Report on the 6 Nov 10:51 CET ideas run (dated task trig_011quEkqoF96yu4PSnnWmevH fires at 11:15 CET into the relay session): ideas, reviews (did it reach 10 before settling for fewer than 3?), whether A16 or the watchlist produced an idea; small ROUTINE.md/sources.json fixes with [skip netlify].
-2. Poincaré Paint (https://poincare-paint.pisan.me): add "save as PNG" and "save as JPG" and deploy it. The owner asked for this on 6 Nov and confirmed it goes to the new session; the deploy is approved. First reconcile the pisan-labs/poincare-paint mirror, which rejected pushes on 4 Nov (non-fast-forward: someone committed to the mirror directly): port any change from it into poincare-paint/ here before the mirror run overwrites it.
+2. Poincaré Paint (https://poincare-paint.hintwise.org): add "save as PNG" and "save as JPG" and deploy it. The owner asked for this on 6 Nov and confirmed it goes to the new session; the deploy is approved. First reconcile the pisan-labs/poincare-paint mirror, which rejected pushes on 4 Nov (non-fast-forward: someone committed to the mirror directly): port any change from it into poincare-paint/ here before the mirror run overwrites it.
 3. Owner offered: a launch draft for Digital Student Assistant (SIGCSE list and LinkedIn, arXiv paper, demo account) in docs/launch-drafts.md.
 
 ## 6. Waiting on the owner
@@ -55,19 +55,19 @@ Owner's words (2026-11-02): "Get people using these projects, advertise these pr
 - game-palette-inspector suggests a fix only if it adds no confusion under any of 8 vision types; the Red/green trap preset therefore shows "no safe fix" (owner told; strict rule kept).
 - Ideas site keeps the name "Daily Project Ideas" (search terms), tagline does the pitch.
 - Footer links to pisanorg.github.io/yusuf/aiprojects.html (owner's choice), URL not renamed.
-- Footer line breaks are part of the text (owner, 2026-11-07): four lines plus "Yusuf Pisan", "free :-)" never split, "Email builder@pisan.me." kept together on phones (fd55877 and the next commit). Not deployed on purpose (owner): each app picks it up on its next deploy for another reason; no `all` run.
+- Footer line breaks are part of the text (owner, 2026-11-07): four lines plus "Yusuf Pisan", "free :-)" never split, "Email builder@hintwise.org." kept together on phones (fd55877 and the next commit; the address was builder@pisan.me until 2026-11-08). Not deployed on purpose (owner): each app picks it up on its next deploy for another reason; no `all` run.
 - Small business first for new ideas and builds (owner, 2026-11-02). The ideas floor moved from one EdTech idea to one small-business idea.
 - The build routine lives in BUILD_ROUTINE.md, read by the task, so it is versioned and editable from any session (the task itself can only be edited by the owner).
-- Every site's primary address is <app>.pisan.me (owner, 2026-11-02). New apps set customDomain from the start; the runner uses it only once DNS answers (creating the CNAME with the Cloudflare token), because a custom domain without a record 301s the working netlify.app address to a dead one.
+- Every site's primary address is <app>.hintwise.org (owner, 2026-11-08; it was <app>.pisan.me from 2026-11-02). target.yml keeps `customDomain: <app>.pisan.me` and the runner swaps in APP_DOMAIN from scripts/domains.mjs, so no target.yml changes (each would be a paid deploy); old pisan.me names 301 to hintwise.org through a Cloudflare redirect rule. New apps set customDomain from the start; the runner uses it only once DNS answers (creating the CNAME with the Cloudflare token), because a custom domain without a record 301s the working netlify.app address to a dead one.
 - pisan-labs: CI is checked only when the owner messages; a repo is attached to a session only when it gets an issue or PR.
-- Public pages are written for customers (owner, 2026-11-02): no scores, evidence, competitors, build time, tech stack or test counts on the ideas site, README or aiprojects; the owner's notes are at daily-project-ideas.pisan.me/notes/ behind NOTES_PASSWORD.
+- Public pages are written for customers (owner, 2026-11-02): no scores, evidence, competitors, build time, tech stack or test counts on the ideas site, README or aiprojects; the owner's notes are at studio.hintwise.org/notes/ behind NOTES_PASSWORD.
 - Ideas routine (owner, 2026-11-04): a first run ships 3 to 5 ideas, provisional capped per run (4 first, 3 extra), a day holds up to 10; gate numbers unchanged.
 - A deploy needs no yes when the owner asked for the change; any other Netlify deploy or site build waits for a yes. Pushes that change only docs or routine files in daily-project-ideas carry [skip netlify].
 
 ## 9. Tried and rejected
 
 - GIF of emoji-lingua via a mocked API: rejected, it would show output live visitors never get.
-- Proxied (orange-cloud) Cloudflare records: Netlify cannot issue certificates through the proxy.
+- Proxied (orange-cloud) Cloudflare records: Netlify cannot issue certificates through the proxy. (Exception by design: a moved `<x>.pisan.me` record is proxied so the redirect rule can answer it; Netlify no longer serves that name.)
 - Redeploying all apps on every deploy.mjs edit: ran Netlify out of credits on 2026-11-02; owner bought more.
 - `_redirects` rule written before the SPA fallback: the fallback step rewrote the file and erased it.
 
@@ -90,7 +90,7 @@ Owner's words (2026-11-02): "Get people using these projects, advertise these pr
 - Footer tests: `node --test scripts/site-footer.test.mjs`
 - Deploy named apps: Actions > Deploy > Run workflow, targets `app-a app-b` (or `gh api -X POST repos/pisanuw/claude-built-apps/actions/workflows/deploy.yml/dispatches -f ref=main -f 'inputs[targets]=app-a app-b'`).
 - Mirror everything: Actions > Mirror apps > Run workflow.
-- Live check: `curl -s https://<app>.pisan.me/ | grep -c "Want something like this"`; old host `curl -sI https://<site>.netlify.app/` should 301.
+- Live check: `curl -s https://<app>.hintwise.org/ | grep -c "Want something like this"`; old host `curl -sI https://<site>.netlify.app/` should 301.
 - Ideas site: `node build.js && node scripts/smoke_pages.js` in daily-project-ideas.
 
 ## 12. Key files

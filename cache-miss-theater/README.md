@@ -9,7 +9,7 @@ evicted, while a memory map shows which array elements are cached. Compare two
 kernels side by side, sweep a block size or a cache parameter, and generate
 exam questions whose answers come straight from the simulator.
 
-Live: [cache-miss-theater.pisan.me](https://cache-miss-theater.pisan.me/)
+Live: [cache-miss-theater.hintwise.org](https://cache-miss-theater.hintwise.org/)
 
 ![Row-order and column-order sums of the same 32x32 array played through a 1 KB 2-way cache: row order hits on three of every four reads, while column order crowds into four of the 16 sets and every read misses, mostly as conflict misses](demo.gif)
 
