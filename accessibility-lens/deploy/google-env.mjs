@@ -46,7 +46,8 @@ for (const s of sites) {
   if (cmd !== 'apply') {
     // who last changed each var, and when (never the value)
     for (const e of envs) {
-      const ctx = (e.values || []).map((v) => `${v.context}${v.context_parameter ? ':' + v.context_parameter : ''}=${matches(e.key, v.value)}`).join(' ');
+      // Netlify never returns a secret's value, so a secret can only be checked by its updated time.
+      const ctx = (e.values || []).map((v) => `${v.context}${v.context_parameter ? ':' + v.context_parameter : ''}=${e.is_secret ? 'unreadable' : matches(e.key, v.value)}`).join(' ');
       console.log(`  ${e.key}: updated ${e.updated_at || '?'} by ${e.updated_by?.full_name || e.updated_by?.email || '?'}; ${e.is_secret ? 'secret' : 'plain'}; scopes ${(e.scopes || []).join('+') || '?'}; HintWise? ${ctx || 'no values'}`);
     }
     continue;
