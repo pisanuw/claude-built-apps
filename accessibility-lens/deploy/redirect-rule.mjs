@@ -289,8 +289,26 @@ export async function ensureApexRedirect({ dryRun = false, env = process.env, fe
   const existing = findByRef(ruleset, APEX_RULE_REF);
   log(`Before (${APP_DOMAIN}): ${ruleset ? `ruleset ${ruleset.id}, ${(ruleset.rules || []).length} rule(s)` : 'no redirect ruleset yet'}; ` +
     `apex rule: ${existing ? `${existing.id}: ${existing.expression}` : 'none'}`);
+  for (const r of (ruleset?.rules || []).filter((x) => x.ref !== APEX_RULE_REF)) {
+    log(`  other rule ${r.id}: ${r.expression} -> ${r.action_parameters?.from_value?.target_url?.value || r.action_parameters?.from_value?.target_url?.expression || '?'}`);
+  }
   if (existing && sameRule(existing, rule)) {
-    log('The apex redirect is already in place; nothing to do.');
+    // The first matching redirect wins, so an older rule for the same hosts
+    // (the zone used to forward to digital-student-assistant.com) would shadow
+    // ours: move ours to the top. The other rules are kept unchanged.
+    if (ruleset.rules[0]?.id !== existing.id) {
+      log(`${dryRun ? 'Would move' : 'Moving'} rule ${existing.id} to the top so it runs before the other rule(s).`);
+      if (!dryRun) {
+        await cfApi(fetchImpl, token, `/zones/${zoneId}/rulesets/${ruleset.id}/rules/${existing.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ ...rule, position: { index: 1 } }),
+        });
+        const again = await entrypoint({ zoneId, token, fetchImpl });
+        log(`After: rule order ${(again.rules || []).map((r) => r.ref || r.id).join(', ')}`);
+      }
+      return { changed: !dryRun };
+    }
+    log('The apex redirect is already in place and first; nothing to do.');
     return { changed: false };
   }
   log(`${dryRun ? 'Would' : 'Will'} ${existing ? `update rule ${existing.id}` : 'add'} ${rule.ref}: ${rule.expression}\n  -> ${rule.action_parameters.from_value.target_url.expression} (301, path and query kept)`);
