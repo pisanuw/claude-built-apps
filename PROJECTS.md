@@ -1169,3 +1169,43 @@ tests, 99.7% statement coverage; zero axe WCAG 2.2 AA violations in light
 and dark mode.
 Live: [donation-receipts.hintwise.org](https://donation-receipts.hintwise.org).
 See its [README](./donation-receipts/README.md).
+
+### [`us-duty-price-sheet/`](./us-duty-price-sheet)
+
+US Duty Price Sheet: for UK makers who sell handmade goods to US customers
+through Folksy or their own shop and post with Royal Mail duty paid (DDP).
+Since US de minimis ended for mail, each product needs a US 10-digit code,
+the duty has to be folded into the price or the postage, and a whole
+catalogue has to be redone at every rate change. The app bundles a slice of
+the official US tariff schedule (2026 HTS Revision 22, 6,839 ten-digit lines
+from 30 chapters handmade goods fall into, each with its full legal wording
+chain and inherited general rate), fetched at development time by
+`scripts/fetch-hts.mjs` because the USITC service refuses cross-site browser
+calls. A curated map of about 50 handmade product types suggests 1 to 4
+codes each with a plain note on when each applies; free search over the
+wording and typed codes cover the rest, and the maker confirms every code.
+Duty = general rate (parsed from "6.3%", "Free", "25.4¢/kg + 7.7%", "¢
+each", "/gross", "/doz."; litre or sugar-based rates fall back to a rate set
+by hand) + the hand-curated UK layer (10%, heading 9903.05.81, Section 301
+since 24 Jul 2026, cross-checked against the bundled data by a test) + any
+weight or per-item part converted at the maker's exchange rate. Two ways to
+pass it on: US postage = band label price + duty + Royal Mail's 50p handling
+fee, with an each-extra-item figure for Folksy-style postage profiles; or a
+US item price = (UK price + fee) / (1 - rate), so the maker keeps their UK
+price after duty on the higher price, rounded to a chosen ending in pounds
+and dollars. Warnings for value-dependent codes, codes whose rate changed
+since confirmation, parcels over the $2,500 duty-paid limit, bands too
+light, non-UK goods, and categories US partner agencies watch (toys and
+children's products, cosmetics, food, wood, textile labels). "What
+changed": the maker saves a snapshot once their shop matches the sheet; a
+later data refresh, UK layer change, postage price or product edit lists
+each product to update with before and after and the reason. A refresh
+records changed rates in `rate-history.json`, which drives a "tariff data
+updated" notice for returning makers. What-if UK layer, CSV import (Shopify
+export with variant rows, or any spreadsheet; unit-aware weights), postage
+table / US price list / full sheet CSV, print, monthly .ics reminder, JSON
+backup; localStorage with a not-saving warning. Postage bands start as
+clearly labelled examples, not Royal Mail prices. The idea's nightly USITC
+job, Supabase and emails are replaced by this browser-only core.
+Live: [us-duty-price-sheet.hintwise.org](https://us-duty-price-sheet.hintwise.org).
+See its [README](./us-duty-price-sheet/README.md).

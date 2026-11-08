@@ -88,6 +88,7 @@ addresses for now.
 | [Misrepresentation Preflight](https://misrepresentation-preflight.hintwise.org/) ([code](./misrepresentation-preflight)) | Suspended by Google Shopping for “Misrepresentation”? See every place your store contradicts itself (contact details, shipping and return times, prices, your feed) before your next review request. |
 | [Popup Check](https://popup-check.hintwise.org/) ([code](./popup-check)) | A free bookmark that tests your email popup, age gate, cookie banner and chat button with the keyboard and a screen-reader view, and keeps a dated report with a message for the app’s support. |
 | [Student Journey Check](https://student-journey-check.hintwise.org/) ([code](./student-journey-check)) | A test student walks your online course after every update and tells you which step your students would get stuck on. |
+| [US Duty Price Sheet](https://us-duty-price-sheet.hintwise.org/) ([code](./us-duty-price-sheet)) | For UK makers who post to US customers duty paid: a US code for every product, a US price and postage table with the duty included, and a list of which prices to change when US duty changes. |
 
 ### Developer and web tools
 
