@@ -388,3 +388,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-08 [note] Pilot: bombe-bench.hintwise.org live (CNAME + Netlify alias; cert needed POST /ssl/renew, fixed 7f70a3a). Switch step blocked: Cloudflare token lacks the redirect-rules permission.
 2026-11-08 [code] hintwise merged to main (owner: do the whole move incl. redeploying all Netlify sites). Chess TD hintwise merged; td/chesstd.hintwise.org on Render; WEB_ORIGINS both, SMTP_FROM td@hintwise.org.
 2026-11-08 [note] Owner set FROM_EMAIL (daily-project-ideas digest) to an @hintwise.org sender. Hosts step re-run as 8 parallel batches (~4.5 min/app serial was too slow).
+2026-11-08 [code] us-duty-price-sheet built by the build routine (ideas 2026-11-08 #1, tier a: small business): US code per product, duty with the 10% UK layer, US postage or price table, what-changed list. Live at https://us-duty-price-sheet.hintwise.org (CNAME and certificate created by the runner).

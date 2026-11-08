@@ -36,6 +36,7 @@ Owner's words (2026-11-02): "Get people using these projects, advertise these pr
 ## 6. Waiting on the owner
 
 - Post launch drafts 1 to 7 in docs/launch-drafts.md, one at a time, days apart.
+- Remaining for us-duty-price-sheet (built 8 Nov): pisan-labs/us-duty-price-sheet is created and mirrored by the halflife job (04:13), or by hand with `git pull && python3 scripts/pisan_labs_setup.py && gh workflow run mirror.yml --repo pisanuw/claude-built-apps --ref main`; turn on Netlify analytics at https://app.netlify.com/projects/us-duty-price-sheet/analytics-and-metrics/analytics. DNS and certificate are done.
 - pisan-labs/donation-receipts (built 7 Nov) is created and mirrored by the halflife job (04:13), or by hand with `git pull && python3 scripts/pisan_labs_setup.py && gh workflow run mirror.yml --repo pisanuw/claude-built-apps --ref main`.
 
 ## 7. Dated tasks
