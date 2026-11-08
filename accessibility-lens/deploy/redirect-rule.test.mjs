@@ -55,8 +55,8 @@ test('the rule is a 301 dynamic redirect to hintwise.org keeping path and query'
   assert.equal(r.action, 'redirect');
   assert.deepEqual(r.action_parameters.from_value, {
     status_code: 301,
-    target_url: { expression: 'concat("https://", regex_replace(http.host, "[.]pisan[.]me$", ".hintwise.org"), http.request.uri.path)' },
-    preserve_query_string: true,
+    target_url: { expression: 'wildcard_replace(http.request.full_uri, "*://*.pisan.me/*", "https://${2}.hintwise.org/${3}")' },
+    preserve_query_string: false,
   });
   assert.equal(r.action_parameters.from_value.target_url.expression, TARGET_EXPRESSION);
   assert.ok(!r.expression.includes('*') && !r.expression.includes('wildcard'));

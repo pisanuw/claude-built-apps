@@ -88,12 +88,15 @@ export function buildExpression(hosts) {
 }
 
 /**
- * Target URL: https://<host with .pisan.me replaced by .hintwise.org><path>.
- * regex_replace is allowed once per expression in a dynamic redirect target;
- * "[.]" instead of "\." keeps the pattern free of backslash escaping.
+ * Target URL: https://<host with .pisan.me replaced by .hintwise.org><path>?<query>.
+ * wildcard_replace on the full URI (scheme, host, path and query) works on
+ * every plan; regex_replace needs Business or WAF Advanced (Cloudflare
+ * refused it for this zone on 2026-11-08). The query is part of the match,
+ * so preserve_query_string stays off to avoid appending it twice.
  */
 export const TARGET_EXPRESSION =
-  `concat("https://", regex_replace(http.host, "[.]${OLD_DOMAIN.replace('.', '[.]')}$", ".${APP_DOMAIN}"), http.request.uri.path)`;
+  `wildcard_replace(http.request.full_uri, "*://*.${OLD_DOMAIN}/*", "https://\${2}.${APP_DOMAIN}/\${3}")`;
+export const PRESERVE_QUERY = false;
 
 export function buildRule(hosts) {
   const expression = buildExpression(hosts);
@@ -109,7 +112,7 @@ export function buildRule(hosts) {
       from_value: {
         status_code: 301,
         target_url: { expression: TARGET_EXPRESSION },
-        preserve_query_string: true,
+        preserve_query_string: PRESERVE_QUERY,
       },
     },
     enabled: true,
@@ -147,7 +150,7 @@ const sameRule = (a, b) =>
   a.enabled !== false &&
   JSON.stringify(a.action_parameters?.from_value?.target_url) === JSON.stringify(b.action_parameters.from_value.target_url) &&
   a.action_parameters?.from_value?.status_code === 301 &&
-  a.action_parameters?.from_value?.preserve_query_string === true;
+  (a.action_parameters?.from_value?.preserve_query_string ?? false) === (b.action_parameters.from_value.preserve_query_string ?? false);
 
 /** All hosts our rules redirect. */
 export function coveredHosts(ruleset) {
@@ -199,7 +202,7 @@ export async function ensureRedirectHosts({ add = [], dryRun = false, env = proc
   }
   for (const { existing, rule } of changes) {
     const verb = !ruleset ? 'create the entry point ruleset with' : existing ? `update rule ${existing.id}:` : 'add';
-    log(`${dryRun ? 'Would' : 'Will'} ${verb} ${rule.ref}: ${rule.expression}\n  -> ${rule.action_parameters.from_value.target_url.expression} (301, query string kept)`);
+    log(`${dryRun ? 'Would' : 'Will'} ${verb} ${rule.ref}: ${rule.expression}\n  -> ${rule.action_parameters.from_value.target_url.expression} (301, path and query kept)`);
   }
   if (dryRun) {
     log('dry run: nothing changed.');
@@ -290,7 +293,7 @@ export async function ensureApexRedirect({ dryRun = false, env = process.env, fe
     log('The apex redirect is already in place; nothing to do.');
     return { changed: false };
   }
-  log(`${dryRun ? 'Would' : 'Will'} ${existing ? `update rule ${existing.id}` : 'add'} ${rule.ref}: ${rule.expression}\n  -> ${rule.action_parameters.from_value.target_url.expression} (301, query string kept)`);
+  log(`${dryRun ? 'Would' : 'Will'} ${existing ? `update rule ${existing.id}` : 'add'} ${rule.ref}: ${rule.expression}\n  -> ${rule.action_parameters.from_value.target_url.expression} (301, path and query kept)`);
   if (dryRun) {
     log('dry run: nothing changed.');
     return { changed: false };
