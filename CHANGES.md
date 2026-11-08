@@ -374,3 +374,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-07 [decision] Footer: "Email builder@pisan.me." stays together on phones. Owner: no footer deploy; apps pick it up on their next deploy for another reason.
 2026-11-07 [code] popup-check: copy-report UI test waits for the copy instead of two fixed ticks (failed once on CI, run 42400569149).
 2026-11-08 [code] Set CNAME workflow (set-cname.mjs): DNS-only CNAME to any host, deletes A/AAAA. Used for chesstd -> chess-td-web.onrender.com (owner request).
+2026-11-08 [code] Remove Netlify domain workflow (remove-domain.mjs). Used to take chesstd.pisan.me off chess-tournament-director (owner request; chesstd now on Render).
