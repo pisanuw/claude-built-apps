@@ -14,14 +14,11 @@
  * footer and the footer's CSS cannot leak into the app. It inherits the page's
  * text color, so it matches light and dark pages alike.
  *
- * The line breaks are part of the text: each sentence group starts its own
- * line (<br>), and "free :-)" is joined by a no-break space so the smiley
- * never wraps onto a line by itself. "Email builder@hintwise.org." does not
- * wrap (.nb), so on a phone the address never sits on a line alone. The name
- * line comes last, in its own paragraph.
- *
- * The fourth line ends with " &middot; Academic page" only once
- * ACADEMIC_URL is set; while it is empty that part is left out.
+ * The line breaks are part of the text (owner's wording, 2026-11-08): six
+ * lines separated by <br>, then the name in its own paragraph. "free :-)" is
+ * joined by a no-break space so the smiley never wraps onto a line by itself,
+ * and "Email builder@hintwise.org." does not wrap (.nb), so on a phone the
+ * address never sits on a line alone.
  *
  * Usage: node scripts/site-footer.mjs <publishDir> <appName>
  */
@@ -34,7 +31,9 @@ export const CONTACT_EMAIL = 'builder@hintwise.org';
 /** Visible text for PROJECTS_URL: the URL without its scheme and extension. */
 export const PROJECTS_LABEL = 'pisanorg.github.io/yusuf/aiprojects';
 /** Yusuf Pisan's academic page. Not known yet: while empty, the footer omits the link. */
-export const ACADEMIC_URL = '';
+export const ACADEMIC_URL = 'https://pisanorg.github.io/yusuf/';
+/** Visible text for ACADEMIC_URL. */
+export const ACADEMIC_LABEL = 'https://pisanorg.github.io/yusuf/';
 
 /** Marks an already-injected page so a second run is a no-op. */
 export const MARKER = 'data-site-footer';
@@ -60,17 +59,18 @@ const escapeHtml = (s) =>
  * `academicUrl` (default ACADEMIC_URL) adds " &middot; Academic page" to the fourth
  * line; an empty value leaves it out.
  */
-export function footerHtml(app, academicUrl = ACADEMIC_URL) {
+export function footerHtml(app) {
   const subject = encodeURIComponent(app ? `Project idea (via ${app})` : 'Project idea');
   const mailto = `mailto:${CONTACT_EMAIL}?subject=${escapeHtml(subject)}`;
-  const academic = academicUrl ? ` &middot; <a href="${escapeHtml(academicUrl)}">Academic page</a>` : '';
   return (
     `<site-footer ${MARKER}><template shadowrootmode="open"><style>${STYLE}</style>` +
     `<aside aria-label="About the builder"><p>` +
-    `HintWise builds tools like this for small businesses, startups and educators. Built with Claude.<br>` +
+    `HintWise builds tools like this for small businesses, startups and educators.<br>` +
+    `Built with Claude, guided by experts.<br>` +
     `Want something like this for your own work? <span class="nb">Email <a href="${mailto}">${CONTACT_EMAIL}</a>.</span><br>` +
     `Paid projects welcome, interesting ones may be done for free&nbsp;:-)<br>` +
-    `More apps: <a href="${PROJECTS_URL}">${PROJECTS_LABEL}</a>${academic}` +
+    `Academic page: <a href="${ACADEMIC_URL}">${ACADEMIC_LABEL}</a><br>` +
+    `More apps: <a href="${PROJECTS_URL}">${PROJECTS_LABEL}</a>` +
     `</p><p>Yusuf Pisan, Chief Education Officer, HintWise</p></aside></template></site-footer>`
   );
 }
