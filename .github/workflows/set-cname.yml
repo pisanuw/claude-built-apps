@@ -9,6 +9,11 @@ on:
         description: 'Name to set, e.g. chesstd.hintwise.org'
         required: true
         type: string
+      proxied:
+        description: 'Proxy the record (only for an old name a redirect rule answers)'
+        required: false
+        default: false
+        type: boolean
       target:
         description: 'CNAME target, e.g. chess-td-web.onrender.com'
         required: true
@@ -27,5 +32,6 @@ jobs:
         env:
           DOMAIN: ${{ inputs.domain }}
           TARGET: ${{ inputs.target }}
+          PROXIED: ${{ inputs.proxied }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}

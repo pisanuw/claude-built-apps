@@ -7,7 +7,8 @@
  * - An existing CNAME for the name is updated in place; otherwise one is created.
  * - Any A or AAAA record for the name is deleted (a CNAME cannot share a name
  *   with other records).
- * - The record is always DNS only (not proxied).
+ * - The record is DNS only unless PROXIED=true (needed when a Cloudflare
+ *   redirect rule must answer the name, e.g. an old pisan.me name).
  *
  * Usage: node set-cname.mjs <domain> <target>
  * Env: CLOUDFLARE_API_TOKEN (DNS edit + Zone:Read), CLOUDFLARE_ZONE_ID (optional fallback).
@@ -48,7 +49,7 @@ async function main() {
     await cf(token, `/zones/${zoneId}/dns_records/${r.id}`, { method: 'DELETE' });
     console.log(`Deleted ${show(r)}`);
   }
-  const body = JSON.stringify({ type: 'CNAME', name: domain, content: target, proxied: false, ttl: 1 });
+  const body = JSON.stringify({ type: 'CNAME', name: domain, content: target, proxied: process.env.PROXIED === 'true', ttl: 1 });
   const cname = records.find((r) => r.type === 'CNAME');
   const result = cname
     ? await cf(token, `/zones/${zoneId}/dns_records/${cname.id}`, { method: 'PATCH', body })
