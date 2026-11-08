@@ -4,14 +4,14 @@
  * pisan.me (prints only names and the pisan.me host found, never full values),
  * and with --fix rewrite <x>.pisan.me -> its hintwise.org address
  * (scripts/domains.mjs) in those values, then rebuild/redeploy.
- * Skips td.pisan.me, ypdsa.pisan.me and email addresses (@...pisan.me).
+ * Skips td.pisan.me, chesstd.pisan.me (a second allowed origin is harmless), ypdsa.pisan.me and email addresses (@...pisan.me).
  * Env: NETLIFY_AUTH_TOKEN, RENDER_API_KEY.
  */
 import { appDomainFor } from '../../scripts/domains.mjs';
 const N = 'https://api.netlify.com/api/v1', R = 'https://api.render.com/v1';
 const nt = process.env.NETLIFY_AUTH_TOKEN, rt = process.env.RENDER_API_KEY;
 const fix = process.argv.includes('--fix');
-const KEEP = new Set(['td.pisan.me', 'ypdsa.pisan.me', 'pisan.me', 'www.pisan.me', 'yusuf.pisan.me', 'g.pisan.me', 'zoom.pisan.me']);
+const KEEP = new Set(['td.pisan.me', 'chesstd.pisan.me', 'ypdsa.pisan.me', 'pisan.me', 'www.pisan.me', 'yusuf.pisan.me', 'g.pisan.me', 'zoom.pisan.me']);
 async function call(base, tok, route, init = {}) {
   const res = await fetch(`${base}${route}`, { ...init, headers: { authorization: `Bearer ${tok}`, accept: 'application/json', 'content-type': 'application/json' } });
   const t = await res.text();
