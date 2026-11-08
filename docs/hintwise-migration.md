@@ -183,3 +183,9 @@ Paid projects welcome, interesting ones may be done for free :-)
 More apps: pisanorg.github.io/yusuf/aiprojects · Academic page
 Yusuf Pisan, Chief Education Officer, HintWise
 ```
+
+## Showcase site decisions (owner, 8 Nov)
+- The daily-project-ideas Netlify site becomes the HintWise company showcase. hintwise.org stops forwarding to digital-student-assistant.com and serves the showcase (answer 1: yes; answer 2: "HintWise at hintwise.org"). The owner also wrote "Lets go with studio.hintwise.org": whether studio.hintwise.org is the main address or an alias of hintwise.org is open.
+- The daily ideas stay public, renamed "Next up".
+- Featured apps: StepWise, Poincare Paint, Digital Student Assistant, Bombe Bench, Cache Miss Theater, Health Page Tracker Watch.
+

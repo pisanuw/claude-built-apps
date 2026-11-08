@@ -378,3 +378,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-08 [note] chesstd.pisan.me is on no Netlify site: chess-tournament-director no longer exists on Netlify (404) and none of the 87 sites has the domain. chesstd -> Render now.
 2026-11-08 [decision] Owner: hourly checks with nothing new produce no output at all, not even a chat line.
 2026-11-08 [plan] Move all apps from pisan.me to hintwise.org: docs/hintwise-migration.md (code/docs on branches first, then DNS, then links, then pisan.me redirect rule).
+2026-11-08 [decision] Showcase: daily-project-ideas site becomes the HintWise showcase at hintwise.org; ideas stay public as "Next up"; 6 featured apps chosen (docs/hintwise-migration.md).
