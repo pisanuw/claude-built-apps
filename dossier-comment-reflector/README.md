@@ -103,4 +103,4 @@ Deployed to Netlify as a static site from `deploy/target.yml`; no environment
 variables (see `.env.example`).
 
 Built with Claude Code from an idea in
-[daily-project-ideas](https://daily-project-ideas.hintwise.org). MIT license.
+[daily-project-ideas](https://studio.hintwise.org). MIT license.

@@ -15,7 +15,7 @@ and educators. Email [builder@hintwise.org](mailto:builder@hintwise.org?subject=
 with a paragraph about the problem and I'll tell you honestly whether it fits.
 Paid work keeps the lights on, but a useful or interesting problem matters
 more to me than the budget. Looking for ideas? I keep a public list of
-[600+ things I could build for you](https://daily-project-ideas.hintwise.org/).
+[600+ things I could build for you](https://studio.hintwise.org/).
 
 Yusuf Pisan
 

@@ -8,7 +8,7 @@ Draw a grid map, then watch A*, Dijkstra, BFS, DFS, and Greedy best-first think,
 
 ![A* finding a route through a maze](docs/screenshot.png)
 
-Weekend idea 2026-07-26 from [Daily Project Ideas](https://daily-project-ideas.hintwise.org/). The idea suggested Claude API calls for the narration. I skipped that: every line is a template filled with the g, h, and f values the algorithm just computed, so narration is free, instant, deterministic, and works offline. The explanation always matches what the algorithm actually did, which an LLM cannot promise.
+Weekend idea 2026-07-26 from [Daily Project Ideas](https://studio.hintwise.org/). The idea suggested Claude API calls for the narration. I skipped that: every line is a template filled with the g, h, and f values the algorithm just computed, so narration is free, instant, deterministic, and works offline. The explanation always matches what the algorithm actually did, which an LLM cannot promise.
 
 ## What you can do
 

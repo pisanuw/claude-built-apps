@@ -8,7 +8,7 @@ Everything runs in the browser. No accounts, no uploads, no API keys, no trackin
 
 ![Loading the Forest platformer preset: the confusion report flags three critical pairs, the fix studio offers a lighter green (#63ae6b) that adds no new confusion under any vision type and marks the other two colors "no safe fix", and after Apply the report drops to one critical pair](demo.gif)
 
-Idea source: [Daily Project Ideas](https://daily-project-ideas.hintwise.org/), 2026-06-19, Weekend tier.
+Idea source: [Daily Project Ideas](https://studio.hintwise.org/), 2026-06-19, Weekend tier.
 
 ## What it does
 

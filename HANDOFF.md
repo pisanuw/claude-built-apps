@@ -9,7 +9,7 @@ Owner's words (2026-11-02): "Get people using these projects, advertise these pr
 ## 2. What is live (6 November)
 
 - claude-built-apps: 59 apps with a deploy/target.yml, each at `<folder>.hintwise.org` (old `<folder>.pisan.me` addresses 301 there); README (visitor-facing, DEVELOPING.md for developers) with "My biggest project" (Digital Student Assistant) and a "Start here" grid incl. StepWise; 57 pisan-labs mirrors (.github/mirrors.txt; backend-hub and tetromino-arcade are not mirrored), synced daily by halflife (scripts/halflife/, launchd 04:13).
-- daily-project-ideas.hintwise.org: customer-facing idea pages grouped by audience, "Built and live" showcase of 8 apps (6 demo GIFs, 2 screenshots) (web/showcase.json), owner notes at /notes/ (password).
+- studio.hintwise.org: customer-facing idea pages grouped by audience, "Built and live" showcase of 8 apps (6 demo GIFs, 2 screenshots) (web/showcase.json), owner notes at /notes/ (password).
 - pisanorg.github.io/yusuf/aiprojects.html: 99 projects, StepWise newest; Digital Student Assistant featured in the hire box (demo account demo@hintwise.org, no code needed).
 - Routines (owner's, not relay): ideas routine trig_01K986yzFbf3noGkLA6RgZkn daily 01:51 Pacific (10:51 CET), reads ROUTINE.md on main (copy made 6 Nov so agents can fire it; the old http_api routine is deleted); build routine trig_01BAP9nsXTtxTdpMiwk5GdXE daily 02:49 Pacific (11:49 CET), reads BUILD_ROUTINE.md on main.
 - Heads at handoff: claude-built-apps main 411fd03, daily-project-ideas main cefd94e, yusuf master 1f5ca00.
@@ -60,7 +60,7 @@ Owner's words (2026-11-02): "Get people using these projects, advertise these pr
 - The build routine lives in BUILD_ROUTINE.md, read by the task, so it is versioned and editable from any session (the task itself can only be edited by the owner).
 - Every site's primary address is <app>.hintwise.org (owner, 2026-11-08; it was <app>.pisan.me from 2026-11-02). target.yml keeps `customDomain: <app>.pisan.me` and the runner swaps in APP_DOMAIN from scripts/domains.mjs, so no target.yml changes (each would be a paid deploy); old pisan.me names 301 to hintwise.org through a Cloudflare redirect rule. New apps set customDomain from the start; the runner uses it only once DNS answers (creating the CNAME with the Cloudflare token), because a custom domain without a record 301s the working netlify.app address to a dead one.
 - pisan-labs: CI is checked only when the owner messages; a repo is attached to a session only when it gets an issue or PR.
-- Public pages are written for customers (owner, 2026-11-02): no scores, evidence, competitors, build time, tech stack or test counts on the ideas site, README or aiprojects; the owner's notes are at daily-project-ideas.hintwise.org/notes/ behind NOTES_PASSWORD.
+- Public pages are written for customers (owner, 2026-11-02): no scores, evidence, competitors, build time, tech stack or test counts on the ideas site, README or aiprojects; the owner's notes are at studio.hintwise.org/notes/ behind NOTES_PASSWORD.
 - Ideas routine (owner, 2026-11-04): a first run ships 3 to 5 ideas, provisional capped per run (4 first, 3 extra), a day holds up to 10; gate numbers unchanged.
 - A deploy needs no yes when the owner asked for the change; any other Netlify deploy or site build waits for a yes. Pushes that change only docs or routine files in daily-project-ideas carry [skip netlify].
 
