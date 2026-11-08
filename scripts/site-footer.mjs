@@ -16,8 +16,12 @@
  *
  * The line breaks are part of the text: each sentence group starts its own
  * line (<br>), and "free :-)" is joined by a no-break space so the smiley
- * never wraps onto a line by itself. "Email builder@pisan.me." does not wrap
- * (.nb), so on a phone the address never sits on a line alone.
+ * never wraps onto a line by itself. "Email builder@hintwise.org." does not
+ * wrap (.nb), so on a phone the address never sits on a line alone. The name
+ * line comes last, in its own paragraph.
+ *
+ * The fourth line ends with " &middot; Academic page" only once
+ * ACADEMIC_URL is set; while it is empty that part is left out.
  *
  * Usage: node scripts/site-footer.mjs <publishDir> <appName>
  */
@@ -26,9 +30,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const PROJECTS_URL = 'https://pisanorg.github.io/yusuf/aiprojects.html';
-export const CONTACT_EMAIL = 'builder@pisan.me';
+export const CONTACT_EMAIL = 'builder@hintwise.org';
 /** Visible text for PROJECTS_URL: the URL without its scheme and extension. */
 export const PROJECTS_LABEL = 'pisanorg.github.io/yusuf/aiprojects';
+/** Yusuf Pisan's academic page. Not known yet: while empty, the footer omits the link. */
+export const ACADEMIC_URL = '';
 
 /** Marks an already-injected page so a second run is a no-op. */
 export const MARKER = 'data-site-footer';
@@ -49,18 +55,23 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 const escapeHtml = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-/** The footer markup for one app. `app` names the app in the email subject. */
-export function footerHtml(app) {
+/**
+ * The footer markup for one app. `app` names the app in the email subject.
+ * `academicUrl` (default ACADEMIC_URL) adds " &middot; Academic page" to the fourth
+ * line; an empty value leaves it out.
+ */
+export function footerHtml(app, academicUrl = ACADEMIC_URL) {
   const subject = encodeURIComponent(app ? `Project idea (via ${app})` : 'Project idea');
   const mailto = `mailto:${CONTACT_EMAIL}?subject=${escapeHtml(subject)}`;
+  const academic = academicUrl ? ` &middot; <a href="${escapeHtml(academicUrl)}">Academic page</a>` : '';
   return (
     `<site-footer ${MARKER}><template shadowrootmode="open"><style>${STYLE}</style>` +
     `<aside aria-label="About the builder"><p>` +
-    `Built by Claude, guided by me. I create tools like this for small businesses, startups and educators.<br>` +
+    `HintWise builds tools like this for small businesses, startups and educators. Built with Claude.<br>` +
     `Want something like this for your own work? <span class="nb">Email <a href="${mailto}">${CONTACT_EMAIL}</a>.</span><br>` +
     `Paid projects welcome, interesting ones may be done for free&nbsp;:-)<br>` +
-    `More apps: <a href="${PROJECTS_URL}">${PROJECTS_LABEL}</a>.` +
-    `</p><p>Yusuf Pisan</p></aside></template></site-footer>`
+    `More apps: <a href="${PROJECTS_URL}">${PROJECTS_LABEL}</a>${academic}` +
+    `</p><p>Yusuf Pisan, Chief Education Officer, HintWise</p></aside></template></site-footer>`
   );
 }
 
