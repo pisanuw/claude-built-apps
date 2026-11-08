@@ -382,3 +382,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-08 [decision] Owner: Resend sends all email from hintwise.org; Google sign-in (Chess TD) must be updated in the move. Steps in docs/hintwise-migration.md.
 2026-11-08 [decision] Showcase address is studio.hintwise.org (owner correction); hintwise.org apex will 301 there.
 2026-11-08 [decision] Owner answers on the hintwise move: apex->studio, meetme moves, ypdsa stays, Netlify site renamed to hintwise in Phase 2, showcase lists all apps.
+2026-11-08 [note] Resend: hintwise.org verified by owner; test email from builder@hintwise.org delivered (Test email workflow, Resend id 01a1ba54). Phase 1 combined on branch hintwise (9b694fd); sender target.yml change held on hintwise-apps fcb3044.
