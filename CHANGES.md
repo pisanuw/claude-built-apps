@@ -380,3 +380,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-08 [plan] Move all apps from pisan.me to hintwise.org: docs/hintwise-migration.md (code/docs on branches first, then DNS, then links, then pisan.me redirect rule).
 2026-11-08 [decision] Showcase: daily-project-ideas site becomes the HintWise showcase at hintwise.org; ideas stay public as "Next up"; 6 featured apps chosen (docs/hintwise-migration.md).
 2026-11-08 [decision] Owner: Resend sends all email from hintwise.org; Google sign-in (Chess TD) must be updated in the move. Steps in docs/hintwise-migration.md.
+2026-11-08 [decision] Showcase address is studio.hintwise.org (owner correction); hintwise.org apex will 301 there.

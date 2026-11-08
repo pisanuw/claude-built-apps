@@ -185,7 +185,7 @@ Yusuf Pisan, Chief Education Officer, HintWise
 ```
 
 ## Showcase site decisions (owner, 8 Nov)
-- The daily-project-ideas Netlify site becomes the HintWise company showcase. hintwise.org stops forwarding to digital-student-assistant.com and serves the showcase (answer 1: yes; answer 2: "HintWise at hintwise.org"). The owner also wrote "Lets go with studio.hintwise.org": whether studio.hintwise.org is the main address or an alias of hintwise.org is open.
+- The daily-project-ideas Netlify site becomes the HintWise company showcase. hintwise.org stops forwarding to digital-student-assistant.com and serves the showcase (answer 1: yes; answer 2: "HintWise at hintwise.org"). Correction (owner, 8 Nov): the showcase lives at **studio.hintwise.org**, named HintWise Studio. The apex hintwise.org stops forwarding to digital-student-assistant.com and 301s to studio.hintwise.org (default; open to change). daily-project-ideas.pisan.me 301s to studio.hintwise.org.
 - The daily ideas stay public, renamed "Next up".
 - Featured apps: StepWise, Poincare Paint, Digital Student Assistant, Bombe Bench, Cache Miss Theater, Health Page Tracker Watch.
 
