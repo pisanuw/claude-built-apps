@@ -26,6 +26,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // Accept RESEND_API (the name the user configured) or RESEND_API_KEY.
     resendApiKey: (env.RESEND_API ?? env.RESEND_API_KEY)?.trim() || undefined,
     adminEmail: env.ADMIN_EMAIL?.trim() || undefined,
-    fromEmail: env.FROM_EMAIL?.trim() || 'mult-streak@pisan.me',
+    fromEmail: env.FROM_EMAIL?.trim() || 'mult-streak@hintwise.org',
   };
 }
