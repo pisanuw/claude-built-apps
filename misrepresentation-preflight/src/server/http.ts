@@ -28,7 +28,7 @@ export class CheckError extends Error {
   }
 }
 
-export const USER_AGENT = 'Mozilla/5.0 (compatible; MisrepresentationPreflight/1.0; +https://misrepresentation-preflight.pisan.me)';
+export const USER_AGENT = 'Mozilla/5.0 (compatible; MisrepresentationPreflight/1.0; +https://misrepresentation-preflight.hintwise.org)';
 const MAX_REDIRECTS = 5;
 
 /** Follow redirects ourselves, and only within the store the owner typed. */
