@@ -149,16 +149,41 @@ test('hosts: a hintwise name that never answers is a failure; a wrong existing r
   assert.equal(w.state.records.find((x) => x.name === 'pull-the-pin.hintwise.org').content, 'elsewhere.example.com');
 });
 
-test('the daily-project-ideas exception moves to studio.hintwise.org', async () => {
-  const w = world({
-    records: [{ type: 'CNAME', name: 'daily-project-ideas.pisan.me', content: 'daily-project-ideas.netlify.app' }],
-    sites: [{ id: 's9', name: 'daily-project-ideas', custom_domain: 'daily-project-ideas.pisan.me', domain_aliases: [] }],
-    answers: { 'https://studio.hintwise.org/': { status: 200 } },
-  });
+const dpi = () => ({
+  records: [{ type: 'CNAME', name: 'daily-project-ideas.pisan.me', content: 'daily-project-ideas.netlify.app' }],
+  sites: [{ id: 's9', name: 'daily-project-ideas', custom_domain: 'daily-project-ideas.pisan.me', domain_aliases: [] }],
+  answers: { 'https://studio.hintwise.org/': { status: 200 } },
+});
+
+test('daily-project-ideas: dry run names the site rename, the repoint and studio.hintwise.org', async () => {
+  const w = world(dpi());
+  const { logs } = await run(w, { names: ['daily-project-ideas'], step: 'hosts', dryRun: true });
+  assert.deepEqual(writes(w), []);
+  assert.match(logs, /would rename site daily-project-ideas -> hintwise/);
+  assert.match(logs, /would repoint daily-project-ideas\.pisan\.me -> hintwise\.netlify\.app/);
+  assert.match(logs, /would create CNAME studio\.hintwise\.org -> hintwise\.netlify\.app/);
+});
+
+test('daily-project-ideas: site renamed to hintwise, old record repointed, studio.hintwise.org created; resumable', async () => {
+  const w = world(dpi());
   const { r } = await run(w, { names: ['daily-project-ideas'], step: 'hosts', dryRun: false });
   assert.deepEqual(r, { 'daily-project-ideas': 'ok' });
-  assert.ok(w.state.records.some((x) => x.name === 'studio.hintwise.org' && x.content === 'daily-project-ideas.netlify.app'));
+  assert.equal(w.state.sites[0].name, 'hintwise');
+  const rec = (n) => w.state.records.find((x) => x.name === n);
+  assert.equal(rec('daily-project-ideas.pisan.me').content, 'hintwise.netlify.app');
+  assert.deepEqual([rec('studio.hintwise.org').content, rec('studio.hintwise.org').proxied], ['hintwise.netlify.app', false]);
   assert.deepEqual(w.state.sites[0].domain_aliases, ['studio.hintwise.org']);
+  const before = w.state.calls.length;
+  await run(w, { names: ['daily-project-ideas'], step: 'hosts', dryRun: false });
+  assert.deepEqual(w.state.calls.slice(before).filter((c) => c.method !== 'GET' && !c.url.endsWith('/ssl')), []);
+
+  // A run that renamed the site but stopped before the DNS update picks up from there.
+  const half = world(dpi());
+  half.state.sites[0].name = 'hintwise';
+  const again = await run(half, { names: ['daily-project-ideas'], step: 'hosts', dryRun: false });
+  assert.deepEqual(again.r, { 'daily-project-ideas': 'ok' });
+  assert.equal(half.state.records.find((x) => x.name === 'daily-project-ideas.pisan.me').content, 'hintwise.netlify.app');
+  assert.ok(!half.state.calls.some((c) => c.method === 'PATCH' && c.body?.name));
 });
 
 test('Render hosts and non-Netlify records are only reported, with manual steps', async () => {

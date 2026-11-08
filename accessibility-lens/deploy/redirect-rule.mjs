@@ -26,10 +26,14 @@
  * - A redirect rule only runs on proxied records; migrate-domains.mjs
  *   (step `switch`) proxies each <x>.pisan.me record after adding it here.
  *
- *   node redirect-rule.mjs [--dry-run] [name ...]
+ *   node redirect-rule.mjs [--dry-run] [--hintwise-apex] [name ...]
  *     name: "bombe-bench" or "bombe-bench.pisan.me"; none: just show the rule.
+ *     --hintwise-apex: also make sure hintwise.org and www.hintwise.org 301 to
+ *     studio.hintwise.org<path> (one rule on the hintwise.org zone; see
+ *     ensureApexRedirect). It needs those two records proxied (they are).
  *
- * Env: CLOUDFLARE_API_TOKEN (Zone:Read and Single Redirect edit on pisan.me),
+ * Env: CLOUDFLARE_API_TOKEN (Zone:Read and Single Redirect edit on pisan.me,
+ * and on hintwise.org for --hintwise-apex),
  * CLOUDFLARE_ZONE_ID (optional fallback). Run by the "Redirect rule" workflow.
  */
 import { pathToFileURL } from 'node:url';
@@ -162,12 +166,7 @@ export async function ensureRedirectHosts({ add = [], dryRun = false, env = proc
   if (!token) throw new Error('CLOUDFLARE_API_TOKEN is not set');
   const zoneId = await zoneIdFor({ domain: `www.${OLD_DOMAIN}`, token, env, fetchImpl });
 
-  let ruleset = null;
-  try {
-    ruleset = await cfApi(fetchImpl, token, `/zones/${zoneId}/rulesets/phases/${PHASE}/entrypoint`);
-  } catch (e) {
-    if (e.status !== 404) throw e;
-  }
+  let ruleset = await entrypoint({ zoneId, token, fetchImpl });
   const ours = findOurRule(ruleset);
   const mainBefore = ours ? parseHosts(ours.expression) : [];
   if (ours && mainBefore.length === 0) {
@@ -207,6 +206,21 @@ export async function ensureRedirectHosts({ add = [], dryRun = false, env = proc
     return { before, after, changed: false };
   }
 
+  ruleset = await applyChanges({ zoneId, ruleset, changes, token, fetchImpl });
+  const now = coveredHosts(ruleset);
+  const missing = after.filter((h) => !now.includes(h));
+  if (missing.length) throw new Error(`after the update our rules are missing: ${missing.join(' ')}`);
+  const othersAfter = (ruleset.rules || []).filter((r) => !(r.ref === RULE_REF || r.ref?.startsWith(`${RULE_REF}__`))).length;
+  log(`After: ruleset ${ruleset.id}, our rules cover ${now.length} host(s); ${othersAfter} other rule(s) untouched.`);
+  return { before, after: now, changed: true };
+}
+
+/**
+ * Apply rule changes to a zone's redirect entry point ruleset, one call each:
+ * create the ruleset (when none), PATCH our existing rule, or POST a new one.
+ * Never PUTs the whole ruleset, so other rules cannot be lost.
+ */
+async function applyChanges({ zoneId, ruleset, changes, token, fetchImpl }) {
   for (const { existing, rule } of changes) {
     if (!ruleset) {
       ruleset = await cfApi(fetchImpl, token, `/zones/${zoneId}/rulesets`, {
@@ -225,19 +239,76 @@ export async function ensureRedirectHosts({ add = [], dryRun = false, env = proc
       });
     }
   }
-  const now = coveredHosts(ruleset);
-  const missing = after.filter((h) => !now.includes(h));
-  if (missing.length) throw new Error(`after the update our rules are missing: ${missing.join(' ')}`);
-  const othersAfter = (ruleset.rules || []).filter((r) => !(r.ref === RULE_REF || r.ref?.startsWith(`${RULE_REF}__`))).length;
-  log(`After: ruleset ${ruleset.id}, our rules cover ${now.length} host(s); ${othersAfter} other rule(s) untouched.`);
-  return { before, after: now, changed: true };
+  return ruleset;
+}
+
+async function entrypoint({ zoneId, token, fetchImpl }) {
+  try {
+    return await cfApi(fetchImpl, token, `/zones/${zoneId}/rulesets/phases/${PHASE}/entrypoint`);
+  } catch (e) {
+    if (e.status !== 404) throw e;
+    return null;
+  }
+}
+
+/**
+ * hintwise.org zone: the apex and www (proxied CNAMEs, which a redirect rule
+ * needs) send https://studio.hintwise.org<path>, 301, query kept. One rule,
+ * ref APEX_RULE_REF; nothing else in that zone is touched. This never edits
+ * DNS records: if the apex or www were ever made DNS only, the rule would
+ * silently stop running.
+ */
+export const APEX_RULE_REF = 'hintwise_apex_to_studio';
+export const APEX_TARGET = `studio.${APP_DOMAIN}`;
+export function buildApexRule() {
+  return {
+    ref: APEX_RULE_REF,
+    description: `${APP_DOMAIN} and www.${APP_DOMAIN} -> ${APEX_TARGET} (managed by claude-built-apps redirect-rule.mjs)`,
+    expression: `http.host in {"${APP_DOMAIN}" "www.${APP_DOMAIN}"}`,
+    action: 'redirect',
+    action_parameters: {
+      from_value: {
+        status_code: 301,
+        target_url: { expression: `concat("https://${APEX_TARGET}", http.request.uri.path)` },
+        preserve_query_string: true,
+      },
+    },
+    enabled: true,
+  };
+}
+
+export async function ensureApexRedirect({ dryRun = false, env = process.env, fetchImpl = fetch, log = console.log }) {
+  const token = env.CLOUDFLARE_API_TOKEN;
+  if (!token) throw new Error('CLOUDFLARE_API_TOKEN is not set');
+  const zoneId = await zoneIdFor({ domain: `www.${APP_DOMAIN}`, token, env, fetchImpl });
+  const ruleset = await entrypoint({ zoneId, token, fetchImpl });
+  const rule = buildApexRule();
+  const existing = findByRef(ruleset, APEX_RULE_REF);
+  log(`Before (${APP_DOMAIN}): ${ruleset ? `ruleset ${ruleset.id}, ${(ruleset.rules || []).length} rule(s)` : 'no redirect ruleset yet'}; ` +
+    `apex rule: ${existing ? `${existing.id}: ${existing.expression}` : 'none'}`);
+  if (existing && sameRule(existing, rule)) {
+    log('The apex redirect is already in place; nothing to do.');
+    return { changed: false };
+  }
+  log(`${dryRun ? 'Would' : 'Will'} ${existing ? `update rule ${existing.id}` : 'add'} ${rule.ref}: ${rule.expression}\n  -> ${rule.action_parameters.from_value.target_url.expression} (301, query string kept)`);
+  if (dryRun) {
+    log('dry run: nothing changed.');
+    return { changed: false };
+  }
+  const after = await applyChanges({ zoneId, ruleset, changes: [{ existing, rule }], token, fetchImpl });
+  const now = findByRef(after, APEX_RULE_REF);
+  if (!now || !sameRule(now, rule)) throw new Error('after the update the apex rule is not in place');
+  log(`After (${APP_DOMAIN}): ruleset ${after.id}, apex rule ${now.id}; ${(after.rules || []).length - 1} other rule(s) untouched.`);
+  return { changed: true };
 }
 
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
-  const names = args.filter((a) => a !== '--dry-run').flatMap((a) => a.split(/[\s,]+/)).filter(Boolean);
-  await ensureRedirectHosts({ add: names, dryRun });
+  const apex = args.includes('--hintwise-apex');
+  const names = args.filter((a) => !a.startsWith('--')).flatMap((a) => a.split(/[\s,]+/)).filter(Boolean);
+  if (names.length || !apex) await ensureRedirectHosts({ add: names, dryRun });
+  if (apex) await ensureApexRedirect({ dryRun });
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

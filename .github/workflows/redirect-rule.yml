@@ -6,6 +6,9 @@
 # scripts/domains.mjs) get their own rule. A redirect only runs once the
 # <x>.pisan.me record is proxied: the "Migrate domains" workflow, step
 # switch, adds hosts here and proxies them in one run.
+# hintwise_apex: one more rule, on the hintwise.org zone, sending the apex and
+# www to studio.hintwise.org<path> (both records are proxied CNAMEs today;
+# this workflow never changes DNS records).
 name: Redirect rule
 
 on:
@@ -15,6 +18,11 @@ on:
         description: "App names to add (e.g. bombe-bench pull-the-pin); blank: just show the rule. td only if named."
         required: false
         type: string
+      hintwise_apex:
+        description: 'Also make hintwise.org and www.hintwise.org 301 to studio.hintwise.org'
+        required: false
+        type: boolean
+        default: false
       dry_run:
         description: 'Only show what would change'
         required: false
@@ -38,10 +46,12 @@ jobs:
           set -f  # no globbing of the host list
           args=()
           if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          if [ "$APEX" = "true" ]; then args+=(--hintwise-apex); fi
           # shellcheck disable=SC2086
           node accessibility-lens/deploy/redirect-rule.mjs "${args[@]}" $HOSTS
         env:
           HOSTS: ${{ inputs.hosts }}
           DRY_RUN: ${{ inputs.dry_run }}
+          APEX: ${{ inputs.hintwise_apex }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}

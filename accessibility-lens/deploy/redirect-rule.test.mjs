@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   normalizeHost, parseHosts, buildExpression, buildRule, ensureRedirectHosts,
   RULE_REF, PHASE, TARGET_EXPRESSION, MAX_EXPRESSION, buildRenameRule, coveredHosts,
+  ensureApexRedirect, buildApexRule, APEX_RULE_REF,
 } from './redirect-rule.mjs';
 
 const CF = 'https://api.cloudflare.com/client/v4';
@@ -175,4 +176,44 @@ test('an up-to-date rename rule is left alone and counted as covered', async () 
   const res = await ensureRedirectHosts({ add: ['daily-project-ideas'], env, fetchImpl: impl, log: quiet });
   assert.equal(res.changed, false);
   assert.ok(calls.every((c) => c.method === 'GET'));
+});
+
+test('the hintwise.org apex and www redirect to studio.hintwise.org with one rule of their own', async () => {
+  const r = buildApexRule();
+  assert.equal(r.ref, APEX_RULE_REF);
+  assert.equal(r.expression, 'http.host in {"hintwise.org" "www.hintwise.org"}');
+  assert.deepEqual(r.action_parameters.from_value, {
+    status_code: 301,
+    target_url: { expression: 'concat("https://studio.hintwise.org", http.request.uri.path)' },
+    preserve_query_string: true,
+  });
+  const hw = { method: 'GET', url: `${CF}/zones?name=hintwise.org`, body: cf([{ id: 'hw', name: 'hintwise.org' }]) };
+  const hwEntry = `${CF}/zones/hw/rulesets/phases/${PHASE}/entrypoint`;
+  const foreign = { id: 'x', ref: 'other', expression: 'http.host eq "a.hintwise.org"', action: 'redirect' };
+
+  // Dry run reads only.
+  const dry = fakeFetch([hw, { method: 'GET', url: hwEntry, body: cf({ id: 'rs9', rules: [foreign] }) }]);
+  assert.deepEqual(await ensureApexRedirect({ dryRun: true, env, fetchImpl: dry.impl, log: quiet }), { changed: false });
+  assert.ok(dry.calls.every((c) => c.method === 'GET'));
+
+  // Added next to the foreign rule, which is never touched.
+  const add = fakeFetch([
+    hw,
+    { method: 'GET', url: hwEntry, body: cf({ id: 'rs9', rules: [foreign] }) },
+    { method: 'POST', url: `${CF}/zones/hw/rulesets/rs9/rules`, body: (b) => cf({ id: 'rs9', rules: [foreign, { ...b, id: 'a1' }] }) },
+  ]);
+  assert.deepEqual(await ensureApexRedirect({ env, fetchImpl: add.impl, log: quiet }), { changed: true });
+  assert.ok(!add.calls.some((c) => c.url.includes('/rules/x') || c.method === 'PUT' || c.method === 'DELETE'));
+
+  // In place already: nothing to do. A stale one is patched.
+  const same = fakeFetch([hw, { method: 'GET', url: hwEntry, body: cf({ id: 'rs9', rules: [{ ...r, id: 'a1' }] }) }]);
+  assert.deepEqual(await ensureApexRedirect({ env, fetchImpl: same.impl, log: quiet }), { changed: false });
+  const stale = { ...r, id: 'a1', expression: 'http.host eq "hintwise.org"' };
+  const patch = fakeFetch([
+    hw,
+    { method: 'GET', url: hwEntry, body: cf({ id: 'rs9', rules: [stale] }) },
+    { method: 'PATCH', url: `${CF}/zones/hw/rulesets/rs9/rules/a1`, body: (b) => cf({ id: 'rs9', rules: [{ ...b, id: 'a1' }] }) },
+  ]);
+  assert.deepEqual(await ensureApexRedirect({ env, fetchImpl: patch.impl, log: quiet }), { changed: true });
+  await assert.rejects(ensureApexRedirect({ env: {}, fetchImpl: patch.impl, log: quiet }), /CLOUDFLARE_API_TOKEN/);
 });

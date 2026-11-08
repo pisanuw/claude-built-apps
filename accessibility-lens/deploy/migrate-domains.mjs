@@ -14,6 +14,8 @@
  *      pull-the-pin -> pull-the-pin-lab.netlify.app), DNS only. An existing
  *      record is never changed, only reported.
  *   2. <x>.hintwise.org added to the Netlify site as a domain alias.
+ *   (A site in SITE_RENAMES is renamed first, e.g. daily-project-ideas ->
+ *   hintwise, and the <x>.pisan.me CNAME repointed at the new .netlify.app.)
  *   3. The certificate requested, then https://<x>.hintwise.org/ awaited
  *      until it answers below 400 (which needs the certificate).
  *
@@ -47,6 +49,14 @@ import { APP_DOMAIN, OLD_DOMAIN, isSubdomainOf, hostLabelOf, appDomainFor } from
 
 /** Netlify sites outside this repo that also move (name -> site read from DNS). */
 export const EXTRA_APPS = ['daily-project-ideas', 'meetme', 'ypai', 'stepwise'];
+/**
+ * Netlify sites renamed during step `hosts`: current site name -> new name.
+ * The old <site>.netlify.app name stops existing, so the same run repoints
+ * the <x>.pisan.me CNAME at the new one (traffic keeps flowing meanwhile:
+ * Netlify routes custom domains by Host header) and creates the hintwise
+ * record straight at the new name. Owner's decision, 8 Nov 2026.
+ */
+export const SITE_RENAMES = Object.freeze({ 'daily-project-ideas': 'hintwise' });
 /** Render hosts: out of scope here, manual steps only. */
 export const RENDER_APPS = { chesstd: 'chess-td-web.onrender.com', td: 'chess-td-server.onrender.com' };
 
@@ -123,7 +133,14 @@ async function inspect(ctx, zones, name) {
   const newRec = hostRecord(await dnsRecords({ zoneId: zones.new, name: newHost, token: ctx.token, fetchImpl: ctx.fetchImpl }));
   const info = { name, oldHost, newHost, oldRec, newRec, target };
   if (oldRec.type !== 'CNAME' || !target.endsWith(NETLIFY)) return info;
-  info.site = await ctx.netlify(`/sites/${target}`);
+  const fromTarget = target.slice(0, -NETLIFY.length);
+  try {
+    info.site = await ctx.netlify(`/sites/${target}`);
+  } catch (e) {
+    // Renamed by an earlier run whose DNS update did not happen: find it by its new name.
+    if (!SITE_RENAMES[fromTarget]) throw e;
+    info.site = await ctx.netlify(`/sites/${SITE_RENAMES[fromTarget]}${NETLIFY}`);
+  }
   return info;
 }
 
@@ -154,7 +171,31 @@ async function hostsStep(ctx, zones, name) {
     manualSteps(ctx, name, i.target, 'hosts');
     return 'manual';
   }
-  const { newHost, target, site } = i;
+  const { newHost, site } = i;
+  let target = i.target;
+
+  // A planned site rename, then the old record follows the site's real name.
+  const renameTo = SITE_RENAMES[site.name];
+  if (renameTo) {
+    if (ctx.dryRun) {
+      ctx.log(`  Netlify: would rename site ${site.name} -> ${renameTo}.`);
+      site.name = renameTo; // for the rest of the dry run's messages
+    } else {
+      const renamed = await ctx.netlify(`/sites/${site.id}`, { method: 'PATCH', body: JSON.stringify({ name: renameTo }) });
+      if (renamed.name !== renameTo) throw new Error(`Netlify renamed ${site.name} to ${renamed.name}, not ${renameTo} (name taken?)`);
+      ctx.log(`  Netlify: renamed site ${site.name} -> ${renameTo}.`);
+      site.name = renameTo;
+    }
+  }
+  const siteTarget = `${site.name}${NETLIFY}`;
+  if (target !== siteTarget) {
+    if (ctx.dryRun) ctx.log(`  DNS: would repoint ${i.oldHost} -> ${siteTarget} (was ${target}; proxied unchanged).`);
+    else {
+      await ctx.cf(`/zones/${zones.old}/dns_records/${i.oldRec.id}`, { method: 'PATCH', body: JSON.stringify({ content: siteTarget }) });
+      ctx.log(`  DNS: repointed ${i.oldHost} -> ${siteTarget} (was ${target}).`);
+    }
+    target = siteTarget;
+  }
 
   if (i.newRec) {
     const same = i.newRec.type === 'CNAME' && String(i.newRec.content).toLowerCase() === target;

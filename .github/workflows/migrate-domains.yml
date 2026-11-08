@@ -6,7 +6,9 @@
 #                <x>.pisan.me, make hintwise the Netlify primary and drop
 #                the pisan.me alias.
 # Renamed hosts (e.g. daily-project-ideas -> studio.hintwise.org) come from
-# HOST_RENAMES in scripts/domains.mjs. Render hosts (chesstd, td): manual
+# HOST_RENAMES in scripts/domains.mjs; Netlify site renames (daily-project-ideas
+# -> hintwise, done in step hosts with its DNS) from SITE_RENAMES in
+# migrate-domains.mjs. Render hosts (chesstd, td): manual
 # steps are printed only. dry_run (the default) only reads.
 name: Migrate domains
 
