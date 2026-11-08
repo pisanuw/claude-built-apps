@@ -376,3 +376,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-08 [code] Set CNAME workflow (set-cname.mjs): DNS-only CNAME to any host, deletes A/AAAA. Used for chesstd -> chess-td-web.onrender.com (owner request).
 2026-11-08 [code] Remove Netlify domain workflow (remove-domain.mjs). Used to take chesstd.pisan.me off chess-tournament-director (owner request; chesstd now on Render).
 2026-11-08 [note] chesstd.pisan.me is on no Netlify site: chess-tournament-director no longer exists on Netlify (404) and none of the 87 sites has the domain. chesstd -> Render now.
+2026-11-08 [decision] Owner: hourly checks with nothing new produce no output at all, not even a chat line.

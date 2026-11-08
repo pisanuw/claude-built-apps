@@ -115,6 +115,7 @@ Relay routines (Scheduling below) plus the owner's ideas and build routines (sec
 ### Owner's standing instructions
 - Ask before spending money (Netlify deploys and builds the owner did not ask for, paid APIs), publishing outside the session, deleting the unrestorable. Push to main is fine. Number questions; recommend rather than survey.
 - Public pages are for customers (section 8). Never invent facts about the owner in his voice.
+- Hourly check with nothing new: say nothing at all, not even a one-line "nothing new" in chat (owner, 2026-11-08).
 - Report times in Europe/Berlin (owner travelling in Germany; home zone America/Los_Angeles).
 - CHANGES.md append-only, `YYYY-MM-DD [type] text`; Conventional Commits in claude-built-apps.
 
