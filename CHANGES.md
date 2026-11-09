@@ -417,3 +417,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-09 [note] check-google baseline: the project's Google provider uses client 989071206831-; Google accepts the request. The move to the HintWise client waits for the owner's redirect URIs.
 2026-11-09 [code] Supabase Google provider moved to the HintWise client (configure-auth --google, owner added the redirect URIs); check-google passed 17:35 CET.
 2026-11-09 [decision] Owner: custom domain add-on delayed; JWT rotation reminder dropped (risk accepted); Anthropic monthly spend limit set.
+
+2026-11-09 [code] LLM gateway live: ANTHROPIC_API_KEY function secret set, llm-gateway deployed, platform/supabase.json committed; smoke test 401 without a session; usage report dry run OK, no apps registered.

@@ -233,9 +233,9 @@ In `<slug>/deploy/target.yml`: `supabase: true` when the app has a schema
    not to rotate it (9 Nov). If that changes: Dashboard, Project Settings,
    API or JWT Keys, generate a new secret, then update
    `SUPABASE_SERVICE_ROLE_KEY` and the keys in every app on the project.
-2. Google Cloud console, HintWise OAuth client: add the authorized redirect
-   URI `https://arktxlrlyceffyozdwhq.supabase.co/auth/v1/callback` (only if
-   the project's Google sign-in should move to the HintWise client).
+2. Done 9 Nov: the owner added the redirect URI
+   `https://arktxlrlyceffyozdwhq.supabase.co/auth/v1/callback` to the
+   HintWise OAuth client, and the project's Google sign-in moved to it.
 3. Done 9 Nov: the owner set a monthly spend limit in the Anthropic console
    as the backstop behind the gateway caps.
 4. Say whether anything found by `inspect` may be removed (the quiz tables,
@@ -245,19 +245,17 @@ In `<slug>/deploy/target.yml`: `supabase: true` when the app has a schema
 
 - Whether magic links need any flag beyond `external_email_enabled` (the
   project already sends email sign-in links, so probably not).
-- `supabase functions deploy` flags on the current CLI (`--project-ref` vs
-  `--remote`); the workflow tries `--project-ref` and falls back to
-  `--remote`; the first `deploy-gateway` run settles it.
+- Settled 9 Nov: the current CLI takes `--remote=<ref>` (it calls
+  `--project-ref` deprecated) and needs `--yes`, or it refuses to change a
+  remote project without a terminal; the workflow passes both.
 - `SUPABASE_DB_PASSWORD` is unused while migrations go through the Management
   API; it stays for a future direct-connection need.
 
 Added by the scaffolding (branch `platform-scaffold`, 9 Nov):
 
-- Whether the CLI bundles the gateway entry's imports from outside
-  `supabase/functions` (`index.ts` imports `../../../src/gateway/*.ts`, the
-  project dir is `platform/`). If the first deploy refuses them, the fallback
-  is a workflow step that copies `platform/src/gateway` into
-  `platform/supabase/functions/_shared/gateway` before deploying.
+- Settled 9 Nov: the CLI bundles the gateway entry's imports from outside
+  `supabase/functions` (`index.ts` imports `../../../src/gateway/*.ts`); the
+  first deploy went through and the function answers.
 - The Management API's `database/query` response for statements that are not
   a select: the script treats any HTTP 2xx as success and reads rows only
   from arrays.
@@ -310,5 +308,5 @@ Added by the scaffolding (branch `platform-scaffold`, 9 Nov):
   `supabase: true`.
 - `.github/workflows/ci.yml`: the `platform` job (lint, typecheck, coverage).
 - `platform/README.md`: what is here and the first-time command order.
-- `platform/supabase.json`: public URL and anon key, written from `keys`
-  (not present until the owner runs it).
+- `platform/supabase.json`: public URL and anon key, committed by the
+  Supabase admin workflow's `keys --write` (9 Nov).
