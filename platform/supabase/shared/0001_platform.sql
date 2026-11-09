@@ -4,13 +4,13 @@
 -- the file's sha256 in platform.migrations. Everything here is idempotent
 -- (create if not exists, create or replace, drop policy if exists) so a
 -- re-run is harmless. The project is shared with live apps: this file only
--- adds objects in its own schema and one trigger on auth.users.
+-- adds objects in its own schema; it never alters the auth schema.
 
 create schema if not exists platform;
 comment on schema platform is 'HintWise shared platform: profiles, LLM gateway apps and ledger, migration log (docs/platform.md).';
 
 -- ---------------------------------------------------------------------------
--- profiles: one row per auth user, filled by a trigger on auth.users
+-- profiles: one row per auth user, created by platform.ensure_profile()
 -- ---------------------------------------------------------------------------
 
 create table if not exists platform.profiles (
@@ -19,40 +19,45 @@ create table if not exists platform.profiles (
   display_name text,
   created_at timestamptz default now()
 );
-comment on table platform.profiles is 'One row per auth user, written by platform.handle_new_user on sign-up; a user reads and updates only their own row.';
+comment on table platform.profiles is 'One row per auth user, written by platform.ensure_profile() after sign-in; a user reads and updates only their own row.';
 comment on column platform.profiles.display_name is 'From the Google profile (full_name or name) or the part of the email before @; the user may change it.';
 
-create or replace function platform.handle_new_user()
-returns trigger
+-- No trigger on auth.users: the project is shared with live apps and Supabase
+-- does not let this role add triggers to its auth tables ("must be owner of
+-- relation users", 9 Nov). An app calls platform.ensure_profile() after
+-- sign-in instead (platform/templates/app/src/lib/auth.ts does).
+create or replace function platform.ensure_profile()
+returns platform.profiles
 language plpgsql
 security definer
 set search_path = platform, pg_temp
 as $$
+declare
+  uid uuid := auth.uid();
+  u record;
+  p platform.profiles;
 begin
+  if uid is null then
+    raise exception 'not signed in' using errcode = '28000';
+  end if;
+  select email, raw_user_meta_data into u from auth.users where id = uid;
   insert into platform.profiles (id, email, display_name)
   values (
-    new.id,
-    new.email,
+    uid,
+    u.email,
     coalesce(
-      new.raw_user_meta_data ->> 'full_name',
-      new.raw_user_meta_data ->> 'name',
-      split_part(coalesce(new.email, ''), '@', 1)
+      u.raw_user_meta_data ->> 'full_name',
+      u.raw_user_meta_data ->> 'name',
+      split_part(coalesce(u.email, ''), '@', 1)
     )
   )
-  on conflict (id) do update
-    set email = excluded.email,
-        display_name = coalesce(platform.profiles.display_name, excluded.display_name);
-  return new;
+  on conflict (id) do update set email = excluded.email
+  returning * into p;
+  return p;
 end;
 $$;
-comment on function platform.handle_new_user() is 'Trigger function: upserts platform.profiles for a new auth.users row (security definer, search_path pinned).';
-revoke all on function platform.handle_new_user() from public;
-
-drop trigger if exists platform_profile_on_signup on auth.users;
-create trigger platform_profile_on_signup
-  after insert on auth.users
-  for each row execute function platform.handle_new_user();
-comment on trigger platform_profile_on_signup on auth.users is 'Creates the platform.profiles row when a user signs up.';
+comment on function platform.ensure_profile() is 'Creates or refreshes the signed-in user''s platform.profiles row and returns it; apps call it after sign-in (security definer, search_path pinned).';
+revoke all on function platform.ensure_profile() from public;
 
 -- ---------------------------------------------------------------------------
 -- llm_apps: one row per app that may use the owner's key through the gateway
@@ -252,5 +257,6 @@ grant select on platform.profiles to authenticated;
 grant update (display_name) on platform.profiles to authenticated;
 grant all on all tables in schema platform to service_role;
 grant all on all sequences in schema platform to service_role;
+grant execute on function platform.ensure_profile() to authenticated;
 grant execute on function platform.llm_spend(text, uuid) to service_role;
 grant execute on function platform.llm_usage_report(int) to service_role;

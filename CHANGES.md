@@ -406,3 +406,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-09 [note] Incident: the first Supabase inspect run printed jwt_secret in a public Actions log (6 min); logs deleted, script fixed (9f1efff). Owner asked to rotate the JWT secret and update dependent keys.
 2026-11-09 [code] BUILD_ROUTINE.md rewritten for weekly builds (day state machine, pick/plan/slice, one milestone a day with review, polish, finish); pause notice removed; templates docs/templates/PROJECT_HANDOFF.md and PLAN.md; docs/platform.md.
 2026-11-09 [code] Platform scaffolding merged (platform/): shared SQL, Supabase admin commands, llm-gateway edge function with tests, LLM usage email workflow, app template, Deploy migrations step for supabase: true targets.
+2026-11-09 [code] apply-shared failed safely (no trigger allowed on auth.users); platform.ensure_profile(), called by apps after sign-in, replaces the trigger. Template gains ensureProfile().

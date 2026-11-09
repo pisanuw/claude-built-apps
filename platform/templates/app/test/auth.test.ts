@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Session, User } from '@supabase/supabase-js';
-import { currentToken, defaultRedirect, mountSignIn, onAuth, sendMagicLink, signInWithGoogle, signOut, type AuthClient } from '../src/lib/auth';
+import { currentToken, defaultRedirect, ensureProfile, mountSignIn, onAuth, sendMagicLink, signInWithGoogle, signOut, type AuthClient, type ProfileClient } from '../src/lib/auth';
 
 type Listener = (event: string, session: Session | null) => void;
 
@@ -127,5 +127,20 @@ describe('mountSignIn', () => {
     await flush();
     button('Continue with Google').click();
     expect(auth.signInWithOAuth).toHaveBeenCalledWith({ provider: 'google', options: { redirectTo: location.origin + location.pathname } });
+  });
+});
+
+describe('ensureProfile', () => {
+  it('calls platform.ensure_profile and returns null on success', async () => {
+    const rpc = vi.fn().mockResolvedValue({ error: null });
+    const schema = vi.fn().mockReturnValue({ rpc });
+    expect(await ensureProfile({ schema } as unknown as ProfileClient)).toBeNull();
+    expect(schema).toHaveBeenCalledWith('platform');
+    expect(rpc).toHaveBeenCalledWith('ensure_profile');
+  });
+
+  it('returns the error message instead of throwing', async () => {
+    const rpc = vi.fn().mockResolvedValue({ error: { message: 'not signed in' } });
+    expect(await ensureProfile({ schema: () => ({ rpc }) } as unknown as ProfileClient)).toBe('not signed in');
   });
 });

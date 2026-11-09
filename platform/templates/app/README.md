@@ -65,3 +65,11 @@ the repo, install, and run the gates:
 cp -r platform/templates/app /tmp/tmpl-check && cd /tmp/tmpl-check
 npm install && npm run lint && npm run typecheck && npm run coverage && npm run build
 ```
+
+## Profiles
+
+The platform keeps one `platform.profiles` row per user, but it has no trigger
+on Supabase's `auth.users` (the shared project does not allow one). Call
+`ensureProfile()` from `src/lib/auth.ts` once after sign-in, for example in
+the `onAuth` callback when a user appears. It never throws; a missing profile
+row does not stop the app.

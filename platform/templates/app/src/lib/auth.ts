@@ -28,6 +28,19 @@ export function signOut(client: AuthClient = getSupabase()) {
   return client.auth.signOut();
 }
 
+/** The part of the Supabase client ensureProfile uses. */
+export type ProfileClient = { schema(name: string): { rpc(fn: string): PromiseLike<{ error: { message: string } | null }> } };
+
+/**
+ * Creates or refreshes the user's row in platform.profiles. Called once per
+ * sign-in; the platform has no trigger on auth.users (docs/platform.md).
+ * Failures are reported, never thrown: the app works without a profile row.
+ */
+export async function ensureProfile(client: ProfileClient = getSupabase() as unknown as ProfileClient): Promise<string | null> {
+  const { error } = await client.schema('platform').rpc('ensure_profile');
+  return error ? error.message : null;
+}
+
 /** The current session's access token, for the LLM gateway. */
 export async function currentToken(client: AuthClient = getSupabase()): Promise<string | null> {
   const { data } = await client.auth.getSession();

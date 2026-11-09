@@ -47,7 +47,9 @@ values.
 - Shared tables (`platform/supabase/shared/*.sql`, schema `platform`, exposed
   through PostgREST like an app schema):
   - `platform.profiles (id uuid pk references auth.users, email, display_name,
-    created_at)`, filled by a trigger on `auth.users`; readable by its owner.
+    created_at)`, created by `platform.ensure_profile()`, which an app calls after
+    sign-in (Supabase refused a trigger on `auth.users`: "must be owner of
+    relation users", 9 Nov); readable by its owner.
   - `platform.llm_apps (slug pk, enabled, default_model, allowed_models text[],
     cap_day_usd, cap_week_usd, cap_month_usd, cap_user_day_usd, max_tokens,
     created_at)`: one row per app that uses the gateway; the owner changes
