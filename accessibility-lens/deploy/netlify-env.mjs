@@ -77,6 +77,13 @@ async function main() {
     const envs = await list();
     console.log(`${envs.length} env var(s):`);
     for (const e of envs.sort((a, b) => a.key.localeCompare(b.key))) console.log(`  ${describeVar(e)}`);
+    // Env changes reach functions only with a new deploy, so show the last few.
+    const deploys = await netlify(`/sites/${info.id}/deploys?per_page=5`);
+    console.log('Recent deploys:');
+    for (const d of deploys) {
+      const live = d.id === info.published_deploy?.id ? ' (live)' : '';
+      console.log(`  ${d.created_at} ${d.state}${live} ${d.context || ''} ${d.error_message ? '- ' + String(d.error_message).slice(0, 200) : ''}`);
+    }
     return;
   }
 
