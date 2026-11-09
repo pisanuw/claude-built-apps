@@ -424,3 +424,6 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-09 [code] Netlify env workflow (netlify-env.mjs): show a site's domains and URL variables; set a plain URL variable, re-creating a secret one.
 
 2026-11-09 [note] Owner: UpvoteMe loads and Google sign-in works; the app still sends Google the upvoteme.netlify.app callback (hintwise.org callback not registered). PasteMD on hintwise.org still fails.
+
+2026-11-09 [code] PasteMD APP_URL and UpvoteMe NEXTAUTH_URL now plain hintwise.org addresses (owner yes); both rebuilt and send Google the hintwise callbacks, which Google accepts.
+2026-11-09 [code] pisanuw/pastemd branch feat/supabase-google-signin: Google sign-in through Supabase (PKCE, users kept by email), first old app moved off its own Google client. Not merged.
