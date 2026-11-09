@@ -38,8 +38,8 @@ This is a monorepo of capstone projects built autonomously from prompts in
 
 ## Adding a new project
 
-1. Pick the oldest un-implemented ideas day from `pisanuw/daily-project-ideas`.
-2. Build in a new subdirectory. Follow the same structure: TypeScript, vitest tests (≥85% coverage), `.env.example`, `deploy/target.yml`.
+1. Since 9 November 2026 the build routine (BUILD_ROUTINE.md) builds one substantial idea per week over up to seven build days, each day a fresh session resuming from `<slug>/HANDOFF.md` (template: `docs/templates/PROJECT_HANDOFF.md`; plan template `docs/templates/PLAN.md`). It picks a `substantial` Multi-week idea from `pisanuw/daily-project-ideas`, small business first.
+2. Build in a new subdirectory. Follow the same structure: TypeScript, vitest tests (≥85% coverage), `.env.example`, `deploy/target.yml`. Use the shared platform in `docs/platform.md`: the Supabase project for sign-in (Google, magic link) and a per-app schema `app_<slug_>` with row level security and migrations in `<slug>/supabase/migrations/`; the LLM gateway for model calls (bring-your-own-key always offered; the owner's key only through the gateway and its caps; deterministic code wherever it does the job); backend-hub on Render when a server is unavoidable. No live app calls Claude or any paid API on the owner's key except through the gateway.
 3. Add a row to the matching audience table in the root README and a write-up section at the end of PROJECTS.md.
 4. The deploy workflow auto-discovers any `*/deploy/target.yml`, so no workflow changes are needed.
    Every app's primary address is `https://<app>.hintwise.org`. In `target.yml`, still write `netlify.customDomain: <app>.pisan.me` from the first deploy, like every other app: the runner swaps the base domain for `APP_DOMAIN` from `scripts/domains.mjs`, so it serves `<app>.hintwise.org` (this keeps the 60 existing `target.yml` files, and their paid deploys, untouched). The runner creates the Cloudflare CNAME (secret `CLOUDFLARE_API_TOKEN`) and redirects the `.netlify.app` address there. Link to the hintwise.org address everywhere; old `<app>.pisan.me` links 301 to it.

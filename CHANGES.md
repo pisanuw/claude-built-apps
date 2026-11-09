@@ -404,3 +404,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-09 [note] BUILD_ROUTINE.md paused (65466f1) during the rewrite; the notice must go before the 10 Nov 11:49 CET run. Owner paused the session at 95% quota; resume 14:40 Lisbon.
 2026-11-09 [note] Supabase project arktxlrlyceffyozdwhq is UpvoteMe's (us-east-1) and hosts live apps (UpvoteMe, a quiz app, chess_kv, WCV Live Together in schema wcv): the platform restructure is additive; shared tables go in schema `platform`.
 2026-11-09 [note] Incident: the first Supabase inspect run printed jwt_secret in a public Actions log (6 min); logs deleted, script fixed (9f1efff). Owner asked to rotate the JWT secret and update dependent keys.
+2026-11-09 [code] BUILD_ROUTINE.md rewritten for weekly builds (day state machine, pick/plan/slice, one milestone a day with review, polish, finish); pause notice removed; templates docs/templates/PROJECT_HANDOFF.md and PLAN.md; docs/platform.md.
