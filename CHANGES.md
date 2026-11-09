@@ -419,3 +419,6 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-09 [decision] Owner: custom domain add-on delayed; JWT rotation reminder dropped (risk accepted); Anthropic monthly spend limit set.
 
 2026-11-09 [code] LLM gateway live: ANTHROPIC_API_KEY function secret set, llm-gateway deployed, platform/supabase.json committed; smoke test 401 without a session; usage report dry run OK, no apps registered.
+
+2026-11-09 [note] PasteMD Google sign-in fails on paste-md.hintwise.org: APP_URL sends Google back to paste-md.netlify.app, where the state cookie is missing. Hintwise callbacks for PasteMD and UpvoteMe not registered yet.
+2026-11-09 [code] Netlify env workflow (netlify-env.mjs): show a site's domains and URL variables; set a plain URL variable, re-creating a secret one.
