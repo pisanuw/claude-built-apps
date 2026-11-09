@@ -70,6 +70,17 @@ console.log(dns.message);
 if (!dns.ready) process.exit(1);
 
 const aliases = info.domain_aliases || [];
+if (aliasOnly && !info.custom_domain) {
+  // Netlify answers 422 "You cannot update domain aliases while primary custom
+  // domain is not set": a site on its .netlify.app address alone can only take
+  // a new name as its primary (which makes .netlify.app redirect to it).
+  console.log(
+    `::error::${info.name} has no primary custom domain, so Netlify cannot add ${domain} as an alias. ` +
+      `Run again without alias to make ${domain} the primary (the .netlify.app address then redirects to it; ` +
+      `register any sign-in callback on ${domain} first). The DNS record is in place.`,
+  );
+  process.exit(1);
+}
 if (aliasOnly) {
   if (info.custom_domain === domain || aliases.includes(domain)) {
     console.log(`${domain} is already on the site.`);
