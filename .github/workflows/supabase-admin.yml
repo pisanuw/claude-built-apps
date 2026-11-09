@@ -75,14 +75,16 @@ jobs:
         if: inputs.command == 'deploy-gateway'
         # The CLI reads SUPABASE_ACCESS_TOKEN from the environment. The project
         # dir is platform/ (it holds supabase/config.toml and
-        # supabase/functions/llm-gateway). The flag name is unconfirmed on the
-        # current CLI: try --project-ref, then the docs' older --remote.
+        # supabase/functions/llm-gateway). The CLI (9 Nov 2026) asks before
+        # changing a remote project and refuses without a terminal, so pass
+        # --yes; it calls --project-ref deprecated in favour of --remote=<ref>,
+        # so try --remote first and fall back for older CLIs.
         working-directory: platform
         run: |
           REF=$(printf '%s' "$SUPABASE_URL" | sed -nE 's#^https?://([a-z0-9]+)\.supabase\.co.*#\1#p')
           [ -n "$REF" ] || { echo "::error::SUPABASE_URL does not look like https://<ref>.supabase.co"; exit 1; }
-          supabase functions deploy llm-gateway --project-ref "$REF" \
-            || supabase functions deploy llm-gateway --remote "$REF"
+          supabase functions deploy llm-gateway --remote="$REF" --yes \
+            || supabase functions deploy llm-gateway --project-ref "$REF" --yes
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -94,7 +96,8 @@ jobs:
           REF=$(printf '%s' "$SUPABASE_URL" | sed -nE 's#^https?://([a-z0-9]+)\.supabase\.co.*#\1#p')
           [ -n "$REF" ] || { echo "::error::SUPABASE_URL does not look like https://<ref>.supabase.co"; exit 1; }
           [ -n "$ANTHROPIC_API_KEY" ] || { echo "::error::ANTHROPIC_API_KEY repo secret is not set"; exit 1; }
-          supabase secrets set ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" --project-ref "$REF"
+          supabase secrets set --remote="$REF" --yes ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+            || supabase secrets set --project-ref "$REF" --yes ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
           echo "Function secret ANTHROPIC_API_KEY set (value not shown)."
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
