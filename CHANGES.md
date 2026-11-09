@@ -411,3 +411,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-09 [note] Side effect: WCV Live Together and how-of-happiness auth emails now send from HintWise <sign-in@hintwise.org> via Resend instead of Supabase's default sender.
 2026-11-09 [code] research-map.hintwise.org set as the primary domain of Netlify site uw-research-maps (owner request; Set Netlify domain workflow).
 2026-11-09 [decision] Default taken (owner silent 15 min): Supabase plan for research-map (schema app_research_map, pgvector in extensions, function research-map-search) sent to its session for it to carry out with the owner's yes.
+2026-11-09 [doc] README lists Research Map (pisan-labs/research-map) under Tools for teachers; app count corrected to 61 (the catalog had 60 rows under a 58 heading).
