@@ -1,5 +1,12 @@
 # Build an idea I choose: routine
 
+> **Rewrite in progress (9 November 2026).** The owner has asked for one
+> substantial project per week instead of one small app per day. The new
+> routine, templates and platform design land on main today. Until this
+> notice is gone: do not pick, claim or build anything. Say in one line that
+> the routine is being rewritten, and stop.
+
+
 The scheduled task "Build an idea I choose" (daily 2:49 am Pacific) reads this
 file and follows it. Edit the routine here, not in the task.
 
