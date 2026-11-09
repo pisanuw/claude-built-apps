@@ -67,8 +67,11 @@ async function inspect() {
   console.log(`Database host: ${p.database?.host || '?'} (version ${p.database?.version || '?'})`);
 
   console.log('\nPostgREST (exposed schemas):');
-  try { console.log(' ', JSON.stringify(await api(`/v1/projects/${ref}/postgrest`))); }
-  catch (e) { console.log('  cannot read:', String(e).slice(0, 200)); }
+  // The config carries jwt_secret: print only the non-secret settings.
+  try {
+    const pg = await api(`/v1/projects/${ref}/postgrest`);
+    console.log(`  db_schema: ${pg.db_schema}; db_extra_search_path: ${pg.db_extra_search_path}; max_rows: ${pg.max_rows}`);
+  } catch (e) { console.log('  cannot read:', String(e).slice(0, 200)); }
 
   console.log('\nAuth settings (values hidden for secret-like keys):');
   try {
