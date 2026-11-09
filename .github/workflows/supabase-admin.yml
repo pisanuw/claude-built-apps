@@ -1,0 +1,39 @@
+# Admin tasks on the shared HintWise Supabase project (docs/platform.md).
+# Secrets stay in GitHub; the script prints names and booleans, never values.
+#   inspect            what is in the project today
+#   sql <file>         run one SQL file (shared platform SQL or an app's migration)
+name: Supabase admin
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'inspect | sql'
+        required: true
+        default: 'inspect'
+        type: string
+      arg:
+        description: 'sql: path of the .sql file in the repo'
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  group: supabase-admin
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run
+        run: node platform/supabase-admin.mjs "$CMD" $ARG
+        env:
+          CMD: ${{ inputs.command }}
+          ARG: ${{ inputs.arg }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
