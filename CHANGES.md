@@ -414,3 +414,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-09 [doc] README lists Research Map (pisan-labs/research-map) under Tools for teachers; app count corrected to 61 (the catalog had 60 rows under a 58 heading).
 2026-11-09 [decision] Owner: Google sign-in through Supabase, with Supabase's custom domain add-on (owner buys it). docs/platform.md section 2 has the order.
 2026-11-09 [code] Supabase admin gains check-google (tests the sign-in request without a login) and domain-setup/domain-status/domain-activate; template asks Google for the account chooser and creates profiles after sign-in.
+2026-11-09 [note] check-google baseline: the project's Google provider uses client 989071206831-; Google accepts the request. The move to the HintWise client waits for the owner's redirect URIs.
