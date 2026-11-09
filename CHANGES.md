@@ -410,3 +410,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-09 [code] Live Supabase changes (owner: run 1-3): schema platform applied, exposed through PostgREST; auth gains https://*.hintwise.org/** redirects, Resend SMTP from sign-in@hintwise.org, email limit 30/hour.
 2026-11-09 [note] Side effect: WCV Live Together and how-of-happiness auth emails now send from HintWise <sign-in@hintwise.org> via Resend instead of Supabase's default sender.
 2026-11-09 [code] research-map.hintwise.org set as the primary domain of Netlify site uw-research-maps (owner request; Set Netlify domain workflow).
+2026-11-09 [decision] Default taken (owner silent 15 min): Supabase plan for research-map (schema app_research_map, pgvector in extensions, function research-map-search) sent to its session for it to carry out with the owner's yes.
