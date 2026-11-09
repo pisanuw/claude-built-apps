@@ -1,19 +1,35 @@
 # Admin tasks on the shared HintWise Supabase project (docs/platform.md).
 # Secrets stay in GitHub; the script prints names and booleans, never values.
-#   inspect            what is in the project today
-#   sql <file>         run one SQL file (shared platform SQL or an app's migration)
+#
+# Script commands (platform/supabase-admin.mjs):
+#   inspect                  what is in the project today
+#   sql <arg: file>          run one SQL file (shared platform SQL or an app's migration)
+#   apply-shared             run platform/supabase/shared/*.sql, recording each in platform.migrations
+#   migrate <arg: slug>      run <slug>/supabase/migrations/*.sql the same way
+#   expose-schema <arg>      add a schema (platform, app_<slug_>) to PostgREST's db_schema
+#   configure-auth           additive auth settings; flags "--dry-run" and "--google"
+#   keys                     print the URL and anon key as platform/supabase.json
+#   usage [arg: days]        print the LLM usage report
+# Shell commands (Supabase CLI, project dir platform/):
+#   deploy-gateway           deploy the llm-gateway edge function
+#   set-gateway-key          set the ANTHROPIC_API_KEY function secret from the repo secret
 name: Supabase admin
 
 on:
   workflow_dispatch:
     inputs:
       command:
-        description: 'inspect | sql'
+        description: 'inspect | sql | apply-shared | migrate | expose-schema | configure-auth | keys | usage | deploy-gateway | set-gateway-key'
         required: true
         default: 'inspect'
         type: string
       arg:
-        description: 'sql: path of the .sql file in the repo'
+        description: 'sql: file path; migrate: app slug; expose-schema: schema; usage: days'
+        required: false
+        default: ''
+        type: string
+      flags:
+        description: 'Flags for the script, e.g. "--google --dry-run" (configure-auth) or "--write" (keys)'
         required: false
         default: ''
         type: string
@@ -29,11 +45,52 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
+
       - name: Run
-        run: node platform/supabase-admin.mjs "$CMD" $ARG
+        if: inputs.command != 'deploy-gateway' && inputs.command != 'set-gateway-key'
+        run: node platform/supabase-admin.mjs "$CMD" $ARG $FLAGS
         env:
           CMD: ${{ inputs.command }}
           ARG: ${{ inputs.arg }}
+          FLAGS: ${{ inputs.flags }}
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          RESEND_API: ${{ secrets.RESEND_API }}
+          HINTWISE_AUTH_GOOGLE_ID: ${{ secrets.HINTWISE_AUTH_GOOGLE_ID }}
+          HINTWISE_AUTH_GOOGLE_SECRET: ${{ secrets.HINTWISE_AUTH_GOOGLE_SECRET }}
+
+      - uses: supabase/setup-cli@v1
+        if: inputs.command == 'deploy-gateway' || inputs.command == 'set-gateway-key'
+        with:
+          version: latest
+
+      - name: Deploy the llm-gateway edge function
+        if: inputs.command == 'deploy-gateway'
+        # The CLI reads SUPABASE_ACCESS_TOKEN from the environment. The project
+        # dir is platform/ (it holds supabase/config.toml and
+        # supabase/functions/llm-gateway). The flag name is unconfirmed on the
+        # current CLI: try --project-ref, then the docs' older --remote.
+        working-directory: platform
+        run: |
+          REF=$(printf '%s' "$SUPABASE_URL" | sed -nE 's#^https?://([a-z0-9]+)\.supabase\.co.*#\1#p')
+          [ -n "$REF" ] || { echo "::error::SUPABASE_URL does not look like https://<ref>.supabase.co"; exit 1; }
+          supabase functions deploy llm-gateway --project-ref "$REF" \
+            || supabase functions deploy llm-gateway --remote "$REF"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+
+      - name: Set the ANTHROPIC_API_KEY function secret
+        if: inputs.command == 'set-gateway-key'
+        working-directory: platform
+        run: |
+          REF=$(printf '%s' "$SUPABASE_URL" | sed -nE 's#^https?://([a-z0-9]+)\.supabase\.co.*#\1#p')
+          [ -n "$REF" ] || { echo "::error::SUPABASE_URL does not look like https://<ref>.supabase.co"; exit 1; }
+          [ -n "$ANTHROPIC_API_KEY" ] || { echo "::error::ANTHROPIC_API_KEY repo secret is not set"; exit 1; }
+          supabase secrets set ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" --project-ref "$REF"
+          echo "Function secret ANTHROPIC_API_KEY set (value not shown)."
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
