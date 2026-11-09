@@ -402,3 +402,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-09 [decision] Owner: one substantial project per week instead of one small app per day; fresh daily session resuming from <slug>/HANDOFF.md; up to 7 run-days per project (HANDOFF.md section 14).
 2026-11-09 [decision] Owner: reuse and restructure Supabase project arktxlrlyceffyozdwhq (schema per app); Google sign-in + magic link via Resend; LLM bring-your-own-key plus owner key capped $2/day $10/week $20/month per app with usage reports.
 2026-11-09 [note] BUILD_ROUTINE.md paused (65466f1) during the rewrite; the notice must go before the 10 Nov 11:49 CET run. Owner paused the session at 95% quota; resume 14:40 Lisbon.
+2026-11-09 [note] Supabase project arktxlrlyceffyozdwhq is UpvoteMe's (us-east-1) and hosts live apps (UpvoteMe, a quiz app, chess_kv, WCV Live Together in schema wcv): the platform restructure is additive; shared tables go in schema `platform`.
+2026-11-09 [note] Incident: the first Supabase inspect run printed jwt_secret in a public Actions log (6 min); logs deleted, script fixed (9f1efff). Owner asked to rotate the JWT secret and update dependent keys.
