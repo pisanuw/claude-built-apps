@@ -132,9 +132,9 @@ values.
      client, the callback URL, whether Google accepts them
      (`redirect_uri_mismatch` shows here) and where Supabase returns the
      user. No login needed; exits 1 when broken.
-  4. Owner: buy the custom domain add-on for the project (a paid add-on for
-     projects on a paid plan).
-  5. `domain-setup auth.hintwise.org`: starts the hostname, creates its DNS
+  4. Done 9 Nov 19:45 CET: the owner bought the custom domain add-on (name
+     auth.hintwise.org).
+  5. Run 9 Nov 19:49 CET (Cloudflare records created). `domain-setup auth.hintwise.org`: starts the hostname, creates its DNS
      records in Cloudflare (CNAME to `arktxlrlyceffyozdwhq.supabase.co`, DNS
      only, plus the TXT records Supabase lists) and asks Supabase to verify;
      `domain-status` until it reads `4_origin_setup_completed`.

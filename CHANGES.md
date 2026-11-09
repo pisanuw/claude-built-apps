@@ -427,3 +427,6 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 
 2026-11-09 [code] PasteMD APP_URL and UpvoteMe NEXTAUTH_URL now plain hintwise.org addresses (owner yes); both rebuilt and send Google the hintwise callbacks, which Google accepts.
 2026-11-09 [code] pisanuw/pastemd branch feat/supabase-google-signin: Google sign-in through Supabase (PKCE, users kept by email), first old app moved off its own Google client. Not merged.
+
+2026-11-09 [decision] Owner bought the Supabase custom domain add-on: auth.hintwise.org. domain-setup created its CNAME and two TXT records in Cloudflare; verification pending.
+2026-11-09 [code] PasteMD PR #2 merged (owner yes) and live: Google sign-in through Supabase; paste-md.netlify.app 301s to paste-md.hintwise.org.
