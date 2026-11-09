@@ -138,10 +138,16 @@ values.
      records in Cloudflare (CNAME to `arktxlrlyceffyozdwhq.supabase.co`, DNS
      only, plus the TXT records Supabase lists) and asks Supabase to verify;
      `domain-status` until it reads `4_origin_setup_completed`.
-  6. `domain-activate --callbacks-ready` (only after step 1's second URI),
-     then `check-google --base=https://auth.hintwise.org`.
-  7. Set `url` in `platform/supabase.json` to `https://auth.hintwise.org` so
-     new builds use it; apps already built keep working on the old address.
+  6. Done 9 Nov 20:04 CET (verified 20:03, status `5_services_reconfigured`).
+     `domain-activate --callbacks-ready` (only after step 1's second URI),
+     then `check-google --base=https://auth.hintwise.org` (passed 20:05 CET:
+     Google is asked to return to `https://auth.hintwise.org/auth/v1/callback`
+     through either address, and accepts it).
+  7. Done 9 Nov. `url` in `platform/supabase.json` is `https://auth.hintwise.org` so
+     new builds use it (and `keys` now writes it while the domain is active);
+     apps already built keep working on the old address. The repo secret
+     `SUPABASE_URL` stays the supabase.co address: the admin workflow reads the
+     project ref from it.
 - Branding: a verified Google consent screen also shows the HintWise name and
   logo instead of a domain; that verification is a separate Google review.
 

@@ -326,8 +326,9 @@ async function keys() {
     fail('keys: endpoint shape differs from the expected [{name, api_key}] list');
   }
   // The anon key is public by design (it is shipped in every app's bundle);
-  // the service_role key in the same listing is never printed.
-  const out = { url: url || `https://${ref}.supabase.co`, anonKey: anon };
+  // the service_role key in the same listing is never printed. Once the custom
+  // domain is active, apps use it (docs/platform.md section 2, step 7).
+  const out = { url: publicUrl(await hostnameConfig(), url || `https://${ref}.supabase.co`), anonKey: anon };
   const json = JSON.stringify(out, null, 2) + '\n';
   console.log('platform/supabase.json:');
   console.log(json);
@@ -383,6 +384,12 @@ const hostnameApi = (suffix = '', init) => api(`/v1/projects/${ref}/custom-hostn
 /** Pure: Supabase answers GET /custom-hostname with HTTP 400 before one is set up. */
 export function isNoHostnameError(err) {
   return /HTTP 400\b/.test(String(err?.message || err)) && /no custom hostname configuration/i.test(String(err?.message || err));
+}
+
+/** Pure: the address apps should use: the custom domain once it is active, else the fallback. */
+export function publicUrl(cfg, fallback) {
+  const host = String(cfg?.custom_hostname || '').toLowerCase();
+  return host && cfg?.status === '5_services_reconfigured' ? `https://${host}` : fallback;
 }
 
 /** The custom hostname configuration, or null when there is none yet. */

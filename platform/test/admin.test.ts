@@ -11,6 +11,7 @@ let googleVerdict: Admin['googleVerdict'];
 let domainRecords: Admin['domainRecords'];
 let domainSummary: Admin['domainSummary'];
 let isNoHostnameError: Admin['isNoHostnameError'];
+let publicUrl: Admin['publicUrl'];
 beforeAll(async () => {
   process.env.SUPABASE_ADMIN_NO_RUN = '1';
   const m = await import('../supabase-admin.mjs');
@@ -22,6 +23,7 @@ beforeAll(async () => {
   domainRecords = m.domainRecords;
   domainSummary = m.domainSummary;
   isNoHostnameError = m.isNoHostnameError;
+  publicUrl = m.publicUrl;
 });
 
 const current = {
@@ -162,5 +164,11 @@ describe('domainRecords and domainSummary', () => {
     expect(isNoHostnameError(new Error('GET /v1/projects/x/custom-hostname: HTTP 400 {"message":"Custom domains are not available on this plan"}'))).toBe(false);
     expect(isNoHostnameError(new Error('GET /v1/projects/x/custom-hostname: HTTP 401 No custom hostname configuration found'))).toBe(false);
     expect(isNoHostnameError(null)).toBe(false);
+  });
+  it('gives apps the custom domain only once it is active', () => {
+    const fb = 'https://arktx.supabase.co';
+    expect(publicUrl({ custom_hostname: 'Auth.Hintwise.org', status: '5_services_reconfigured' }, fb)).toBe('https://auth.hintwise.org');
+    expect(publicUrl({ custom_hostname: 'auth.hintwise.org', status: '4_origin_setup_completed' }, fb)).toBe(fb);
+    expect(publicUrl(null, fb)).toBe(fb);
   });
 });
