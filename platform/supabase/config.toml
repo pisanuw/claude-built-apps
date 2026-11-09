@@ -1,0 +1,12 @@
+# Minimal Supabase CLI project file so that `supabase functions deploy
+# llm-gateway` runs from platform/ (the "Supabase admin" workflow's
+# deploy-gateway command). No local stack is configured here; the CLI needs
+# only the project id and the function entry. Secrets (ANTHROPIC_API_KEY) are
+# set with `supabase secrets set` (set-gateway-key), never in this file.
+project_id = "hintwise-platform"
+
+[functions.llm-gateway]
+# The platform checks the caller's JWT before the function runs; the function
+# then verifies the user itself with auth.getUser.
+verify_jwt = true
+entrypoint = "./functions/llm-gateway/index.ts"
