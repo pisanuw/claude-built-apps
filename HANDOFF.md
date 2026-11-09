@@ -119,6 +119,21 @@ None.
 
 Relay routines (Scheduling below) plus the owner's ideas and build routines (section 2). The notify-implemented email runs 9:10am Pacific (GitHub Actions). Each ideas commit to main triggers a Netlify build unless it carries [skip netlify].
 
+## 14. Weekly builds and platform (in progress, 9 November)
+
+Owner's decisions (9 Nov, chat with this session), replacing one small app per day:
+- **Session model A:** a fresh build session each day; state carried by a per-project `<slug>/HANDOFF.md` (resume prompt, goal, what is live, milestones, how to run, decisions, open questions). The repo-level HANDOFF.md stays the relay's.
+- **Cadence:** one project per week, up to 7 run-days; the daily 02:49 Pacific task keeps its prompt ("read BUILD_ROUTINE.md") and the routine resumes a build in progress or picks a new one.
+- **Infrastructure:** Netlify, Supabase and Render subscriptions exist. Reuse and restructure the existing Supabase project `arktxlrlyceffyozdwhq` (owner, 9 Nov): one project, a schema per app, shared `profiles` and `llm_usage`. Auth: Google sign-in plus magic link, email sent through Resend SMTP.
+- **LLM:** bring-your-own-key in the browser, plus the owner's Anthropic key behind a shared gateway with caps per app of $2/day, $10/week, $20/month; usage must be reported to the owner.
+- **Ideas:** keep 3 to 5 per day; the weekly pick chooses from the week's substantial ideas (a `shape` rubric: stateful, connected, unattended, engine, shared; two or more marks) with a `buildPlan` of 5 to 7 milestones; Weekend MVP ideas are never built.
+
+Six design questions sent 11:45 CET with recommendations, unanswered when the owner paused (quota): (1) region: moot, the existing project is reused; (2) owner-key calls only for signed-in users plus $0.25/day per user; (3) default model `claude-opus-5-5`, apps may use `claude-haiku-5-5` for bulk; (4) gateway as a Supabase Edge Function; (5) daily usage email only on days with usage plus a Monday summary, to the digest address; (6) the Deploy workflow applies migrations and deploys the gateway with repo secrets SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD. Owner asked (10:45 Lisbon) for a secure way to hand over tokens: cloud-environment secrets (Network secrets or environment variables) named SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD, SUPABASE_SERVICE_ROLE_KEY, never pasted in chat; the same three as repo secrets for the workflows.
+
+Done: BUILD_ROUTINE.md carries a pause notice (65466f1, pushed 11:42 CET) so the 9 Nov 11:49 run built nothing. **It must be removed before the 10 Nov 11:49 CET run.**
+
+To do, in order: docs/platform.md (Supabase restructure, auth, gateway, caps, usage report, owner setup steps); docs/templates/PROJECT_HANDOFF.md and PLAN.md; BUILD_ROUTINE.md rewrite; CLAUDE.md, BRIEFING.md, CHANGES.md; daily-project-ideas ROUTINE.md + SCHEMA.md + validate_ideas.py + BRIEFING.md + CHANGES.md; platform scaffolding (shared SQL, gateway with tests, usage-report workflow, deploy migrations step, Supabase config workflow). Resume scheduled for 14:40 Europe/Lisbon (trig_01GXgEy75jjqyW6uVe5bfDPg).
+
 ## Notes for the next session
 
 ### Owner's standing instructions

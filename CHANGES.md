@@ -398,3 +398,7 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-08 [note] poincare-paint mirror failure cause: mirror main (6 Nov reset) is a different split than CI's full-history split; files equal but README link. Fix = one force_app run (ecda717), awaits owner yes.
 
 2026-11-08 [code] Owner said yes: Google client re-applied to the 6 secret vars (per deploy context; 3955226), poincare-paint mirror force-reset to fcd51f9. Owner added GOOGLE_SECRET himself. Studio restyled (daily-project-ideas 307ba51).
+
+2026-11-09 [decision] Owner: one substantial project per week instead of one small app per day; fresh daily session resuming from <slug>/HANDOFF.md; up to 7 run-days per project (HANDOFF.md section 14).
+2026-11-09 [decision] Owner: reuse and restructure Supabase project arktxlrlyceffyozdwhq (schema per app); Google sign-in + magic link via Resend; LLM bring-your-own-key plus owner key capped $2/day $10/week $20/month per app with usage reports.
+2026-11-09 [note] BUILD_ROUTINE.md paused (65466f1) during the rewrite; the notice must go before the 10 Nov 11:49 CET run. Owner paused the session at 95% quota; resume 14:40 Lisbon.
