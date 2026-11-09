@@ -380,6 +380,21 @@ export function domainSummary(cfg) {
 
 const hostnameApi = (suffix = '', init) => api(`/v1/projects/${ref}/custom-hostname${suffix}`, init);
 
+/** Pure: Supabase answers GET /custom-hostname with HTTP 400 before one is set up. */
+export function isNoHostnameError(err) {
+  return /HTTP 400\b/.test(String(err?.message || err)) && /no custom hostname configuration/i.test(String(err?.message || err));
+}
+
+/** The custom hostname configuration, or null when there is none yet. */
+async function hostnameConfig() {
+  try {
+    return await hostnameApi();
+  } catch (e) {
+    if (isNoHostnameError(e)) return null;
+    throw e;
+  }
+}
+
 async function ensureRecords(records) {
   const cfToken = process.env.CLOUDFLARE_API_TOKEN;
   if (!cfToken) { console.log('::warning::CLOUDFLARE_API_TOKEN is not set: create these records by hand:'); records.forEach((r) => console.log(`  ${showRecord(r)}`)); return; }
@@ -403,7 +418,7 @@ async function ensureRecords(records) {
 async function domainSetup(host) {
   const h = String(host || '').trim().toLowerCase();
   if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(h)) fail('domain-setup needs a hostname, e.g. auth.hintwise.org');
-  let cfg = await hostnameApi();
+  let cfg = await hostnameConfig();
   if (cfg?.custom_hostname && cfg.custom_hostname !== h && cfg.status !== '1_not_started') {
     fail(`the project already has custom hostname ${cfg.custom_hostname} (${cfg.status}); remove it in the dashboard first`);
   }
@@ -421,7 +436,8 @@ async function domainSetup(host) {
 }
 
 async function domainStatus() {
-  let cfg = await hostnameApi();
+  let cfg = await hostnameConfig();
+  if (!cfg) { console.log('No custom hostname yet: run domain-setup <host>.'); return; }
   if (cfg?.status === '2_initiated' || cfg?.status === '3_challenge_verified') {
     try { await hostnameApi('/reverify', { method: 'POST' }); cfg = await hostnameApi(); } catch (e) { console.log(`reverify: ${String(e.message).slice(0, 200)}`); }
   }
@@ -433,7 +449,7 @@ async function domainActivate() {
   if (!flags.has('--callbacks-ready')) {
     fail('domain-activate switches Google sign-in to https://<host>/auth/v1/callback at once. Add that URI to every OAuth client of this project first, then re-run with --callbacks-ready.');
   }
-  const cfg = await hostnameApi();
+  const cfg = await hostnameConfig();
   if (cfg?.status !== '4_origin_setup_completed') fail(`not ready to activate: ${domainSummary(cfg)}`);
   await hostnameApi('/activate', { method: 'POST' });
   console.log(domainSummary(await hostnameApi()));

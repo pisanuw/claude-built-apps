@@ -10,6 +10,7 @@ let stateReferrer: Admin['stateReferrer'];
 let googleVerdict: Admin['googleVerdict'];
 let domainRecords: Admin['domainRecords'];
 let domainSummary: Admin['domainSummary'];
+let isNoHostnameError: Admin['isNoHostnameError'];
 beforeAll(async () => {
   process.env.SUPABASE_ADMIN_NO_RUN = '1';
   const m = await import('../supabase-admin.mjs');
@@ -20,6 +21,7 @@ beforeAll(async () => {
   googleVerdict = m.googleVerdict;
   domainRecords = m.domainRecords;
   domainSummary = m.domainSummary;
+  isNoHostnameError = m.isNoHostnameError;
 });
 
 const current = {
@@ -154,5 +156,11 @@ describe('domainRecords and domainSummary', () => {
   it('summarises the status with any errors', () => {
     expect(domainSummary(cfg)).toBe('Auth.Hintwise.org: 2_initiated; hostname pending, certificate pending_validation; errors: custom hostname does not CNAME to this zone; TXT not found');
     expect(domainSummary(null)).toBe('(none): unknown; hostname ?, certificate ?');
+  });
+  it('treats only the not-set-up 400 as "no hostname yet"', () => {
+    expect(isNoHostnameError(new Error('GET /v1/projects/x/custom-hostname: HTTP 400 {"message":"No custom hostname configuration found."}'))).toBe(true);
+    expect(isNoHostnameError(new Error('GET /v1/projects/x/custom-hostname: HTTP 400 {"message":"Custom domains are not available on this plan"}'))).toBe(false);
+    expect(isNoHostnameError(new Error('GET /v1/projects/x/custom-hostname: HTTP 401 No custom hostname configuration found'))).toBe(false);
+    expect(isNoHostnameError(null)).toBe(false);
   });
 });
