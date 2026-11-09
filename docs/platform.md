@@ -111,7 +111,7 @@ values.
   `https://*.hintwise.org/**` allow-list cover every app. The template asks
   Google for the account chooser (`prompt=select_account`) and creates the
   user's `platform.profiles` row after sign-in.
-- **Custom domain** (owner buys Supabase's add-on, 9 Nov): without it Google's
+- **Custom domain** (owner will buy Supabase's add-on; delayed, 9 Nov): without it Google's
   screen says the user continues to `arktxlrlyceffyozdwhq.supabase.co`. The
   add-on serves the whole project API on a hintwise.org name (recommended
   `auth.hintwise.org`); the supabase.co address keeps working, and Auth uses
@@ -123,12 +123,12 @@ values.
      `https://auth.hintwise.org/auth/v1/callback` (keep the existing ones),
      and on the consent screen set the app name HintWise with hintwise.org
      as an authorized domain.
-  2. `configure-auth --google --dry-run`, then `configure-auth --google`:
+  2. Done 9 Nov 17:34 CET. `configure-auth --google --dry-run`, then `configure-auth --google`:
      the project's Google provider moves from the older client
      (`989071206831-`) to the HintWise client. Existing Google users keep
      their accounts (same Google account id) and see a consent screen once;
      this includes WCV Live Together and how-of-happiness users.
-  3. `check-google`: starts a sign-in the way a browser does and reports the
+  3. Passed 9 Nov 17:35 CET. `check-google`: starts a sign-in the way a browser does and reports the
      client, the callback URL, whether Google accepts them
      (`redirect_uri_mismatch` shows here) and where Supabase returns the
      user. No login needed; exits 1 when broken.
@@ -228,17 +228,16 @@ In `<slug>/deploy/target.yml`: `supabase: true` when the app has a schema
 
 ## 6. Owner actions, one time
 
-1. **Rotate the project's JWT secret** (9 Nov incident: the first `inspect`
-   run printed it in a public workflow log for about six minutes; the log is
-   deleted and the script fixed). Dashboard, Project Settings, API or JWT
-   Keys, generate a new secret; then update `SUPABASE_SERVICE_ROLE_KEY` in the
-   repo secrets and the anon/service keys in UpvoteMe, WCV Live Together,
-   how-of-happiness and whatever writes `chess_kv`.
+1. JWT secret: the first `inspect` run printed it in a public workflow log for
+   about six minutes on 9 Nov (log deleted, script fixed). The owner decided
+   not to rotate it (9 Nov). If that changes: Dashboard, Project Settings,
+   API or JWT Keys, generate a new secret, then update
+   `SUPABASE_SERVICE_ROLE_KEY` and the keys in every app on the project.
 2. Google Cloud console, HintWise OAuth client: add the authorized redirect
    URI `https://arktxlrlyceffyozdwhq.supabase.co/auth/v1/callback` (only if
    the project's Google sign-in should move to the HintWise client).
-3. Anthropic console: set a monthly spend limit (for example $50) as the
-   backstop behind the gateway caps.
+3. Done 9 Nov: the owner set a monthly spend limit in the Anthropic console
+   as the backstop behind the gateway caps.
 4. Say whether anything found by `inspect` may be removed (the quiz tables,
    `chess_kv`, the `deploy` bucket); nothing is dropped without that.
 
