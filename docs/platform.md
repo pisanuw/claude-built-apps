@@ -57,7 +57,7 @@ values.
     created_at)`: the ledger, written only by the gateway (service role),
     readable by nobody from the browser.
   - `platform.migrations (app, file, sha256, applied_at)`: which migration
-    files have run.
+    files have run (app `platform` for the shared SQL itself).
 - Migrations live in `<slug>/supabase/migrations/NNNN_<name>.sql` and are
   applied in file order by `node platform/supabase-admin.mjs migrate <slug>`
   through the Management API query endpoint (works from IPv4 GitHub runners,
@@ -142,7 +142,7 @@ model wherever deterministic code does the job.
   cache reads $0.20, cache writes 1.25x input), about 100 typical calls per
   $2 day. Apps may allow `claude-sonnet-5-5` ($2 / $10) or `claude-haiku-5-5`
   ($0.10 / $0.50, prompts up to 100K tokens) for bulk work. The pricing table
-  is `platform/supabase/functions/llm-gateway/pricing.ts`; check it against
+  is `platform/src/gateway/pricing.ts`; check it against
   https://platform.claude.com/docs/en/about-claude/pricing when a model is
   added.
 - Deploying the gateway: `deploy-gateway` in the Supabase admin workflow
@@ -173,8 +173,8 @@ In `<slug>/deploy/target.yml`: `supabase: true` when the app has a schema
 `platform/supabase.json`. In the app:
 
 - `supabase/migrations/0001_init.sql`: the schema, tables, RLS, grants, and an
-  `insert into public.llm_apps ... on conflict do nothing` row if the app uses
-  the gateway.
+  `insert into platform.llm_apps (slug) values ('<slug>') on conflict do
+  nothing` row if the app uses the gateway.
 - `src/lib/supabase.ts`, `src/lib/auth.ts`, `src/lib/llm.ts` copied from
   `platform/templates/app/` and adjusted: the client with the app's schema,
   the sign-in panel, the BYOK/gateway switch.
@@ -208,6 +208,69 @@ In `<slug>/deploy/target.yml`: `supabase: true` when the app has a schema
 - Whether magic links need any flag beyond `external_email_enabled` (the
   project already sends email sign-in links, so probably not).
 - `supabase functions deploy` flags on the current CLI (`--project-ref` vs
-  `--remote`); the first `deploy-gateway` run settles it.
+  `--remote`); the workflow tries `--project-ref` and falls back to
+  `--remote`; the first `deploy-gateway` run settles it.
 - `SUPABASE_DB_PASSWORD` is unused while migrations go through the Management
   API; it stays for a future direct-connection need.
+
+Added by the scaffolding (branch `platform-scaffold`, 9 Nov):
+
+- Whether the CLI bundles the gateway entry's imports from outside
+  `supabase/functions` (`index.ts` imports `../../../src/gateway/*.ts`, the
+  project dir is `platform/`). If the first deploy refuses them, the fallback
+  is a workflow step that copies `platform/src/gateway` into
+  `platform/supabase/functions/_shared/gateway` before deploying.
+- The Management API's `database/query` response for statements that are not
+  a select: the script treats any HTTP 2xx as success and reads rows only
+  from arrays.
+- `GET /v1/projects/{ref}/api-keys`: `keys` expects `[{name, api_key, type?}]`
+  and picks the `anon` or `publishable` entry; on another shape it prints the
+  key names and stops. `POST /v1/projects/{ref}/secrets` is not used; the
+  function secret is set with the CLI (`supabase secrets set`).
+- The usage report relies on Resend's `Idempotency-Key` header (key
+  `llm-usage-<UTC date>`) to make the second scheduled run of a PDT day a
+  no-op; not exercised yet. The scheduled runs pass
+  `--not-before-pacific-hour=9` as the digest does; a manual run sends when
+  asked, and `--dry-run` renders without sending.
+- Deviations from the text above, settled while building: Haiku 5.5 has no
+  server-side refusal fallback (a `fallbacks` list even returns a 400), so the
+  gateway sends the `server-side-fallback-2026-07-01` beta and
+  `fallbacks: 'default'` only for Opus and Sonnet (one switch,
+  `SERVER_SIDE_FALLBACK` in `platform/src/gateway/request.ts`). The per-user
+  day sum (`user_day` in `platform.llm_spend`) counts the user's spend across
+  all apps, so one account cannot drain the key by hopping between apps; the
+  per-app `cap_user_day_usd` is the cap it is compared with. `authenticated`
+  gets `select` on `platform.profiles` and `update (display_name)` only, so a
+  user cannot change the email on their profile row. The cap check names the
+  widest app window first (month, week, day), then the user's day.
+  `apply-shared` re-runs a shared file whose hash changed (the shared SQL is
+  idempotent by contract); `migrate` refuses a changed app migration.
+  `platform.llm_usage_report(p_days)` returns one jsonb document with the
+  last `p_days` UTC days before today, the ISO week to date and the month to
+  date per app, plus the caps; the email and the `usage` command render it.
+  The gateway's `config.toml` keeps `verify_jwt = true`: the user's session
+  token passes the platform check and the function verifies the user again.
+- Unknown models (one the owner adds to `allowed_models` before the pricing
+  table, or a fallback model named in the response) are billed at Opus
+  prices in the ledger so the caps still bind; add the model to
+  `platform/src/gateway/pricing.ts` when it appears.
+
+## Files
+
+- `platform/supabase-admin.mjs`, `.github/workflows/supabase-admin.yml`:
+  admin commands (inspect, sql, apply-shared, migrate, expose-schema,
+  configure-auth, keys, usage) and the CLI steps deploy-gateway and
+  set-gateway-key.
+- `platform/supabase/shared/0001_platform.sql`: schema `platform`.
+- `platform/supabase/config.toml`, `platform/supabase/functions/llm-gateway/index.ts`:
+  the edge function; `platform/src/gateway/` (pricing, caps, validate, cors,
+  request) its tested logic, `platform/src/gateway/README.md` the contract.
+- `platform/llm-usage-report.mjs`, `platform/src/report/format.mjs`,
+  `.github/workflows/llm-usage-report.yml`: the daily email.
+- `platform/templates/app/`: the app baseline (README inside).
+- `.github/workflows/deploy.yml`: the "Supabase migrations" step for apps with
+  `supabase: true`.
+- `.github/workflows/ci.yml`: the `platform` job (lint, typecheck, coverage).
+- `platform/README.md`: what is here and the first-time command order.
+- `platform/supabase.json`: public URL and anon key, written from `keys`
+  (not present until the owner runs it).

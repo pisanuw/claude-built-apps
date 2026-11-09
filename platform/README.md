@@ -1,0 +1,59 @@
+# platform
+
+The shared HintWise platform: one Supabase project with a schema per app,
+sign-in by Google or magic link, an LLM gateway with spending caps, and a
+daily usage email. The design is `docs/platform.md`; this folder holds the
+code. Nothing here holds a secret: the admin workflow has the repo secrets and
+prints names and booleans only.
+
+| Piece | Where | Run by |
+|---|---|---|
+| Admin script | `supabase-admin.mjs` | the "Supabase admin" workflow (`.github/workflows/supabase-admin.yml`) |
+| Shared SQL | `supabase/shared/0001_platform.sql` (schema `platform`: profiles, llm_apps, llm_usage, migrations, llm_spend, llm_usage_report) | `apply-shared` |
+| LLM gateway | `supabase/functions/llm-gateway/index.ts` (Deno entry) over `src/gateway/` (pure modules, tests in `test/`); `supabase/config.toml` for the CLI | `deploy-gateway`, `set-gateway-key` |
+| Usage report | `llm-usage-report.mjs` over `src/report/format.mjs` | `.github/workflows/llm-usage-report.yml`, daily 9:10 Pacific |
+| App template | `templates/app/` | copied by the weekly build (its README says how) |
+| Public client values | `supabase.json` (`url`, `anonKey`), written from the `keys` command | every app's `target.yml` `env` |
+
+## Admin workflow commands
+
+Dispatch "Supabase admin" with `command`, optional `arg` and `flags`:
+
+| Command | Arg / flags | What it does |
+|---|---|---|
+| `inspect` | | project, exposed schemas, auth settings, schemas, tables, buckets, functions, secret names, recorded migrations |
+| `sql` | arg: `.sql` path | run one file through the Management API |
+| `apply-shared` | | run `platform/supabase/shared/*.sql` in order, skipping files already recorded with the same sha256 in `platform.migrations`; a changed shared file is re-run (they are idempotent) |
+| `migrate` | arg: app slug | run `<slug>/supabase/migrations/*.sql` the same way; refuses when an applied file changed (add a new file instead) |
+| `expose-schema` | arg: schema | append the schema to PostgREST's `db_schema` (`platform`, then `app_<slug_>` per app) |
+| `configure-auth` | flags `--dry-run`, `--google` | additive auth settings: `https://*.hintwise.org/**` in the redirect allow-list, Resend SMTP from `RESEND_API`, email limit raised to 30/hour; `--google` switches the Google client to `HINTWISE_AUTH_GOOGLE_ID/SECRET` |
+| `keys` | flag `--write` | print `{url, anonKey}` as `platform/supabase.json` (the anon key is public by design; the service-role key is never printed) |
+| `usage` | arg: days | print `platform.llm_usage_report(days)` as the same tables as the email |
+| `deploy-gateway` | | Supabase CLI: `supabase functions deploy llm-gateway` from `platform/` |
+| `set-gateway-key` | | Supabase CLI: `supabase secrets set ANTHROPIC_API_KEY=...` from the repo secret |
+
+First-time order (after the owner's key rotation): `apply-shared`,
+`expose-schema platform`, `configure-auth --dry-run` then `configure-auth`,
+`keys` (commit `platform/supabase.json`), `set-gateway-key`, `deploy-gateway`,
+then a dry run of the "LLM usage report" workflow.
+
+## Deploy integration
+
+`.github/workflows/deploy.yml` runs, for a `target.yml` with `supabase: true`,
+`node platform/supabase-admin.mjs migrate <slug>` and
+`expose-schema app_<slug_>` before the Netlify deploy, with the
+`SUPABASE_ACCESS_TOKEN` and `SUPABASE_URL` secrets. A failed migration fails
+the deploy job.
+
+## Development
+
+```bash
+cd platform
+npm ci
+npm run lint && npm run typecheck && npm run coverage   # 85% thresholds on src/**
+npm run check-scripts                                   # node --check on the .mjs files
+```
+
+The gateway's Deno entry is not type-checked or covered here (Deno globals,
+`npm:` imports); its logic is in `src/gateway/` and fully tested. To check the
+app template, see `templates/app/README.md`.
