@@ -29,6 +29,10 @@ Dispatch "Supabase admin" with `command`, optional `arg` and `flags`:
 | `configure-auth` | flags `--dry-run`, `--google` | additive auth settings: `https://*.hintwise.org/**` in the redirect allow-list, Resend SMTP from `RESEND_API`, email limit raised to 30/hour; `--google` switches the Google client to `HINTWISE_AUTH_GOOGLE_ID/SECRET` |
 | `keys` | flag `--write` | print `{url, anonKey}` as `platform/supabase.json` (the anon key is public by design; the service-role key is never printed) |
 | `usage` | arg: days | print `platform.llm_usage_report(days)` as the same tables as the email |
+| `check-google` | arg: return URL; flag `--base=URL` | start a Google sign-in like a browser and report the client, callback URL, Google's answer and the return address; no login; exits 1 when broken |
+| `domain-setup` | arg: host | custom domain add-on: start the host, create its Cloudflare CNAME and TXT records (DNS only), ask Supabase to verify |
+| `domain-status` | | where the custom domain stands; re-verifies while waiting |
+| `domain-activate` | flag `--callbacks-ready` | switch Auth to the custom domain, only once every OAuth client lists `https://<host>/auth/v1/callback` |
 | `deploy-gateway` | | Supabase CLI: `supabase functions deploy llm-gateway` from `platform/` |
 | `set-gateway-key` | | Supabase CLI: `supabase secrets set ANTHROPIC_API_KEY=...` from the repo secret |
 

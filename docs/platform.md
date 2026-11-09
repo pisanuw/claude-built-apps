@@ -105,8 +105,45 @@ values.
   `supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: ... } })`;
   `onAuthStateChange` drives the UI. The shared template in
   `platform/templates/app/` has the sign-in panel.
-- Later, optional: Supabase's custom auth domain add-on (paid) so Google's
-  consent screen names hintwise.org instead of supabase.co.
+- **Google sign-in goes through Supabase** (owner, 9 Nov): the browser goes
+  to Supabase, then Google, then Supabase's callback, then back to the app.
+  No per-app Google setup: one callback URL on the Google client and the
+  `https://*.hintwise.org/**` allow-list cover every app. The template asks
+  Google for the account chooser (`prompt=select_account`) and creates the
+  user's `platform.profiles` row after sign-in.
+- **Custom domain** (owner buys Supabase's add-on, 9 Nov): without it Google's
+  screen says the user continues to `arktxlrlyceffyozdwhq.supabase.co`. The
+  add-on serves the whole project API on a hintwise.org name (recommended
+  `auth.hintwise.org`); the supabase.co address keeps working, and Auth uses
+  the new name for OAuth callbacks the moment it is activated.
+- Order, each step a "Supabase admin" dispatch unless marked owner:
+  1. Owner, Google Cloud console, HintWise OAuth client (`985338662899-`):
+     add the Authorized redirect URIs
+     `https://arktxlrlyceffyozdwhq.supabase.co/auth/v1/callback` and
+     `https://auth.hintwise.org/auth/v1/callback` (keep the existing ones),
+     and on the consent screen set the app name HintWise with hintwise.org
+     as an authorized domain.
+  2. `configure-auth --google --dry-run`, then `configure-auth --google`:
+     the project's Google provider moves from the older client
+     (`989071206831-`) to the HintWise client. Existing Google users keep
+     their accounts (same Google account id) and see a consent screen once;
+     this includes WCV Live Together and how-of-happiness users.
+  3. `check-google`: starts a sign-in the way a browser does and reports the
+     client, the callback URL, whether Google accepts them
+     (`redirect_uri_mismatch` shows here) and where Supabase returns the
+     user. No login needed; exits 1 when broken.
+  4. Owner: buy the custom domain add-on for the project (a paid add-on for
+     projects on a paid plan).
+  5. `domain-setup auth.hintwise.org`: starts the hostname, creates its DNS
+     records in Cloudflare (CNAME to `arktxlrlyceffyozdwhq.supabase.co`, DNS
+     only, plus the TXT records Supabase lists) and asks Supabase to verify;
+     `domain-status` until it reads `4_origin_setup_completed`.
+  6. `domain-activate --callbacks-ready` (only after step 1's second URI),
+     then `check-google --base=https://auth.hintwise.org`.
+  7. Set `url` in `platform/supabase.json` to `https://auth.hintwise.org` so
+     new builds use it; apps already built keep working on the old address.
+- Branding: a verified Google consent screen also shows the HintWise name and
+  logo instead of a domain; that verification is a separate Google review.
 
 ## 3. LLM calls: bring your own key, or the owner's key behind caps
 

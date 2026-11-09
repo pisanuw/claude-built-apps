@@ -14,9 +14,15 @@ export type AuthClient = Pick<SupabaseClient, 'auth'>;
 
 export type AuthCallback = (user: User | null, session: Session | null) => void;
 
-/** Starts the Google OAuth flow; the browser comes back to `redirectTo`. */
+/**
+ * Starts Google sign-in through Supabase (docs/platform.md, section 2): the
+ * browser goes to Google and comes back to `redirectTo`, which must match the
+ * project's redirect allow-list (https://*.hintwise.org/** does). Google
+ * always shows its account chooser, so a shared computer does not silently
+ * reuse the last account.
+ */
 export function signInWithGoogle(redirectTo: string, client: AuthClient = getSupabase()) {
-  return client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+  return client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo, queryParams: { prompt: 'select_account' } } });
 }
 
 /** Emails a sign-in link (through the platform's Resend SMTP). */
@@ -75,6 +81,16 @@ function button(label: string, onClick: () => void, type: 'button' | 'submit' = 
 export interface SignInOptions {
   client?: AuthClient;
   redirectTo?: string;
+  /** Client for platform.ensure_profile; default: `client` when it has `schema`, false to skip. */
+  profileClient?: ProfileClient | false;
+}
+
+/** The client mountSignIn should create profiles with, or null. */
+function profileClientFor(client: AuthClient, opt: ProfileClient | false | undefined): ProfileClient | null {
+  if (opt === false) return null;
+  if (opt) return opt;
+  const maybe = client as unknown as Partial<ProfileClient>;
+  return typeof maybe.schema === 'function' ? (maybe as ProfileClient) : null;
 }
 
 /**
@@ -85,10 +101,17 @@ export interface SignInOptions {
 export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => void {
   const client = opts.client ?? getSupabase();
   const redirectTo = opts.redirectTo ?? defaultRedirect();
+  const profiles = profileClientFor(client, opts.profileClient);
+  let profiled: string | null = null;
   el.classList.add('hw-signin');
 
   const render = (user: User | null): void => {
     el.replaceChildren();
+    if (user && profiles && profiled !== user.id) {
+      // Once per signed-in user: the platform has no trigger on auth.users.
+      profiled = user.id;
+      void ensureProfile(profiles);
+    }
     if (user) {
       const who = document.createElement('p');
       who.className = 'hw-signin-user';

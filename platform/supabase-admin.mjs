@@ -23,6 +23,26 @@
  *   keys [--write]          print the project URL and anon (publishable) key
  *                           as the JSON for platform/supabase.json
  *   usage [days]            print platform.llm_usage_report(days) as tables
+ *   domain-setup <host>     custom domain add-on (owner buys it first): start
+ *                           <host> (e.g. auth.hintwise.org) on the project,
+ *                           create its CNAME and TXT records in Cloudflare
+ *                           (DNS only; existing records are never changed)
+ *                           and ask Supabase to verify them
+ *   domain-status           where the custom domain stands; re-verifies while
+ *                           it is waiting, and lists any record still missing
+ *   domain-activate --callbacks-ready
+ *                           switch Auth to the custom domain. Only after every
+ *                           OAuth client lists https://<host>/auth/v1/callback:
+ *                           from then on Google is sent that callback
+ *   check-google [returnTo] [--base=URL]
+ *                           start a Google sign-in the way a browser would
+ *                           and report what Supabase and Google answer: the
+ *                           Google client in use, the callback URL, whether
+ *                           Google accepts them (redirect_uri_mismatch shows
+ *                           up here), and where Supabase would send the user
+ *                           back. No login, no secret. --base is the auth host
+ *                           to test (default SUPABASE_URL; later the custom
+ *                           domain). Exits 1 when the flow is broken.
  *
  * The gateway itself is deployed by shell steps of the same workflow
  * (deploy-gateway, set-gateway-key), not by this script.
@@ -30,12 +50,14 @@
  * Env: SUPABASE_ACCESS_TOKEN (personal access token), and SUPABASE_URL
  * (https://<ref>.supabase.co) or SUPABASE_PROJECT_REF. configure-auth also
  * reads RESEND_API and, with --google, HINTWISE_AUTH_GOOGLE_ID and
- * HINTWISE_AUTH_GOOGLE_SECRET.
+ * HINTWISE_AUTH_GOOGLE_SECRET. domain-setup also reads CLOUDFLARE_API_TOKEN
+ * (and CLOUDFLARE_ZONE_ID as a fallback) for the DNS records.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { cfApi, dnsRecords, showRecord, zoneIdFor } from '../accessibility-lens/deploy/cloudflare-dns.mjs';
 
 const API = 'https://api.supabase.com';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -44,6 +66,8 @@ const url = process.env.SUPABASE_URL || '';
 const ref = process.env.SUPABASE_PROJECT_REF || url.match(/^https?:\/\/([a-z0-9]+)\.supabase\.co/i)?.[1];
 const argv = process.argv.slice(2);
 const flags = new Set(argv.filter((a) => a.startsWith('--')));
+/** The value of a --name=value flag, or undefined. */
+const flagValue = (name) => [...flags].find((f) => f.startsWith(`${name}=`))?.slice(name.length + 1);
 const [cmd, arg] = argv.filter((a) => !a.startsWith('--'));
 
 function fail(msg) { console.log(`::error::${msg}`); process.exit(1); }
@@ -326,6 +350,186 @@ async function usage(daysArg) {
   console.log(renderText(report, new Date()));
 }
 
+// ---- Custom domain (paid add-on) ------------------------------------------
+
+/**
+ * Pure: the DNS records Supabase wants for the custom hostname, from the GET
+ * /custom-hostname response: the CNAME to the project, the ownership TXT and
+ * the certificate TXT records (data.result.ownership_verification and
+ * data.result.ssl.validation_records[].txt_name / txt_value).
+ */
+export function domainRecords(cfg, projectRef) {
+  const host = String(cfg?.custom_hostname || '').toLowerCase();
+  const result = cfg?.data?.result || {};
+  const out = [];
+  if (host) out.push({ type: 'CNAME', name: host, content: `${projectRef}.supabase.co` });
+  const own = result.ownership_verification;
+  if (own?.name && own?.value) out.push({ type: String(own.type || 'txt').toUpperCase(), name: String(own.name).toLowerCase(), content: String(own.value).trim() });
+  for (const v of result.ssl?.validation_records || []) {
+    if (v?.txt_name && v?.txt_value) out.push({ type: 'TXT', name: String(v.txt_name).toLowerCase(), content: String(v.txt_value).trim() });
+  }
+  return out;
+}
+
+/** Pure: one line on where the custom domain stands. */
+export function domainSummary(cfg) {
+  const r = cfg?.data?.result || {};
+  const errs = [...(r.verification_errors || []), ...(r.ssl?.validation_errors || []).map((e) => e?.message || e)].filter(Boolean);
+  return `${cfg?.custom_hostname || '(none)'}: ${cfg?.status || 'unknown'}; hostname ${r.status || '?'}, certificate ${r.ssl?.status || '?'}${errs.length ? `; errors: ${errs.join('; ')}` : ''}`;
+}
+
+const hostnameApi = (suffix = '', init) => api(`/v1/projects/${ref}/custom-hostname${suffix}`, init);
+
+async function ensureRecords(records) {
+  const cfToken = process.env.CLOUDFLARE_API_TOKEN;
+  if (!cfToken) { console.log('::warning::CLOUDFLARE_API_TOKEN is not set: create these records by hand:'); records.forEach((r) => console.log(`  ${showRecord(r)}`)); return; }
+  for (const want of records) {
+    const zoneId = await zoneIdFor({ domain: want.name, token: cfToken });
+    const have = await dnsRecords({ zoneId, name: want.name, token: cfToken });
+    const same = have.find((r) => r.type === want.type && String(r.content).replace(/^"|"$/g, '').replace(/\.$/, '') === want.content.replace(/\.$/, ''));
+    if (same) { console.log(`  ok      ${showRecord(same)}`); continue; }
+    if (want.type === 'CNAME' && have.length) {
+      console.log(`  ::warning::${want.name} already has ${have.map(showRecord).join(', ')}; not changed. It must be CNAME -> ${want.content}.`);
+      continue;
+    }
+    const made = await cfApi(fetch, cfToken, `/zones/${zoneId}/dns_records`, {
+      method: 'POST',
+      body: JSON.stringify({ type: want.type, name: want.name, content: want.content, ttl: 60, proxied: false, comment: 'Supabase custom domain (platform/supabase-admin.mjs)' }),
+    });
+    console.log(`  created ${showRecord(made)}`);
+  }
+}
+
+async function domainSetup(host) {
+  const h = String(host || '').trim().toLowerCase();
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(h)) fail('domain-setup needs a hostname, e.g. auth.hintwise.org');
+  let cfg = await hostnameApi();
+  if (cfg?.custom_hostname && cfg.custom_hostname !== h && cfg.status !== '1_not_started') {
+    fail(`the project already has custom hostname ${cfg.custom_hostname} (${cfg.status}); remove it in the dashboard first`);
+  }
+  if (cfg?.custom_hostname !== h || cfg.status === '1_not_started') {
+    await hostnameApi('/initialize', { method: 'POST', body: JSON.stringify({ custom_hostname: h }) });
+    cfg = await hostnameApi();
+  }
+  console.log(domainSummary(cfg));
+  const records = domainRecords(cfg, ref);
+  console.log('DNS records:');
+  await ensureRecords(records);
+  try { await hostnameApi('/reverify', { method: 'POST' }); } catch (e) { console.log(`reverify: ${String(e.message).slice(0, 200)} (DNS can take a few minutes; run domain-status later)`); }
+  console.log(domainSummary(await hostnameApi()));
+  console.log(`Next: add https://${h}/auth/v1/callback to the Google client's Authorized redirect URIs (keep the supabase.co one), wait for status 4_origin_setup_completed (domain-status), then domain-activate --callbacks-ready.`);
+}
+
+async function domainStatus() {
+  let cfg = await hostnameApi();
+  if (cfg?.status === '2_initiated' || cfg?.status === '3_challenge_verified') {
+    try { await hostnameApi('/reverify', { method: 'POST' }); cfg = await hostnameApi(); } catch (e) { console.log(`reverify: ${String(e.message).slice(0, 200)}`); }
+  }
+  console.log(domainSummary(cfg));
+  for (const r of domainRecords(cfg, ref)) console.log(`  needs ${showRecord({ ...r, proxied: false })}`);
+}
+
+async function domainActivate() {
+  if (!flags.has('--callbacks-ready')) {
+    fail('domain-activate switches Google sign-in to https://<host>/auth/v1/callback at once. Add that URI to every OAuth client of this project first, then re-run with --callbacks-ready.');
+  }
+  const cfg = await hostnameApi();
+  if (cfg?.status !== '4_origin_setup_completed') fail(`not ready to activate: ${domainSummary(cfg)}`);
+  await hostnameApi('/activate', { method: 'POST' });
+  console.log(domainSummary(await hostnameApi()));
+  console.log(`Activated. Check sign-in with: check-google --base=https://${cfg.custom_hostname}`);
+}
+
+// ---- Google sign-in check -------------------------------------------------
+
+/** Pure: client_id, redirect_uri and state from Supabase's redirect to Google, or null if it is not one. */
+export function parseGoogleRedirect(location) {
+  let u;
+  try { u = new URL(location); } catch { return null; }
+  if (u.hostname !== 'accounts.google.com') return null;
+  const p = u.searchParams;
+  return { clientId: p.get('client_id') || '', redirectUri: p.get('redirect_uri') || '', scope: p.get('scope') || '', state: p.get('state') || '' };
+}
+
+/**
+ * Pure: where Supabase will send the user back after Google, read from the
+ * payload of its state token (not verified: it is only for reporting, and it
+ * is public in the sign-in URL anyway). Supabase falls back to the site URL
+ * when the requested address is not in the redirect allow-list.
+ */
+export function stateReferrer(state) {
+  const part = String(state || '').split('.')[1];
+  if (!part) return null;
+  try {
+    const json = JSON.parse(Buffer.from(part.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
+    return typeof json.referrer === 'string' ? json.referrer : typeof json.redirect_to === 'string' ? json.redirect_to : null;
+  } catch { return null; }
+}
+
+/** Pure: Google's verdict on the client and callback, from one response (status, URL, body). */
+export function googleVerdict(status, pageUrl, body) {
+  let text = String(body || '');
+  try {
+    const u = new URL(pageUrl);
+    const authError = u.searchParams.get('authError');
+    if (authError) text += ' ' + Buffer.from(authError.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+    if (/\/oauth\/error/.test(u.pathname) && !text) text = 'oauth error';
+  } catch { /* not a URL */ }
+  if (/redirect_uri_mismatch/i.test(text)) return 'redirect_uri_mismatch';
+  if (/invalid_client|deleted_client|OAuth client was not found/i.test(text)) return 'invalid_client';
+  if (/org_internal|admin_policy_enforced|access_denied/i.test(text)) return 'blocked';
+  if (/\/oauth\/error/.test(String(pageUrl))) return 'error';
+  if (status >= 200 && status < 400) return 'ok';
+  return `http_${status}`;
+}
+
+const BROWSER_UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
+
+async function checkGoogle(returnTo) {
+  const base = (flagValue('--base') || url || `https://${ref}.supabase.co`).replace(/\/+$/, '');
+  const back = returnTo || 'https://studio.hintwise.org/';
+  const start = `${base}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(back)}`;
+  console.log(`Auth host: ${base}\nReturn to: ${back}`);
+
+  let res = await fetch(start, { redirect: 'manual', headers: { 'user-agent': BROWSER_UA } });
+  if (res.status === 401) {
+    // Some gateways want the public anon key even on this browser route.
+    const anon = pickAnonKey(await api(`/v1/projects/${ref}/api-keys`));
+    if (anon) res = await fetch(start, { redirect: 'manual', headers: { 'user-agent': BROWSER_UA, apikey: anon } });
+  }
+  const location = res.headers.get('location') || '';
+  const google = parseGoogleRedirect(location);
+  if (!google) {
+    const body = (await res.text().catch(() => '')).slice(0, 300);
+    fail(`Supabase did not redirect to Google (HTTP ${res.status}${location ? `, to ${location.slice(0, 120)}` : ''}): ${body}`);
+  }
+  const hintwise = process.env.HINTWISE_AUTH_GOOGLE_ID;
+  console.log(`Google client: ${google.clientId}${hintwise ? ` (HintWise client: ${google.clientId === hintwise ? 'yes' : 'no'})` : ''}`);
+  console.log(`Callback URL Google must allow: ${google.redirectUri}`);
+  console.log(`Scopes: ${google.scope}`);
+  const referrer = stateReferrer(google.state);
+  if (referrer) console.log(`Supabase will return the user to: ${referrer}${referrer.replace(/\/+$/, '') === back.replace(/\/+$/, '') ? '' : '  (NOT the address asked for: add it to the redirect allow-list)'}`);
+
+  // Follow Google's own redirects (account chooser or sign-in page, or an error page).
+  let pageUrl = location;
+  let verdict = 'unknown';
+  for (let hop = 0; hop < 6; hop++) {
+    const r = await fetch(pageUrl, { redirect: 'manual', headers: { 'user-agent': BROWSER_UA, 'accept-language': 'en' } });
+    const next = r.headers.get('location');
+    const body = next ? '' : await r.text().catch(() => '');
+    verdict = googleVerdict(r.status, pageUrl, body);
+    if (verdict !== 'ok' || !next) break;
+    pageUrl = new URL(next, pageUrl).toString();
+    verdict = googleVerdict(0, pageUrl, '');
+    if (verdict !== 'ok' && verdict !== 'http_0') break;
+  }
+  if (verdict === 'http_0') verdict = 'ok';
+  console.log(`Google says: ${verdict}`);
+  if (verdict === 'redirect_uri_mismatch') fail(`add ${google.redirectUri} to the Google client's Authorized redirect URIs`);
+  if (verdict !== 'ok') fail(`Google refused the sign-in request (${verdict})`);
+  console.log('Google sign-in request accepted: a person can sign in from here.');
+}
+
 // ---- main -----------------------------------------------------------------
 
 const commands = {
@@ -337,6 +541,10 @@ const commands = {
   'configure-auth': () => configureAuth(),
   keys: () => keys(),
   usage: () => usage(arg),
+  'check-google': () => checkGoogle(arg),
+  'domain-setup': () => domainSetup(arg),
+  'domain-status': () => domainStatus(),
+  'domain-activate': () => domainActivate(),
 };
 
 // SUPABASE_ADMIN_NO_RUN=1 lets tests import the pure helpers without running.

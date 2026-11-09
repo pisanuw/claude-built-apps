@@ -69,7 +69,7 @@ npm install && npm run lint && npm run typecheck && npm run coverage && npm run 
 ## Profiles
 
 The platform keeps one `platform.profiles` row per user, but it has no trigger
-on Supabase's `auth.users` (the shared project does not allow one). Call
-`ensureProfile()` from `src/lib/auth.ts` once after sign-in, for example in
-the `onAuth` callback when a user appears. It never throws; a missing profile
-row does not stop the app.
+on Supabase's `auth.users` (the shared project does not allow one). The
+sign-in panel (`mountSignIn`) calls `ensureProfile()` from `src/lib/auth.ts`
+once per signed-in user; an app with its own sign-in UI calls it itself. It
+never throws; a missing profile row does not stop the app.

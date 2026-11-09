@@ -37,7 +37,7 @@ describe('auth functions', () => {
   it('start Google and magic-link sign-in with the redirect, and sign out', async () => {
     const { client, auth } = fakeAuth();
     await signInWithGoogle('https://x.hintwise.org/', client);
-    expect(auth.signInWithOAuth).toHaveBeenCalledWith({ provider: 'google', options: { redirectTo: 'https://x.hintwise.org/' } });
+    expect(auth.signInWithOAuth).toHaveBeenCalledWith({ provider: 'google', options: { redirectTo: 'https://x.hintwise.org/', queryParams: { prompt: 'select_account' } } });
     await sendMagicLink('ann@example.com', 'https://x.hintwise.org/', client);
     expect(auth.signInWithOtp).toHaveBeenCalledWith({ email: 'ann@example.com', options: { emailRedirectTo: 'https://x.hintwise.org/' } });
     await signOut(client);
@@ -78,7 +78,7 @@ describe('mountSignIn', () => {
     expect(root.querySelector('input[type=email]')).toBeTruthy();
     expect(button('Email me a sign-in link').type).toBe('submit');
     button('Continue with Google').click();
-    expect(auth.signInWithOAuth).toHaveBeenCalledWith({ provider: 'google', options: { redirectTo: 'https://x.hintwise.org/app/' } });
+    expect(auth.signInWithOAuth).toHaveBeenCalledWith({ provider: 'google', options: { redirectTo: 'https://x.hintwise.org/app/', queryParams: { prompt: 'select_account' } } });
   });
   it('sends the magic link and reports it; ignores an empty email', async () => {
     const { client, auth } = fakeAuth();
@@ -126,7 +126,7 @@ describe('mountSignIn', () => {
     mountSignIn(root, { client });
     await flush();
     button('Continue with Google').click();
-    expect(auth.signInWithOAuth).toHaveBeenCalledWith({ provider: 'google', options: { redirectTo: location.origin + location.pathname } });
+    expect(auth.signInWithOAuth).toHaveBeenCalledWith({ provider: 'google', options: { redirectTo: location.origin + location.pathname, queryParams: { prompt: 'select_account' } } });
   });
 });
 
@@ -142,5 +142,62 @@ describe('ensureProfile', () => {
   it('returns the error message instead of throwing', async () => {
     const rpc = vi.fn().mockResolvedValue({ error: { message: 'not signed in' } });
     expect(await ensureProfile({ schema: () => ({ rpc }) } as unknown as ProfileClient)).toBe('not signed in');
+  });
+});
+
+describe('Google sign-in options', () => {
+  it('asks Google for the account chooser and returns to the given page', async () => {
+    const signInWithOAuth = vi.fn().mockResolvedValue({ data: {}, error: null });
+    await signInWithGoogle('https://x.hintwise.org/app/', { auth: { signInWithOAuth } } as unknown as AuthClient);
+    expect(signInWithOAuth).toHaveBeenCalledWith({
+      provider: 'google',
+      options: { redirectTo: 'https://x.hintwise.org/app/', queryParams: { prompt: 'select_account' } },
+    });
+  });
+});
+
+describe('mountSignIn profiles', () => {
+  function authFake(user: { id: string; email: string } | null) {
+    const session = user ? ({ user, access_token: 't' } as unknown as Session) : null;
+    let listener: ((e: string, s: Session | null) => void) | undefined;
+    const auth = {
+      getSession: vi.fn().mockResolvedValue({ data: { session } }),
+      onAuthStateChange: vi.fn((cb: (e: string, s: Session | null) => void) => {
+        listener = cb;
+        return { data: { subscription: { unsubscribe: vi.fn() } } };
+      }),
+      signOut: vi.fn(),
+      signInWithOAuth: vi.fn(),
+      signInWithOtp: vi.fn(),
+    };
+    return { auth, emit: (s: Session | null) => listener?.('SIGNED_IN', s), session };
+  }
+
+  it('creates the profile once per signed-in user when the client can', async () => {
+    const f = authFake({ id: 'u1', email: 'a@b.c' });
+    const rpc = vi.fn().mockResolvedValue({ error: null });
+    const schema = vi.fn().mockReturnValue({ rpc });
+    mountSignIn(document.createElement('div'), { client: { auth: f.auth, schema } as unknown as AuthClient, redirectTo: 'https://x/' });
+    await vi.waitFor(() => expect(rpc).toHaveBeenCalledTimes(1));
+    f.emit(f.session);
+    await Promise.resolve();
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(schema).toHaveBeenCalledWith('platform');
+  });
+
+  it('skips profiles when told to, or when the client has no schema()', async () => {
+    const f = authFake({ id: 'u2', email: 'a@b.c' });
+    const rpc = vi.fn();
+    mountSignIn(document.createElement('div'), { client: { auth: f.auth, schema: () => ({ rpc }) } as unknown as AuthClient, redirectTo: 'https://x/', profileClient: false });
+    mountSignIn(document.createElement('div'), { client: { auth: f.auth } as unknown as AuthClient, redirectTo: 'https://x/' });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('uses an explicit profile client', async () => {
+    const f = authFake({ id: 'u3', email: 'a@b.c' });
+    const rpc = vi.fn().mockResolvedValue({ error: null });
+    mountSignIn(document.createElement('div'), { client: { auth: f.auth } as unknown as AuthClient, redirectTo: 'https://x/', profileClient: { schema: () => ({ rpc }) } });
+    await vi.waitFor(() => expect(rpc).toHaveBeenCalledTimes(1));
   });
 });
