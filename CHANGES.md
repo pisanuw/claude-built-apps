@@ -407,3 +407,6 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-09 [code] BUILD_ROUTINE.md rewritten for weekly builds (day state machine, pick/plan/slice, one milestone a day with review, polish, finish); pause notice removed; templates docs/templates/PROJECT_HANDOFF.md and PLAN.md; docs/platform.md.
 2026-11-09 [code] Platform scaffolding merged (platform/): shared SQL, Supabase admin commands, llm-gateway edge function with tests, LLM usage email workflow, app template, Deploy migrations step for supabase: true targets.
 2026-11-09 [code] apply-shared failed safely (no trigger allowed on auth.users); platform.ensure_profile(), called by apps after sign-in, replaces the trigger. Template gains ensureProfile().
+2026-11-09 [code] Live Supabase changes (owner: run 1-3): schema platform applied, exposed through PostgREST; auth gains https://*.hintwise.org/** redirects, Resend SMTP from sign-in@hintwise.org, email limit 30/hour.
+2026-11-09 [note] Side effect: WCV Live Together and how-of-happiness auth emails now send from HintWise <sign-in@hintwise.org> via Resend instead of Supabase's default sender.
+2026-11-09 [code] research-map.hintwise.org set as the primary domain of Netlify site uw-research-maps (owner request; Set Netlify domain workflow).
