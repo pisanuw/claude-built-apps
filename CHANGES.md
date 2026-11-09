@@ -422,3 +422,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 
 2026-11-09 [note] PasteMD Google sign-in fails on paste-md.hintwise.org: APP_URL sends Google back to paste-md.netlify.app, where the state cookie is missing. Hintwise callbacks for PasteMD and UpvoteMe not registered yet.
 2026-11-09 [code] Netlify env workflow (netlify-env.mjs): show a site's domains and URL variables; set a plain URL variable, re-creating a secret one.
+
+2026-11-09 [note] Owner: UpvoteMe loads and Google sign-in works; the app still sends Google the upvoteme.netlify.app callback (hintwise.org callback not registered). PasteMD on hintwise.org still fails.
