@@ -437,3 +437,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 
 2026-11-10 [note] Owner: PasteMD Google sign-in through Supabase works. Its two Google redirect URIs (paste-md.netlify.app, paste-md.hintwise.org) can be removed from the HintWise client.
 2026-11-10 [decision] Owner: Qualified Overtime Checker may save client files in Supabase for signed-in users (browser-only choice, delete button); app stays free. Answered to the build session, which continues with day 2 today.
+2026-11-10 [code] UpvoteMe: pisanuw/upvote#3 merged (ce9549c); upvoteme.netlify.app/* now 301s to upvoteme.hintwise.org with path and query kept, so sign-in stays on one host. Checked live 12:37 UTC.
