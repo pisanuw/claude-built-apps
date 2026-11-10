@@ -1,15 +1,22 @@
 /**
  * Point an existing Netlify site (one this repo does not deploy, such as a
- * pisan-labs repo built by Netlify's own Git integration) at a pisan.me
- * custom domain: create the Cloudflare CNAME if missing, set the site's
+ * pisan-labs repo built by Netlify's own Git integration) at a hintwise.org
+ * (or pisan.me) custom domain: create the Cloudflare CNAME if missing, set the site's
  * primary custom domain, and request its certificate.
  *
- *   node set-domain.mjs --site stepwise-pisan-labs --domain stepwise.pisan.me
+ *   node set-domain.mjs --site stepwise-pisan-labs --domain stepwise.hintwise.org
+ *   node set-domain.mjs --site paste-md --domain paste-md.hintwise.org --alias
  *
- * Needs NETLIFY_AUTH_TOKEN; CLOUDFLARE_API_TOKEN (+ CLOUDFLARE_ZONE_ID) to
+ * --alias adds the domain as an extra name and leaves the primary as it is, so
+ * an app that names its own address (sign-in callbacks, APP_URL) keeps working
+ * on both until it is ready to switch; run again without --alias to make it the
+ * primary, which also makes the .netlify.app address redirect to it.
+ *
+ * Needs NETLIFY_AUTH_TOKEN; CLOUDFLARE_API_TOKEN (CLOUDFLARE_ZONE_ID only as a fallback) to
  * create the DNS record. Run it from the "Set Netlify domain" workflow.
  */
 import { ensureDomainDns } from "./cloudflare-dns.mjs";
+import { APP_DOMAIN, OLD_DOMAIN } from "../../scripts/domains.mjs";
 
 const arg = (name) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -17,13 +24,22 @@ const arg = (name) => {
 };
 const site = arg("site");
 const domain = arg("domain");
+const aliasOnly = process.argv.includes("--alias");
 if (!site || !domain)
   throw new Error(
-    "usage: set-domain.mjs --site <netlify-site-name> --domain <host.pisan.me>",
+    `usage: set-domain.mjs --site <netlify-site-name> --domain <host.${APP_DOMAIN}>`,
   );
 if (!/^[a-z0-9-]+$/.test(site)) throw new Error(`bad site name: ${site}`);
-if (!/^[a-z0-9-]+\.pisan\.me$/.test(domain))
-  throw new Error(`domain must be <host>.pisan.me: ${domain}`);
+if (
+  ![APP_DOMAIN, OLD_DOMAIN].some(
+    (z) =>
+      domain.endsWith(`.${z}`) &&
+      /^[a-z0-9-]+$/.test(domain.slice(0, -(z.length + 1))),
+  )
+)
+  throw new Error(
+    `domain must be <host>.${APP_DOMAIN} or <host>.${OLD_DOMAIN}: ${domain}`,
+  );
 const token = process.env.NETLIFY_AUTH_TOKEN;
 if (!token) throw new Error("NETLIFY_AUTH_TOKEN is not set");
 
@@ -53,20 +69,64 @@ const dns = await ensureDomainDns({ domain, target });
 console.log(dns.message);
 if (!dns.ready) process.exit(1);
 
-if (info.custom_domain === domain) {
+const aliases = info.domain_aliases || [];
+if (aliasOnly && !info.custom_domain) {
+  // Netlify answers 422 "You cannot update domain aliases while primary custom
+  // domain is not set": a site on its .netlify.app address alone can only take
+  // a new name as its primary (which makes .netlify.app redirect to it).
+  console.log(
+    `::error::${info.name} has no primary custom domain, so Netlify cannot add ${domain} as an alias. ` +
+      `Run again without alias to make ${domain} the primary (the .netlify.app address then redirects to it; ` +
+      `register any sign-in callback on ${domain} first). The DNS record is in place.`,
+  );
+  process.exit(1);
+}
+if (aliasOnly) {
+  if (info.custom_domain === domain || aliases.includes(domain)) {
+    console.log(`${domain} is already on the site.`);
+  } else {
+    await netlify(`/sites/${info.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ domain_aliases: [...aliases, domain] }),
+    });
+    console.log(`Added ${domain} as an alias; the primary stays ${info.custom_domain || target}.`);
+  }
+} else if (info.custom_domain === domain) {
   console.log(`Custom domain already ${domain}.`);
 } else {
   await netlify(`/sites/${info.id}`, {
     method: "PATCH",
-    body: JSON.stringify({ custom_domain: domain }),
+    body: JSON.stringify({
+      custom_domain: domain,
+      domain_aliases: aliases.filter((d) => d !== domain),
+    }),
   });
   console.log(`Set custom domain to ${domain}.`);
 }
 try {
-  await netlify(`/sites/${info.id}/ssl`, { method: "POST" });
-  console.log(`Requested a TLS certificate for ${domain}.`);
+  try {
+    await netlify(`/sites/${info.id}/ssl`, { method: "POST" });
+    console.log(`Requested a TLS certificate for ${domain}.`);
+  } catch (e) {
+    // A site with a Let's Encrypt certificate already answers 422 "existing
+    // certificate"; adding a name then needs the renew endpoint.
+    if (!String(e.message).includes("existing certificate")) throw e;
+    await netlify(`/sites/${info.id}/ssl/renew`, { method: "POST" });
+    console.log(`Certificate renewal requested (adds ${domain}).`);
+  }
 } catch (e) {
   console.log(
     `TLS request did not go through yet (Netlify retries on its own once DNS resolves): ${String(e).slice(0, 300)}`,
   );
 }
+// Wait until the name answers over https, so the run says whether it worked.
+for (let i = 0; i < 30; i++) {
+  try {
+    const r = await fetch(`https://${domain}/`, { redirect: "manual" });
+    console.log(`https://${domain}/ answers HTTP ${r.status}.`);
+    process.exit(0);
+  } catch {
+    await new Promise((ok) => setTimeout(ok, 10000));
+  }
+}
+console.log(`::warning::https://${domain}/ does not answer yet after 5 minutes (certificate still pending?).`);

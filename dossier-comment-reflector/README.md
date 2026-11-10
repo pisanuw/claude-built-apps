@@ -2,7 +2,7 @@
 
 **Your promotion dossier wants a reflection on student comments. Start from the evidence, not a blank page.**
 
-Live: [dossier-comment-reflector.pisan.me](https://dossier-comment-reflector.pisan.me)
+Live: [dossier-comment-reflector.hintwise.org](https://dossier-comment-reflector.hintwise.org)
 
 Promotion and tenure dossiers increasingly ask faculty to show how student
 feedback changed their teaching, often in a two-page reflection with quotes
@@ -103,4 +103,4 @@ Deployed to Netlify as a static site from `deploy/target.yml`; no environment
 variables (see `.env.example`).
 
 Built with Claude Code from an idea in
-[daily-project-ideas](https://daily-project-ideas.pisan.me). MIT license.
+[daily-project-ideas](https://studio.hintwise.org). MIT license.

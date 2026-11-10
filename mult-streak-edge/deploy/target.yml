@@ -9,7 +9,7 @@ publish: dist/public
 
 env:
   IDLE_MINUTES: '5'
-  FROM_EMAIL: mult-streak-edge@pisan.me
+  FROM_EMAIL: mult-streak-edge@hintwise.org
 
 envPassthrough:
   - RESEND_API

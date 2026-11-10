@@ -1,0 +1,43 @@
+{
+  "generated_at": "2026-11-10T16:10:05.123456+00:00",
+  "period_days": 1,
+  "period_start": "2026-11-09T00:00:00+00:00",
+  "period_end": "2026-11-10T00:00:00+00:00",
+  "week_start": "2026-11-09T00:00:00+00:00",
+  "month_start": "2026-11-01T00:00:00+00:00",
+  "apps": [
+    {
+      "slug": "donation-receipts",
+      "enabled": true,
+      "default_model": "claude-opus-5-5",
+      "allowed_models": ["claude-opus-5-5", "claude-haiku-5-5"],
+      "max_tokens": 4096,
+      "caps": { "day_usd": 2, "week_usd": 10, "month_usd": 20, "user_day_usd": 0.25 },
+      "period": { "calls": 12, "users": 3, "cost_usd": 0.4213, "errors": 0 },
+      "week": { "calls": 12, "users": 3, "cost_usd": 0.4213, "errors": 0 },
+      "month": { "calls": 80, "users": 9, "cost_usd": 3.2, "errors": 2 }
+    },
+    {
+      "slug": "quiet-app",
+      "enabled": false,
+      "default_model": "claude-opus-5-5",
+      "allowed_models": ["claude-opus-5-5"],
+      "max_tokens": 4096,
+      "caps": { "day_usd": 2, "week_usd": 10, "month_usd": 20, "user_day_usd": 0.25 },
+      "period": { "calls": 0, "users": 0, "cost_usd": 0, "errors": 0 },
+      "week": { "calls": 0, "users": 0, "cost_usd": 0, "errors": 0 },
+      "month": { "calls": 0, "users": 0, "cost_usd": 0, "errors": 0 }
+    },
+    {
+      "slug": "study-buddy",
+      "enabled": true,
+      "default_model": "claude-haiku-5-5",
+      "allowed_models": ["claude-haiku-5-5"],
+      "max_tokens": 2048,
+      "caps": { "day_usd": "1", "week_usd": "5", "month_usd": "10", "user_day_usd": "0.1" },
+      "period": { "calls": 0, "users": 0, "cost_usd": 0, "errors": 0 },
+      "week": { "calls": "3", "users": "1", "cost_usd": "0.0042", "errors": "1" },
+      "month": { "calls": 3, "users": 1, "cost_usd": 0.0042, "errors": 1 }
+    }
+  ]
+}

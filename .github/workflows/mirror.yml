@@ -17,6 +17,10 @@
 # (no README, or the first push is rejected), and runs this workflow by hand.
 # Until the repo exists the app is skipped with a warning, not a failure.
 #
+# If a mirror's history ever diverges from the split (push rejected "fetch
+# first"), the owner can approve a manual run with force_app=<app folder>,
+# which force-pushes only that app's mirror to the split.
+#
 # Secret MIRROR_TOKEN: a fine-grained token, resource owner pisan-labs, with
 # Contents and Workflows read/write on the mirror repos (Workflows because
 # each app carries its own CI file). Without it the job skips.
@@ -26,6 +30,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      force_app:
+        description: 'Owner-approved only: app folder whose mirror main is force-pushed to the split (rewrites that repo''s history)'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   mirror:
@@ -42,6 +52,7 @@ jobs:
         env:
           TOKEN: ${{ secrets.MIRROR_TOKEN }}
           EVENT_NAME: ${{ github.event_name }}
+          FORCE_APP: ${{ inputs.force_app }}
           BEFORE_SHA: ${{ github.event.before }}
           AFTER_SHA: ${{ github.sha }}
         run: |
@@ -75,7 +86,12 @@ jobs:
             fi
             git branch -D mirror >/dev/null 2>&1 || true
             if git subtree split -q --prefix="$app" -b mirror \
-              && git push -q "$url" mirror:main; then
+              && if [ -n "$FORCE_APP" ] && [ "$app" = "$FORCE_APP" ]; then
+                   echo "::warning::force-pushing pisan-labs/$repo main (force_app=$FORCE_APP)"
+                   git push -q --force "$url" mirror:main
+                 else
+                   git push -q "$url" mirror:main
+                 fi; then
               echo "pushed"
             else
               echo "::error::Mirroring $app to pisan-labs/$repo failed."

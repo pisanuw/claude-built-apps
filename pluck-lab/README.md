@@ -7,7 +7,7 @@ string on screen (the delay line, its harmonics and the output), lets you slow
 it down to one sample per frame, walks through seven lecture scenes, and lets
 students rewrite the loop filter and hear the result immediately.
 
-Live: [pluck-lab.pisan.me](https://pluck-lab.pisan.me)
+Live: [pluck-lab.hintwise.org](https://pluck-lab.hintwise.org)
 
 ![Strumming a G chord, then switching to 256 samples per frame and plucking the A string: the delay line's noise smooths into a waveform and the high harmonics die away trip by trip](demo.gif)
 

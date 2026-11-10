@@ -24,7 +24,7 @@ env:
   # Idle threshold before the "player stopped" email fires. Kept at 5 minutes
   # so the email reliably sends before a free Render instance spins down.
   IDLE_MINUTES: '5'
-  FROM_EMAIL: mult-streak@pisan.me
+  FROM_EMAIL: mult-streak@hintwise.org
 
 # Secret values forwarded from the workflow environment (GitHub repo secrets).
 # Names only; values never live in this file.
@@ -43,7 +43,10 @@ render:
   # cookies once, which for a game is fine).
   generateEnv:
     - COOKIE_SECRET
-  plan: free
+  # Paid compute plan since 10 Nov 2026 (owner): 0.5 CPU, 512 MB, $7/month,
+  # always on. Render renamed "starter" to the compute plan 0.5c-512mb; use
+  # its current name so the deploy sees no change to make.
+  plan: 0.5c-512mb
   region: oregon
   startCommand: npm start
   healthCheckPath: /api/health

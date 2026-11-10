@@ -1,0 +1,124 @@
+# Admin tasks on the shared HintWise Supabase project (docs/platform.md).
+# Secrets stay in GitHub; the script prints names and booleans, never values.
+#
+# Script commands (platform/supabase-admin.mjs):
+#   inspect                  what is in the project today
+#   sql <arg: file>          run one SQL file (shared platform SQL or an app's migration)
+#   apply-shared             run platform/supabase/shared/*.sql, recording each in platform.migrations
+#   migrate <arg: slug>      run <slug>/supabase/migrations/*.sql the same way
+#   expose-schema <arg>      add a schema (platform, app_<slug_>) to PostgREST's db_schema
+#   configure-auth           additive auth settings; flags "--dry-run" and "--google"
+#   keys                     print the URL and anon key as platform/supabase.json
+#   usage [arg: days]        print the LLM usage report
+#   domain-setup <arg: host> custom domain add-on: start it, create its Cloudflare records, verify
+#   domain-status            where the custom domain stands (re-verifies while waiting)
+#   domain-activate          flag --callbacks-ready: switch Auth to the custom domain
+#   check-google [arg: return URL]  test the Google sign-in request without logging in; flag --base=URL for a custom auth domain
+# Shell commands (Supabase CLI, project dir platform/):
+#   deploy-gateway           deploy the llm-gateway edge function
+#   set-gateway-key          set the ANTHROPIC_API_KEY function secret from the repo secret
+name: Supabase admin
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'inspect | sql | apply-shared | migrate | expose-schema | check-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | deploy-gateway | set-gateway-key'
+        required: true
+        default: 'inspect'
+        type: string
+      arg:
+        description: 'sql: file path; migrate: app slug; expose-schema, check-schema: schema; usage: days; check-google: return URL; domain-setup: host'
+        required: false
+        default: ''
+        type: string
+      flags:
+        description: 'Flags for the script, e.g. "--google --dry-run" (configure-auth), "--write" (keys), "--base=https://auth.hintwise.org" (check-google), "--callbacks-ready" (domain-activate)'
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  group: supabase-admin
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      # keys --write commits platform/supabase.json (public URL and anon key).
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run
+        if: inputs.command != 'deploy-gateway' && inputs.command != 'set-gateway-key'
+        run: node platform/supabase-admin.mjs "$CMD" $ARG $FLAGS
+        env:
+          CMD: ${{ inputs.command }}
+          ARG: ${{ inputs.arg }}
+          FLAGS: ${{ inputs.flags }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          RESEND_API: ${{ secrets.RESEND_API }}
+          HINTWISE_AUTH_GOOGLE_ID: ${{ secrets.HINTWISE_AUTH_GOOGLE_ID }}
+          HINTWISE_AUTH_GOOGLE_SECRET: ${{ secrets.HINTWISE_AUTH_GOOGLE_SECRET }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+
+      - name: Commit platform/supabase.json
+        # GitHub masks the anon key in the log, so keys --write commits the
+        # file here instead of printing it for someone to copy. The anon key
+        # is public by design (every app's bundle carries it); the
+        # service-role key is never written.
+        if: inputs.command == 'keys' && contains(inputs.flags, '--write')
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add platform/supabase.json
+          if git diff --cached --quiet; then echo "platform/supabase.json unchanged."; exit 0; fi
+          git commit -m "chore(platform): record the public Supabase URL and anon key"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin "HEAD:$GITHUB_REF_NAME"
+          echo "Committed platform/supabase.json."
+
+      - uses: supabase/setup-cli@v1
+        if: inputs.command == 'deploy-gateway' || inputs.command == 'set-gateway-key'
+        with:
+          version: latest
+
+      - name: Deploy the llm-gateway edge function
+        if: inputs.command == 'deploy-gateway'
+        # The CLI reads SUPABASE_ACCESS_TOKEN from the environment. The project
+        # dir is platform/ (it holds supabase/config.toml and
+        # supabase/functions/llm-gateway). The CLI (9 Nov 2026) asks before
+        # changing a remote project and refuses without a terminal, so pass
+        # --yes; it calls --project-ref deprecated in favour of --remote=<ref>,
+        # so try --remote first and fall back for older CLIs.
+        working-directory: platform
+        run: |
+          REF=$(printf '%s' "$SUPABASE_URL" | sed -nE 's#^https?://([a-z0-9]+)\.supabase\.co.*#\1#p')
+          [ -n "$REF" ] || { echo "::error::SUPABASE_URL does not look like https://<ref>.supabase.co"; exit 1; }
+          supabase functions deploy llm-gateway --remote="$REF" --yes \
+            || supabase functions deploy llm-gateway --project-ref "$REF" --yes
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+
+      - name: Set the ANTHROPIC_API_KEY function secret
+        if: inputs.command == 'set-gateway-key'
+        working-directory: platform
+        run: |
+          REF=$(printf '%s' "$SUPABASE_URL" | sed -nE 's#^https?://([a-z0-9]+)\.supabase\.co.*#\1#p')
+          [ -n "$REF" ] || { echo "::error::SUPABASE_URL does not look like https://<ref>.supabase.co"; exit 1; }
+          [ -n "$ANTHROPIC_API_KEY" ] || { echo "::error::ANTHROPIC_API_KEY repo secret is not set"; exit 1; }
+          supabase secrets set --remote="$REF" --yes ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+            || supabase secrets set --project-ref "$REF" --yes ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
+          echo "Function secret ANTHROPIC_API_KEY set (value not shown)."
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

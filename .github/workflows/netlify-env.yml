@@ -1,0 +1,60 @@
+# Manual: look at or fix address-type env vars on one Netlify site this repo
+# does not deploy (PasteMD, UpvoteMe). "show" is read-only and prints a value
+# only when it is a plain URL; "set" writes a plain (not secret) URL variable,
+# re-creating it if it was marked secret. Never put a secret in "value": the
+# inputs of a run are public.
+name: Netlify env
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'show | set'
+        required: true
+        default: 'show'
+        type: string
+      site:
+        description: 'Netlify site name (the part before .netlify.app)'
+        required: true
+        type: string
+      key:
+        description: 'set only: variable name, e.g. NEXTAUTH_URL'
+        required: false
+        default: ''
+        type: string
+      value:
+        description: 'set only: an http(s) URL (never a secret)'
+        required: false
+        default: ''
+        type: string
+      build:
+        description: 'set only: start a build afterwards'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: ${{ inputs.command }} on ${{ inputs.site }}
+        run: |
+          if [ "$CMD" = "set" ]; then
+            node accessibility-lens/deploy/netlify-env.mjs set --site "$SITE" --key "$KEY" --value "$VALUE" $([ "$BUILD" = "true" ] && echo --build)
+          else
+            node accessibility-lens/deploy/netlify-env.mjs "$CMD" --site "$SITE"
+          fi
+        env:
+          CMD: ${{ inputs.command }}
+          SITE: ${{ inputs.site }}
+          KEY: ${{ inputs.key }}
+          VALUE: ${{ inputs.value }}
+          BUILD: ${{ inputs.build }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}

@@ -5,7 +5,7 @@ map**, a **B-tree**, a **skip list** and an **LRU cache** at the same time, so
 you can watch each one change shape and compare what the same operation cost
 in each.
 
-Live: <https://data-structure-city.pisan.me>
+Live: <https://data-structure-city.hintwise.org>
 
 ![FILL 8 builds a hash map, B-tree, skip list and LRU cache at once and reports each rehash and node split, GET k1 hits in three buildings but misses in the LRU cache, and DEL k2 merges two B-tree nodes, with per-building cost meters](demo.gif)
 

@@ -23,7 +23,7 @@ answer resets it to zero. Reach **10 in a row** and you win a crown and are
 - **"Player stopped" email.** The one piece of server-side state is a small JSON
   file tracking each player's last activity. When a player has been idle past a
   threshold (`IDLE_MINUTES`, default 5 here), the server emails `ADMIN_EMAIL`
-  from `mult-streak@pisan.me` via Resend. The email fires from a 60-second
+  from `mult-streak@hintwise.org` via Resend. The email fires from a 60-second
   background sweep and also opportunistically whenever any request comes in, so
   you get a note shortly after someone stops (or when the next person plays).
   The email reports the anonymous id prefix and the streak they stopped at.
@@ -52,7 +52,7 @@ npm run build && npm start   # production build + run
 All via environment variables (see [`.env.example`](./.env.example)). Notable
 ones: `COOKIE_SECRET` (sign the state cookie; set a long random value in prod),
 `IDLE_MINUTES` (idle threshold), `RESEND_API` + `ADMIN_EMAIL` (enable email),
-`FROM_EMAIL` (defaults to `mult-streak@pisan.me`, domain verified in Resend).
+`FROM_EMAIL` (defaults to `mult-streak@hintwise.org`, domain verified in Resend).
 
 ## Deploy
 

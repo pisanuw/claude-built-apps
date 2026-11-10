@@ -37,7 +37,7 @@ reviewer would (home, contact, about, shipping, returns, terms, FAQ and up to
 Every finding says where it is (the page and the exact sentence), why a
 reviewer would care, and what to change. The most important ones come first.
 
-**Live:** https://misrepresentation-preflight.pisan.me · **Try it without a
+**Live:** https://misrepresentation-preflight.hintwise.org · **Try it without a
 store:** the sample shop, Fernhill Candle Co., is a made-up candle store with
 the kind of contradictions real stores collect over time. Run the check, then
 run it again "after fixes" to see the re-check log at work.

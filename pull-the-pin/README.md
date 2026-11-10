@@ -6,7 +6,7 @@ analyzer probes on pins and bus lines, watch the set of faults consistent with
 what they have measured shrink, and then name the faulty chip, pin, bus line
 or microcode bit, the way a repair tech diagnoses a board.
 
-Live: [pull-the-pin.pisan.me](https://pull-the-pin.pisan.me)
+Live: [pull-the-pin.hintwise.org](https://pull-the-pin.hintwise.org)
 
 ![Running a test program on a broken board, asking for the best next probe, and probing the AI control line until one consistent fault, an open CTRL.AI pin, is left](demo.gif)
 

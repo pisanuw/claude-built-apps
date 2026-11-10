@@ -1,27 +1,33 @@
 #!/usr/bin/env node
 /**
- * Give an existing Netlify site its <name>.pisan.me address without
- * redeploying it (a deploy costs Netlify credits; this does not):
+ * Give an existing Netlify site its <name>.hintwise.org (or <name>.pisan.me)
+ * address without redeploying it (a deploy costs Netlify credits; this does not):
  *   1. create the Cloudflare CNAME <name> -> <site>.netlify.app, DNS only
  *      (cloudflare-dns.mjs; an existing record is never changed),
- *   2. make the domain the site's primary custom domain (the old primary
- *      stays as a domain alias, still serving) and ask for its certificate,
+ *   2. make the domain the site's primary custom domain and ask for its
+ *      certificate. The old primary stays as a domain alias, still serving,
+ *      unless it is on pisan.me and Cloudflare already answers it (proxied
+ *      record + redirect rule) or it has no record; see keepOldAlias,
  *   3. wait until https://<domain>/ answers.
  *
  *   node attach-domain.mjs <netlify-site-name> <domain>
  *
- * Env: NETLIFY_AUTH_TOKEN, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ZONE_ID (optional).
+ * Env: NETLIFY_AUTH_TOKEN, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ZONE_ID (optional fallback).
  * Run by the "Attach custom domain" workflow. The site's own repo should also
  * get the domain in its config, so a later deploy keeps it.
  */
-import { ensureDomainDns } from './cloudflare-dns.mjs';
+import { ensureDomainDns, keepOldAlias } from './cloudflare-dns.mjs';
+import { APP_DOMAIN, OLD_DOMAIN, isSubdomainOf } from '../../scripts/domains.mjs';
 
 const [site, domain] = process.argv.slice(2);
 const say = (level, msg) => console.log(level ? `::${level}::${msg}` : msg);
 const die = (msg) => { say('error', msg); process.exit(1); };
 
 if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(site || '')) die(`bad Netlify site name: ${site}`);
-if (!/^[a-z0-9][a-z0-9-]{0,62}\.pisan\.me$/.test(domain || '')) die(`domain must be <name>.pisan.me, got: ${domain}`);
+const ZONES = [APP_DOMAIN, OLD_DOMAIN];
+if (!ZONES.some((z) => isSubdomainOf(domain, z) && /^[a-z0-9][a-z0-9-]{0,62}$/.test(domain.slice(0, -(z.length + 1))))) {
+  die(`domain must be <name>.${APP_DOMAIN} or <name>.${OLD_DOMAIN}, got: ${domain}`);
+}
 if (!process.env.NETLIFY_AUTH_TOKEN) die('NETLIFY_AUTH_TOKEN is not set');
 if (!process.env.CLOUDFLARE_API_TOKEN) die('CLOUDFLARE_API_TOKEN is not set');
 
@@ -47,7 +53,19 @@ if (info.custom_domain === domain) say('', `Custom domain already ${domain}.`);
 else {
   // Keep the old primary domain as an alias so its links (and anything a
   // browser stored for that origin) keep working; a rename should not break it.
-  const aliases = [...new Set([...(info.domain_aliases || []), ...(info.custom_domain ? [info.custom_domain] : [])])].filter((d) => d !== domain);
+  // A pisan.me name is the exception once Cloudflare answers it with the
+  // redirect to hintwise.org: then Netlify must not hold it (it could not
+  // renew a certificate naming it).
+  const candidates = [...new Set([...(info.domain_aliases || []), ...(info.custom_domain ? [info.custom_domain] : [])])].filter((d) => d !== domain);
+  const aliases = [];
+  for (const d of candidates) {
+    if (isSubdomainOf(d, OLD_DOMAIN) && !isSubdomainOf(domain, OLD_DOMAIN)) {
+      const { keep, reason } = await keepOldAlias({ oldDomain: d });
+      say('', `${d} ${keep ? 'stays an alias' : 'is dropped'}: ${reason}.`);
+      if (!keep) continue;
+    }
+    aliases.push(d);
+  }
   await netlify(`/sites/${info.id}`, { method: 'PATCH', body: JSON.stringify({ custom_domain: domain, domain_aliases: aliases }) });
   say('notice', `Custom domain set to ${domain} (was ${info.custom_domain || 'none'}); aliases: ${aliases.join(', ') || 'none'}.`);
 }

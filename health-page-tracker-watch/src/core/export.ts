@@ -82,7 +82,7 @@ export function reminderIcs(site: string, appUrl: string, from: Date): string {
     'PRODID:-//Health Page Tracker Watch//EN',
     'CALSCALE:GREGORIAN',
     'BEGIN:VEVENT',
-    `UID:health-page-tracker-watch-${site.replace(/[^a-z0-9.-]/gi, '')}-${icsDate(from)}@pisan.me`,
+    `UID:health-page-tracker-watch-${site.replace(/[^a-z0-9.-]/gi, '')}-${icsDate(from)}@hintwise.org`,
     `DTSTAMP:${stamp}`,
     `DTSTART;VALUE=DATE:${icsDate(start)}`,
     `DTEND;VALUE=DATE:${icsDate(end)}`,

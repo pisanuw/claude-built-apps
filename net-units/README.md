@@ -11,7 +11,7 @@ duplication overlays; click one to see its diff with every counted unit
 highlighted, then run a "guess the author" round before revealing which
 solutions an AI wrote.
 
-Live: [net-units.pisan.me](https://net-units.pisan.me)
+Live: [net-units.hintwise.org](https://net-units.hintwise.org)
 
 ![Switching the x axis from net lines to net coding units shows the four-line crammed Student 2 solution is not small, then clicking its point opens the diff with every counted unit highlighted](demo.gif)
 

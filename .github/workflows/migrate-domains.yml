@@ -1,0 +1,62 @@
+# Move Netlify apps from <x>.pisan.me to <x>.hintwise.org (docs/hintwise-migration.md).
+# Deploys nothing; every step is idempotent and logs before/after.
+#   step hosts  (Phase 2): CNAME <x>.hintwise.org (DNS only) to the same
+#                Netlify site, add it as a domain alias, wait for HTTPS.
+#   step switch (Phase 4): add the hosts to the pisan.me redirect rule, proxy
+#                <x>.pisan.me, make hintwise the Netlify primary and drop
+#                the pisan.me alias.
+# Renamed hosts (e.g. daily-project-ideas -> studio.hintwise.org) come from
+# HOST_RENAMES in scripts/domains.mjs; Netlify site renames (daily-project-ideas
+# -> hintwise, done in step hosts with its DNS) from SITE_RENAMES in
+# migrate-domains.mjs. Render hosts (chesstd, td): manual
+# steps are printed only. dry_run (the default) only reads.
+name: Migrate domains
+
+on:
+  workflow_dispatch:
+    inputs:
+      apps:
+        description: "App names (the label before .pisan.me), separated by spaces, or 'all'"
+        required: true
+        type: string
+      step:
+        description: 'hosts (add the hintwise name) or switch (redirect pisan.me)'
+        required: true
+        type: choice
+        options: [hosts, switch]
+      dry_run:
+        description: 'Only show what would change'
+        required: false
+        type: boolean
+        default: true
+
+# switch edits the shared redirect rule, so switch runs (and redirect-rule.yml)
+# go one at a time; hosts runs only touch their own apps and may run in
+# parallel batches (about 4-5 minutes per app, mostly certificate waits).
+concurrency:
+  group: ${{ inputs.step == 'switch' && 'hintwise-dns' || format('hintwise-hosts-{0}', github.run_id) }}
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Migrate (${{ inputs.step }}${{ inputs.dry_run && ', dry run' || '' }})
+        run: |
+          set -f  # no globbing of the app list
+          args=(--step "$STEP")
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          # Word-split the app list on purpose (names are validated by the script).
+          # shellcheck disable=SC2086
+          node accessibility-lens/deploy/migrate-domains.mjs "${args[@]}" $APPS
+        env:
+          APPS: ${{ inputs.apps }}
+          STEP: ${{ inputs.step }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}

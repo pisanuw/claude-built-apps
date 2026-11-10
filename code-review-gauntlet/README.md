@@ -6,7 +6,7 @@ everything you missed.
 
 ![A Novice round plants two defects in a JavaScript comment renderer; flagging the innerHTML line and submitting scores 100 points, marks the found XSS line green and the missed div line red, and explains each defect with its fix](demo.gif)
 
-- **Live site:** https://code-review-gauntlet.pisan.me
+- **Live site:** https://code-review-gauntlet.hintwise.org
 - **Source:** https://github.com/pisanuw/Claude-capstone/tree/main/code-review-gauntlet
 - **Host:** Netlify (fully static; no backend, no API keys).
 - **Idea:** [`pisanuw/daily-project-ideas`](https://github.com/pisanuw/daily-project-ideas), 2026-08-11 idea 1.

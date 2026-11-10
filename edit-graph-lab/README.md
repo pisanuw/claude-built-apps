@@ -12,7 +12,7 @@ or longer but more readable) hunks. An exercise generator writes questions
 whose answers come from the reference implementations and exports them as
 Markdown or QTI 1.2.
 
-Live: [edit-graph-lab.pisan.me](https://edit-graph-lab.pisan.me)
+Live: [edit-graph-lab.hintwise.org](https://edit-graph-lab.hintwise.org)
 
 ![Myers' algorithm on ABCABBA and CBABAC: furthest-reaching paths spread across the edit graph step by step while the V array fills in, then the Compare tab shows the LCS, Myers, patience and histogram diffs and the LCS table](demo.gif)
 

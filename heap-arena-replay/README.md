@@ -16,7 +16,7 @@ answers off the simulator, exports Markdown or a Canvas QTI package, and a
 diff mode finds the first op where a student allocator's addresses leave the
 reference. Everything runs in the browser.
 
-Live: [heap-arena-replay.pisan.me](https://heap-arena-replay.pisan.me)
+Live: [heap-arena-replay.hintwise.org](https://heap-arena-replay.hintwise.org)
 
 ![Pressing Play on the textbook walk-through replays its mallocs and frees on a 256-byte heap, with block outlines, the allocator's narration and the utilization tiles updating at each op](demo.gif)
 

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { footerHtml, injectFooter, injectFooterIntoDir, MARKER, PROJECTS_URL, CONTACT_EMAIL } from './site-footer.mjs';
+import { footerHtml, injectFooter, injectFooterIntoDir, MARKER, PROJECTS_URL, PROJECTS_LABEL, CONTACT_EMAIL, ACADEMIC_URL, ACADEMIC_LABEL } from './site-footer.mjs';
 
 const page = '<!doctype html><html><head></head><body><div id="root"></div><script src="a.js"></script></body></html>';
 
@@ -16,22 +16,38 @@ test('footer links the projects page and email, naming the app in the subject', 
   assert.ok(html.includes(`href="mailto:${CONTACT_EMAIL}?subject=Project%20idea%20(via%20pluck-lab)"`));
   assert.ok(html.includes('<template shadowrootmode="open">'));
   assert.ok(html.includes('aria-label="About the builder"'));
-  assert.ok(html.includes('<p>Yusuf Pisan</p>'));
-  assert.ok(html.includes('Built by Claude, guided by me.'));
+  assert.ok(html.includes('<p>Yusuf Pisan, Chief Education Officer, HintWise</p>'));
+  assert.ok(html.includes('HintWise builds tools like this for small businesses, startups and educators.<br>'));
   assert.ok(html.includes('Want something like this for your own work?'));
 });
 
-test('footer keeps its four lines and the smiley on its line', () => {
+test('contact address is builder@hintwise.org', () => {
+  assert.equal(CONTACT_EMAIL, 'builder@hintwise.org');
+  assert.ok(footerHtml('app').includes('>builder@hintwise.org</a>.</span>'));
+  assert.ok(!footerHtml('app').includes('pisan.me'));
+});
+
+test('footer keeps the owner\'s six lines and the smiley on its line', () => {
   const html = footerHtml('app');
   const body = html.slice(html.indexOf('<p>') + 3, html.indexOf('</p>'));
   const lines = body.split('<br>');
-  assert.equal(lines.length, 4);
-  assert.ok(lines[0].startsWith('Built by Claude'));
-  assert.ok(lines[1].startsWith('Want something like this'));
-  assert.ok(lines[2].endsWith('free&nbsp;:-)'));
-  assert.ok(lines[1].includes('<span class="nb">Email <a '));
+  assert.equal(lines.length, 6);
+  assert.equal(lines[0], 'HintWise builds tools like this for small businesses, startups and educators.');
+  assert.equal(lines[1], 'Built with Claude, guided by experts.');
+  assert.ok(lines[2].startsWith('Want something like this'));
+  assert.ok(lines[2].includes('<span class="nb">Email <a '));
+  assert.ok(lines[2].includes(`>${CONTACT_EMAIL}</a>.</span>`));
   assert.ok(html.includes('.nb { white-space: nowrap; }'));
-  assert.ok(lines[3].startsWith('More apps:'));
+  assert.equal(lines[3], 'Paid projects welcome, <span class="nb">interesting ones may be done for free&nbsp;:-)</span>');
+  assert.equal(lines[4], `Academic page: <a href="${ACADEMIC_URL}">${ACADEMIC_LABEL}</a>`);
+  assert.equal(lines[5], `More apps: <a href="${PROJECTS_URL}">${PROJECTS_LABEL}</a>`);
+  assert.equal((html.match(/<p>/g) || []).length, 2);
+  assert.ok(html.includes('</p><p>Yusuf Pisan, Chief Education Officer, HintWise</p></aside>'));
+});
+
+test('academic page is the owner\'s GitHub page', () => {
+  assert.equal(ACADEMIC_URL, 'https://pisanorg.github.io/yusuf/');
+  assert.equal(CONTACT_EMAIL, 'builder@hintwise.org');
 });
 
 test('footer markup is ASCII, so it survives a page without a UTF-8 charset', () => {

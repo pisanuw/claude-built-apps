@@ -6,7 +6,7 @@ RRULE, a GitHub Actions `on.schedule` snippet, or plain English like
 the next 30, 90, or 365 days on an interactive calendar heatmap, converts
 between any two time zones, and explains the schedule in plain English.
 
-Live: [cron-cartographer.pisan.me](https://cron-cartographer.pisan.me)
+Live: [cron-cartographer.hintwise.org](https://cron-cartographer.hintwise.org)
 
 ![Typing "every 2 hours on weekends" becomes cron 0 */2 * * 0,6 with a weekends-only heatmap, then the 365-day view of 0 0 13 * 5 shows cron firing on every Friday and every 13th, with one day's fire times](demo.gif)
 

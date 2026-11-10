@@ -58,3 +58,4 @@ misrepresentation-preflight misrepresentation-preflight
 popup-check popup-check
 health-page-tracker-watch health-page-tracker-watch
 donation-receipts donation-receipts
+us-duty-price-sheet us-duty-price-sheet

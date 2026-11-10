@@ -1875,6 +1875,93 @@ jobs:
       - name: Build
         run: npm run build
 
+  us-duty-price-sheet:
+    name: us-duty-price-sheet
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: us-duty-price-sheet
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: us-duty-price-sheet/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test with coverage
+        run: npm run coverage
+
+      - name: Build
+        run: npm run build
+
+  qualified-overtime-checker:
+    name: qualified-overtime-checker
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: qualified-overtime-checker
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: qualified-overtime-checker/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test with coverage
+        run: npm run coverage
+
+      - name: Build
+        run: npm run build
+
+  platform:
+    name: platform
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: platform/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test with coverage
+        run: npm run coverage
+
   site-footer:
     name: site-footer
     runs-on: ubuntu-latest
@@ -1886,4 +1973,4 @@ jobs:
           node-version: '20'
 
       - name: Test
-        run: node --test scripts/site-footer.test.mjs accessibility-lens/deploy/cloudflare-dns.test.mjs
+        run: node --test scripts/site-footer.test.mjs scripts/domains.test.mjs accessibility-lens/deploy/cloudflare-dns.test.mjs accessibility-lens/deploy/redirect-rule.test.mjs accessibility-lens/deploy/migrate-domains.test.mjs

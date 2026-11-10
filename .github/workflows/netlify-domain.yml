@@ -1,5 +1,5 @@
 # Manual: give an existing Netlify site (e.g. a pisan-labs repo that Netlify
-# builds itself) a <host>.pisan.me custom domain. Creates the Cloudflare CNAME
+# builds itself) a <host>.hintwise.org (or pisan.me) custom domain. Creates the Cloudflare CNAME
 # if missing, sets the site's primary domain and requests its certificate.
 # Deploys nothing.
 name: Set Netlify domain
@@ -12,9 +12,14 @@ on:
         required: true
         type: string
       domain:
-        description: "Custom domain, e.g. stepwise.pisan.me"
+        description: "Custom domain, e.g. stepwise.hintwise.org"
         required: true
         type: string
+      alias:
+        description: "Add as an extra name only; keep the current primary"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   set-domain:
@@ -25,10 +30,11 @@ jobs:
         with:
           node-version: "20"
       - name: Set ${{ inputs.domain }} on ${{ inputs.site }}
-        run: node accessibility-lens/deploy/set-domain.mjs --site "$SITE" --domain "$DOMAIN"
+        run: node accessibility-lens/deploy/set-domain.mjs --site "$SITE" --domain "$DOMAIN" $([ "$ALIAS" = "true" ] && echo --alias)
         env:
           SITE: ${{ inputs.site }}
           DOMAIN: ${{ inputs.domain }}
+          ALIAS: ${{ inputs.alias }}
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}

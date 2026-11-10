@@ -14,7 +14,7 @@ rather than copy it. Instructors build their own ladder (cipher, key, text,
 hint budget per rung) into a share link and read exported progress files in a
 dashboard. Everything runs in the browser.
 
-Live: [cipher-ladder.pisan.me](https://cipher-ladder.pisan.me)
+Live: [cipher-ladder.hintwise.org](https://cipher-ladder.hintwise.org)
 
 ![On the Caesar rung the tallest ciphertext bar, A, is taken as E; sliding the shift to 22 turns the decryption into The War of the Worlds, and checking it solves the rung and opens a debrief with the solver's own step-by-step attack](demo.gif)
 

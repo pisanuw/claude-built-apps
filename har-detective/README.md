@@ -6,7 +6,7 @@ cache headers, uncompressed responses, redirect chains, serialized API
 waterfalls, duplicate fetches, failing requests, slow server think-time,
 oversized payloads, and HTTP/1.x connection churn.
 
-**Live:** <https://har-detective.pisan.me>
+**Live:** <https://har-detective.hintwise.org>
 
 ![Loading the sample session lists 13 ranked findings; opening the N+1 finding and pressing Show in waterfall highlights the eight /api/products/{id} calls running one after another](demo.gif)
 

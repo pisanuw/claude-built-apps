@@ -165,7 +165,7 @@ export function mountPractice(root: HTMLElement, opts: { panel?: Partial<PanelOp
   }
 
   function launchCheck(): Panel | null {
-    panel = togglePanel({ siteUrl: new URL('./', doc.location?.href ?? 'https://popup-check.pisan.me/').href, ...opts.panel }, panel);
+    panel = togglePanel({ siteUrl: new URL('./', doc.location?.href ?? 'https://popup-check.hintwise.org/').href, ...opts.panel }, panel);
     return panel;
   }
 

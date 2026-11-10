@@ -106,12 +106,12 @@ describe('ResendEmailer', () => {
     }) as unknown as typeof fetch;
     const e = new ResendEmailer({
       apiKey: 'k',
-      from: 'mult-streak@pisan.me',
+      from: 'mult-streak@hintwise.org',
       to: 'me@example.com',
       fetchImpl: fakeFetch,
     });
     await e.send('hi', 'body');
-    expect(captured.from).toBe('mult-streak@pisan.me');
+    expect(captured.from).toBe('mult-streak@hintwise.org');
     expect(captured.to).toEqual(['me@example.com']);
   });
 

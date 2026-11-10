@@ -1,0 +1,42 @@
+# Switch Google sign-in to the HintWise Google Cloud client (docs/google-oauth.md).
+# command list: names of GOOGLE env vars per Netlify site / Render service (no values).
+# command apply: set them from the HINTWISE_AUTH_GOOGLE_ID/SECRET secrets and rebuild.
+name: Google env
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'list | apply'
+        required: true
+        default: 'list'
+        type: string
+      dry_run:
+        description: 'apply only: show what would change'
+        required: false
+        default: true
+        type: boolean
+      only:
+        description: 'optional: comma-separated Netlify site / Render service names (empty: all)'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run
+        run: node accessibility-lens/deploy/google-env.mjs "$CMD" $([ "$DRY" = "true" ] && echo --dry-run)
+        env:
+          CMD: ${{ inputs.command }}
+          DRY: ${{ inputs.dry_run }}
+          ONLY: ${{ inputs.only }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          HINTWISE_AUTH_GOOGLE_ID: ${{ secrets.HINTWISE_AUTH_GOOGLE_ID }}
+          HINTWISE_AUTH_GOOGLE_SECRET: ${{ secrets.HINTWISE_AUTH_GOOGLE_SECRET }}

@@ -382,4 +382,73 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-08 [decision] Owner: Resend sends all email from hintwise.org; Google sign-in (Chess TD) must be updated in the move. Steps in docs/hintwise-migration.md.
 2026-11-08 [decision] Showcase address is studio.hintwise.org (owner correction); hintwise.org apex will 301 there.
 2026-11-08 [decision] Owner answers on the hintwise move: apex->studio, meetme moves, ypdsa stays, Netlify site renamed to hintwise in Phase 2, showcase lists all apps.
+2026-11-08 [doc] Docs move app and site addresses from <x>.pisan.me to <x>.hintwise.org and builder@ to hintwise.org (README, PROJECTS, app READMEs, CLAUDE.md, BUILD_ROUTINE, DEVELOPING, HANDOFF, launch drafts); target.yml keeps the pisan.me form, mapped by APP_DOMAIN. Kept: ypdsa, td, mult-streak@, personal site, history.
 2026-11-08 [note] Resend: hintwise.org verified by owner; test email from builder@hintwise.org delivered (Test email workflow, Resend id 01a1ba54). Phase 1 combined on branch hintwise (9b694fd); sender target.yml change held on hintwise-apps fcb3044.
+2026-11-08 [doc] docs/google-oauth.md: every app using Google sign-in, its redirect URIs / JS origins for the new HintWise Google Cloud client, and where to set the new IDs.
+2026-11-08 [note] Pilot: bombe-bench.hintwise.org live (CNAME + Netlify alias; cert needed POST /ssl/renew, fixed 7f70a3a). Switch step blocked: Cloudflare token lacks the redirect-rules permission.
+2026-11-08 [code] hintwise merged to main (owner: do the whole move incl. redeploying all Netlify sites). Chess TD hintwise merged; td/chesstd.hintwise.org on Render; WEB_ORIGINS both, SMTP_FROM td@hintwise.org.
+2026-11-08 [note] Owner set FROM_EMAIL (daily-project-ideas digest) to an @hintwise.org sender. Hosts step re-run as 8 parallel batches (~4.5 min/app serial was too slow).
+2026-11-08 [code] us-duty-price-sheet built by the build routine (ideas 2026-11-08 #1, tier a: small business): US code per product, duty with the 10% UK layer, US postage or price table, what-changed list. Live at https://us-duty-price-sheet.hintwise.org (CNAME and certificate created by the runner).
+2026-11-08 [code] hintwise move done for all 64 Netlify hosts: <x>.hintwise.org live (DNS only, direct to Netlify), <x>.pisan.me proxied + one Single Redirect rule (wildcard_replace) 301s with path and query; hintwise.org apex -> studio (rule moved above two older rules); daily-project-ideas site renamed hintwise at studio.hintwise.org. Deploy all started for the new footer.
+2026-11-08 [code] Deploy all succeeded (63 jobs): HintWise footer live, netlify.app -> hintwise.org. Google sign-in switched to the HintWise client on 9 hosts (Netlify builds + Render deploys); chess-td-server PUBLIC_URL=https://td.hintwise.org; chesstd.pisan.me now redirects (td.pisan.me does not).
+2026-11-08 [code] Sign-in fixes after the move: meetme-2 APP_URL -> meetme.hintwise.org (Env pisan.me workflow); digitalme backend CORS allows ypai.hintwise.org (pisanuw/digitalme f93102b). Owner confirmed DSA Google sign-in works. ypai email uses reply.pisan.me (Resend inbound) - answers the open reply.pisan.me question.
+
+2026-11-08 [code] Google switch incomplete: 6 secret Netlify vars (paste-md, upvoteme AUTH_GOOGLE_*, chatwithdigitalme VITE_GOOGLE_CLIENT_ID) kept old client; PUT asked post_processing scope, 200 no-op. Apply fixed (1e61568); re-run awaits owner yes.
+
+2026-11-08 [note] poincare-paint mirror failure cause: mirror main (6 Nov reset) is a different split than CI's full-history split; files equal but README link. Fix = one force_app run (ecda717), awaits owner yes.
+
+2026-11-08 [code] Owner said yes: Google client re-applied to the 6 secret vars (per deploy context; 3955226), poincare-paint mirror force-reset to fcd51f9. Owner added GOOGLE_SECRET himself. Studio restyled (daily-project-ideas 307ba51).
+
+2026-11-09 [decision] Owner: one substantial project per week instead of one small app per day; fresh daily session resuming from <slug>/HANDOFF.md; up to 7 run-days per project (HANDOFF.md section 14).
+2026-11-09 [decision] Owner: reuse and restructure Supabase project arktxlrlyceffyozdwhq (schema per app); Google sign-in + magic link via Resend; LLM bring-your-own-key plus owner key capped $2/day $10/week $20/month per app with usage reports.
+2026-11-09 [note] BUILD_ROUTINE.md paused (65466f1) during the rewrite; the notice must go before the 10 Nov 11:49 CET run. Owner paused the session at 95% quota; resume 14:40 Lisbon.
+2026-11-09 [note] Supabase project arktxlrlyceffyozdwhq is UpvoteMe's (us-east-1) and hosts live apps (UpvoteMe, a quiz app, chess_kv, WCV Live Together in schema wcv): the platform restructure is additive; shared tables go in schema `platform`.
+2026-11-09 [note] Incident: the first Supabase inspect run printed jwt_secret in a public Actions log (6 min); logs deleted, script fixed (9f1efff). Owner asked to rotate the JWT secret and update dependent keys.
+2026-11-09 [code] BUILD_ROUTINE.md rewritten for weekly builds (day state machine, pick/plan/slice, one milestone a day with review, polish, finish); pause notice removed; templates docs/templates/PROJECT_HANDOFF.md and PLAN.md; docs/platform.md.
+2026-11-09 [code] Platform scaffolding merged (platform/): shared SQL, Supabase admin commands, llm-gateway edge function with tests, LLM usage email workflow, app template, Deploy migrations step for supabase: true targets.
+2026-11-09 [code] apply-shared failed safely (no trigger allowed on auth.users); platform.ensure_profile(), called by apps after sign-in, replaces the trigger. Template gains ensureProfile().
+2026-11-09 [code] Live Supabase changes (owner: run 1-3): schema platform applied, exposed through PostgREST; auth gains https://*.hintwise.org/** redirects, Resend SMTP from sign-in@hintwise.org, email limit 30/hour.
+2026-11-09 [note] Side effect: WCV Live Together and how-of-happiness auth emails now send from HintWise <sign-in@hintwise.org> via Resend instead of Supabase's default sender.
+2026-11-09 [code] research-map.hintwise.org set as the primary domain of Netlify site uw-research-maps (owner request; Set Netlify domain workflow).
+2026-11-09 [decision] Default taken (owner silent 15 min): Supabase plan for research-map (schema app_research_map, pgvector in extensions, function research-map-search) sent to its session for it to carry out with the owner's yes.
+2026-11-09 [doc] README lists Research Map (pisan-labs/research-map) under Tools for teachers; app count corrected to 61 (the catalog had 60 rows under a 58 heading).
+2026-11-09 [decision] Owner: Google sign-in through Supabase, with Supabase's custom domain add-on (owner buys it). docs/platform.md section 2 has the order.
+2026-11-09 [code] Supabase admin gains check-google (tests the sign-in request without a login) and domain-setup/domain-status/domain-activate; template asks Google for the account chooser and creates profiles after sign-in.
+2026-11-09 [note] check-google baseline: the project's Google provider uses client 989071206831-; Google accepts the request. The move to the HintWise client waits for the owner's redirect URIs.
+2026-11-09 [code] Supabase Google provider moved to the HintWise client (configure-auth --google, owner added the redirect URIs); check-google passed 17:35 CET.
+2026-11-09 [decision] Owner: custom domain add-on delayed; JWT rotation reminder dropped (risk accepted); Anthropic monthly spend limit set.
+
+2026-11-09 [code] LLM gateway live: ANTHROPIC_API_KEY function secret set, llm-gateway deployed, platform/supabase.json committed; smoke test 401 without a session; usage report dry run OK, no apps registered.
+
+2026-11-09 [note] PasteMD Google sign-in fails on paste-md.hintwise.org: APP_URL sends Google back to paste-md.netlify.app, where the state cookie is missing. Hintwise callbacks for PasteMD and UpvoteMe not registered yet.
+2026-11-09 [code] Netlify env workflow (netlify-env.mjs): show a site's domains and URL variables; set a plain URL variable, re-creating a secret one.
+
+2026-11-09 [note] Owner: UpvoteMe loads and Google sign-in works; the app still sends Google the upvoteme.netlify.app callback (hintwise.org callback not registered). PasteMD on hintwise.org still fails.
+
+2026-11-09 [code] PasteMD APP_URL and UpvoteMe NEXTAUTH_URL now plain hintwise.org addresses (owner yes); both rebuilt and send Google the hintwise callbacks, which Google accepts.
+2026-11-09 [code] pisanuw/pastemd branch feat/supabase-google-signin: Google sign-in through Supabase (PKCE, users kept by email), first old app moved off its own Google client. Not merged.
+
+2026-11-09 [decision] Owner bought the Supabase custom domain add-on: auth.hintwise.org. domain-setup created its CNAME and two TXT records in Cloudflare; verification pending.
+2026-11-09 [code] PasteMD PR #2 merged (owner yes) and live: Google sign-in through Supabase; paste-md.netlify.app 301s to paste-md.hintwise.org.
+
+2026-11-09 [code] auth.hintwise.org active (verified 20:03 CET, activated 20:04): Google returns to https://auth.hintwise.org/auth/v1/callback; check-google passed. platform/supabase.json url is auth.hintwise.org; keys writes it while the domain is active.
+
+2026-11-10 [code] qualified-overtime-checker day 1: weekly build picked (2026-11-07 #2, tier a small business; three provisional ideas tied at 19, oldest won), PLAN.md and HANDOFF.md written; milestone 1 live: timesheet CSV import with SSN columns dropped, FLSA workweek engine (weighted-average regular rate, half-time premium, year by pay date), comparison with named likely causes, sample employer, CSV downloads; code review (high) found 13 issues, all fixed. Template copy command fixed (APP_SLUG).
+
+2026-11-10 [note] Owner: PasteMD Google sign-in through Supabase works. Its two Google redirect URIs (paste-md.netlify.app, paste-md.hintwise.org) can be removed from the HintWise client.
+2026-11-10 [decision] Owner: Qualified Overtime Checker may save client files in Supabase for signed-in users (browser-only choice, delete button); app stays free. Answered to the build session, which continues with day 2 today.
+2026-11-10 [code] UpvoteMe: pisanuw/upvote#3 merged (ce9549c); upvoteme.netlify.app/* now 301s to upvoteme.hintwise.org with path and query kept, so sign-in stays on one host. Checked live 12:37 UTC.
+2026-11-10 [code] UpvoteMe signs in to Google through Supabase (pisanuw/upvote#4): NextAuth provider `supabase`, PKCE, users linked by verified email; rollback NEXT_PUBLIC_GOOGLE_AUTH_VIA=direct.
+2026-11-10 [doc] Sent StepWise how to use the shared project: auth.hintwise.org, PKCE, schema app_stepwise, shared links via an RPC. Plabs applies its migration after the owner's yes.
+2026-11-10 [note] Owner: UpvoteMe Google sign-in through Supabase works. Its two Google redirect URIs (upvoteme.hintwise.org, upvoteme.netlify.app /api/auth/callback/google) can be removed.
+2026-11-10 [decision] Owner: yes to applying StepWise's migration (schema app_stepwise) to the shared project and exposing the schema once its SQL arrives.
+2026-11-10 [plan] BUILD_ROUTINE.md: "The usual architecture" table (owner: paid Netlify, Render, Supabase, Resend; Google via Supabase); stale supabase.json and migration notes fixed.
+
+2026-11-10 [code] platform: expose-schema now waits until the Data API serves the new schema and re-sends the list once (PostgREST kept the old db_schema for 25 minutes after the qualified-overtime-checker deploy, until expose-schema --reapply); deploy runner passes target.yml env VITE_* values to the local build (they only reached the Netlify site before).
+
+2026-11-10 [code] qualified-overtime-checker day 2: milestone 2 live, saved client files (this browser, or the signed-in account in app_qualified_overtime_checker.client_files with RLS), file list with open/new/move/delete, debounced autosave; code review (high) found 10 issues, all fixed (write queue, failed-save prompt, sign-out and user-switch safety, pagehide save, damaged-file handling). First app through the Deploy migrations step.
+2026-11-10 [decision] Owner: auth email limit 30 -> 200 an hour (configure-auth --email-rate=200); backend-hub to Render Starter; magic-link rate limiting with Turnstile approved.
+2026-11-10 [plan] BUILD_ROUTINE.md: same-day continue, apps free unless the owner says, security-review on auth/RLS/functions/email milestones. Template: local sign-out, PKCE.
+2026-11-10 [decision] Owner: no Resend sending subdomains (each counts against the plan's domain limit); app mail is <slug>@hintwise.org with the app's name as display name.
+2026-11-10 [code] backend-hub on a paid Render instance: owner set it in the dashboard (API showed 0.5c-512mb); the deploy then set plan starter from target.yml; health 200.
+2026-11-10 [decision] Owner: apps follow Google's sign-in branding guidelines; BUILD_ROUTINE.md lists the custom-button rules (text, G logo, themes, type, padding, prominence).

@@ -10,7 +10,7 @@ same trace, and the identical run can be drawn as a head sweeping across
 cylinders with time flowing down, the textbook diagram. Everything runs in the
 browser; nothing is uploaded.
 
-Live: [elevator-algorithm-lab.pisan.me](https://elevator-algorithm-lab.pisan.me)
+Live: [elevator-algorithm-lab.hintwise.org](https://elevator-algorithm-lab.hintwise.org)
 
 ![The textbook disk trace runs LOOK and SSTF side by side, first as a disk head moving like an elevator car, then in disk view as the classic sweep diagram, ending on the metrics: 208 versus 236 cylinders of head movement](demo.gif)
 

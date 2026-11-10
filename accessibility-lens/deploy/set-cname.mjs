@@ -1,18 +1,20 @@
 #!/usr/bin/env node
 /**
- * Point <host>.pisan.me at any target with a DNS-only CNAME, for sites hosted
+ * Point <host>.hintwise.org or <host>.pisan.me at any target with a DNS-only CNAME, for sites hosted
  * outside Netlify (e.g. Render). Run by .github/workflows/set-cname.yml, since
  * the Cloudflare token exists only as a repo secret.
  *
  * - An existing CNAME for the name is updated in place; otherwise one is created.
  * - Any A or AAAA record for the name is deleted (a CNAME cannot share a name
  *   with other records).
- * - The record is always DNS only (not proxied).
+ * - The record is DNS only unless PROXIED=true (needed when a Cloudflare
+ *   redirect rule must answer the name, e.g. an old pisan.me name).
  *
  * Usage: node set-cname.mjs <domain> <target>
- * Env: CLOUDFLARE_API_TOKEN (DNS edit), CLOUDFLARE_ZONE_ID (optional).
+ * Env: CLOUDFLARE_API_TOKEN (DNS edit + Zone:Read), CLOUDFLARE_ZONE_ID (optional fallback).
+ * The zone is looked up by name, so either zone works.
  */
-import { zoneNameOf } from './cloudflare-dns.mjs';
+import { zoneIdFor } from './cloudflare-dns.mjs';
 
 const CF_API = 'https://api.cloudflare.com/client/v4';
 
@@ -39,12 +41,7 @@ async function main() {
   }
   const token = process.env.CLOUDFLARE_API_TOKEN;
   if (!token) throw new Error('CLOUDFLARE_API_TOKEN is not set');
-  let zoneId = process.env.CLOUDFLARE_ZONE_ID;
-  if (!zoneId) {
-    const zones = await cf(token, `/zones?name=${encodeURIComponent(zoneNameOf(domain))}`);
-    zoneId = zones?.[0]?.id;
-    if (!zoneId) throw new Error(`zone for ${domain} not found`);
-  }
+  const zoneId = await zoneIdFor({ domain, token });
   const records = (await cf(token, `/zones/${zoneId}/dns_records?name=${encodeURIComponent(domain)}`)) || [];
   console.log(`Before: ${records.length ? records.map(show).join('; ') : 'no records'}`);
 
@@ -52,7 +49,7 @@ async function main() {
     await cf(token, `/zones/${zoneId}/dns_records/${r.id}`, { method: 'DELETE' });
     console.log(`Deleted ${show(r)}`);
   }
-  const body = JSON.stringify({ type: 'CNAME', name: domain, content: target, proxied: false, ttl: 1 });
+  const body = JSON.stringify({ type: 'CNAME', name: domain, content: target, proxied: process.env.PROXIED === 'true', ttl: 1 });
   const cname = records.find((r) => r.type === 'CNAME');
   const result = cname
     ? await cf(token, `/zones/${zoneId}/dns_records/${cname.id}`, { method: 'PATCH', body })

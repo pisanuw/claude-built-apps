@@ -6,7 +6,7 @@ a themeable SVG writer, plus a visual diff, a stage-by-stage inspector and a
 benchmark. No Mermaid, dagre or ELK; no dependencies at runtime. Everything
 runs in the browser.
 
-Live: [diagram-layout-engine.pisan.me](https://diagram-layout-engine.pisan.me)
+Live: [diagram-layout-engine.hintwise.org](https://diagram-layout-engine.hintwise.org)
 
 ![Typing a new edge into the Mermaid source re-lays out the CI/CD flowchart, then switching direction to top-to-bottom and the theme to blueprint redraws it, and hovering a node highlights its edges](demo.gif)
 

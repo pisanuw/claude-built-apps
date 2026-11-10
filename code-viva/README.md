@@ -9,7 +9,7 @@ follow-ups when an answer is vague. You review transcripts with proposed rubric
 scores, quoted evidence and a flag queue, so TA time goes to the few students
 who need a short conversation.
 
-Live: [code-viva.pisan.me](https://code-viva.pisan.me)
+Live: [code-viva.hintwise.org](https://code-viva.hintwise.org)
 
 ![Loading the linked-lists demo course opens the Review tab, where Ben tops the flag queue with an unexplained commit, vague answers, follow-ups and a pasted textbook paragraph, then clicking Ana shows a 15 of 15 transcript with no flags](demo.gif)
 

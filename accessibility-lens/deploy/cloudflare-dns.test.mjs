@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ensureDomainDns, zoneNameOf, resolves } from './cloudflare-dns.mjs';
+import { ensureDomainDns, zoneNameOf, resolves, zoneIdFor, keepOldAlias, showRecord } from './cloudflare-dns.mjs';
 
 const DOMAIN = 'new-app.pisan.me';
 const TARGET = 'new-app.netlify.app';
@@ -68,25 +68,82 @@ test('with a token, a missing record is created as a DNS-only CNAME', async () =
   assert.ok(calls.every((c) => c.auth === 'Bearer tok'));
 });
 
-test('CLOUDFLARE_ZONE_ID skips the zone lookup', async () => {
+const ZONES = 'https://api.cloudflare.com/client/v4/zones?name=';
+const lookup = (zone, id) => ({ method: 'GET', url: `${ZONES}${zone}`, body: cf(id ? [{ id, name: zone }] : []) });
+
+test('the zone is looked up by name even when CLOUDFLARE_ZONE_ID is set', async () => {
   const { impl, calls } = fakeFetch([
-    { method: 'GET', url: 'https://api.cloudflare.com/client/v4/zones/zz/dns_records?name=', body: cf([]) },
-    { method: 'POST', url: 'https://api.cloudflare.com/client/v4/zones/zz/dns_records', body: cf({}) },
+    lookup('hintwise.org', 'hw'),
+    { method: 'GET', url: 'https://api.cloudflare.com/client/v4/zones/hw/dns_records?name=', body: cf([]) },
+    { method: 'POST', url: 'https://api.cloudflare.com/client/v4/zones/hw/dns_records', body: cf({}) },
   ]);
+  const env = { CLOUDFLARE_API_TOKEN: 'tok', CLOUDFLARE_ZONE_ID: 'pm' };
+  const r = await ensureDomainDns({ domain: 'new-app.hintwise.org', target: TARGET, env, fetchImpl: impl });
+  assert.equal(r.action, 'created');
+  assert.equal(calls.find((c) => c.method === 'POST').body.name, 'new-app.hintwise.org');
+  assert.ok(!calls.some((c) => c.url.includes('/zones/pm')));
+});
+
+test('CLOUDFLARE_ZONE_ID is a fallback only when it is the same zone', async () => {
+  const routes = (zoneName) => [
+    lookup('pisan.me', null),
+    { method: 'GET', url: 'https://api.cloudflare.com/client/v4/zones/zz', body: cf({ id: 'zz', name: zoneName }) },
+  ];
   const env = { CLOUDFLARE_API_TOKEN: 'tok', CLOUDFLARE_ZONE_ID: 'zz' };
-  await ensureDomainDns({ domain: DOMAIN, target: TARGET, env, fetchImpl: impl });
-  assert.ok(!calls.some((c) => c.url.includes('/zones?name=')));
+  assert.equal(await zoneIdFor({ domain: DOMAIN, token: 'tok', env, fetchImpl: fakeFetch(routes('pisan.me')).impl }), 'zz');
+  await assert.rejects(
+    zoneIdFor({ domain: DOMAIN, token: 'tok', env, fetchImpl: fakeFetch(routes('hintwise.org')).impl }),
+    /zone pisan\.me not found.*CLOUDFLARE_ZONE_ID is hintwise\.org/,
+  );
+});
+
+test('a token without Zone:Read falls back to CLOUDFLARE_ZONE_ID for pisan.me only', async () => {
+  const denied = { success: false, errors: [{ message: 'Authentication error' }] };
+  const routes = (zone) => [
+    { method: 'GET', url: `${ZONES}${zone}`, status: 403, body: denied },
+    { method: 'GET', url: 'https://api.cloudflare.com/client/v4/zones/zz', status: 403, body: denied },
+  ];
+  const env = { CLOUDFLARE_ZONE_ID: 'zz' };
+  assert.equal(await zoneIdFor({ domain: 'a.pisan.me', token: 't', env, fetchImpl: fakeFetch(routes('pisan.me')).impl }), 'zz');
+  await assert.rejects(
+    zoneIdFor({ domain: 'a.hintwise.org', token: 't', env, fetchImpl: fakeFetch(routes('hintwise.org')).impl }),
+    /Authentication error/,
+  );
+});
+
+test('keepOldAlias keeps a DNS-only old name and drops a proxied or missing one', async () => {
+  const env = { CLOUDFLARE_API_TOKEN: 'tok' };
+  const withRecord = (records) =>
+    fakeFetch([
+      lookup('pisan.me', 'pm'),
+      { method: 'GET', url: 'https://api.cloudflare.com/client/v4/zones/pm/dns_records?name=a.pisan.me', body: cf(records) },
+    ]).impl;
+  const cname = { type: 'CNAME', name: 'a.pisan.me', content: 'a.netlify.app' };
+  assert.equal((await keepOldAlias({ oldDomain: 'a.pisan.me', env, fetchImpl: withRecord([{ ...cname, proxied: false }]) })).keep, true);
+  assert.equal((await keepOldAlias({ oldDomain: 'a.pisan.me', env, fetchImpl: withRecord([{ ...cname, proxied: true }]) })).keep, false);
+  assert.equal((await keepOldAlias({ oldDomain: 'a.pisan.me', env, fetchImpl: withRecord([]) })).keep, false);
+  // No token, or Cloudflare failing: keep it, which never breaks a working address.
+  assert.equal((await keepOldAlias({ oldDomain: 'a.pisan.me', env: {}, fetchImpl: withRecord([]) })).keep, true);
+  const broken = fakeFetch([]).impl;
+  const r = await keepOldAlias({ oldDomain: 'a.pisan.me', env, fetchImpl: broken });
+  assert.equal(r.keep, true);
+  assert.match(r.reason, /could not be checked/);
+});
+
+test('showRecord', () => {
+  assert.equal(showRecord({ type: 'CNAME', name: 'a.pisan.me', content: 'x', proxied: true }), 'CNAME a.pisan.me -> x (proxied)');
 });
 
 test('an existing record is never changed, and a wrong or proxied one is flagged', async () => {
   const { impl, calls } = fakeFetch([
+    lookup('pisan.me', 'zz'),
     {
       method: 'GET',
       url: 'https://api.cloudflare.com/client/v4/zones/zz/dns_records?name=',
       body: cf([{ type: 'CNAME', content: 'elsewhere.example.com', proxied: true }]),
     },
   ]);
-  const env = { CLOUDFLARE_API_TOKEN: 'tok', CLOUDFLARE_ZONE_ID: 'zz' };
+  const env = { CLOUDFLARE_API_TOKEN: 'tok' };
   const r = await ensureDomainDns({ domain: DOMAIN, target: TARGET, env, fetchImpl: impl });
   assert.equal(r.action, 'exists');
   assert.equal(r.warning, true);
@@ -97,13 +154,14 @@ test('an existing record is never changed, and a wrong or proxied one is flagged
 
 test('a correct existing record is ready with no warning', async () => {
   const { impl } = fakeFetch([
+    lookup('pisan.me', 'zz'),
     {
       method: 'GET',
       url: 'https://api.cloudflare.com/client/v4/zones/zz/dns_records?name=',
       body: cf([{ type: 'CNAME', content: TARGET, proxied: false }]),
     },
   ]);
-  const env = { CLOUDFLARE_API_TOKEN: 'tok', CLOUDFLARE_ZONE_ID: 'zz' };
+  const env = { CLOUDFLARE_API_TOKEN: 'tok' };
   const r = await ensureDomainDns({ domain: DOMAIN, target: TARGET, env, fetchImpl: impl });
   assert.deepEqual([r.ready, r.action, r.warning], [true, 'exists', false]);
 });

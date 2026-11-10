@@ -1,0 +1,27 @@
+# Find (and with fix=true rewrite) host env vars that still point at
+# <x>.pisan.me; prints names and hosts only, never full values.
+name: Env pisan.me
+
+on:
+  workflow_dispatch:
+    inputs:
+      fix:
+        description: 'Rewrite to hintwise.org and rebuild/redeploy'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run
+        run: node accessibility-lens/deploy/env-pisan.mjs $([ "$FIX" = "true" ] && echo --fix)
+        env:
+          FIX: ${{ inputs.fix }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}

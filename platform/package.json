@@ -1,0 +1,28 @@
+{
+  "name": "hintwise-platform",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared HintWise platform (docs/platform.md): the Supabase admin script, the shared SQL, the LLM gateway's pure logic and its tests, the usage report and the app template.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test supabase/functions *.mjs eslint.config.js vitest.config.ts",
+    "check-scripts": "node --check supabase-admin.mjs && node --check llm-usage-report.mjs && node --check src/report/format.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.20.5",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^9.17.0",
+    "globals": "^15.14.0",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.19.0",
+    "vitest": "^2.1.8"
+  }
+}

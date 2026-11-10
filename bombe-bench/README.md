@@ -11,7 +11,7 @@ hypotheses each position kills until only the stops are left. Instructors
 generate challenge messages with hidden settings and share them as links.
 Everything runs in the browser.
 
-Live: [bombe-bench.pisan.me](https://bombe-bench.pisan.me/)
+Live: [bombe-bench.hintwise.org](https://bombe-bench.hintwise.org/)
 
 ![Typing ATTACKATDAWN on the Machine tab lights each letter's signal path through plugboard, rotors and reflector, then the Attack tab loads a crib and runs the Bombe over 1,054,560 positions, leaving 5 stops and one that passes the checking machine](demo.gif)
 
