@@ -445,3 +445,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-10 [plan] BUILD_ROUTINE.md: "The usual architecture" table (owner: paid Netlify, Render, Supabase, Resend; Google via Supabase); stale supabase.json and migration notes fixed.
 
 2026-11-10 [code] platform: expose-schema now waits until the Data API serves the new schema and re-sends the list once (PostgREST kept the old db_schema for 25 minutes after the qualified-overtime-checker deploy, until expose-schema --reapply); deploy runner passes target.yml env VITE_* values to the local build (they only reached the Netlify site before).
+
+2026-11-10 [code] qualified-overtime-checker day 2: milestone 2 live, saved client files (this browser, or the signed-in account in app_qualified_overtime_checker.client_files with RLS), file list with open/new/move/delete, debounced autosave; code review (high) found 10 issues, all fixed (write queue, failed-save prompt, sign-out and user-switch safety, pagehide save, damaged-file handling). First app through the Deploy migrations step.

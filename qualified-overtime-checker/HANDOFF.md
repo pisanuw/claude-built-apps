@@ -1,4 +1,4 @@
-# Qualified Overtime Checker: handoff (day 1 of 7, 2026-11-10)
+# Qualified Overtime Checker: handoff (day 2 of 7, 2026-11-10)
 
 Rewritten at the end of every build day by the build routine
 (BUILD_ROUTINE.md). It is the only state the next day's session has, and the
@@ -28,23 +28,26 @@ provisional; three tied at 19 (this one 2026-11-07, Delivery Canary
 
 ## What is live
 
-- https://qualified-overtime-checker.hintwise.org (first deploy 2026-11-10,
-  commit 0fcf33b, Deploy run 42806758271): upload a timesheet CSV (columns
-  guessed and editable, SSN columns dropped, own OT/DT hours columns read),
-  enter or import the payroll's TT figures (per tax year), see the FLSA
-  workweek figure per employee, the difference, the likely cause, and a
-  week-by-week table; results and worksheet CSV; a sample employer with six
-  staff and four planted payroll mistakes. Data stays in the tab (in-memory
-  repository; a reload loses it).
-- Not live yet: milestones 2 to 7.
+- https://qualified-overtime-checker.hintwise.org (deploy 2026-11-10 12:43 UTC,
+  commit 9a4da59, Deploy run 42817804373): everything from day 1 plus client
+  files. Files are kept in this browser (localStorage); with Google or
+  magic-link sign-in they are kept in the user's account
+  (`app_qualified_overtime_checker.client_files`). A file list offers open,
+  new, move between browser and account, and delete. Autosave runs after
+  700 ms, plus on page hide. The sample opens as a file of its own.
+- Verified live: sign-in panel renders; browser save survives a reload;
+  anonymous API read and write both answer 401 "permission denied for
+  schema". Not verified: a real signed-in save (needs a person to sign in;
+  owner action 1 below).
+- Not live yet: milestones 3 to 7.
 
 ## Milestones (docs/PLAN.md)
 
 | # | Milestone | Status | Day | Notes |
 |---|---|---|---|---|
-| 1 | One employer, checked | done | 1 | All acceptance tests pass; reviewed (code-review high), 13 findings fixed |
-| 2 | Saved client files | next | | Supabase sign-in, `app_qualified_overtime_checker.client_files`, file list |
-| 3 | The hard cases | | | bonuses, differentials, tip credit, paid-OT cap |
+| 1 | One employer, checked | done | 1 | reviewed (high), 13 findings fixed |
+| 2 | Saved client files | done | 2 | reviewed (high), 10 findings fixed; signed-in save not yet tried by a person |
+| 3 | The hard cases | next | | bonuses (allocate over earning period), shift differentials, tip credit at the full minimum wage, excluded pay, cap TT at the premium actually paid |
 | 4 | Real exports | | | QuickBooks / Toast / EasyAcct presets, saved mappings, weekly-hours fallback |
 | 5 | Worksheet and W-2c list | | | PDFs, W-2c CSV, print |
 | 6 | Polish | | | |
@@ -58,21 +61,31 @@ npm run dev          # http://localhost:5173
 PW_CHROMIUM=/opt/pw-browsers/chromium npm run e2e   # cloud session: the bundled Playwright browser is missing
 ```
 
-Tests: 103 vitest (core, compare, review regressions, jsdom UI), coverage
-99.8% statements, 95% branches; 2 Playwright tests (sample flow, file
-import). Live check: `curl -s https://qualified-overtime-checker.hintwise.org/ | grep -c "Chief Education Officer"` prints 1.
+Tests: 123 vitest (core, compare, two review-regression files, codec and
+stores, jsdom UI for the checker and the file list), coverage 99.4%
+statements, 94.6% branches; 3 Playwright tests (sample flow, file import,
+browser save across a reload and delete). Live check: `curl -s https://qualified-overtime-checker.hintwise.org/ | grep -c "Chief Education Officer"` prints 1.
 
 ## Platform use
 
-- Supabase: none yet. Milestone 2 adds `supabase/migrations/0001_init.sql`
-  (schema `app_qualified_overtime_checker`, table `client_files` with the
-  file as jsonb, RLS per user), `supabase: true` and the VITE_SUPABASE_* env
-  in `deploy/target.yml` (values from `platform/supabase.json`, which
-  exists). This app is the first to use the Deploy workflow's migrations
-  step: check its log on the day-2 deploy.
-- Sign-in: none yet (milestone 2: Google and magic link via `src/lib/auth.ts`).
-- LLM: none, by design (PLAN.md).
-- Env names (values never here): VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY (from milestone 2).
+- Supabase schema `app_qualified_overtime_checker`: table `client_files` (id
+  uuid, user_id default auth.uid(), name, tax_year, summary jsonb, data jsonb
+  in the compact codec form, timestamps), RLS select/insert/update/delete own
+  rows, grants select/insert/update/delete to authenticated only. Migration
+  `supabase/migrations/0001_init.sql` applied by the Deploy workflow on
+  2026-11-10 12:41 UTC (recorded in platform.migrations; never edit it, add
+  0002_*.sql).
+- Exposed through PostgREST, but only after `expose-schema --reapply`
+  (13:03 UTC): the stored db_schema had the schema, yet the API kept the old
+  list for 25 minutes. Fixed for later apps: expose-schema now waits for the
+  Data API and resends once (platform commit 5f50e7b).
+- Sign-in: Google and magic link via `src/lib/auth.ts` (template), profile
+  row through platform.ensure_profile.
+- LLM: none, by design.
+- Env names (values never here): VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY,
+  set in `deploy/target.yml` env from `platform/supabase.json`. The deploy
+  runner now passes VITE_* env to the local build (it did not before; fixed
+  in accessibility-lens/deploy/deploy.mjs).
 
 ## Decisions and why
 
@@ -83,6 +96,11 @@ import). Live check: `curl -s https://qualified-overtime-checker.hintwise.org/ |
 - 2026-11-10: lump sums (bonus, commission, tips, shift differential) are skipped with a reason until milestone 3, so the report shows what was left out.
 - 2026-11-10: payroll figures are stored per tax year in the client file (`reported["2026"][employeeKey]`).
 - 2026-11-10: deploy file held back from the first push so the app deployed once, after the review fixes.
+- 2026-11-10 (owner): saved files in Supabase allowed for signed-in users, with a browser-only choice and a delete button; the app stays free.
+- 2026-11-10: browser files in localStorage (MemoryFileStore when storage is blocked); account files in Supabase; a file is saved once it has a name or hours; a signed-in user's new files go to the account.
+- 2026-11-10: one write queue for saves, moves and deletes; a failed save asks before the file is left; sign-out or a user switch closes an account file and keeps unsaved changes as a browser copy.
+- 2026-11-10: stored files use a compact codec (lines as arrays, employees and pay codes in lookup tables), less than half the plain JSON size.
+- 2026-11-10: columns of undashed nine-digit numbers are dropped as SSNs too (an employee ID of exactly nine digits is lost; names still identify people).
 - 2026-11-10: fixed the platform template's copy command (it turned `APP_SLUG` into `APP_my-app`); now a portable perl one-liner.
 
 ## Tried and rejected
@@ -92,13 +110,18 @@ import). Live check: `curl -s https://qualified-overtime-checker.hintwise.org/ |
 
 ## Open questions for the owner
 
-1. Saving client files (milestone 2) puts employee names, dated hours and pay rates in the shared Supabase project (US East), never SSNs. Recommendation: allow it for signed-in users, with a "keep this file only in this browser" choice and a delete button. Default taken on 2026-11-11 if unanswered: as recommended.
-2. The idea's per-file pricing ($49 a file, $199 for 10) is out of scope for the showcase. Recommendation: keep the app free. Default: free.
+None open. Answered 2026-11-10: saved files allowed (as recommended); free.
+
+## Owner actions
+
+1. Two-minute check of a real signed-in save: open https://qualified-overtime-checker.hintwise.org, sign in (Google or email link), click "Try the sample employer", wait for "Saved to your account.", reload: the file list should show it as "Your account". Then Delete it.
 
 ## Remaining and known issues
 
 - Milestones 2 to 7.
-- Phone layout: results show as cards; the weeks table scrolls sideways (polish day).
+- Phone layout: results and the file list show as cards; the weeks table scrolls sideways (polish day).
+- Self-service account deletion is not offered; README says to email builder@hintwise.org (platform milestone).
+- supabase-js 2.119 asks for Node 22; the Deploy workflow builds on Node 20 (warning only, build fine).
 - The IRS fact sheet FS-2026-13 named in the idea was not re-read this run; the method follows 29 CFR 778 and the idea's evidence summary. Re-check the wording before the polish day.
 - Review leftovers judged minor: none open.
 
@@ -107,6 +130,8 @@ import). Live check: `curl -s https://qualified-overtime-checker.hintwise.org/ |
 - `src/core/engine.ts`: workweeks, regular rate, premium, tax year.
 - `src/core/compare.ts`: status and likely causes (mistake candidates).
 - `src/core/importer.ts`: column guessing, SSN drop, row import; `csv.ts`, `dates.ts`.
+- `src/core/codec.ts`: stored form and file summaries; `src/store/stores.ts`: Memory, Local and Supabase stores and the Files manager.
+- `supabase/migrations/0001_init.sql`: the schema.
 - `src/core/reported.ts`: payroll figures import; `sample.ts`: the sample employer; `export.ts`: CSVs; `clientFile.ts`: the saved file shape.
 - `src/ui/app.ts`, `src/ui/dom.ts`, `src/styles.css`: the page.
 - `test/`: core, compare, review, app (jsdom); `e2e/walkthrough.spec.ts`.
@@ -114,3 +139,4 @@ import). Live check: `curl -s https://qualified-overtime-checker.hintwise.org/ |
 ## Log
 
 - Day 1 (2026-11-10): picked, claimed, planned; milestone 1 built, reviewed, fixed and deployed.
+- Day 2 (2026-11-10, second run the same day at the owner's request): milestone 2, saved client files with sign-in, reviewed, fixed and deployed; first app on the Supabase migrations step; two platform fixes (VITE env in the build, expose-schema wait).
