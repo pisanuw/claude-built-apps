@@ -39,6 +39,9 @@ provisional; three tied at 19 (this one 2026-11-07, Delivery Canary
   anonymous API read and write both answer 401 "permission denied for
   schema". Not verified: a real signed-in save (needs a person to sign in;
   owner action 1 below).
+- Pushed, not deployed yet (ships with the day-3 deploy): sign-out of this
+  app only (scope local) and the PKCE sign-in flow, carried over from the
+  template fix 67727d4 at the Plabs session's request (fb46c8b).
 - Not live yet: milestones 3 to 7.
 
 ## Milestones (docs/PLAN.md)
