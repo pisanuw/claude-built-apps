@@ -434,3 +434,6 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-09 [code] auth.hintwise.org active (verified 20:03 CET, activated 20:04): Google returns to https://auth.hintwise.org/auth/v1/callback; check-google passed. platform/supabase.json url is auth.hintwise.org; keys writes it while the domain is active.
 
 2026-11-10 [code] qualified-overtime-checker day 1: weekly build picked (2026-11-07 #2, tier a small business; three provisional ideas tied at 19, oldest won), PLAN.md and HANDOFF.md written; milestone 1 live: timesheet CSV import with SSN columns dropped, FLSA workweek engine (weighted-average regular rate, half-time premium, year by pay date), comparison with named likely causes, sample employer, CSV downloads; code review (high) found 13 issues, all fixed. Template copy command fixed (APP_SLUG).
+
+2026-11-10 [note] Owner: PasteMD Google sign-in through Supabase works. Its two Google redirect URIs (paste-md.netlify.app, paste-md.hintwise.org) can be removed from the HintWise client.
+2026-11-10 [decision] Owner: Qualified Overtime Checker may save client files in Supabase for signed-in users (browser-only choice, delete button); app stays free. Answered to the build session, which continues with day 2 today.
