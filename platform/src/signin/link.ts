@@ -20,11 +20,19 @@ export interface AdminEnv {
 export type AuthFailure = { ok: false; status: number; code: string; message: string };
 export type LinkToken = { ok: true; hashedToken: string; verificationType: string; createdUser: boolean };
 
-/** The app page with token_hash and type=email set; other query parameters and the hash are kept. */
-export function signInLink(redirectTo: string, hashedToken: string): string {
+/**
+ * The app page (origin and path only, as validate.ts leaves it) with
+ * token_hash, type=email and, when given, email_hint: the masked address
+ * ("a***@example.com") the template shows before switching a signed-in
+ * visitor to another account.
+ */
+export function signInLink(redirectTo: string, hashedToken: string, emailHint?: string): string {
   const u = new URL(redirectTo);
+  u.search = '';
+  u.hash = '';
   u.searchParams.set('token_hash', hashedToken);
   u.searchParams.set('type', 'email');
+  if (emailHint) u.searchParams.set('email_hint', emailHint);
   return u.toString();
 }
 

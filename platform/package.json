@@ -13,7 +13,9 @@
     "coverage": "vitest run --coverage",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test supabase/functions *.mjs eslint.config.js vitest.config.ts",
-    "check-scripts": "node --check supabase-admin.mjs && node --check llm-usage-report.mjs && node --check src/report/format.mjs"
+    "check-scripts": "node --check supabase-admin.mjs && node --check llm-usage-report.mjs && node --check app-hosts.mjs && node --check src/report/format.mjs",
+    "app-hosts": "node app-hosts.mjs",
+    "check-app-hosts": "node app-hosts.mjs --check"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

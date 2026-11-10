@@ -40,27 +40,39 @@ describe('email-hook', () => {
   });
   it('lists what stops the hook from being switched on', () => {
     const fns = [{ slug: 'llm-gateway', status: 'ACTIVE' }, { slug: 'auth-email-hook', status: 'ACTIVE' }];
-    const secrets = [{ name: 'SEND_EMAIL_HOOK_SECRET' }, { name: 'RESEND_API' }, { name: 'SIGN_IN_HASH_KEY' }];
+    const secrets = [{ name: 'SEND_EMAIL_HOOK_SECRET' }, { name: 'RESEND_API' }, { name: 'SIGN_IN_HASH_KEY' }, { name: 'HOOK_EXTERNAL_HOSTS' }];
     expect(m.emailHookProblems(fns, secrets)).toEqual([]);
     expect(m.emailHookProblems([], secrets)).toEqual(['the auth-email-hook function is not deployed (deploy-function auth-email-hook)']);
     expect(m.emailHookProblems([{ slug: 'auth-email-hook', status: 'REMOVED' }], secrets)).toEqual(['the auth-email-hook function is REMOVED']);
     expect(m.emailHookProblems(fns, [{ name: 'RESEND_API' }])).toEqual([
       'function secret SEND_EMAIL_HOOK_SECRET is not set (set-sign-in-secrets)',
       'function secret SIGN_IN_HASH_KEY is not set (set-sign-in-secrets)',
+      'function secret HOOK_EXTERNAL_HOSTS is not set (set-sign-in-secrets)',
     ]);
     expect(m.emailHookProblems(null, null)).toHaveLength(1 + m.EMAIL_HOOK_SECRETS.length);
-    expect(m.emailHookProblems(fns, secrets, ['qualified-overtime-checker/src/lib/auth.ts'])).toEqual([
-      "qualified-overtime-checker/src/lib/auth.ts still calls signInWithOtp: its email sign-in stops while the hook is on (move it to the template's sendMagicLink, or pass --allow-otp-apps)",
+    expect(m.emailHookProblems(fns, secrets, ['qualified-overtime-checker/src/lib/auth.ts (signInWithOtp)'])).toEqual([
+      "qualified-overtime-checker/src/lib/auth.ts (signInWithOtp) sends Auth email directly: that email stops while the hook is on (move it to the template's sendMagicLink, or pass --allow-otp-apps)",
     ]);
   });
-  it('finds the app files that still call signInWithOtp', () => {
+  it('finds the app files that still call signInWithOtp, signUp or resend', () => {
     const files = [
       { path: 'a/src/lib/auth.ts', text: 'return client.auth.signInWithOtp({ email });' },
       { path: 'b/src/lib/auth.ts', text: "// was signInWithOtp, now the platform's sign-in-link\nsendMagicLink(email)" },
-      { path: 'c/src/x.ts', text: 'auth.signInWithOtp (\n{ email })' },
+      { path: 'c/src/x.ts', text: 'auth.signInWithOtp (\n{ email }); await supabase.auth.signUp({ email, password })' },
       { path: 'd/src/y.ts', text: null },
+      { path: 'e/src/z.ts', text: "await supabase.auth.resend({ type: 'signup', email })" },
     ];
-    expect(m.otpCallers(files)).toEqual(['a/src/lib/auth.ts', 'c/src/x.ts']);
+    expect(m.DIRECT_AUTH_CALLS).toEqual(['signInWithOtp', 'signUp', 'resend']);
+    expect(m.otpCallers(files)).toEqual(['a/src/lib/auth.ts (signInWithOtp)', 'c/src/x.ts (signInWithOtp, signUp)', 'e/src/z.ts (resend)']);
     expect(m.otpCallers(null)).toEqual([]);
+  });
+  it('computes HOOK_EXTERNAL_HOSTS from the auth allow-list and site URL, minus hintwise.org', () => {
+    const cfg = {
+      site_url: 'https://how-of-happiness.netlify.app',
+      uri_allow_list: 'https://*.hintwise.org/**,https://how-of-happiness.netlify.app/**,https://wcv.example.org/auth/callback,http://localhost:3000/**,https://**.vercel-preview.app/**,https://hintwise.org/x,myapp://callback, https://Upvoteme.Netlify.app:443/api',
+    };
+    expect(m.externalHosts(cfg)).toEqual(['*.vercel-preview.app', 'how-of-happiness.netlify.app', 'upvoteme.netlify.app', 'wcv.example.org']);
+    expect(m.externalHosts({ uri_allow_list: 'https://*.hintwise.org/**' })).toEqual([]);
+    expect(m.externalHosts(null)).toEqual([]);
   });
 });

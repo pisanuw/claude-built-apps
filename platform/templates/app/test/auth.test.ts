@@ -16,6 +16,7 @@ import {
   googleButton,
   googleLogoSvg,
   loadTurnstile,
+  maskEmail,
   MAX_FAILED_CHECKS,
   mountSignIn,
   onAuth,
@@ -193,6 +194,30 @@ describe('completeSignInFromUrl', () => {
     const { client, auth } = fakeAuth();
     auth.verifyOtp.mockResolvedValueOnce({ data: { user: null, session: null }, error: { message: 'Token has expired or is invalid' } });
     expect(await completeSignInFromUrl(client, win('https://x.hintwise.org/?token_hash=a&type=email'))).toEqual({ status: 'error', message: EXPIRED_LINK });
+  });
+  it('keeps the session when the link is for the account already signed in', async () => {
+    const { client, auth } = fakeAuth(session); // ann@example.com
+    const w = win('https://x.hintwise.org/app?token_hash=abc&type=email&email_hint=a***@example.com');
+    expect(await completeSignInFromUrl(client, w)).toEqual({ status: 'kept' });
+    expect(w.history.replaceState).toHaveBeenCalledWith({ s: 1 }, '', '/app');
+    expect(auth.verifyOtp).not.toHaveBeenCalled();
+  });
+  it('asks before switching when another account is signed in, and verifies only on yes', async () => {
+    const { client, auth } = fakeAuth(session);
+    const r = await completeSignInFromUrl(client, win('https://x.hintwise.org/?token_hash=abc&type=email&email_hint=b***@example.org'));
+    expect(r.status).toBe('confirm');
+    if (r.status !== 'confirm') return;
+    expect(r.hint).toBe('b***@example.org');
+    expect(auth.verifyOtp).not.toHaveBeenCalled();
+    expect(await r.accept()).toEqual({ status: 'signed-in' });
+    expect(auth.verifyOtp).toHaveBeenCalledWith({ token_hash: 'abc', type: 'email' });
+    const noHint = await completeSignInFromUrl(client, win('https://x.hintwise.org/?token_hash=abc&type=email'));
+    expect(noHint).toMatchObject({ status: 'confirm', hint: 'another account' });
+  });
+  it('masks addresses the way sign-in-link does', () => {
+    expect(maskEmail('Ann@Example.com')).toBe('a***@example.com');
+    expect(maskEmail('x')).toBe('***');
+    expect(maskEmail(null)).toBe('***');
   });
   it('uses window by default', async () => {
     const { client } = fakeAuth();
@@ -506,6 +531,36 @@ describe('mountSignIn', () => {
     await flush();
     expect(f.auth.verifyOtp).toHaveBeenCalledWith({ token_hash: 'h', type: 'email' });
     expect(statusText()).toBe(EXPIRED_LINK);
+  });
+  it('offers to switch accounts when a link for another account arrives while signed in', async () => {
+    const f = fakeAuth(session);
+    f.auth.verifyOtp.mockResolvedValueOnce({ data: { user: null, session: null }, error: { message: 'expired' } });
+    const w = { location: { href: 'https://x.hintwise.org/?token_hash=h&type=email&email_hint=b***@example.org' }, history: { state: null, replaceState: vi.fn() } };
+    mountSignIn(root, { client: f.client, redirectTo: 'https://x/', window: w });
+    await flush();
+    await flush();
+    expect(root.querySelector('.hw-signin-user')!.textContent).toBe('Signed in as ann@example.com');
+    const sw = button('Switch to b***@example.org?');
+    expect(sw).toBeTruthy();
+    expect(f.auth.verifyOtp).not.toHaveBeenCalled();
+    sw.click();
+    await flush();
+    expect(f.auth.verifyOtp).toHaveBeenCalledWith({ token_hash: 'h', type: 'email' });
+    expect(statusText()).toBe(EXPIRED_LINK);
+    expect(root.querySelector('.hw-signin-switch')).toBeNull();
+  });
+  it('shows the offer once the signed-in view is drawn, even if the check finishes first', async () => {
+    const f = fakeAuth(session);
+    let release: () => void = () => undefined;
+    f.auth.getSession.mockImplementationOnce(async () => ({ data: { session }, error: null })); // completeSignInFromUrl
+    f.auth.getSession.mockImplementationOnce(() => new Promise((r) => (release = () => r({ data: { session }, error: null })))); // onAuth, late
+    const w = { location: { href: 'https://x.hintwise.org/?token_hash=h&type=email&email_hint=b***@example.org' }, history: { state: null, replaceState: vi.fn() } };
+    mountSignIn(root, { client: f.client, redirectTo: 'https://x/', window: w });
+    await flush();
+    expect(root.querySelector('.hw-signin-switch')).toBeNull();
+    release();
+    await flush();
+    expect(button('Switch to b***@example.org?')).toBeTruthy();
   });
   it('switches to the signed-in state and back, with sign-out', async () => {
     const { client, auth, emit, unsubscribe } = fakeAuth(session);

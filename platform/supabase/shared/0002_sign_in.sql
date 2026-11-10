@@ -15,8 +15,10 @@
 -- Windows used here, mirrored in platform/src/signin (a test checks they
 -- agree): a key's ladder restarts after 24 hours with no request for it; a
 -- 'pending' row counts as a link being sent for 5 minutes; challenge counts
--- look back 24 hours, the per-IP allowance and the alerts 1 hour; rows are
--- kept 30 days.
+-- look back 24 hours, the per-IP allowance, the per-IP hard limit, the
+-- project brake and the alerts 1 hour; rows are kept 30 days. Invalid and
+-- refused rows count toward the per-IP limits only, never toward an
+-- address's or a browser's ladder or day count.
 
 -- ---------------------------------------------------------------------------
 -- sign_in_requests: one row per request to sign-in-link (and per refused
@@ -74,7 +76,8 @@ comment on table platform.sign_in_alerts is 'Last time each sign-in alert kind w
 -- The earliest request of the key's current run of activity: walking back
 -- from its latest request, each step jumps to the earliest request in the
 -- 24 hours before; it stops at a 24-hour gap. Null when the key had no
--- request in the last 24 hours (a quiet day resets the ladder). Every two
+-- counted request in the last 24 hours (a quiet day resets the ladder;
+-- invalid and refused rows do not keep a ladder alive). Every two
 -- steps move back more than 24 hours, so with 30 days kept the walk is a few
 -- dozen index probes however many rows a key has.
 create or replace function platform.sign_in_episode_start(p_column text, p_hash text)
@@ -94,13 +97,15 @@ begin
   if p_column not in ('email_hash', 'browser_hash', 'ip_hash') then
     raise exception 'sign_in_episode_start: unknown column %', p_column;
   end if;
-  execute format('select max(created_at) from platform.sign_in_requests where %I = $1', p_column)
+  execute format($q$select max(created_at) from platform.sign_in_requests
+      where %I = $1 and outcome not in ('invalid', 'refused')$q$, p_column)
     into t using p_hash;
   if t is null or now() - t >= interval '24 hours' then
     return null;
   end if;
   loop
-    execute format('select min(created_at) from platform.sign_in_requests where %I = $1 and created_at > $2 and created_at < $3', p_column)
+    execute format($q$select min(created_at) from platform.sign_in_requests
+        where %I = $1 and created_at > $2 and created_at < $3 and outcome not in ('invalid', 'refused')$q$, p_column)
       into e using p_hash, t - interval '24 hours', t;
     exit when e is null;
     t := e;
@@ -141,7 +146,8 @@ begin
   end if;
   -- Only "10 or more" matters, so the count stops at 1000.
   execute format($q$select count(*)::int from (select 1 from platform.sign_in_requests
-      where %I = $1 and created_at > now() - interval '24 hours' limit 1000) s$q$, p_column)
+      where %I = $1 and created_at > now() - interval '24 hours'
+        and outcome not in ('invalid', 'refused') limit 1000) s$q$, p_column)
     into v_day using p_hash;
   return jsonb_build_object('sent', v_sent, 'last_sent_at', v_last, 'requests_24h', v_day, 'episode_start', v_start);
 end;
@@ -152,12 +158,19 @@ comment on function platform.sign_in_key_stats(text, text) is 'For one hashed ke
 -- sign_in_begin: the counts the decision needs, and a 'pending' row
 -- ---------------------------------------------------------------------------
 
--- Takes a transaction lock per address and per browser first, so a burst of
+-- First the hard per-IP limit: with p_ip_limit requests (any outcome) from
+-- the IP network in the last hour already, it answers
+-- { limited: true, retry_at } and writes nothing. retry_at is when the
+-- oldest of those requests leaves the hour. The send-email hook passes a
+-- null limit: its fixed 'hook' key is not a network.
+--
+-- Then a transaction lock per address and per browser, so a burst of
 -- parallel requests is decided one at a time: the second sees the first's
 -- 'pending' row as a link being sent and waits. Returns
--- { id, email: stats, browser: stats, ip: { requests_1h } },
+-- { id, email: stats, browser: stats, ip: { requests_1h }, project: { sent_1h } },
 -- counts excluding the new row.
-create or replace function platform.sign_in_begin(p_email_hash text, p_ip_hash text, p_browser_hash text, p_app text)
+drop function if exists platform.sign_in_begin(text, text, text, text);
+create or replace function platform.sign_in_begin(p_email_hash text, p_ip_hash text, p_browser_hash text, p_app text, p_ip_limit int default 100)
 returns jsonb
 language plpgsql
 set search_path = ''
@@ -167,7 +180,18 @@ declare
   v_email jsonb;
   v_browser jsonb;
   v_ip_hour int := 0;
+  v_sent_hour int := 0;
+  v_nth timestamptz;
 begin
+  if p_ip_hash is not null and p_ip_limit is not null then
+    select created_at into v_nth from platform.sign_in_requests
+     where ip_hash = p_ip_hash and created_at > now() - interval '1 hour'
+     order by created_at desc
+     offset greatest(p_ip_limit, 1) - 1 limit 1;
+    if v_nth is not null then
+      return jsonb_build_object('limited', true, 'retry_at', v_nth + interval '1 hour');
+    end if;
+  end if;
   if p_email_hash is not null then
     perform pg_advisory_xact_lock(7301, hashtext(p_email_hash));
   end if;
@@ -182,6 +206,10 @@ begin
       select 1 from platform.sign_in_requests
       where ip_hash = p_ip_hash and created_at > now() - interval '1 hour' limit 1000) s;
   end if;
+  -- The project brake: only "more than 100" matters.
+  select count(*)::int into v_sent_hour from (
+    select 1 from platform.sign_in_requests
+    where outcome = 'sent' and created_at > now() - interval '1 hour' limit 1000) s;
   insert into platform.sign_in_requests (app, outcome, email_hash, ip_hash, browser_hash)
   values (left(p_app, 64), 'pending', p_email_hash, p_ip_hash, p_browser_hash)
   returning id into v_id;
@@ -189,10 +217,11 @@ begin
     'id', v_id,
     'email', v_email,
     'browser', v_browser,
-    'ip', jsonb_build_object('requests_1h', v_ip_hour));
+    'ip', jsonb_build_object('requests_1h', v_ip_hour),
+    'project', jsonb_build_object('sent_1h', v_sent_hour));
 end;
 $$;
-comment on function platform.sign_in_begin(text, text, text, text) is 'sign-in-link, step 1: per-address and per-browser lock, the ladder and challenge counts, and a new pending request row (its id).';
+comment on function platform.sign_in_begin(text, text, text, text, int) is 'sign-in-link and auth-email-hook, step 1: the hard per-IP limit, per-address and per-browser lock, the ladder, challenge and brake counts, and a new pending request row (its id).';
 
 -- ---------------------------------------------------------------------------
 -- sign_in_prune: a bounded delete of rows older than 30 days
@@ -209,7 +238,8 @@ as $$
       select id from platform.sign_in_requests
       where created_at < now() - interval '30 days'
       order by created_at
-      limit 200)
+      limit 200
+      for update skip locked)
     returning 1
   )
   select count(*)::int from gone;
@@ -288,7 +318,8 @@ comment on function platform.sign_in_finish(bigint, text, text) is 'sign-in-link
 -- sign_in_log: one finished row (invalid requests, the hook's refusals)
 -- ---------------------------------------------------------------------------
 
-create or replace function platform.sign_in_log(p_email_hash text, p_ip_hash text, p_browser_hash text, p_app text, p_outcome text, p_detail text)
+drop function if exists platform.sign_in_log(text, text, text, text, text, text);
+create or replace function platform.sign_in_log(p_email_hash text, p_ip_hash text, p_browser_hash text, p_app text, p_outcome text, p_detail text, p_ip_limit int default 100)
 returns bigint
 language plpgsql
 set search_path = ''
@@ -299,6 +330,14 @@ begin
   if p_outcome is null or p_outcome = 'pending' then
     raise exception 'sign_in_log: give a final outcome, not %', coalesce(p_outcome, 'null');
   end if;
+  -- Over the hard per-IP limit nothing is written, so a flood of bad
+  -- requests cannot fill the table.
+  if p_ip_hash is not null and p_ip_limit is not null and exists (
+    select 1 from platform.sign_in_requests
+     where ip_hash = p_ip_hash and created_at > now() - interval '1 hour'
+     offset greatest(p_ip_limit, 1) - 1 limit 1) then
+    return null;
+  end if;
   insert into platform.sign_in_requests (app, outcome, detail, email_hash, ip_hash, browser_hash)
   values (left(p_app, 64), p_outcome, left(p_detail, 500), p_email_hash, p_ip_hash, p_browser_hash)
   returning id into v_id;
@@ -306,7 +345,7 @@ begin
   return v_id;
 end;
 $$;
-comment on function platform.sign_in_log(text, text, text, text, text, text) is 'Records a sign-in request that needed no decision (invalid, or refused by auth-email-hook); returns its id.';
+comment on function platform.sign_in_log(text, text, text, text, text, text, int) is 'Records a sign-in request that needed no decision (invalid, or refused by auth-email-hook); returns its id, or null when the IP network is over the hard limit and nothing was written.';
 
 -- ---------------------------------------------------------------------------
 -- sign_in_claim_alert: at most one alert per kind an hour
@@ -345,18 +384,18 @@ grant select, insert, update, delete on table platform.sign_in_alerts to service
 
 revoke all on function platform.sign_in_episode_start(text, text) from public, anon, authenticated;
 revoke all on function platform.sign_in_key_stats(text, text) from public, anon, authenticated;
-revoke all on function platform.sign_in_begin(text, text, text, text) from public, anon, authenticated;
+revoke all on function platform.sign_in_begin(text, text, text, text, int) from public, anon, authenticated;
 revoke all on function platform.sign_in_prune() from public, anon, authenticated;
 revoke all on function platform.sign_in_alert_counts(text, text, text) from public, anon, authenticated;
 revoke all on function platform.sign_in_finish(bigint, text, text) from public, anon, authenticated;
-revoke all on function platform.sign_in_log(text, text, text, text, text, text) from public, anon, authenticated;
+revoke all on function platform.sign_in_log(text, text, text, text, text, text, int) from public, anon, authenticated;
 revoke all on function platform.sign_in_claim_alert(text) from public, anon, authenticated;
 
 grant execute on function platform.sign_in_episode_start(text, text) to service_role;
 grant execute on function platform.sign_in_key_stats(text, text) to service_role;
-grant execute on function platform.sign_in_begin(text, text, text, text) to service_role;
+grant execute on function platform.sign_in_begin(text, text, text, text, int) to service_role;
 grant execute on function platform.sign_in_prune() to service_role;
 grant execute on function platform.sign_in_alert_counts(text, text, text) to service_role;
 grant execute on function platform.sign_in_finish(bigint, text, text) to service_role;
-grant execute on function platform.sign_in_log(text, text, text, text, text, text) to service_role;
+grant execute on function platform.sign_in_log(text, text, text, text, text, text, int) to service_role;
 grant execute on function platform.sign_in_claim_alert(text) to service_role;

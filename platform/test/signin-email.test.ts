@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ALERT_FROM, ALERT_LIMITS, alertDue, alertEmail, bypassAlertEmail, dueAlerts, triggeredAlerts, type AlertCounts } from '../src/signin/alerts.ts';
-import { appDisplayName, escapeHtml, renderEmail, signInEmail, SIGN_IN_FROM } from '../src/signin/email.ts';
+import { appDisplayName, codeEmail, escapeHtml, recoveryEmail, renderEmail, signInEmail, signupEmail, SIGN_IN_FROM } from '../src/signin/email.ts';
 
 const NOW = new Date('2026-11-10T12:00:00Z');
 const counts = (over: Partial<AlertCounts> = {}): AlertCounts => ({ ip_addresses_1h: 1, browser_addresses_1h: 1, email_requests_1h: 1, ip_challenge_failures_1h: 0, sent_1h: 1, alerts: {}, ...over });
@@ -24,6 +24,22 @@ describe('the sign-in email', () => {
     expect(m.text).not.toMatch(/\d{1,2}:\d{2}/);
     expect(m.html).toContain('href="https://paste-md.hintwise.org/?token_hash=abc&amp;type=email"');
     expect(m.html).toContain('ignore this email');
+  });
+  it('names another site when the link goes through Auth (the hook)', () => {
+    const m = signInEmail('ann@example.com', 'https://ref.supabase.co/auth/v1/verify?token=t&type=magiclink', null, 'how-of-happiness.netlify.app');
+    expect(m.text).toContain('sign in to how-of-happiness.netlify.app:');
+  });
+  it('has the hook\'s sign-up, code and recovery emails', () => {
+    const s1 = signupEmail('ann@example.com', 'https://ref.supabase.co/auth/v1/verify?token=t&type=signup', 'wcv.example.org');
+    expect(s1.subject).toBe('Confirm your email address');
+    expect(s1.text).toContain('To finish signing up at wcv.example.org, confirm your email address:');
+    const c = codeEmail('ann@example.com', '123456', 'wcv.example.org');
+    expect(c.subject).toBe('Your sign-in code');
+    expect(c.text).toContain('\n\n123456\n\n');
+    expect(c.text).toContain('The code expires in about an hour.');
+    const r = recoveryEmail('ann@example.com', 'https://ref.supabase.co/auth/v1/verify?token=t&type=recovery');
+    expect(r.subject).toBe('Reset your password');
+    for (const m of [s1, c, r]) expect(m.from).toBe(SIGN_IN_FROM);
   });
   it('uses the plain subject when the app is not known', () => {
     const m = signInEmail('ann@example.com', link, null);

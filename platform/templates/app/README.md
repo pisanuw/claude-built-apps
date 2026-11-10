@@ -82,10 +82,21 @@ On a challenge, the panel loads Cloudflare Turnstile once
 the widget after every request. After three failed checks in a row it stops
 until the visitor asks again.
 
-The emailed link comes back to the page with `?token_hash=...&type=email`.
-`mountSignIn` (or `completeSignInFromUrl` in an app with its own UI) takes
-those out of the address bar and calls `verifyOtp`, so the link works in any
-browser. The contract and the limits are in `platform/src/signin/README.md`.
+The emailed link comes back to the page with
+`?token_hash=...&type=email&email_hint=a***@example.com`. `mountSignIn` (or
+`completeSignInFromUrl` in an app with its own UI) takes those out of the
+address bar, then acts on who is signed in:
+- nobody: it calls `verifyOtp`, so the link works in any browser;
+- the link's own account: it keeps the session;
+- another account: it asks first, with the button "Switch to
+  a***@example.com?", so a link someone else sent cannot silently swap
+  accounts.
+
+`redirectTo` must be a page of a deployed app: sign-in-link only accepts the
+labels in `platform/src/signin/app-hosts.ts`. After the new app's first
+deploy, run `npm run app-hosts` in `platform/`, commit, and redeploy
+sign-in-link. The contract and the limits are in
+`platform/src/signin/README.md`.
 
 ## The Google button
 

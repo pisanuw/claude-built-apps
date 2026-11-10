@@ -9,17 +9,20 @@
  * or create the link and email it; sign_in_finish with the outcome; alerts
  * in the background.
  */
-import { HINTWISE_ONLY, isHintwiseOrigin, jsonHeaders, preflight } from '../gateway/cors.ts';
+import { jsonHeaders, preflight, type CorsOptions } from '../gateway/cors.ts';
 import { alertEmail, dueAlerts, type AlertCounts, type AlertKind } from './alerts.ts';
 import { restDb, type Db } from './db.ts';
 import { appDisplayName, signInEmail } from './email.ts';
-import { clientIp, hashKeys, UNKNOWN_IP, type KeyHashes } from './keys.ts';
+import { clientIp, hashKeys, maskEmail, UNKNOWN_IP, type KeyHashes } from './keys.ts';
 import { createLinkToken, signInLink } from './link.ts';
-import { decide, decisionDetail, type BeginResult } from './policy.ts';
+import { decide, decisionDetail, IP_HARD_LIMIT_PER_HOUR, type BeginResult, type Stats } from './policy.ts';
 import { sendEmail } from './resend.ts';
 import { TURNSTILE_SITE_KEY, verifyTurnstile } from './turnstile.ts';
 import { errorText, readBody } from './util.ts';
-import { MAX_BODY_BYTES, parseSignInRequest, type Known, type Parsed } from './validate.ts';
+import { isAppOrigin, MAX_BODY_BYTES, parseSignInRequest, type Known, type Parsed } from './validate.ts';
+
+/** CORS for the pages of deployed apps only (validate.ts isAppOrigin). */
+const APP_CORS: CorsOptions = { dev: false, allow: (o) => isAppOrigin(o) };
 
 export type Outcome = 'sent' | 'wait' | 'challenge' | 'challenge_failed' | 'refused' | 'error' | 'invalid';
 export const OUTCOMES: readonly Outcome[] = ['sent', 'wait', 'challenge', 'challenge_failed', 'refused', 'error', 'invalid'];
@@ -57,6 +60,8 @@ export type SignInAnswer =
   | { status: 'error'; message: string };
 
 const SORRY = 'Something went wrong on our side. Try again in a minute.';
+/** A challenge is due but the function cannot check one: refuse rather than send (security review M1). */
+export const PAUSED = 'Email sign-in is paused; try Google';
 
 /** Runs a task in the background, logging instead of rejecting. */
 function later(deps: Deps, task: () => Promise<unknown>): void {
@@ -88,9 +93,9 @@ export async function raiseAlerts(deps: Deps, db: Db, counts: AlertCounts, ctx: 
 
 export async function handleSignInLink(req: Request, deps: Deps): Promise<Response> {
   const origin = req.headers.get('origin');
-  const reply = (status: number, body: SignInAnswer): Response => new Response(JSON.stringify(body), { status, headers: jsonHeaders(origin, HINTWISE_ONLY) });
+  const reply = (status: number, body: SignInAnswer): Response => new Response(JSON.stringify(body), { status, headers: jsonHeaders(origin, APP_CORS) });
   if (req.method === 'OPTIONS') {
-    const p = preflight(origin, HINTWISE_ONLY);
+    const p = preflight(origin, APP_CORS);
     return new Response(null, { status: p.status, headers: p.headers });
   }
   if (req.method !== 'POST') return reply(405, { status: 'error', message: 'Use POST.' });
@@ -128,7 +133,8 @@ async function handlePost(req: Request, deps: Deps, reply: (status: number, body
   const logOnly = async (known: Known, outcome: Outcome, detail: string): Promise<void> => {
     try {
       const h = await hashKeys(hashKey, { email: known.email, ip, browserId: known.browserId });
-      await db.rpc('sign_in_log', { p_email_hash: h.email_hash, p_ip_hash: h.ip_hash, p_browser_hash: h.browser_hash, p_app: known.app ?? null, p_outcome: outcome, p_detail: detail });
+      // Over the hard per-IP limit sign_in_log writes nothing (it answers null).
+      await db.rpc('sign_in_log', { p_email_hash: h.email_hash, p_ip_hash: h.ip_hash, p_browser_hash: h.browser_hash, p_app: known.app ?? null, p_outcome: outcome, p_detail: detail, p_ip_limit: IP_HARD_LIMIT_PER_HOUR });
     } catch (e) {
       log(`sign_in_log failed: ${errorText(e)}`);
     }
@@ -139,20 +145,32 @@ async function handlePost(req: Request, deps: Deps, reply: (status: number, body
     return reply(parsed.status, { status: 'error', message: parsed.message });
   }
   const r = parsed.request;
-  if (!isHintwiseOrigin(origin)) {
+  if (!isAppOrigin(origin)) {
     await logOnly(r, 'invalid', `origin ${String(origin ?? '(none)').slice(0, 100)}`);
     return reply(403, { status: 'error', message: 'Ask for sign-in links from a HintWise app.' });
   }
 
   const hashes = await hashKeys(hashKey, { email: r.email, ip, browserId: r.browserId });
-  let begin: BeginResult;
+  let result: BeginResult;
   try {
-    begin = await db.rpc<BeginResult>('sign_in_begin', { p_email_hash: hashes.email_hash, p_ip_hash: hashes.ip_hash, p_browser_hash: hashes.browser_hash, p_app: r.app });
-    if (!begin || typeof begin.id !== 'number') throw new Error(`sign_in_begin returned ${JSON.stringify(begin).slice(0, 100)}`);
+    result = await db.rpc<BeginResult>('sign_in_begin', {
+      p_email_hash: hashes.email_hash,
+      p_ip_hash: hashes.ip_hash,
+      p_browser_hash: hashes.browser_hash,
+      p_app: r.app,
+      p_ip_limit: IP_HARD_LIMIT_PER_HOUR,
+    });
+    if (!result || (result.limited !== true && typeof result.id !== 'number')) throw new Error(`sign_in_begin returned ${JSON.stringify(result).slice(0, 100)}`);
   } catch (e) {
     log(`sign_in_begin failed: ${errorText(e)}`);
     return reply(500, { status: 'error', message: SORRY });
   }
+  if (result.limited === true) {
+    // Over the hard per-IP limit: a wait, and no row (so a flood cannot fill the table).
+    const at = Date.parse(result.retry_at);
+    return reply(429, { status: 'wait', retryAt: new Date(Number.isNaN(at) ? now().getTime() + 3_600_000 : at).toISOString() });
+  }
+  const begin: Stats = result;
 
   const notes: string[] = ipKnown ? [] : ['ip unknown'];
   const finish = async (outcome: Outcome, detail = ''): Promise<void> => {
@@ -180,9 +198,10 @@ async function handlePost(req: Request, deps: Deps, reply: (status: number, body
     const secret = env.TURNSTILE_SECRET;
     const siteKey = env.TURNSTILE_SITE_KEY || TURNSTILE_SITE_KEY;
     if (!secret) {
-      // The function secret is not set yet: send, and say so in the log.
-      log(`warning: a challenge is due (${reasons}) but TURNSTILE_SECRET is unset; sending without it`);
-      notes.push(`warning: challenge skipped, TURNSTILE_SECRET unset (${reasons})`);
+      // A challenge that cannot be checked is not skipped: email sign-in pauses until the secret is set.
+      log(`a challenge is due (${reasons}) but TURNSTILE_SECRET is unset; refusing`);
+      await finish('error', `challenge due (${reasons}) but TURNSTILE_SECRET unset`);
+      return reply(503, { status: 'error', message: PAUSED });
     } else if (!r.turnstileToken) {
       await finish('challenge', `challenge: ${reasons}`);
       return reply(403, { status: 'challenge', siteKey });
@@ -199,7 +218,8 @@ async function handlePost(req: Request, deps: Deps, reply: (status: number, body
 
   let link;
   try {
-    link = await createLinkToken(deps.fetch, { url, serviceKey }, r.email, r.redirectTo);
+    // Auth keeps addresses lower-cased; the email itself goes to the address as typed.
+    link = await createLinkToken(deps.fetch, { url, serviceKey }, r.email.toLowerCase(), r.redirectTo);
   } catch (e) {
     link = { ok: false as const, status: 0, code: 'fetch', message: errorText(e) };
   }
@@ -209,7 +229,7 @@ async function handlePost(req: Request, deps: Deps, reply: (status: number, body
   }
   if (link.createdUser) notes.push('user created before the link');
 
-  const email = signInEmail(r.email, signInLink(r.redirectTo, link.hashedToken), appDisplayName(r.app, r.redirectTo));
+  const email = signInEmail(r.email, signInLink(r.redirectTo, link.hashedToken, maskEmail(r.email)), appDisplayName(r.app, r.redirectTo));
   const sent = await sendEmail(deps.fetch, resendKey, email);
   if (!sent.ok) {
     await finish('error', sent.message);

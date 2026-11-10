@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { ALERT_EVERY_MS, ALERT_KINDS } from '../src/signin/alerts.ts';
 import { QUIET_HOURS } from '../src/signin/ladder.ts';
+import { IP_FREE_PER_HOUR, IP_HARD_LIMIT_PER_HOUR, PROJECT_SENT_BRAKE_PER_HOUR } from '../src/signin/policy.ts';
 import { OUTCOMES } from '../src/signin/service.ts';
 import { TURNSTILE_SITE_KEY } from '../src/signin/turnstile.ts';
 
@@ -23,6 +24,16 @@ describe('0002_sign_in.sql', () => {
   it('allows exactly the alert kinds', () => {
     const m = code.match(/check \(kind in \(([^)]*)\)\)/);
     expect(m![1].split(',').map((s) => s.trim().replace(/'/g, '')).sort()).toEqual([...ALERT_KINDS].sort());
+  });
+  it('defaults the hard per-IP limit to the code\'s, counts enough rows for the IP and brake rules, and skips locked rows when pruning', () => {
+    expect(code).toContain(`p_ip_limit int default ${IP_HARD_LIMIT_PER_HOUR}`);
+    expect(IP_FREE_PER_HOUR).toBeLessThan(1000);
+    expect(PROJECT_SENT_BRAKE_PER_HOUR).toBeLessThan(1000);
+    expect(code).toContain("where outcome = 'sent' and created_at > now() - interval '1 hour' limit 1000");
+    expect(code).toContain('for update skip locked');
+  });
+  it('leaves invalid and refused rows out of the ladder and the day count', () => {
+    expect((code.match(/outcome not in \('invalid', 'refused'\)/g) ?? []).length).toBe(3);
   });
   it('uses the same quiet day and alert hour as the code', () => {
     expect(QUIET_HOURS).toBe(24);

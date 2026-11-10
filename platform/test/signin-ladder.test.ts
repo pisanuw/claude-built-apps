@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { gapMinutes, LADDER_CAP_MINUTES, nextAllowed } from '../src/signin/ladder.ts';
-import { DAY_CHALLENGE_REQUESTS, decide, decisionDetail, IP_FREE_PER_HOUR, type KeyStats } from '../src/signin/policy.ts';
+import { DAY_CHALLENGE_REQUESTS, decide, decisionDetail, IP_FREE_PER_HOUR, IP_HARD_LIMIT_PER_HOUR, ladderOnly, PROJECT_SENT_BRAKE_PER_HOUR, type KeyStats } from '../src/signin/policy.ts';
 
 const NOW = new Date('2026-11-10T12:00:00.000Z');
 const ago = (minutes: number) => new Date(NOW.getTime() - minutes * 60_000).toISOString();
@@ -70,8 +70,19 @@ describe('decide', () => {
     expect(decide({ email: key(), browser: key(), ip: ip(IP_FREE_PER_HOUR - 1) }, NOW)).toEqual({ action: 'send', challenge: [] });
     expect(decide({ email: key(), browser: key(), ip: ip(IP_FREE_PER_HOUR) }, NOW)).toEqual({ action: 'send', challenge: ['ip-hour'] });
   });
-  it('skips the IP rule when the IP is unknown', () => {
-    expect(decide({ email: key(), browser: key(), ip: ip(500) }, NOW, false)).toEqual({ action: 'send', challenge: [] });
+  it('makes the challenge due when the IP is unknown', () => {
+    expect(decide({ email: key(), browser: key(), ip: ip(0) }, NOW, false)).toEqual({ action: 'send', challenge: ['ip-unknown'] });
+  });
+  it('makes the challenge due for everyone while the project is over its hourly brake', () => {
+    expect(PROJECT_SENT_BRAKE_PER_HOUR).toBe(100);
+    expect(IP_HARD_LIMIT_PER_HOUR).toBe(100);
+    expect(decide({ email: key(), browser: key(), ip: ip(), project: { sent_1h: 100 } }, NOW)).toEqual({ action: 'send', challenge: [] });
+    expect(decide({ email: key(), browser: key(), ip: ip(), project: { sent_1h: 101 } }, NOW)).toEqual({ action: 'send', challenge: ['project-hour'] });
+  });
+  it('applies only the address ladder for the send-email hook', () => {
+    expect(ladderOnly(key(), NOW)).toEqual({ action: 'send' });
+    expect(ladderOnly(key({ sent: 3, last_sent_at: ago(1) }), NOW)).toEqual({ action: 'wait', retryAt: '2026-11-10T12:04:00.000Z' });
+    expect(ladderOnly(undefined as unknown as KeyStats, NOW)).toEqual({ action: 'send' });
   });
   it('waits before it challenges: a challenge cannot shorten the wait', () => {
     const d = decide({ email: key({ sent: 1, last_sent_at: ago(0), requests_24h: 30 }), browser: key(), ip: ip(100) }, NOW);

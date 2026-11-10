@@ -3,32 +3,53 @@
  * auth email to this function instead of sending it. Pure parts: the
  * Standard Webhooks signature check, the payload, and what to do with it.
  *
- * Magic links and sign-ups asked for directly (supabase.auth.signInWithOtp,
- * signUp) are refused, so nothing gets around the sign-in-link limits; the
- * other emails are sent as Supabase's docs describe (link to
- * <SUPABASE_URL>/auth/v1/verify with token, type and redirect_to).
+ * Only magic links, sign-up confirmations, sign-in codes and password
+ * recovery are sent, and only for the apps outside HintWise that share the
+ * project (their hosts in HOOK_EXTERNAL_HOSTS, judged by the payload's
+ * redirect_to, else site_url). Everything else, including any of these for a
+ * hintwise.org page or an unknown host, is refused, so nothing gets around
+ * the sign-in-link limits. What is sent goes through the same per-address
+ * ladder (hook-service.ts) and links to <SUPABASE_URL>/auth/v1/verify with
+ * token, type and redirect_to, as Supabase's docs describe.
  *
  * Errors use the shape Auth reads from a 200 answer:
  * { error: { http_code, message } }; Auth then answers the app with that
  * status and message. Any status other than 200/202/204 (or 429/503 with
  * retry-after) becomes a bare 500 for the app.
  */
-import {
-  emailChangeCurrentEmail,
-  emailChangeNewEmail,
-  inviteEmail,
-  NOTICES,
-  noticeEmail,
-  reauthenticationEmail,
-  recoveryEmail,
-} from './email.ts';
+import { codeEmail, recoveryEmail, signInEmail, signupEmail } from './email.ts';
 import type { EmailMessage } from './resend.ts';
 
 /** Seconds a signed hook call stays valid either side of now (Standard Webhooks' usual five minutes). */
 export const TOLERANCE_SECONDS = 5 * 60;
-/** Direct sign-in emails: refused, because they would skip the ladder and the challenge. */
-export const REFUSED_TYPES: readonly string[] = ['magiclink', 'signup', 'email'];
+/** The only email types the hook sends, and only for HOOK_EXTERNAL_HOSTS. */
+export const HOOK_ALLOWED_TYPES: readonly string[] = ['magiclink', 'signup', 'email', 'recovery'];
 export const REFUSAL_MESSAGE = 'Use the HintWise sign-in-link service';
+const HOST = /^(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)+$/;
+
+/** HOOK_EXTERNAL_HOSTS ("a.netlify.app, *.example.org") as a list of lower-cased host patterns. */
+export function parseHostList(text: string | null | undefined): string[] {
+  return String(text ?? '')
+    .split(',')
+    .map((h) => h.trim().toLowerCase())
+    .filter((h) => HOST.test(h));
+}
+
+/** True when `host` is in the list: exactly, or under a '*.' pattern (not its apex). Never a hintwise.org name. */
+export function hostAllowed(host: string | null | undefined, list: readonly string[]): boolean {
+  const h = String(host ?? '').toLowerCase();
+  if (!h || h === 'hintwise.org' || h.endsWith('.hintwise.org')) return false;
+  return list.some((p) => (p.startsWith('*.') ? h.endsWith(p.slice(1)) : h === p));
+}
+
+/** The host of a URL, or null. */
+export function hostOf(url: string | null | undefined): string | null {
+  try {
+    return new URL(String(url ?? '')).hostname.toLowerCase().slice(0, 100) || null;
+  } catch {
+    return null;
+  }
+}
 
 /** The key bytes of a 'v1,whsec_<base64>' (or 'whsec_<base64>', or bare base64) secret, or null. */
 export function hookSecretBytes(secret: string | null | undefined): Uint8Array<ArrayBuffer> | null {
@@ -138,52 +159,29 @@ export function verifyUrl(authBase: string, tokenHash: string, type: string, red
 }
 
 export type HookPlan =
-  | { action: 'refuse'; actionType: string; email: string; redirectTo: string }
-  | { action: 'send'; actionType: string; emails: EmailMessage[] }
-  | { action: 'unsupported'; actionType: string; reason: string };
+  | { action: 'refuse'; actionType: string; email: string; host: string | null; reason: string }
+  | { action: 'send'; actionType: string; email: string; host: string; message: EmailMessage };
 
-/** What the hook does with one payload. `authBase` is the project URL (SUPABASE_URL). */
-export function planHook(p: HookPayload, authBase: string): HookPlan {
+/**
+ * What the hook does with one payload. `authBase` is the project URL
+ * (SUPABASE_URL); `externalHosts` the parsed HOOK_EXTERNAL_HOSTS.
+ */
+export function planHook(p: HookPayload, authBase: string, externalHosts: readonly string[]): HookPlan {
   const d = p.email_data;
   const type = d.email_action_type;
   const to = p.user.email;
+  const host = hostOf(d.redirect_to) ?? hostOf(d.site_url);
+  const refuse = (reason: string): HookPlan => ({ action: 'refuse', actionType: type, email: to, host, reason });
+  if (!HOOK_ALLOWED_TYPES.includes(type)) return refuse('type');
+  if (!host || !hostAllowed(host, externalHosts)) return refuse('host');
+  const send = (message: EmailMessage): HookPlan => ({ action: 'send', actionType: type, email: to, host, message });
   const redirect = d.redirect_to || undefined;
-  if (REFUSED_TYPES.includes(type)) return { action: 'refuse', actionType: type, email: to, redirectTo: d.redirect_to ?? '' };
-  const send = (...emails: EmailMessage[]): HookPlan => ({ action: 'send', actionType: type, emails });
-  const missing = (what: string): HookPlan => ({ action: 'unsupported', actionType: type, reason: `no ${what} in the payload` });
-
-  switch (type) {
-    case 'recovery':
-    case 'invite': {
-      if (!d.token_hash) return missing('token_hash');
-      const href = verifyUrl(authBase, d.token_hash, type, redirect);
-      return send(type === 'recovery' ? recoveryEmail(to, href) : inviteEmail(to, href));
-    }
-    case 'email_change': {
-      // Supabase's names are reversed for backward compatibility:
-      // token_hash_new goes to the current address, token_hash to the new one.
-      const newEmail = p.user.new_email;
-      const forCurrent = d.token_hash_new;
-      const forNew = d.token_hash;
-      if (forCurrent && forNew && newEmail) {
-        return send(
-          emailChangeCurrentEmail(to, newEmail, verifyUrl(authBase, forCurrent, type, redirect)),
-          emailChangeNewEmail(newEmail, verifyUrl(authBase, forNew, type, redirect)),
-        );
-      }
-      // Secure email change off: one pair, sent to the new address.
-      const only = forNew || forCurrent;
-      if (!only) return missing('token_hash');
-      return send(emailChangeNewEmail(newEmail || to, verifyUrl(authBase, only, type, redirect)));
-    }
-    case 'reauthentication':
-      return d.token ? send(reauthenticationEmail(to, d.token)) : missing('token');
-    default: {
-      const notice = NOTICES[type];
-      if (notice) return send(noticeEmail(to, notice));
-      return { action: 'unsupported', actionType: type, reason: 'unknown email_action_type' };
-    }
-  }
+  if (type === 'email') return d.token ? send(codeEmail(to, d.token, host)) : refuse('no token');
+  if (!d.token_hash) return refuse('no token_hash');
+  const href = verifyUrl(authBase, d.token_hash, type, redirect);
+  if (type === 'magiclink') return send(signInEmail(to, href, null, host));
+  if (type === 'signup') return send(signupEmail(to, href, host));
+  return send(recoveryEmail(to, href));
 }
 
 /** The JSON body Auth reads as a hook error: it answers the app with this status and message. */

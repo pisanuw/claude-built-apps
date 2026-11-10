@@ -37,15 +37,16 @@ Dispatch "Supabase admin" with `command`, optional `arg` and `flags`:
 | `deploy-function` | arg: function name | Supabase CLI: `supabase functions deploy <name>` from `platform/`; adds `--no-verify-jwt` when its `config.toml` section says `verify_jwt = false` |
 | `deploy-gateway` | | the same as `deploy-function llm-gateway` |
 | `set-gateway-key` | | Supabase CLI: `supabase secrets set ANTHROPIC_API_KEY=...` from the repo secret |
-| `set-sign-in-secrets` | | function secrets `RESEND_API`, `ADMIN_EMAIL`, `TURNSTILE_SECRET` (repo secret `TURNSTILE_SECRET_KEY`, when present), `TURNSTILE_SITE_KEY` (repo variable or secret, else the committed public key); generates `SIGN_IN_HASH_KEY` and `SEND_EMAIL_HOOK_SECRET` only when the project has none; prints booleans |
-| `email-hook` | arg: `status`, `check`, `on`, `off`; flags `--dry-run`, `--allow-otp-apps` | Supabase Auth's Send Email hook. `on` (owner's yes first) checks the function, its secrets and that no app in this repo still calls `signInWithOtp`, sets a fresh `SEND_EMAIL_HOOK_SECRET` and points the hook at `auth-email-hook` with it. It affects every app on the project |
+| `set-sign-in-secrets` | | function secrets `RESEND_API`, `ADMIN_EMAIL`, `TURNSTILE_SECRET` (repo secret `TURNSTILE_SECRET_KEY`, required: the step exits 1 without it), `TURNSTILE_SITE_KEY` (repo variable or secret, else the committed public key), `HOOK_EXTERNAL_HOSTS` (from `external-hosts`); generates `SIGN_IN_HASH_KEY` and `SEND_EMAIL_HOOK_SECRET` only when the project has none; values through a private env file, never as arguments; prints booleans and the host names |
+| `external-hosts` | | print `HOOK_EXTERNAL_HOSTS`: the auth redirect allow-list and site URL hosts, minus hintwise.org (names are not secret) |
+| `email-hook` | arg: `status`, `check`, `on`, `off`; flags `--dry-run`, `--allow-otp-apps`, `--accept-external-breakage` | Supabase Auth's Send Email hook. `on` (owner's yes first) checks the function, its secrets, that no app in this repo still calls `signInWithOtp`, `signUp` or `resend`, and that some external host keeps its email; then it sets a fresh `SEND_EMAIL_HOOK_SECRET` and points the hook at `auth-email-hook` with it. It affects every app on the project |
 
 First-time order (after the owner's key rotation): `apply-shared`,
 `expose-schema platform`, `configure-auth --dry-run` then `configure-auth`,
 `keys` (commit `platform/supabase.json`), `set-gateway-key`, `deploy-gateway`,
 then a dry run of the "LLM usage report" workflow. Sign-in links:
 `apply-shared`, `check-schema platform`, `deploy-function sign-in-link`,
-`deploy-function auth-email-hook`, `set-sign-in-secrets`, and after the
+`deploy-function auth-email-hook`, `external-hosts`, `set-sign-in-secrets`, and after the
 owner's yes `email-hook check`, `email-hook on --dry-run`, `email-hook on`.
 
 ## Deploy integration
@@ -63,6 +64,7 @@ cd platform
 npm ci
 npm run lint && npm run typecheck && npm run coverage   # 85% thresholds on src/**
 npm run check-scripts                                   # node --check on the .mjs files
+npm run app-hosts                                       # after adding an app: rewrite src/signin/app-hosts.ts (CI fails while it is stale)
 ```
 
 The Deno entries are not type-checked or covered here (Deno globals,

@@ -1,15 +1,14 @@
 /**
- * The emails visitors get: the sign-in link, and the other Auth emails the
- * send-email hook takes over (recovery, invite, email change,
- * reauthentication, account notices). Plain text plus simple HTML, every
- * value escaped. No times in the text: links expire "in about an hour".
+ * The emails visitors get: the sign-in link, and the few Auth emails the
+ * send-email hook still sends for apps outside HintWise (magic link, sign-up
+ * confirmation, sign-in code, password recovery). Plain text plus simple
+ * HTML, every value escaped. No times in the text: links expire "in about an
+ * hour".
  */
 import type { EmailMessage } from './resend.ts';
 import { hintwiseLabel } from './validate.ts';
 
 export const SIGN_IN_FROM = 'HintWise <sign-in@hintwise.org>';
-/** Where a visitor writes about their account (docs/platform.md, section 5). */
-export const CONTACT = 'builder@hintwise.org';
 
 export function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -69,9 +68,8 @@ export function renderEmail(p: EmailParts, from = SIGN_IN_FROM): EmailMessage {
   };
 }
 
-/** The sign-in link email. */
-export function signInEmail(to: string, link: string, appName: string | null): EmailMessage {
-  const host = new URL(link).hostname;
+/** The sign-in link email; `host` is the site it signs in to (default the link's own host). */
+export function signInEmail(to: string, link: string, appName: string | null, host: string = new URL(link).hostname): EmailMessage {
   return renderEmail({
     to,
     subject: appName ? `Your sign-in link for ${appName}` : 'Your sign-in link',
@@ -82,35 +80,15 @@ export function signInEmail(to: string, link: string, appName: string | null): E
 }
 
 const IGNORE = 'If you did not ask for this, ignore this email.';
-const NOT_YOU = `If this was not you, write to ${CONTACT}.`;
+const EXPIRES = 'The link expires in about an hour.';
 
-/** One sentence per account notice type of the send-email hook. */
-export const NOTICES: Readonly<Record<string, string>> = {
-  password_changed_notification: 'The password of your HintWise account was changed.',
-  email_changed_notification: 'The email address of your HintWise account was changed.',
-  phone_changed_notification: 'The phone number of your HintWise account was changed.',
-  identity_linked_notification: 'A sign-in method was linked to your HintWise account.',
-  identity_unlinked_notification: 'A sign-in method was removed from your HintWise account.',
-  mfa_factor_enrolled_notification: 'A second sign-in step was added to your HintWise account.',
-  mfa_factor_unenrolled_notification: 'A second sign-in step was removed from your HintWise account.',
-};
+// The send-email hook's emails, for the apps outside HintWise that share the project.
 
 export const recoveryEmail = (to: string, href: string): EmailMessage =>
-  renderEmail({ to, subject: 'Reset your password', intro: [`Someone asked to reset the password of the HintWise account for ${to}. To choose a new one, open this link:`], link: { href, label: 'Reset password' }, outro: [`The link expires in about an hour. ${IGNORE}`] });
+  renderEmail({ to, subject: 'Reset your password', intro: [`Someone asked to reset the password of the account for ${to}. To choose a new one, open this link:`], link: { href, label: 'Reset password' }, outro: [`${EXPIRES} ${IGNORE}`] });
 
-export const inviteEmail = (to: string, href: string): EmailMessage =>
-  renderEmail({ to, subject: 'You are invited to HintWise', intro: [`You have been invited to a HintWise account for ${to}. To accept, open this link:`], link: { href, label: 'Accept the invitation' }, outro: [IGNORE] });
+export const signupEmail = (to: string, href: string, host: string): EmailMessage =>
+  renderEmail({ to, subject: 'Confirm your email address', intro: [`To finish signing up at ${host}, confirm your email address:`], link: { href, label: 'Confirm my address' }, outro: [`${EXPIRES} ${IGNORE}`] });
 
-/** To the current address when the email changes (secure email change sends both). */
-export const emailChangeCurrentEmail = (to: string, newEmail: string, href: string): EmailMessage =>
-  renderEmail({ to, subject: 'Confirm the change of your email address', intro: [`Someone asked to change the email address of your HintWise account from ${to} to ${newEmail}. To confirm, open this link:`], link: { href, label: 'Confirm the change' }, outro: [NOT_YOU] });
-
-/** To the new address when the email changes. */
-export const emailChangeNewEmail = (to: string, href: string): EmailMessage =>
-  renderEmail({ to, subject: 'Confirm your new email address', intro: [`To use ${to} as the email address of your HintWise account, open this link:`], link: { href, label: 'Confirm this address' }, outro: [IGNORE] });
-
-export const reauthenticationEmail = (to: string, code: string): EmailMessage =>
-  renderEmail({ to, subject: 'Your confirmation code', intro: ['Your HintWise confirmation code is:'], code, outro: [IGNORE] });
-
-export const noticeEmail = (to: string, sentence: string): EmailMessage =>
-  renderEmail({ to, subject: 'Your HintWise account changed', intro: [sentence], outro: [NOT_YOU] });
+export const codeEmail = (to: string, code: string, host: string): EmailMessage =>
+  renderEmail({ to, subject: 'Your sign-in code', intro: [`Your code to sign in to ${host} is:`], code, outro: [`The code expires in about an hour. ${IGNORE}`] });

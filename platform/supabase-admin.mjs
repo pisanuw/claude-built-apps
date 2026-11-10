@@ -51,11 +51,16 @@
  *                           back. No login, no secret. --base is the auth host
  *                           to test (default SUPABASE_URL; later the custom
  *                           domain). Exits 1 when the flow is broken.
- *   email-hook status|check|on|off [--dry-run] [--allow-otp-apps]
+ *   external-hosts          print HOOK_EXTERNAL_HOSTS: the auth redirect
+ *                           allow-list and site URL hosts minus hintwise.org
+ *                           (set-sign-in-secrets sets it from the last line)
+ *   email-hook status|check|on|off [--dry-run] [--allow-otp-apps] [--accept-external-breakage]
  *                           Supabase Auth's Send Email hook (auth-email-hook):
  *                           status prints it; check exits 1 unless the function
  *                           is deployed, its secrets are set and no app in this
- *                           repo still calls signInWithOtp; on points the
+ *                           repo still calls signInWithOtp, signUp or resend;
+ *                           on refuses with no external hosts unless given
+ *                           --accept-external-breakage; on points the
  *                           hook at the function with SEND_EMAIL_HOOK_SECRET
  *                           from the env (the workflow generates it and sets
  *                           the same value as the function secret first); off
@@ -731,14 +736,45 @@ async function checkGoogle(returnTo) {
 // ---- Send Email hook (auth-email-hook) -------------------------------------
 
 /** The function secrets auth-email-hook needs before Auth may hand it every email. */
-export const EMAIL_HOOK_SECRETS = ['SEND_EMAIL_HOOK_SECRET', 'RESEND_API', 'SIGN_IN_HASH_KEY'];
+export const EMAIL_HOOK_SECRETS = ['SEND_EMAIL_HOOK_SECRET', 'RESEND_API', 'SIGN_IN_HASH_KEY', 'HOOK_EXTERNAL_HOSTS'];
+
+/** The Auth calls that send an email without sign-in-link: the hook refuses them for HintWise apps. */
+export const DIRECT_AUTH_CALLS = ['signInWithOtp', 'signUp', 'resend'];
+
+/**
+ * Pure: the hosts of the apps outside HintWise that share the project, from
+ * the auth config: every uri_allow_list entry and the site_url, minus
+ * hintwise.org names and names without a dot (localhost). Wildcard entries
+ * keep their '*.' (https://*.example.org/** -> *.example.org). This is
+ * HOOK_EXTERNAL_HOSTS, the hosts whose magic links, sign-ups and recovery
+ * emails the send-email hook still sends.
+ */
+export function externalHosts(cfg) {
+  const entries = [...String(cfg?.uri_allow_list || '').split(','), String(cfg?.site_url || '')];
+  const hosts = new Set();
+  for (const raw of entries) {
+    const e = raw.trim().toLowerCase();
+    if (!e) continue;
+    const host = e.replace(/^[a-z][a-z0-9+.-]*:\/\//, '').split(/[/?#]/)[0].replace(/:\d+$/, '').replace(/^\*\*\./, '*.');
+    if (!/^(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host)) continue;
+    if (host === 'hintwise.org' || host.endsWith('.hintwise.org')) continue;
+    hosts.add(host);
+  }
+  return [...hosts].sort();
+}
 
 /** Pure: the function URL Auth calls (the project's own address, not the custom domain). */
 export const emailHookUri = (projectRef) => `https://${projectRef}.supabase.co/functions/v1/auth-email-hook`;
 
-/** Pure: the files that still call supabase.auth.signInWithOtp, whose email sign-in the hook would refuse. */
+/** Pure: the files that still call signInWithOtp, signUp or resend, as "path (calls)"; the hook refuses those emails for HintWise apps. */
 export function otpCallers(files) {
-  return (Array.isArray(files) ? files : []).filter((f) => /\.signInWithOtp\s*\(/.test(String(f?.text ?? ''))).map((f) => f.path);
+  const out = [];
+  for (const f of Array.isArray(files) ? files : []) {
+    const text = String(f?.text ?? '');
+    const calls = DIRECT_AUTH_CALLS.filter((c) => new RegExp(`\\.${c}\\s*\\(`).test(text));
+    if (calls.length) out.push(`${f.path} (${calls.join(', ')})`);
+  }
+  return out;
 }
 
 /** The app sources in this repo: <app>/src/**.{ts,tsx,js,jsx,mjs}, without node_modules, dist and the platform. */
@@ -763,11 +799,12 @@ function appSources(root) {
 /**
  * Pure: what stops the hook from being switched on: the function not
  * deployed, a secret missing, or an app in this repo still calling
- * signInWithOtp (its email sign-in would stop; --allow-otp-apps overrides).
+ * signInWithOtp, signUp or resend (that email would stop; --allow-otp-apps
+ * overrides).
  */
 export function emailHookProblems(functions, secrets, otpFiles = []) {
   const problems = [];
-  for (const f of otpFiles) problems.push(`${f} still calls signInWithOtp: its email sign-in stops while the hook is on (move it to the template's sendMagicLink, or pass --allow-otp-apps)`);
+  for (const f of otpFiles) problems.push(`${f} sends Auth email directly: that email stops while the hook is on (move it to the template's sendMagicLink, or pass --allow-otp-apps)`);
   const fn = (Array.isArray(functions) ? functions : []).find((f) => f?.slug === 'auth-email-hook');
   if (!fn) problems.push('the auth-email-hook function is not deployed (deploy-function auth-email-hook)');
   else if (fn.status && fn.status !== 'ACTIVE') problems.push(`the auth-email-hook function is ${fn.status}`);
@@ -789,6 +826,13 @@ export function emailHookPatch(action, { uri, secret } = {}) {
   return { hook_send_email_enabled: true, hook_send_email_uri: uri, hook_send_email_secrets: secret };
 }
 
+/** Prints HOOK_EXTERNAL_HOSTS (host names are not secret); the last line is for set-sign-in-secrets. */
+async function externalHostsCommand() {
+  const hosts = externalHosts(await api(`/v1/projects/${ref}/config/auth`));
+  console.log(`Hosts outside HintWise (auth redirect allow-list and site URL, minus hintwise.org): ${hosts.join(', ') || '(none)'}`);
+  console.log(`HOOK_EXTERNAL_HOSTS=${hosts.join(',') || 'none'}`);
+}
+
 async function emailHook(action = 'status') {
   const current = await api(`/v1/projects/${ref}/config/auth`);
   console.log(`Send Email hook: enabled ${current.hook_send_email_enabled === true}; uri ${current.hook_send_email_uri || '(none)'}; secret ${current.hook_send_email_secrets ? '(set)' : '(unset)'}`);
@@ -798,8 +842,12 @@ async function emailHook(action = 'status') {
     const problems = emailHookProblems(await api(`/v1/projects/${ref}/functions`), await api(`/v1/projects/${ref}/secrets`), otp);
     for (const p of problems) console.log(`::error::${p}`);
     if (problems.length) fail('the Send Email hook cannot be switched on yet');
-    console.log('auth-email-hook is deployed, its secrets are set, and no app in this repo calls signInWithOtp.');
-    console.log('::warning::Apps outside this repo on the same project (WCV Live Together, how-of-happiness, the quiz app) are not checked: their email sign-in and sign-up stop while the hook is on.');
+    console.log('auth-email-hook is deployed, its secrets are set, and no app in this repo sends Auth email directly.');
+    const hosts = externalHosts(current);
+    console.log(`Hosts outside HintWise whose magic links, sign-ups and recovery emails the hook still sends (HOOK_EXTERNAL_HOSTS, set by set-sign-in-secrets from this list): ${hosts.join(', ') || '(none)'}`);
+    if (!hosts.length && action === 'on' && !flags.has('--accept-external-breakage')) {
+      fail('no external hosts: with the hook on, every app outside HintWise on this project loses its email sign-in, sign-up and recovery. Pass --accept-external-breakage to go ahead.');
+    }
     if (action === 'check') return;
   }
   const dryRun = flags.has('--dry-run');
@@ -828,6 +876,7 @@ const commands = {
   'domain-setup': () => domainSetup(arg),
   'domain-status': () => domainStatus(),
   'domain-activate': () => domainActivate(),
+  'external-hosts': () => externalHostsCommand(),
   'email-hook': () => {
     if (arg && !['status', 'check', 'on', 'off'].includes(arg)) fail('email-hook: give status, check, on or off');
     return emailHook(arg || 'status');

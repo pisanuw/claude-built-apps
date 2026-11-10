@@ -12,6 +12,12 @@ describe('hintwise-only CORS (sign-in-link)', () => {
     expect(jsonHeaders('http://localhost:5173', HINTWISE_ONLY)['access-control-allow-origin']).toBeUndefined();
     expect(corsHeaders('https://x.hintwise.org', HINTWISE_ONLY)['access-control-allow-headers']).toContain('apikey');
   });
+  it('takes a narrower rule when given one', () => {
+    const only = { allow: (o: string) => o === 'https://app.hintwise.org' };
+    expect(isAllowedOrigin('https://app.hintwise.org', only)).toBe(true);
+    expect(isAllowedOrigin('https://auth.hintwise.org', only)).toBe(false);
+    expect(preflight('https://auth.hintwise.org', only).status).toBe(403);
+  });
 });
 
 describe('isAllowedOrigin', () => {

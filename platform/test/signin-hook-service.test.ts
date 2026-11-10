@@ -1,7 +1,9 @@
 import crypto from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
+import type { AlertCounts } from '../src/signin/alerts.ts';
 import type { Db } from '../src/signin/db.ts';
-import { handleEmailHook, hostOf, type HookDeps, type HookEnv } from '../src/signin/hook-service.ts';
+import { handleEmailHook, HOOK_WAIT_MESSAGE, type HookDeps, type HookEnv } from '../src/signin/hook-service.ts';
+import type { BeginResult, KeyStats } from '../src/signin/policy.ts';
 
 const KEY = crypto.randomBytes(32);
 const NOW = new Date('2026-11-10T12:00:00Z');
@@ -13,13 +15,18 @@ const ENV: HookEnv = {
   SIGN_IN_HASH_KEY: 'hash-key',
   RESEND_API: 're_key',
   ADMIN_EMAIL: 'owner@example.org',
+  HOOK_EXTERNAL_HOSTS: 'how-of-happiness.netlify.app,*.wcv.example',
 };
+const EXT = 'https://how-of-happiness.netlify.app/welcome';
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+const hmac = (s: string) => crypto.createHmac('sha256', 'hash-key').update(s).digest('hex');
+const key = (over: Partial<KeyStats> = {}): KeyStats => ({ sent: 0, last_sent_at: null, requests_24h: 0, ...over });
+const quiet = (): AlertCounts => ({ ip_addresses_1h: 0, browser_addresses_1h: 0, email_requests_1h: 1, ip_challenge_failures_1h: 0, sent_1h: 1, alerts: {} });
 
-function signed(type: string, data: Record<string, unknown> = {}, over: { signature?: string; method?: string } = {}) {
+function signed(type: string, data: Record<string, unknown> = {}, over: { signature?: string; method?: string; email?: string } = {}) {
   const body = JSON.stringify({
-    user: { id: 'u1', email: 'ann@example.com', new_email: 'new@example.com' },
-    email_data: { token: '123456', token_hash: 'th', redirect_to: 'https://paste-md.hintwise.org/', email_action_type: type, site_url: '', token_new: '', token_hash_new: '', ...data },
+    user: { id: 'u1', email: over.email ?? 'Ann+news@Example.com' },
+    email_data: { token: '123456', token_hash: 'th', redirect_to: EXT, email_action_type: type, site_url: '', token_new: '', token_hash_new: '', ...data },
   });
   const sig = crypto.createHmac('sha256', KEY).update(`msg_1.${TS}.${body}`).digest('base64');
   return new Request('https://ref.supabase.co/functions/v1/auth-email-hook', {
@@ -29,13 +36,26 @@ function signed(type: string, data: Record<string, unknown> = {}, over: { signat
   });
 }
 
-function setup(o: { env?: Partial<HookEnv>; claim?: boolean; resend?: () => Response; failRpc?: string; noDb?: boolean } = {}) {
+interface Setup {
+  env?: Partial<HookEnv>;
+  claim?: boolean;
+  resend?: () => Response;
+  failRpc?: string;
+  noDb?: boolean;
+  begin?: BeginResult;
+  counts?: AlertCounts | null;
+}
+
+function setup(o: Setup = {}) {
   const rpc: Array<[string, Record<string, unknown>]> = [];
   const db: Db = {
     rpc: vi.fn(async <T,>(fn: string, args: Record<string, unknown>): Promise<T> => {
       rpc.push([fn, args]);
       if (o.failRpc === fn) throw new Error(`${fn} down`);
-      return (fn === 'sign_in_claim_alert' ? (o.claim ?? true) : 1) as T;
+      if (fn === 'sign_in_claim_alert') return (o.claim ?? true) as T;
+      if (fn === 'sign_in_begin') return (o.begin ?? { id: 9, email: key(), browser: key(), ip: { requests_1h: 0 } }) as T;
+      if (fn === 'sign_in_finish') return (o.counts === undefined ? quiet() : o.counts) as T;
+      return 1 as T;
     }) as Db['rpc'],
   };
   const sent: Array<Record<string, unknown>> = [];
@@ -45,11 +65,11 @@ function setup(o: { env?: Partial<HookEnv>; claim?: boolean; resend?: () => Resp
       sent.push(JSON.parse(String(init?.body)));
       return o.resend?.() ?? json(200, { id: 're_1' });
     }
-    if (url.endsWith('/rest/v1/rpc/sign_in_log')) {
-      rpc.push(['rest:sign_in_log', JSON.parse(String(init?.body))]);
-      return json(200, 1);
+    if (url.includes('/rest/v1/rpc/')) {
+      const fn = url.slice(url.lastIndexOf('/') + 1);
+      rpc.push([`rest:${fn}`, JSON.parse(String(init?.body))]);
+      return json(200, fn === 'sign_in_begin' ? { id: 3, email: key(), browser: key(), ip: { requests_1h: 0 } } : fn === 'sign_in_finish' ? quiet() : fn === 'sign_in_claim_alert' ? true : 1);
     }
-    if (url.endsWith('/rest/v1/rpc/sign_in_claim_alert')) return json(200, o.claim ?? true);
     throw new Error(`unexpected fetch ${url}`);
   });
   const tasks: Promise<unknown>[] = [];
@@ -58,107 +78,119 @@ function setup(o: { env?: Partial<HookEnv>; claim?: boolean; resend?: () => Resp
   return { deps, rpc, sent, logs, settle: () => Promise.all(tasks) };
 }
 
-describe('handleEmailHook', () => {
-  it('refuses a direct magic link with the error Auth passes on, logs it and alerts once', async () => {
+describe('handleEmailHook: emails it lets through', () => {
+  it('sends an external app\'s magic link through the per-address ladder and answers {}', async () => {
     const s = setup();
     const res = await handleEmailHook(signed('magiclink'), s.deps);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('application/json');
-    expect(await res.json()).toEqual({ error: { http_code: 403, message: 'Use the HintWise sign-in-link service' } });
+    expect(await res.json()).toEqual({});
     const [fn, args] = s.rpc[0];
-    expect(fn).toBe('sign_in_log');
-    expect(args).toMatchObject({ p_ip_hash: null, p_browser_hash: null, p_app: 'paste-md', p_outcome: 'refused', p_detail: 'bypass: magiclink via paste-md.hintwise.org' });
-    expect(args.p_email_hash).toBe(crypto.createHmac('sha256', 'hash-key').update('email:ann@example.com').digest('hex'));
+    expect(fn).toBe('sign_in_begin');
+    // The canonical mailbox, the fixed 'hook' IP key, no browser, no per-IP limit.
+    expect(args).toEqual({ p_email_hash: hmac('email:ann@example.com'), p_ip_hash: hmac('ip:hook'), p_browser_hash: null, p_app: 'how-of-happiness.netlify.app', p_ip_limit: null });
+    expect(s.rpc[1]).toEqual(['sign_in_finish', { p_id: 9, p_outcome: 'sent', p_detail: 'hook: magiclink via how-of-happiness.netlify.app' }]);
+    expect(s.sent).toHaveLength(1);
+    expect(s.sent[0]).toMatchObject({ from: 'HintWise <sign-in@hintwise.org>', to: ['ann+news@example.com'], subject: 'Your sign-in link' });
+    expect(String(s.sent[0].text)).toContain('https://ref.supabase.co/auth/v1/verify?token=th&type=magiclink');
+  });
+  it('lets sign-up, code and recovery through for a wildcard host', async () => {
+    for (const type of ['signup', 'email', 'recovery']) {
+      const s = setup();
+      expect(await (await handleEmailHook(signed(type, { redirect_to: 'https://app.wcv.example/' }), s.deps)).json()).toEqual({});
+      expect(s.sent).toHaveLength(1);
+    }
+  });
+  it('refuses with 429 when the address ladder says wait', async () => {
+    const s = setup({ begin: { id: 9, email: key({ sent: 2, last_sent_at: '2026-11-10T11:59:00Z' }), browser: key(), ip: { requests_1h: 0 } } });
+    const res = await handleEmailHook(signed('magiclink'), s.deps);
+    expect(await res.json()).toEqual({ error: { http_code: 429, message: HOOK_WAIT_MESSAGE } });
+    expect(s.sent).toHaveLength(0);
+    expect(s.rpc[1][1]).toMatchObject({ p_outcome: 'wait', p_detail: 'hook: magiclink via how-of-happiness.netlify.app; wait until 2026-11-10T12:02:00.000Z' });
+  });
+  it('raises due alerts for what it sends, without IP rules', async () => {
+    const s = setup({ counts: { ...quiet(), email_requests_1h: 6, ip_addresses_1h: 50 } });
+    await handleEmailHook(signed('magiclink'), s.deps);
+    await s.settle();
+    const kinds = s.rpc.filter(([fn]) => fn === 'sign_in_claim_alert').map(([, a]) => a.p_kind);
+    expect(kinds).toEqual(['address-repeated']);
+    expect(s.sent.map((m) => m.subject)).toContain('HintWise sign-in alert: one address asked for many times');
+  });
+  it('logs an alert failure without throwing, and skips alerts without ADMIN_EMAIL', async () => {
+    const s = setup({ counts: { ...quiet(), sent_1h: 500 }, failRpc: 'sign_in_claim_alert' });
+    expect(await (await handleEmailHook(signed('magiclink'), s.deps)).json()).toEqual({});
+    await s.settle();
+    expect(s.logs.join()).toContain('alerts failed');
+    const n = setup({ counts: { ...quiet(), sent_1h: 500 }, env: { ADMIN_EMAIL: '' } });
+    await handleEmailHook(signed('magiclink'), n.deps);
+    await n.settle();
+    expect(n.rpc.some(([fn]) => fn === 'sign_in_claim_alert')).toBe(false);
+  });
+  it('reports a send failure as a hook error, logged as error', async () => {
+    const s = setup({ resend: () => json(500, {}) });
+    expect(await (await handleEmailHook(signed('recovery'), s.deps)).json()).toEqual({ error: { http_code: 502, message: 'Could not send the email. Try again in a minute.' } });
+    expect(s.rpc[1][1]).toMatchObject({ p_outcome: 'error' });
+    expect(s.logs.join()).toContain('recovery email not sent');
+  });
+  it('still answers when sign_in_finish fails', async () => {
+    const s = setup({ failRpc: 'sign_in_finish' });
+    expect(await (await handleEmailHook(signed('magiclink'), s.deps)).json()).toEqual({});
+    expect(s.logs.join()).toContain('sign_in_finish failed');
+  });
+  it('uses PostgREST by default', async () => {
+    const s = setup({ noDb: true });
+    expect(await (await handleEmailHook(signed('magiclink'), s.deps)).json()).toEqual({});
+    expect(s.rpc.map(([fn]) => fn)).toEqual(['rest:sign_in_begin', 'rest:sign_in_finish']);
+  });
+});
+
+describe('handleEmailHook: refusals', () => {
+  it('refuses a HintWise app\'s direct magic link, logs it under the canonical mailbox and alerts once', async () => {
+    const s = setup();
+    const res = await handleEmailHook(signed('magiclink', { redirect_to: 'https://pluck-lab.hintwise.org/' }), s.deps);
+    expect(await res.json()).toEqual({ error: { http_code: 403, message: 'Use the HintWise sign-in-link service' } });
+    expect(s.rpc[0]).toEqual([
+      'sign_in_log',
+      { p_email_hash: hmac('email:ann@example.com'), p_ip_hash: null, p_browser_hash: null, p_app: 'pluck-lab', p_outcome: 'refused', p_detail: 'bypass: magiclink via pluck-lab.hintwise.org (host)', p_ip_limit: null },
+    ]);
     await s.settle();
     expect(s.rpc[1]).toEqual(['sign_in_claim_alert', { p_kind: 'bypass' }]);
     expect(s.sent).toHaveLength(1);
     expect(s.sent[0]).toMatchObject({ from: 'HintWise <builder@hintwise.org>', to: ['owner@example.org'] });
-    expect(String(s.sent[0].text)).not.toContain('ann@example.com');
+    expect(String(s.sent[0].text)).not.toContain('ann');
   });
-  it('refuses a direct sign-up too, and skips the alert when it already went this hour', async () => {
-    const s = setup({ claim: false });
-    const res = await handleEmailHook(signed('signup', { redirect_to: 'https://how-of-happiness.netlify.app/' }), s.deps);
-    expect((await res.json()).error.http_code).toBe(403);
-    expect(s.rpc[0][1]).toMatchObject({ p_app: null, p_detail: 'bypass: signup via how-of-happiness.netlify.app' });
-    await s.settle();
-    expect(s.sent).toHaveLength(0);
+  it('refuses recovery for an unknown host, and any other type for anyone', async () => {
+    const a = setup({ claim: false });
+    expect((await (await handleEmailHook(signed('recovery', { redirect_to: 'https://evil.example/' }), a.deps)).json()).error.http_code).toBe(403);
+    expect(a.rpc[0][1]).toMatchObject({ p_app: 'evil.example', p_detail: 'bypass: recovery via evil.example (host)' });
+    await a.settle();
+    expect(a.sent).toHaveLength(0); // the bypass alert already went this hour
+    const b = setup();
+    expect((await (await handleEmailHook(signed('email_change'), b.deps)).json()).error.http_code).toBe(403);
+    expect(b.rpc[0][1]).toMatchObject({ p_detail: 'bypass: email_change via how-of-happiness.netlify.app (type)' });
+    const c = setup();
+    expect((await (await handleEmailHook(signed('magiclink', { redirect_to: '', site_url: '' }), c.deps)).json()).error.http_code).toBe(403);
+    expect(c.rpc[0][1]).toMatchObject({ p_app: null, p_detail: 'bypass: magiclink via (no host) (host)' });
+  });
+  it('refuses everything when HOOK_EXTERNAL_HOSTS is empty', async () => {
+    const s = setup({ env: { HOOK_EXTERNAL_HOSTS: 'none' } });
+    expect((await (await handleEmailHook(signed('magiclink'), s.deps)).json()).error.http_code).toBe(403);
   });
   it('still refuses when logging or the alert fails', async () => {
     const s = setup({ failRpc: 'sign_in_log' });
-    expect((await (await handleEmailHook(signed('magiclink', { redirect_to: '' }), s.deps)).json()).error.http_code).toBe(403);
+    expect((await (await handleEmailHook(signed('signup', { redirect_to: 'https://pluck-lab.hintwise.org/' }), s.deps)).json()).error.http_code).toBe(403);
     expect(s.logs.join()).toContain('logging the refusal failed');
     const a = setup({ failRpc: 'sign_in_claim_alert' });
-    await handleEmailHook(signed('magiclink'), a.deps);
+    await handleEmailHook(signed('invite'), a.deps);
     await a.settle();
     expect(a.logs.join()).toContain('bypass alert failed');
     const r = setup({ resend: () => json(500, {}) });
-    await handleEmailHook(signed('magiclink'), r.deps);
+    await handleEmailHook(signed('invite'), r.deps);
     await r.settle();
     expect(r.logs.join()).toContain('bypass alert not sent');
-  });
-  it('logs a refusal through PostgREST by default, without the hash key if it is unset', async () => {
-    const s = setup({ noDb: true, env: { SIGN_IN_HASH_KEY: '' } });
-    await handleEmailHook(signed('email'), s.deps);
-    expect(s.rpc[0]).toEqual(['rest:sign_in_log', expect.objectContaining({ p_email_hash: null, p_outcome: 'refused' })]);
-    const nodb = setup({ noDb: true, env: { SUPABASE_SERVICE_ROLE_KEY: '' } });
-    expect((await (await handleEmailHook(signed('magiclink'), nodb.deps)).json()).error.http_code).toBe(403);
-    expect(nodb.rpc).toHaveLength(0);
-  });
-  it('sends a recovery email and answers {}', async () => {
-    const s = setup();
-    const res = await handleEmailHook(signed('recovery'), s.deps);
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({});
-    expect(s.sent).toHaveLength(1);
-    expect(s.sent[0]).toMatchObject({ from: 'HintWise <sign-in@hintwise.org>', to: ['ann@example.com'], subject: 'Reset your password' });
-    expect(String(s.sent[0].text)).toContain('https://ref.supabase.co/auth/v1/verify?token=th&type=recovery');
-    expect(s.rpc).toHaveLength(0);
-  });
-  it('sends both email-change messages', async () => {
-    const s = setup();
-    await handleEmailHook(signed('email_change', { token_hash: 'a', token_hash_new: 'b' }), s.deps);
-    expect(s.sent.map((m) => (m.to as string[])[0])).toEqual(['ann@example.com', 'new@example.com']);
-  });
-  it('reports a send failure, an unsupported type and a bad payload as hook errors', async () => {
-    const fail = setup({ resend: () => json(500, {}) });
-    expect(await (await handleEmailHook(signed('invite'), fail.deps)).json()).toEqual({ error: { http_code: 502, message: 'Could not send the email. Try again in a minute.' } });
-    expect(fail.logs.join()).toContain('invite email not sent');
-    const odd = setup();
-    expect((await (await handleEmailHook(signed('carrier_pigeon'), odd.deps)).json()).error.http_code).toBe(500);
-    const empty = setup();
-    const body = '{"user":{}}';
-    const sig = crypto.createHmac('sha256', KEY).update(`msg_1.${TS}.${body}`).digest('base64');
-    const req = new Request('https://x/', { method: 'POST', headers: { 'webhook-id': 'msg_1', 'webhook-timestamp': TS, 'webhook-signature': `v1,${sig}` }, body });
-    expect((await (await handleEmailHook(req, empty.deps)).json()).error.http_code).toBe(400);
-  });
-  it('sends the two email-change messages together and reports a partial failure', async () => {
-    let n = 0;
-    const s = setup({ resend: () => (n++ === 0 ? json(200, { id: 'ok' }) : json(500, {})) });
-    const res = await handleEmailHook(signed('email_change', { token_hash: 'a', token_hash_new: 'b' }), s.deps);
-    expect((await res.json()).error.http_code).toBe(502);
-    expect(s.sent).toHaveLength(2);
-    expect(s.logs.join()).toContain('1 of 2 went out');
-  });
-  it('refuses a payload over 256 KB before checking it', async () => {
-    const s = setup();
-    const req = new Request('https://x/', { method: 'POST', headers: { 'content-length': String(300 * 1024) }, body: 'x' });
-    const res = await handleEmailHook(req, s.deps);
-    expect(res.status).toBe(413);
-    expect(s.logs).toHaveLength(0);
-  });
-  it('answers anything unforeseen with a hook error', async () => {
-    const s = setup();
-    s.deps.now = () => {
-      throw new Error('clock broke');
-    };
-    const res = await handleEmailHook(signed('recovery'), s.deps);
-    expect(await res.json()).toEqual({ error: { http_code: 500, message: 'The email could not be sent. Try again in a minute.' } });
-    expect(s.logs.join()).toContain('auth-email-hook failed: clock broke');
-    const quietLog = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    delete s.deps.log;
-    expect((await handleEmailHook(signed('recovery'), s.deps)).status).toBe(200);
-    expect(quietLog).toHaveBeenCalled();
-    quietLog.mockRestore();
+    const n = setup({ env: { ADMIN_EMAIL: '' } });
+    await handleEmailHook(signed('invite'), n.deps);
+    expect(n.rpc.some(([fn]) => fn === 'sign_in_claim_alert')).toBe(false);
   });
   it('refuses an unsigned or wrongly signed call with 401', async () => {
     const s = setup();
@@ -170,20 +202,37 @@ describe('handleEmailHook', () => {
     const noSecret = setup({ env: { SEND_EMAIL_HOOK_SECRET: '' } });
     expect((await handleEmailHook(signed('recovery'), noSecret.deps)).status).toBe(401);
   });
-  it('answers 405 to other methods and a hook error when email is not configured', async () => {
+  it('answers a bad payload, a missing setting, another method and a huge body', async () => {
+    const empty = setup();
+    const body = '{"user":{}}';
+    const sig = crypto.createHmac('sha256', KEY).update(`msg_1.${TS}.${body}`).digest('base64');
+    const req = new Request('https://x/', { method: 'POST', headers: { 'webhook-id': 'msg_1', 'webhook-timestamp': TS, 'webhook-signature': `v1,${sig}` }, body });
+    expect((await (await handleEmailHook(req, empty.deps)).json()).error.http_code).toBe(400);
+    for (const missing of ['RESEND_API', 'SIGN_IN_HASH_KEY', 'SUPABASE_SERVICE_ROLE_KEY'] as const) {
+      const s = setup({ env: { [missing]: '' } });
+      expect((await (await handleEmailHook(signed('recovery'), s.deps)).json()).error.http_code).toBe(500);
+    }
     expect((await handleEmailHook(signed('recovery', {}, { method: 'GET' }), setup().deps)).status).toBe(405);
-    const s = setup({ env: { RESEND_API: '' } });
-    expect((await (await handleEmailHook(signed('recovery'), s.deps)).json()).error.http_code).toBe(500);
+    const big = new Request('https://x/', { method: 'POST', headers: { 'content-length': String(300 * 1024) }, body: 'x' });
+    expect((await handleEmailHook(big, setup().deps)).status).toBe(413);
   });
-  it('uses the real clock and console by default', async () => {
+  it('answers anything unforeseen with a hook error', async () => {
+    const s = setup({ failRpc: 'sign_in_begin' });
+    const res = await handleEmailHook(signed('magiclink'), s.deps);
+    expect(await res.json()).toEqual({ error: { http_code: 500, message: 'The email could not be sent. Try again in a minute.' } });
+    expect(s.logs.join()).toContain('auth-email-hook failed: sign_in_begin down');
+    const odd = setup({ begin: { limited: true, retry_at: 'x' } });
+    expect((await (await handleEmailHook(signed('magiclink'), odd.deps)).json()).error.http_code).toBe(500);
+    const quietLog = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    delete s.deps.log;
+    expect((await handleEmailHook(signed('magiclink'), s.deps)).status).toBe(200);
+    expect(quietLog).toHaveBeenCalled();
+    quietLog.mockRestore();
+  });
+  it('uses the real clock by default', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const res = await handleEmailHook(signed('recovery'), { env: ENV, fetch: setup().deps.fetch });
     expect(res.status).toBe(401); // the signed timestamp is from NOW, far from the real clock
-    expect(warn).toHaveBeenCalled();
     warn.mockRestore();
-  });
-  it('reads hosts', () => {
-    expect(hostOf('https://a.hintwise.org/x')).toBe('a.hintwise.org');
-    expect(hostOf('')).toBeNull();
   });
 });

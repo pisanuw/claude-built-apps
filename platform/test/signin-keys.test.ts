@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
-import { clientIp, hashKeys, hmacHex, shortHash, UNKNOWN_IP } from '../src/signin/keys.ts';
+import { canonicalEmail, clientIp, hashKeys, hmacHex, ipKey, ipv6Groups, maskEmail, shortHash, UNKNOWN_IP } from '../src/signin/keys.ts';
 import { authFailure, createLinkToken, createUser, generateMagicLink, isUserNotFound, signInLink } from '../src/signin/link.ts';
 import { RESEND_URL, sendEmail } from '../src/signin/resend.ts';
 import { isAllowedTurnstileHost, MAX_TOKEN_CHARS, SITEVERIFY_TIMEOUT_MS, SITEVERIFY_URL, TURNSTILE_ACTION, TURNSTILE_SITE_KEY, verifyTurnstile } from '../src/signin/turnstile.ts';
@@ -14,11 +14,58 @@ describe('clientIp', () => {
     expect(clientIp(h({ 'x-forwarded-for': '6.6.6.6, 203.0.113.7', 'cf-connecting-ip': '203.0.113.7' }))).toBe('203.0.113.7');
     expect(clientIp(h({ 'cf-connecting-ip': ' 2001:DB8::1 ' }))).toBe('2001:db8::1');
   });
-  it('falls back to the first x-forwarded-for entry, then unknown', () => {
-    expect(clientIp(h({ 'x-forwarded-for': '203.0.113.7, 10.0.0.1' }))).toBe('203.0.113.7');
-    expect(clientIp(h({ 'cf-connecting-ip': 'not-an-ip', 'x-forwarded-for': '198.51.100.1' }))).toBe('198.51.100.1');
+  it('falls back to the right-most x-forwarded-for entry (the one the last proxy added), then unknown', () => {
+    expect(clientIp(h({ 'x-forwarded-for': '6.6.6.6, 203.0.113.7' }))).toBe('203.0.113.7');
+    expect(clientIp(h({ 'x-forwarded-for': ' 198.51.100.1 ' }))).toBe('198.51.100.1');
+    expect(clientIp(h({ 'cf-connecting-ip': 'not-an-ip', 'x-forwarded-for': '1.1.1.1, 198.51.100.1' }))).toBe('198.51.100.1');
     expect(clientIp(h({}))).toBe(UNKNOWN_IP);
-    expect(clientIp(h({ 'x-forwarded-for': '<script>' }))).toBe(UNKNOWN_IP);
+    expect(clientIp(h({ 'x-forwarded-for': '203.0.113.7, <script>' }))).toBe(UNKNOWN_IP);
+  });
+});
+
+describe('ipKey', () => {
+  it('keeps an IPv4 address and unknown as they are', () => {
+    expect(ipKey('203.0.113.7')).toBe('203.0.113.7');
+    expect(ipKey(UNKNOWN_IP)).toBe(UNKNOWN_IP);
+  });
+  it('counts an IPv6 address by its /64', () => {
+    expect(ipKey('2001:db8:1:2:aaaa:bbbb:cccc:dddd')).toBe('2001:db8:1:2::/64');
+    expect(ipKey('2001:db8:1:2::1')).toBe('2001:db8:1:2::/64');
+    expect(ipKey('2001:DB8:0001:0002:ffff::9')).toBe('2001:db8:1:2::/64');
+    expect(ipKey('2001:db8::1')).toBe('2001:db8:0:0::/64');
+    expect(ipKey('::1')).toBe('0:0:0:0::/64');
+    expect(ipKey('fe80::1%eth0')).toBe('fe80:0:0:0::/64');
+  });
+  it('counts an IPv4-mapped IPv6 address as its IPv4 address', () => {
+    expect(ipKey('::ffff:203.0.113.7')).toBe('203.0.113.7');
+    expect(ipKey('::ffff:cb00:7107')).toBe('203.0.113.7');
+  });
+  it('leaves something unparseable as it is', () => {
+    for (const bad of ['1:2:3', '1::2::3', '1:2:3:4:5:6:7:8:9', '::ffff:1.2.3', '::ffff:1.2.3.999', 'gggg::1', '1:2:3:4:5:6:7::8']) {
+      expect(ipv6Groups(bad), bad).toBeNull();
+      expect(ipKey(bad)).toBe(bad);
+    }
+    expect(ipv6Groups('nocolons')).toBeNull();
+  });
+});
+
+describe('canonicalEmail and maskEmail', () => {
+  it('drops a +tag and lower-cases', () => {
+    expect(canonicalEmail(' Ann+News@Example.ORG ')).toBe('ann@example.org');
+    expect(canonicalEmail('ann+a+b@x.org')).toBe('ann@x.org');
+    expect(canonicalEmail('a.n.n@x.org')).toBe('a.n.n@x.org'); // dots matter outside Gmail
+  });
+  it('folds Gmail dots and googlemail.com', () => {
+    expect(canonicalEmail('A.N.N+x@gmail.com')).toBe('ann@gmail.com');
+    expect(canonicalEmail('ann@googlemail.com')).toBe('ann@gmail.com');
+  });
+  it('leaves odd strings alone', () => {
+    expect(canonicalEmail('+x@y.org')).toBe('+x@y.org');
+    expect(canonicalEmail('nope')).toBe('nope');
+  });
+  it('masks an address for a link', () => {
+    expect(maskEmail('Ann@Example.com')).toBe('a***@example.com');
+    expect(maskEmail('nope')).toBe('***');
   });
 });
 
@@ -26,6 +73,14 @@ describe('hashing', () => {
   it('is HMAC-SHA256 in hex, the same as node:crypto', async () => {
     const want = crypto.createHmac('sha256', 'k3y').update('email:ann@example.com').digest('hex');
     expect(await hmacHex('k3y', 'email:ann@example.com')).toBe(want);
+  });
+  it('hashes the canonical mailbox and the IP network', async () => {
+    const a = await hashKeys('k3y', { email: 'Ann+1@Gmail.com', ip: '2001:db8:1:2::1' });
+    const b = await hashKeys('k3y', { email: 'a.n.n@googlemail.com', ip: '2001:db8:1:2::ffff' });
+    expect(a.email_hash).toBe(b.email_hash);
+    expect(a.ip_hash).toBe(b.ip_hash);
+    expect(a.email_hash).toBe(crypto.createHmac('sha256', 'k3y').update('email:ann@gmail.com').digest('hex'));
+    expect(a.ip_hash).toBe(crypto.createHmac('sha256', 'k3y').update('ip:2001:db8:1:2::/64').digest('hex'));
   });
   it('hashes each present key with its own prefix', async () => {
     const k = await hashKeys('k3y', { email: 'same', ip: '203.0.113.7', browserId: 'same' });
@@ -110,9 +165,9 @@ describe('verifyTurnstile', () => {
 });
 
 describe('signInLink', () => {
-  it('adds token_hash and type=email to the app page, keeping its query and hash', () => {
-    expect(signInLink('https://paste-md.hintwise.org/app?x=1#top', 'abc')).toBe('https://paste-md.hintwise.org/app?x=1&token_hash=abc&type=email#top');
-    expect(signInLink('https://a.hintwise.org/?token_hash=old&type=magiclink', 'new')).toBe('https://a.hintwise.org/?token_hash=new&type=email');
+  it('adds token_hash, type=email and the masked address to the app page, and nothing else', () => {
+    expect(signInLink('https://pluck-lab.hintwise.org/app', 'abc', 'a***@example.com')).toBe('https://pluck-lab.hintwise.org/app?token_hash=abc&type=email&email_hint=a***%40example.com');
+    expect(signInLink('https://a.hintwise.org/?x=1&token_hash=old&type=magiclink#top', 'new')).toBe('https://a.hintwise.org/?token_hash=new&type=email');
   });
 });
 

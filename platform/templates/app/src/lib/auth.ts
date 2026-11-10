@@ -139,7 +139,14 @@ export async function sendMagicLink(email: string, redirectTo: string, opts: Sen
   return toLinkResult(res.status, data);
 }
 
-export type CompleteResult = { status: 'none' } | { status: 'signed-in' } | { status: 'error'; message: string };
+export type CompleteResult =
+  | { status: 'none' }
+  | { status: 'signed-in' }
+  /** The same account is signed in already: the link was left unused and the session kept. */
+  | { status: 'kept' }
+  /** Another account is signed in: `accept` verifies the link (switching accounts) when the visitor says so. */
+  | { status: 'confirm'; hint: string; accept: () => Promise<CompleteResult> }
+  | { status: 'error'; message: string };
 
 /** The parts of window that completeSignInFromUrl touches. */
 export interface UrlWindow {
@@ -149,11 +156,23 @@ export interface UrlWindow {
 
 export const EXPIRED_LINK = 'This sign-in link has expired or was already used. Ask for a new one.';
 
+/** "a***@example.com", the same masking sign-in-link uses for the link's email_hint. */
+export function maskEmail(email: string | null | undefined): string {
+  const e = String(email ?? '').trim().toLowerCase();
+  const at = e.lastIndexOf('@');
+  return at < 1 ? '***' : `${e[0]}***@${e.slice(at + 1)}`;
+}
+
 /**
  * Finishes a sign-in link: when the page URL has token_hash and type, takes
- * them out of the address bar (history.replaceState, so a reload does not
- * reuse a spent link) and calls supabase.auth.verifyOtp({ token_hash, type:
- * 'email' }). Works in any browser, not only the one that asked.
+ * them (and email_hint) out of the address bar first (history.replaceState,
+ * so a reload does not reuse the link), then:
+ * - nobody signed in: supabase.auth.verifyOtp({ token_hash, type: 'email' }),
+ *   which works in any browser, not only the one that asked;
+ * - the link's account (by its masked email_hint) signed in already: keeps
+ *   the session and leaves the link unused;
+ * - another account signed in: asks first ({ status: 'confirm' }), so a link
+ *   someone else sent cannot silently swap the visitor's account.
  */
 export async function completeSignInFromUrl(client: AuthClient = getSupabase(), win: UrlWindow = window): Promise<CompleteResult> {
   let url: URL;
@@ -165,11 +184,20 @@ export async function completeSignInFromUrl(client: AuthClient = getSupabase(), 
   const tokenHash = url.searchParams.get('token_hash');
   const type = url.searchParams.get('type');
   if (!tokenHash || !type) return { status: 'none' };
+  const hint = url.searchParams.get('email_hint') ?? '';
   url.searchParams.delete('token_hash');
   url.searchParams.delete('type');
+  url.searchParams.delete('email_hint');
   win.history.replaceState(win.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-  const { error } = await client.auth.verifyOtp({ token_hash: tokenHash, type: 'email' });
-  return error ? { status: 'error', message: EXPIRED_LINK } : { status: 'signed-in' };
+  const verify = async (): Promise<CompleteResult> => {
+    const { error } = await client.auth.verifyOtp({ token_hash: tokenHash, type: 'email' });
+    return error ? { status: 'error', message: EXPIRED_LINK } : { status: 'signed-in' };
+  };
+  const { data } = await client.auth.getSession();
+  const current = data.session?.user;
+  if (!current) return verify();
+  if (hint && maskEmail(current.email) === hint.toLowerCase()) return { status: 'kept' };
+  return { status: 'confirm', hint: hint || 'another account', accept: verify };
 }
 
 /**
@@ -344,6 +372,10 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
   let widget: { id: string | null } | null = null;
   let pendingEmail = '';
   let failedChecks = 0;
+  /** A sign-in link for another account, waiting for the visitor's yes. */
+  let pendingSwitch: { hint: string; accept: () => Promise<CompleteResult> } | null = null;
+  let shownUser: User | null = null;
+  let shownUserId: string | null = null;
   ensureSignInStyles(el.ownerDocument);
   el.classList.add('hw-signin');
 
@@ -429,14 +461,37 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
       profiled = user.id;
       void ensureProfile(profiles);
     }
+    shownUser = user;
+    if ((user?.id ?? null) !== shownUserId) {
+      // Another account (or none): old messages and a pending switch no longer apply.
+      if (shownUserId !== null || user) notice = '';
+      shownUserId = user?.id ?? null;
+    }
     if (user) {
-      notice = '';
       const who = document.createElement('p');
       who.className = 'hw-signin-user';
       who.textContent = `Signed in as ${user.email ?? user.id}`;
       el.append(who, button('Sign out', () => void signOut(client)));
+      if (pendingSwitch) {
+        const offer = pendingSwitch;
+        const sw = button(`Switch to ${offer.hint}?`, () => {
+          pendingSwitch = null;
+          void offer.accept().then((r) => {
+            if (r.status === 'error') say(r.message);
+            render(shownUser);
+          });
+        });
+        sw.classList.add('hw-signin-switch');
+        el.append(sw);
+      }
+      status = document.createElement('p');
+      status.className = 'hw-signin-status';
+      status.setAttribute('role', 'status');
+      status.textContent = notice;
+      el.append(status);
       return;
     }
+    pendingSwitch = null;
     const google = googleButton(() => void signInWithGoogle(redirectTo, client));
 
     const form = document.createElement('form');
@@ -472,6 +527,11 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
   if (opts.completeFromUrl !== false) {
     void completeSignInFromUrl(client, opts.window ?? window).then((r) => {
       if (r.status === 'error') say(r.message);
+      if (r.status === 'confirm') {
+        pendingSwitch = { hint: r.hint, accept: r.accept };
+        // If the signed-in view is not drawn yet, onAuth's first render shows the offer.
+        if (shownUserId) render(shownUser);
+      }
     });
   }
   return onAuth((user) => render(user), client);

@@ -163,69 +163,106 @@ values.
 
 ## Sign-in links and abuse limits
 
-Approved by the owner on 10 Nov 2026. Built on branch `feat/sign-in-link`;
-nothing is deployed until the steps below run.
+Approved by the owner on 10 Nov 2026 and revised after a security review the
+same day. Built on branch `feat/sign-in-link`; nothing is deployed until the
+steps below run.
 
 Supabase's own magic-link limits are coarse: a fixed 60 seconds per
 address, a per-IP limit and 200 emails an hour for the whole project, with
 no escalation and no alerts. Sign-in links therefore go through the edge
-function `sign-in-link` (public, `verify_jwt = false`, CORS for
-`https://*.hintwise.org` only). The contract is
-`platform/src/signin/README.md`. In short:
+function `sign-in-link` (public, `verify_jwt = false`, CORS only for the
+pages of deployed apps). The contract is `platform/src/signin/README.md`. In
+short:
 
 - **Request.** `POST <url>/functions/v1/sign-in-link`, JSON body
-  `{ email, redirectTo, app, browserId, turnstileToken? }`. `redirectTo` is a
-  page on one `https://<label>.hintwise.org`. `browserId` is a random id kept
-  in localStorage `hintwise.browserId`, a soft signal.
-- **Answers.** `{status:'sent'}` (200), `{status:'wait', retryAt}` (429,
-  ISO time), `{status:'challenge', siteKey, failed?}` (403), or
-  `{status:'error', message}`.
+  `{ email, redirectTo, app, browserId, turnstileToken? }`.
+  - `redirectTo` must be a page of an allowed app: a label in
+    `platform/src/signin/app-hosts.ts` (generated from the apps' `target.yml`
+    by `npm run app-hosts` in `platform/`), or one of the external apps
+    (`stepwise`). Never `auth` or another non-app name.
+  - Only its origin and path are kept.
+  - `browserId` is a random id kept in localStorage `hintwise.browserId`, a
+    soft signal.
+- **Answers.**
+  - `{status:'sent'}` (200).
+  - `{status:'wait', retryAt}` (429, ISO time).
+  - `{status:'challenge', siteKey, failed?}` (403).
+  - `{status:'error', message}`.
+- **Keys.**
+  - The address counts as its canonical mailbox: no `+tag`, and Gmail dots
+    and googlemail.com folded. The email still goes to the address as typed.
+  - The IP counts by network: IPv4 as it is, IPv6 by its /64. It is read
+    from `cf-connecting-ip`, else the right-most `x-forwarded-for` entry. To
+    be checked live after the deploy.
 - **Ladder per address and per browser.** The wait between links is 1, 3,
   5, 8, 13 and 21 minutes, then the sum of the previous two (34, 55, 89, ...),
   capped at 24 h. Only links since the key's last quiet day count: 24 h
-  without any request for it resets the ladder.
-- **Per IP.** Lenient, because classrooms and offices share an IP: 20
-  requests an hour pass freely, and above that the challenge is required.
-  An IP is never simply blocked.
-- **Challenge.** A Cloudflare Turnstile check is required for the 10th
-  request in 24 h for one address or one browser, or above 20 an hour from
-  one IP. The widget covers hintwise.org and digital-student-assistant.com;
-  it was created by the owner on 10 Nov. Its public site key is
+  without any counted request resets it. Invalid and refused requests never
+  count toward a ladder or a day count.
+- **Per IP.**
+  - Lenient, because classrooms and offices share an IP: 20 requests an
+    hour pass freely, and above that the challenge is required.
+  - Above 100 an hour from one network, the answer is a wait and no row is
+    written.
+- **Challenge.** A Cloudflare Turnstile check is required when any of these
+  holds:
+  - the 10th request in 24 h for one address or one browser;
+  - above 20 an hour from one IP network;
+  - an unknown IP;
+  - more than 100 links sent project-wide in the last hour, a brake that
+    applies to every request.
+
+  The widget covers hintwise.org and digital-student-assistant.com; it was
+  created by the owner on 10 Nov. Its public site key is
   `platform/supabase.json` `turnstileSiteKey`. The secret is the repo secret
-  `TURNSTILE_SECRET_KEY`, set as the function secret `TURNSTILE_SECRET`. A
-  token passes only with action `sign-in` on a hintwise.org host. Without
-  the secret, a due challenge is skipped with a warning in the log.
+  `TURNSTILE_SECRET_KEY`, set as the function secret `TURNSTILE_SECRET`.
+
+  A token passes only with action `sign-in` on a hintwise.org host. Without
+  the secret, a due challenge pauses email sign-in (503 "Email sign-in is
+  paused; try Google"); it never sends unchecked.
 - **The link.** Auth's admin `generate_link` makes the token; for a
   first-time address GoTrue turns the magic link into a sign-up and creates
   the user. The email, from `HintWise <sign-in@hintwise.org>` through
   Resend, links to the app's own page with
-  `?token_hash=<hash>&type=email`. The app calls
-  `supabase.auth.verifyOtp({ token_hash, type: 'email' })`, which works in any
-  browser, so a link from a phone's mail app signs in there.
+  `?token_hash=<hash>&type=email&email_hint=<a***@example.com>`.
+
+  The app calls `supabase.auth.verifyOtp({ token_hash, type: 'email' })`,
+  which works in any browser. When another account is signed in, the
+  template asks "Switch to a***@example.com?" first; for the same account
+  it keeps the session.
 - **Log.** Every request is a row in `platform.sign_in_requests`: hashed
   keys (HMAC-SHA256 under the function secret `SIGN_IN_HASH_KEY`), app,
   outcome, detail. Rows are kept 30 days. Only the service role touches it,
   through RPCs in `platform/supabase/shared/0002_sign_in.sql`.
 - **Alerts.** These go to `ADMIN_EMAIL` from `builder@hintwise.org`, at most
-  one per kind an hour. They fire when one IP or browser asks for 5 or more
-  addresses in an hour, one address is asked for 5 or more times in an hour,
-  3 or more checks fail from one IP in an hour, a direct magic link is
-  refused, or more than 100 links go out in an hour.
+  one per kind an hour. They fire when:
+  - one IP or browser asks for 5 or more addresses in an hour;
+  - one address is asked for 5 or more times in an hour;
+  - 3 or more checks fail from one IP in an hour;
+  - the hook refuses an email;
+  - more than 100 links go out in an hour.
 - **Closing the side door.** Supabase's Send Email hook, the function
-  `auth-email-hook`, takes every auth email once it is switched on. It
-  refuses `magiclink`, `signup` and `email` (direct `signInWithOtp`/`signUp`)
-  with 403 "Use the HintWise sign-in-link service" and raises the bypass
-  alert. It sends recovery, invite, email change, reauthentication and
-  account notices through Resend. **Switching it on affects every app on the
-  shared project.** Email sign-in and sign-up stop, until the app moves to
-  `sign-in-link`, in:
-  - WCV Live Together, how-of-happiness and the quiz app, which are outside
-    this repo;
-  - qualified-overtime-checker, whose `src/lib/auth.ts` still calls
-    `signInWithOtp` (10 Nov).
+  `auth-email-hook`, takes every auth email once it is switched on.
+  - It sends only magic links, sign-ups, sign-in codes and password recovery
+    for the apps outside HintWise on this project, the hosts in
+    `HOOK_EXTERNAL_HOSTS`. That list is computed from the auth redirect
+    allow-list and site URL by `set-sign-in-secrets`; rerun it after
+    changing the allow-list. Those emails go through the same per-address
+    ladder.
+  - Everything else is refused with 403 "Use the HintWise sign-in-link
+    service", logged and raises the bypass alert: a HintWise app's direct
+    `signInWithOtp`/`signUp`/`resend`, recovery for an unknown host, invite,
+    email change, reauthentication and notices.
 
-  `email-hook check` lists every app in this repo that still calls it, and
-  `email-hook on` refuses while there is one unless given `--allow-otp-apps`.
+  **Switching it on changes every app on the shared project.** External apps
+  keep only those four emails, laddered. qualified-overtime-checker, whose
+  `src/lib/auth.ts` still calls `signInWithOtp` (10 Nov), loses its email
+  sign-in until it moves to `sign-in-link`.
+
+  `email-hook check` lists every app in this repo that still calls
+  `signInWithOtp`, `signUp` or `resend`. `email-hook on` refuses while there
+  is one, unless given `--allow-otp-apps`, and refuses with an empty
+  `HOOK_EXTERNAL_HOSTS` unless given `--accept-external-breakage`.
 
 Deployment order, each step a "Supabase admin" dispatch:
 
@@ -233,7 +270,7 @@ Deployment order, each step a "Supabase admin" dispatch:
 2. `check-schema platform`.
 3. `deploy-function sign-in-link`.
 4. `deploy-function auth-email-hook`.
-5. `set-sign-in-secrets`.
+5. `external-hosts`, to read the list first, then `set-sign-in-secrets`.
 6. After the owner's yes: `email-hook check`, then `email-hook on --dry-run`,
    then `email-hook on`. This sets `hook_send_email_enabled`,
    `hook_send_email_uri` and `hook_send_email_secrets` in the auth config,
@@ -312,6 +349,10 @@ In `<slug>/deploy/target.yml`: `supabase: true` when the app has a schema
 - `src/lib/supabase.ts`, `src/lib/auth.ts`, `src/lib/llm.ts` copied from
   `platform/templates/app/` and adjusted: the client with the app's schema,
   the sign-in panel, the BYOK/gateway switch.
+- A new app with email sign-in: `npm run app-hosts` in `platform/` (the
+  sign-in-link allow-list, `platform/src/signin/app-hosts.ts`; CI fails
+  while it is stale), commit, and `deploy-function sign-in-link` after the
+  app's first deploy, or its sign-in links are refused.
 - Data access behind a small repository interface with an in-memory
   implementation for tests, so vitest never touches the network; the live
   implementation uses supabase-js. A Playwright walkthrough of the main flow
@@ -388,16 +429,20 @@ Added by the scaffolding (branch `platform-scaffold`, 9 Nov):
 
 Added with the sign-in links (10 Nov), not exercised live yet:
 
-- **Client IP.** The function reads `cf-connecting-ip` first and the first
-  `x-forwarded-for` entry only when that header is missing. This reverses
-  the design's order, changed after the code review of 10 Nov. Cloudflare
-  sets `cf-connecting-ip` and overwrites a client's own value, while proxies
-  append to an `X-Forwarded-For` the client may have started, so its first
-  entry can be forged. Not yet checked: whether Supabase's edge passes
-  `cf-connecting-ip` through to the function. After the deploy, send one
-  request with a made-up `X-Forwarded-For` and check that its `ip_hash` is
-  the same as for an ordinary request (`clientIp` in
+- **Client IP.** The function reads `cf-connecting-ip` first, then the
+  right-most `x-forwarded-for` entry (security review, 10 Nov; the design
+  said the first entry, which a client can forge). Cloudflare sets
+  `cf-connecting-ip` and overwrites a client's value. Proxies append to
+  `X-Forwarded-For`, so the right-most entry is the last proxy's.
+
+  To check live after the deploy (the parent session): send one request
+  with a made-up `X-Forwarded-For` and check that its `ip_hash` is the same
+  as an ordinary request's from the same machine (`clientIp` in
   `platform/src/signin/keys.ts`).
+- **Env files.** The workflow passes secrets to `supabase secrets set
+  --env-file` as `NAME='value'` lines. The CLI's dotenv parser is assumed to
+  take single-quoted values literally; values with a quote or a newline are
+  refused before writing.
 - **First-time addresses.** `generate_link` with `type: 'magiclink'` creates
   the user. GoTrue's `adminGenerateLink` turns it into a signup; source read
   10 Nov. `verifyOtp` with `type: 'email'` accepts both the signup and the

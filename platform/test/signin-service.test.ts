@@ -1,12 +1,13 @@
+import crypto from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import type { AlertCounts } from '../src/signin/alerts.ts';
 import type { Db } from '../src/signin/db.ts';
 import { restDb } from '../src/signin/db.ts';
 import type { BeginResult, KeyStats } from '../src/signin/policy.ts';
-import { handleSignInLink, raiseAlerts, type Deps, type SignInEnv } from '../src/signin/service.ts';
+import { handleSignInLink, PAUSED, raiseAlerts, type Deps, type SignInEnv } from '../src/signin/service.ts';
 
 const NOW = new Date('2026-11-10T12:00:00.000Z');
-const ORIGIN = 'https://paste-md.hintwise.org';
+const ORIGIN = 'https://pluck-lab.hintwise.org';
 const ENV: SignInEnv = {
   SUPABASE_URL: 'https://ref.supabase.co',
   SUPABASE_SERVICE_ROLE_KEY: 'service-key',
@@ -17,7 +18,8 @@ const ENV: SignInEnv = {
   TURNSTILE_SECRET: '1x0000000000000000000000000000000AA',
 };
 const key = (over: Partial<KeyStats> = {}): KeyStats => ({ sent: 0, last_sent_at: null, requests_24h: 0, ...over });
-const fresh = (): BeginResult => ({ id: 41, email: key(), browser: key(), ip: { requests_1h: 0 } });
+const fresh = () => ({ id: 41, email: key(), browser: key(), ip: { requests_1h: 0 }, project: { sent_1h: 0 } });
+const hmac = (s: string) => crypto.createHmac('sha256', 'hash-key').update(s).digest('hex');
 const quiet = (): AlertCounts => ({ ip_addresses_1h: 1, browser_addresses_1h: 1, email_requests_1h: 1, ip_challenge_failures_1h: 0, sent_1h: 1, alerts: {} });
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
@@ -51,7 +53,7 @@ function setup(o: Setup = {}) {
     if (url.includes('/auth/v1/admin/generate_link')) return o.generate?.() ?? json(200, { hashed_token: 'hashed-1', verification_type: 'magiclink' });
     if (url.endsWith('/auth/v1/admin/users')) return json(200, { id: 'u-new' });
     if (url === 'https://api.resend.com/emails') return o.resend?.() ?? json(200, { id: 're_9' });
-    if (url.includes('turnstile/v0/siteverify')) return o.siteverify?.() ?? json(200, { success: true, action: 'sign-in', hostname: 'paste-md.hintwise.org' });
+    if (url.includes('turnstile/v0/siteverify')) return o.siteverify?.() ?? json(200, { success: true, action: 'sign-in', hostname: 'pluck-lab.hintwise.org' });
     throw new Error(`unexpected fetch ${url}`);
   });
   const tasks: Promise<unknown>[] = [];
@@ -69,7 +71,7 @@ function setup(o: Setup = {}) {
   return { deps, rpc, calls, tasks, logs, outcomes, emails, settle: () => Promise.all(tasks) };
 }
 
-const body = { email: 'Ann@Example.com', redirectTo: 'https://paste-md.hintwise.org/app?x=1', app: 'paste-md', browserId: 'browser-0123456789' };
+const body = { email: 'Ann+news@Example.com', redirectTo: 'https://pluck-lab.hintwise.org/app?x=1#top', app: 'pluck-lab', browserId: 'browser-0123456789' };
 const request = (over: Record<string, unknown> = {}, headers: Record<string, string> = {}, method = 'POST') =>
   new Request('https://ref.supabase.co/functions/v1/sign-in-link', {
     method,
@@ -86,16 +88,18 @@ describe('handleSignInLink: sending', () => {
     expect(res.headers.get('access-control-allow-origin')).toBe(ORIGIN);
     const [fn, args] = s.rpc[0];
     expect(fn).toBe('sign_in_begin');
-    expect(args.p_app).toBe('paste-md');
-    for (const k of ['p_email_hash', 'p_ip_hash', 'p_browser_hash']) expect(args[k]).toMatch(/^[0-9a-f]{64}$/);
-    expect(JSON.stringify(s.rpc)).not.toContain('ann@example.com');
+    // Counted under the canonical mailbox and the IP, with the hard per-IP limit.
+    expect(args).toEqual({ p_email_hash: hmac('email:ann@example.com'), p_ip_hash: hmac('ip:203.0.113.7'), p_browser_hash: hmac('browser:browser-0123456789'), p_app: 'pluck-lab', p_ip_limit: 100 });
+    expect(JSON.stringify(s.rpc)).not.toContain('example.com');
     expect(JSON.stringify(s.rpc)).not.toContain('203.0.113.7');
     expect(s.rpc[1]).toEqual(['sign_in_finish', { p_id: 41, p_outcome: 'sent', p_detail: 'resend re_9' }]);
+    const gen = s.calls.find(([u]) => u.includes('generate_link'))!;
+    expect(JSON.parse(String(gen[1].body)).email).toBe('ann+news@example.com');
     const [mail] = s.emails();
     expect(mail.from).toBe('HintWise <sign-in@hintwise.org>');
-    expect(mail.to).toEqual(['ann@example.com']);
-    expect(mail.subject).toBe('Your sign-in link for Paste Md');
-    expect(mail.text).toContain('https://paste-md.hintwise.org/app?x=1&token_hash=hashed-1&type=email');
+    expect(mail.to).toEqual(['Ann+news@Example.com']); // the address as typed
+    expect(mail.subject).toBe('Your sign-in link for Pluck Lab');
+    expect(mail.text).toContain('https://pluck-lab.hintwise.org/app?token_hash=hashed-1&type=email&email_hint=a***%40example.com\n');
     await s.settle();
     expect(s.emails()).toHaveLength(1); // no alert
   });
@@ -106,11 +110,29 @@ describe('handleSignInLink: sending', () => {
     expect(await res.json()).toEqual({ status: 'sent' });
     expect(s.rpc[1][1].p_detail).toContain('user created before the link');
   });
-  it('notes an unknown IP and skips the IP rule', async () => {
-    const s = setup({ begin: { ...fresh(), ip: { requests_1h: 99 } } });
+  it('makes the challenge due when the IP is unknown, and notes it', async () => {
+    const s = setup();
     const res = await handleSignInLink(request({}, { 'x-forwarded-for': '' }), s.deps);
-    expect(await res.json()).toEqual({ status: 'sent' });
-    expect(s.rpc[1][1].p_detail).toBe('ip unknown; resend re_9');
+    expect(await res.json()).toEqual({ status: 'challenge', siteKey: '0x4AAAAAAF7YqIR2_9E_hu1x' });
+    expect(s.rpc[1][1].p_detail).toBe('ip unknown; challenge: ip-unknown');
+    const passed = setup();
+    expect(await (await handleSignInLink(request({ turnstileToken: 'tok' }, { 'x-forwarded-for': '' }), passed.deps)).json()).toEqual({ status: 'sent' });
+    expect(new URLSearchParams(String(passed.calls.find(([u]) => u.includes('siteverify'))![1].body)).has('remoteip')).toBe(false);
+  });
+  it('counts an IPv6 client by its /64', async () => {
+    const s = setup();
+    await handleSignInLink(request({}, { 'x-forwarded-for': '', 'cf-connecting-ip': '2001:db8:1:2::abcd' }), s.deps);
+    expect(s.rpc[0][1].p_ip_hash).toBe(hmac('ip:2001:db8:1:2::/64'));
+  });
+  it('answers a wait over the hard per-IP limit, writing no row', async () => {
+    const s = setup({ begin: { limited: true, retry_at: '2026-11-10T12:40:00+00:00' } });
+    const res = await handleSignInLink(request(), s.deps);
+    expect(res.status).toBe(429);
+    expect(await res.json()).toEqual({ status: 'wait', retryAt: '2026-11-10T12:40:00.000Z' });
+    expect(s.rpc.map(([fn]) => fn)).toEqual(['sign_in_begin']);
+    expect(s.calls).toHaveLength(0);
+    const odd = setup({ begin: { limited: true, retry_at: 'garbage' } });
+    expect(await (await handleSignInLink(request(), odd.deps)).json()).toEqual({ status: 'wait', retryAt: '2026-11-10T13:00:00.000Z' });
   });
 });
 
@@ -128,6 +150,11 @@ describe('handleSignInLink: waiting', () => {
 
 describe('handleSignInLink: challenge', () => {
   const busy = (): BeginResult => ({ ...fresh(), email: key({ requests_24h: 9 }) });
+  it('asks everyone for the challenge while the project is over its hourly brake', async () => {
+    const s = setup({ begin: { ...fresh(), project: { sent_1h: 101 } } });
+    expect(await (await handleSignInLink(request(), s.deps)).json()).toEqual({ status: 'challenge', siteKey: '0x4AAAAAAF7YqIR2_9E_hu1x' });
+    expect(s.rpc[1][1].p_detail).toBe('challenge: project-hour');
+  });
   it('asks for the challenge with the public site key', async () => {
     const s = setup({ begin: busy() });
     const res = await handleSignInLink(request(), s.deps);
@@ -166,12 +193,17 @@ describe('handleSignInLink: challenge', () => {
     expect([r2.status, long.outcomes()]).toEqual([403, ['challenge_failed']]);
     expect(long.calls.filter(([u]) => u.includes('siteverify'))).toHaveLength(0);
   });
-  it('sends without the challenge, with a warning, while TURNSTILE_SECRET is unset', async () => {
+  it('pauses email sign-in (503) when a challenge is due and TURNSTILE_SECRET is unset', async () => {
     const s = setup({ begin: { ...fresh(), ip: { requests_1h: 20 } }, env: { TURNSTILE_SECRET: '' } });
     const res = await handleSignInLink(request(), s.deps);
-    expect(await res.json()).toEqual({ status: 'sent' });
-    expect(s.rpc[1][1].p_detail).toBe('warning: challenge skipped, TURNSTILE_SECRET unset (ip-hour); resend re_9');
-    expect(s.logs.join('\n')).toContain('TURNSTILE_SECRET is unset');
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ status: 'error', message: 'Email sign-in is paused; try Google' });
+    expect(PAUSED).toBe('Email sign-in is paused; try Google');
+    expect(s.outcomes()).toEqual(['error']);
+    expect(s.rpc[1][1].p_detail).toBe('challenge due (ip-hour) but TURNSTILE_SECRET unset');
+    expect(s.emails()).toHaveLength(0);
+    const free = setup({ env: { TURNSTILE_SECRET: '' } });
+    expect(await (await handleSignInLink(request(), free.deps)).json()).toEqual({ status: 'sent' }); // no challenge due: sent
   });
   it('ignores a token when no challenge is due', async () => {
     const s = setup();
@@ -201,14 +233,14 @@ describe('handleSignInLink: refusals and failures', () => {
     expect(await res.json()).toMatchObject({ status: 'error', message: expect.stringContaining('redirectTo') });
     const [fn, args] = s.rpc[0];
     expect(fn).toBe('sign_in_log');
-    expect(args).toMatchObject({ p_app: 'paste-md', p_outcome: 'invalid' });
+    expect(args).toMatchObject({ p_app: 'pluck-lab', p_outcome: 'invalid', p_ip_limit: 100 });
     expect(args.p_email_hash).toMatch(/^[0-9a-f]{64}$/);
     const none = setup();
     await handleSignInLink(new Request('https://x/', { method: 'POST', headers: { origin: ORIGIN }, body: 'nope' }), none.deps);
     expect(none.rpc[0][1]).toMatchObject({ p_email_hash: null, p_browser_hash: null, p_app: null, p_outcome: 'invalid' });
   });
   it('refuses another origin, logged as invalid', async () => {
-    for (const origin of ['https://evil.example', '']) {
+    for (const origin of ['https://evil.example', '', 'https://auth.hintwise.org', 'https://not-an-app.hintwise.org']) {
       const s = setup();
       const res = await handleSignInLink(request({}, { origin }), s.deps);
       expect(res.status).toBe(403);
@@ -297,7 +329,7 @@ describe('alerts', () => {
     const alert = s.emails().find((m) => m.subject.startsWith('HintWise sign-in alert'));
     expect(alert.from).toBe('HintWise <builder@hintwise.org>');
     expect(alert.to).toEqual(['owner@example.org']);
-    expect(alert.text).toContain('ann@example.com');
+    expect(alert.text).toContain('Ann+news@Example.com');
   });
   it('sends nothing when another request claimed it first, or without ADMIN_EMAIL', async () => {
     const s = setup({ counts: { ...quiet(), sent_1h: 500 }, claim: false });

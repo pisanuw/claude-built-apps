@@ -14,6 +14,8 @@ const HINTWISE = /^https:\/\/[a-z0-9-]+\.hintwise\.org$/i;
 export interface CorsOptions {
   /** Also allow DEV_ORIGINS (default true, as the gateway needs). */
   dev?: boolean;
+  /** A narrower rule than any hintwise.org label (sign-in-link: deployed apps only). */
+  allow?: (origin: string) => boolean;
 }
 
 /** One-label https://<label>.hintwise.org origins only. */
@@ -25,6 +27,7 @@ export function isHintwiseOrigin(origin: string | null | undefined): boolean {
 
 export function isAllowedOrigin(origin: string | null | undefined, opts: CorsOptions = {}): boolean {
   if (!origin) return false;
+  if (opts.allow) return opts.allow(origin);
   return HINTWISE.test(origin) || ((opts.dev ?? true) && DEV_ORIGINS.includes(origin));
 }
 
