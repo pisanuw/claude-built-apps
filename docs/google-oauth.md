@@ -21,7 +21,7 @@ Keep each old URI or origin until that app has moved and its old address redirec
 | Digital Student Assistant | pisanuw/dsa-instructor | Render dsa-instructor | `https://digital-student-assistant.com/auth/google/callback`, `https://ypdsa.pisan.me/auth/google/callback`, `https://dsa-instructor-zpmc.onrender.com/auth/google/callback` (www has no callback, by design) |
 | Chess analyzer (MyChessMaster) | pisanuw/chess-analyzer | Netlify chess-analyzer-app | `https://mychessmaster.net/api/auth/google/callback` (the netlify.app host 301s before the callback runs) |
 | PasteMD | pisanuw/pastemd | Netlify paste-md | `https://paste-md.hintwise.org/api/auth/google/callback`, `https://paste-md.netlify.app/api/auth/google/callback` (the app sends the address in its plain `APP_URL` variable, hintwise.org since 9 Nov; since 9 Nov 19:47 CET PasteMD signs in through Supabase (pisanuw/pastemd#2; owner confirmed sign-in works 10 Nov), so both URIs can be removed from the client) |
-| Upvote | pisanuw/upvote | Netlify upvoteme | `https://upvoteme.hintwise.org/api/auth/callback/google`, `https://upvoteme.netlify.app/api/auth/callback/google` (Auth.js; with no NEXTAUTH_URL it uses the address the visitor is on, confirmed at /api/auth/providers) |
+| Upvote | pisanuw/upvote | Netlify upvoteme | `https://upvoteme.hintwise.org/api/auth/callback/google`, `https://upvoteme.netlify.app/api/auth/callback/google` (Auth.js; since 10 Nov 2026 UpvoteMe signs in to Google through Supabase (pisanuw/upvote#4, provider `supabase`), and the owner confirmed it works the same day, so both URIs can be removed; they are needed again only for the `NEXT_PUBLIC_GOOGLE_AUTH_VIA=direct` rollback) |
 
 ## Authorized JavaScript origins
 
