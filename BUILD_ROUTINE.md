@@ -44,6 +44,30 @@ no other provider without the owner's yes.
 | A long-running server (websockets, queues, heavy compute, a Python library) | Render: a path prefix in `backend-hub` first. backend-hub runs on Render's free instance (sleeps when idle, 512 MB). |
 | DNS | Cloudflare (hintwise.org); the deploy runner creates the app's record. |
 
+**Google sign-in button** (owner, 10 November 2026): every app follows
+Google's branding guidelines, https://developers.google.com/identity/branding-guidelines.
+Sign-in goes through Supabase, not Google's button SDK, so the app draws a
+custom button, and it must keep to the guideline's custom-button rules
+(checked 10 November 2026):
+- Text: "Continue with Google", "Sign in with Google" or "Sign up with Google"
+  (localised is fine). Never "Google" alone, never wording that suggests the
+  user is creating a Google account.
+- Logo: the standard multicolour "G" from Google's pre-approved assets
+  (https://developers.google.com/static/identity/images/signin-assets.zip),
+  unmodified, at its own size and colours. Never a monochrome, outdated or
+  hand-drawn G, and never the G alone without the button's border and text.
+- Theme, matching the page: Light (fill #FFFFFF, 1px inside stroke #747775,
+  text #1F1F1F), Dark (#131314, stroke #8E918F, text #E3E3E3) or Neutral
+  (#F2F2F2, no stroke, text #1F1F1F).
+- Type: Google Sans Medium, 14px on a 20px line (Google Fonts). Padding: 12px
+  before the logo, 10px after it, 12px after the text. Rectangular or pill
+  shape. Scale the button only with its aspect ratio kept.
+- Prominence: at least as prominent as the other sign-in options (the
+  magic-link button), with about the same size and visual weight.
+Use the template's Google button when `platform/templates/app` has one
+instead of drawing a new one, and check the button against this list on the
+polish day.
+
 Ask the owner first, as a numbered open question with a recommendation (Step
 4), before anything that adds a bill or changes what other apps share: a new
 Render service or plan, a Supabase add-on, a new provider, a new GitHub secret
@@ -175,7 +199,9 @@ answers (`curl -sI https://<slug>.hintwise.org/` is 200). Then:
 5. Day 6, or the first day after the feature milestones are done, is polish:
    README written for the business owner (not a developer), phone layout,
    keyboard and screen-reader pass (run https://accessibility-lens.hintwise.org
-   on the live page and fix serious issues), empty and error states, a
+   on the live page and fix serious issues), the Google sign-in button
+   checked against the branding rules in "The usual architecture", empty and
+   error states, a
    Playwright walkthrough of the main flow (`npm run e2e`, against `vite
    preview` with the in-memory repository), the security-review skill on the
    app, a demo GIF or screenshot for the catalog, and the draft `publicNotes`.
