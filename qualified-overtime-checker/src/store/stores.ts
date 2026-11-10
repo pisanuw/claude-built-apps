@@ -83,9 +83,18 @@ export class LocalFileStore implements FileStore {
   }
 
   async put(file: ClientFile): Promise<void> {
-    this.write(localKey(file.id), JSON.stringify(encodeFile(file)));
+    const key = localKey(file.id);
+    const before = this.storage.getItem(key);
+    this.write(key, JSON.stringify(encodeFile(file)));
     const rest = this.index().filter((s) => s.id !== file.id);
-    this.write(LOCAL_INDEX, JSON.stringify([summarizeFile(file, 'browser'), ...rest]));
+    try {
+      this.write(LOCAL_INDEX, JSON.stringify([summarizeFile(file, 'browser'), ...rest]));
+    } catch (e) {
+      // Never leave a file the list cannot show (and so nobody can delete).
+      if (before === null) this.storage.removeItem(key);
+      else this.storage.setItem(key, before);
+      throw e;
+    }
   }
 
   async remove(id: string): Promise<void> {

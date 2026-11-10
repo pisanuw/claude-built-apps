@@ -1,8 +1,11 @@
 # Deploy control file for Qualified Overtime Checker (Netlify, static site).
 #
-# Milestone 1 keeps the client file in the visitor's tab, so there is no
-# Supabase schema yet; milestone 2 adds `supabase: true`, the migrations and
-# the VITE_SUPABASE_* env from platform/supabase.json. The deploy workflow
+# Client files are kept in the visitor's browser, or in their account once
+# they sign in (milestone 2). `supabase: true` makes the Deploy workflow apply
+# supabase/migrations/*.sql and expose schema app_qualified_overtime_checker
+# before the Netlify deploy. `env` holds the public client values from
+# platform/supabase.json (public by design; row level security guards the
+# rows; the service-role key never appears here). The deploy workflow
 # auto-discovers this file via the `*/deploy/target.yml` glob.
 # package-lock.json is force-added (the root .gitignore excludes lockfiles)
 # because `npm ci` below needs it.
@@ -16,10 +19,15 @@ directory: qualified-overtime-checker
 build: npm ci && npm run build
 publish: dist
 
+supabase: true
+env:
+  VITE_SUPABASE_URL: https://auth.hintwise.org
+  VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFya3R4bHJseWNlZmZ5b3pkd2hxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4ODEwMTAsImV4cCI6MjA5MjQ1NzAxMH0.Vuku-irT3kAHZYibK23q6dpyOEqV_Eg5zB78I3dyshE
+
 envPassthrough: []
 
 netlify:
-  # No serverless functions; the whole app runs in the browser.
+  # No serverless functions; the browser talks to Supabase directly.
   functionsDir: ''
   siteName: qualified-overtime-checker
   # Primary domain; the runner swaps in APP_DOMAIN (hintwise.org) and creates the Cloudflare CNAME (DNS only).

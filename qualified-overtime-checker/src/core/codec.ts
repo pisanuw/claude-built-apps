@@ -63,11 +63,16 @@ export function encodeFile(file: ClientFile): StoredFile {
 
 export function decodeFile(id: string, stored: unknown): ClientFile {
   const s = stored as StoredFile;
-  if (!s || typeof s !== 'object' || s.v !== 1 || !Array.isArray(s.lines) || !Array.isArray(s.employees)) {
-    throw new Error('This saved file is in a format this version cannot read.');
-  }
-  const lines: TimeLine[] = s.lines.map(([e, date, hours, rate, kind, multiplier, payDate, c, line]) => {
-    const [employeeKey, employeeId, employeeName] = s.employees[e];
+  const bad = () => new Error('This saved file is damaged or in a format this version cannot read.');
+  if (!s || typeof s !== 'object' || s.v !== 1 || !Array.isArray(s.lines) || !Array.isArray(s.employees) || !Array.isArray(s.codes)) throw bad();
+  const st = s.settings as EmployerSettings | undefined;
+  if (!st || typeof st.name !== 'string' || !Number.isInteger(st.taxYear) || !Number.isInteger(st.workweekStart)) throw bad();
+  const lines: TimeLine[] = s.lines.map((l) => {
+    if (!Array.isArray(l) || l.length < 9) throw bad();
+    const [e, date, hours, rate, kind, multiplier, payDate, c, line] = l;
+    const emp = s.employees[e];
+    if (!Array.isArray(emp) || typeof date !== 'string' || !Number.isFinite(hours) || !Number.isFinite(rate) || !Number.isFinite(multiplier)) throw bad();
+    const [employeeKey, employeeId, employeeName] = emp;
     return { employeeKey, employeeId, employeeName, date, hours, rate, kind: KINDS[kind] ?? 'work', multiplier, payDate, code: s.codes[c] ?? '', line };
   });
   return {

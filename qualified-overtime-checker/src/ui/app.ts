@@ -16,12 +16,12 @@ import { buildSample, sampleCsv } from '../core/sample';
 import { worthSaving, type FileLocation, type FileSummary } from '../core/codec';
 import type { WeekResult } from '../core/types';
 import type { Files, FileStore } from '../store/stores';
-import { downloadText, fileSlug, fill, h, readFileText, hours, money, signedMoney } from './dom';
+import { downloadText, fileSlug, fill, h, readFileText, hours, money, signedMoney, uuid } from './dom';
 
 /** Sign-in, when the build has Supabase: the panel, the user, and the account store. */
 export interface AuthHooks {
   mount(el: HTMLElement): void;
-  onUser(callback: (user: { email: string | null } | null) => void): void;
+  onUser(callback: (user: { id: string; email: string | null } | null) => void): void;
   accountStore(): FileStore;
 }
 
@@ -49,12 +49,12 @@ interface PendingImport {
 export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> {
   const download = deps.download ?? downloadText;
   const now = deps.now ?? (() => new Date());
-  const makeId = deps.newId ?? (() => `file-${now().getTime()}`);
+  const makeId = deps.newId ?? uuid;
   const ask = deps.confirm ?? ((q: string) => window.confirm(q));
 
   const files = deps.files;
   const delay = deps.saveDelay ?? 700;
-  let user: { email: string | null } | null = null;
+  let user: { id: string; email: string | null } | null = null;
   let file: ClientFile = newClientFile(makeId(), {}, now());
   let location: FileLocation = 'browser';
   let pending: PendingImport | null = null;
@@ -63,29 +63,56 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
   let saveText = '';
   let saveError = false;
 
-  /** Writes the open file now (if it is worth keeping) and refreshes the list. */
-  async function flush(): Promise<void> {
+  // Every store write (save, move, delete) runs through one queue, so a save
+  // still in flight can never land after a delete or a move.
+  let queue: Promise<unknown> = Promise.resolve();
+  function enqueue<T>(job: () => Promise<T>): Promise<T> {
+    const run = queue.then(job, job);
+    queue = run.catch(() => undefined);
+    return run;
+  }
+  let dirty = false;
+
+  /**
+   * Writes the open file now (if it is worth keeping and changed) and
+   * refreshes the list. Returns false when the save failed.
+   */
+  async function flush(): Promise<boolean> {
     if (timer) {
       clearTimeout(timer);
       timer = null;
     }
-    if (!worthSaving(file)) return;
-    try {
-      await files.store(location).put(file);
-      saveText = location === 'account' ? 'Saved to your account.' : 'Saved in this browser.';
-      saveError = false;
-    } catch (e) {
-      saveText = `Not saved: ${(e as Error).message}`;
-      saveError = true;
-      say(saveText);
-    }
+    if (!dirty || !worthSaving(file)) return true;
+    const snapshot = file;
+    const ok = await enqueue(async () => {
+      try {
+        await files.store(location).put(snapshot);
+        if (file === snapshot) dirty = false;
+        saveText = location === 'account' ? 'Saved to your account.' : 'Saved in this browser.';
+        saveError = false;
+        return true;
+      } catch (e) {
+        saveText = `Not saved: ${(e as Error).message}`;
+        saveError = true;
+        say(saveText);
+        return false;
+      }
+    });
     await renderFiles();
+    return ok;
+  }
+
+  /** Saves before leaving the open file; on failure asks whether to leave it unsaved. */
+  async function settle(): Promise<boolean> {
+    if (await flush()) return true;
+    return ask(`${file.settings.name || 'This file'} could not be saved (${saveText.replace(/^Not saved: /, '')}). Leave it without saving?`);
   }
 
   /** Marks the file changed; it is saved after a short pause (or at once with saveDelay 0). */
   const save = async () => {
     file = { ...file, updatedAt: now().toISOString() };
-    if (delay <= 0) return flush();
+    dirty = true;
+    if (delay <= 0) return void (await flush());
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => void flush(), delay);
   };
@@ -127,26 +154,29 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
   }
 
   // ---- Client files -----------------------------------------------------
-  async function openFile(s: FileSummary) {
-    await flush();
+  /** Opens a saved file; returns false (with the reason on screen) when it cannot. */
+  async function openFile(s: FileSummary): Promise<boolean> {
+    if (!(await settle())) return false;
     try {
       const next = await files.store(s.location).get(s.id);
       if (!next) {
         say(`${s.name || 'That file'} is no longer there.`);
         await renderFiles();
-        return;
+        return false;
       }
       file = next;
       location = s.location;
+      dirty = false;
     } catch (e) {
-      say((e as Error).message);
-      return;
+      say(`${s.name || 'That file'} could not be opened: ${(e as Error).message}`);
+      return false;
     }
     pending = null;
     open.clear();
     saveText = '';
     renderAll();
     say(`Opened ${file.settings.name || 'the file'} (tax year ${file.settings.taxYear}).`);
+    return true;
   }
 
   /** Starts a blank file; the open one is saved first unless it was just deleted. */
@@ -155,8 +185,9 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       clearTimeout(timer);
       timer = null;
     }
-    if (!discard) await flush();
+    if (!discard && !(await settle())) return;
     file = newClientFile(makeId(), {}, now());
+    dirty = false;
     location = files.signedIn ? 'account' : 'browser';
     pending = null;
     open.clear();
@@ -167,12 +198,16 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
   }
 
   async function moveFile(s: FileSummary, to: FileLocation) {
-    await flush();
+    if (s.id === file.id && !(await flush())) return;
     try {
-      const f = s.id === file.id ? file : await files.store(s.location).get(s.id);
-      if (!f) return;
-      await files.move(f, s.location, to);
-      if (s.id === file.id) location = to;
+      const moved = await enqueue(async () => {
+        const f = s.id === file.id ? file : await files.store(s.location).get(s.id);
+        if (!f) return false;
+        await files.move(f, s.location, to);
+        if (s.id === file.id) location = to;
+        return true;
+      });
+      if (!moved) return;
       say(to === 'account' ? `${s.name || 'The file'} is now saved to your account.` : `${s.name || 'The file'} is now kept in this browser only, and removed from your account.`);
     } catch (e) {
       say((e as Error).message);
@@ -188,8 +223,9 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       clearTimeout(timer);
       timer = null;
     }
+    if (s.id === file.id) dirty = false;
     try {
-      await files.store(s.location).remove(s.id);
+      await enqueue(() => files.store(s.location).remove(s.id));
     } catch (e) {
       say((e as Error).message);
       return;
@@ -199,8 +235,12 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     else await renderFiles();
   }
 
+  let listSeq = 0;
   async function renderFiles() {
+    const seq = ++listSeq;
     const { files: list, error } = await files.list();
+    // A slower, older listing must not draw over a newer one.
+    if (seq !== listSeq) return;
     const heading = h('h2', { id: 'files-h', text: 'Client files' });
     const add = h('button', { type: 'button', text: 'New client file' });
     add.addEventListener('click', () => void newFile());
@@ -335,12 +375,13 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
 
   /** The sample opens as a file of its own, so it never replaces a client's data. */
   async function loadSample() {
-    await flush();
+    if (!(await settle())) return;
     const s = buildSample();
     const id = worthSaving(file) ? makeId() : file.id;
     if (id !== file.id) location = files.signedIn ? 'account' : 'browser';
     open.clear();
     file = withReported({ ...newClientFile(id, s.settings, now()), lines: s.lines, source: 'sample-timesheet.csv' }, s.reported);
+    dirty = true;
     const table = parseCsv(s.csv);
     const ssn = ssnColumns(table);
     pending = { name: 'sample-timesheet.csv', table, mapping: guessMapping(table.rows[0].cells, ssn), ssn };
@@ -593,11 +634,23 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     renderResults();
   }
 
-  // Open the most recent saved file, if any.
+  // Open the most recent saved file, if any; if it cannot be read, start blank and say why.
   const first = (await files.list()).files[0];
-  if (first) await openFile(first);
-  else renderAll();
-  say('');
+  if (!first || !(await openFile(first))) renderAll();
+  else say('');
+
+  // Leaving the page (closing, reloading, the Google sign-in redirect): save
+  // now. A browser file is written synchronously; an account save is sent and
+  // may or may not finish.
+  window.addEventListener('pagehide', () => {
+    if (!dirty || !worthSaving(file)) return;
+    if (timer) clearTimeout(timer);
+    timer = null;
+    void files.store(location).put(file).catch(() => undefined);
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') void flush();
+  });
 
   if (deps.auth) {
     const auth = deps.auth;
@@ -605,13 +658,26 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     auth.onUser((u) => {
       const was = user;
       user = u;
+      const switched = was !== null && (u === null || u.id !== was.id);
       files.setAccount(u ? auth.accountStore() : null);
       renderPrivacy();
-      if (!u && was && location === 'account') {
-        void newFile(false).then(() => say('Signed out. Files in your account show again when you sign in.'));
+      if (switched && location === 'account') {
+        // The open file belongs to the account that just left: never show it to
+        // the next user. Unsaved changes are kept as a copy in this browser.
+        const unsaved = dirty && worthSaving(file) ? { ...file, id: makeId() } : null;
+        if (timer) clearTimeout(timer);
+        timer = null;
+        dirty = false;
+        void (async () => {
+          if (unsaved) await enqueue(() => files.store('browser').put(unsaved)).catch(() => undefined);
+          await newFile(false, true);
+          say(unsaved
+            ? 'Signed out. Your last unsaved changes were kept as a copy in this browser; files in your account show again when you sign in.'
+            : 'Signed out. Files in your account show again when you sign in.');
+        })();
         return;
       }
-      if (u && !was && location === 'browser' && !worthSaving(file)) location = 'account';
+      if (u && location === 'browser' && !worthSaving(file)) location = 'account';
       void renderFiles();
     });
   }

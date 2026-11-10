@@ -33,9 +33,10 @@ export function normHeader(h: string): string {
 }
 
 const SSN_HEADER = /\b(ssn|ss#|ss ?no|ss ?num(ber)?|social security|soc sec|taxpayer id|tax ?id|tin|itin)(?!\w)/;
-const SSN_VALUE = /^\d{3}-\d{2}-\d{4}$/;
+// Dashed, or nine digits in a row (an undashed SSN in an "ID" column must not be kept).
+const SSN_VALUE = /^\d{3}-\d{2}-\d{4}$|^\d{9}$/;
 
-/** Indexes of columns that hold SSNs, by header or by values shaped 123-45-6789. */
+/** Indexes of columns that hold SSNs, by header or by values shaped 123-45-6789 or 123456789. */
 export function ssnColumns(table: CsvTable): number[] {
   const [head, ...body] = table.rows;
   if (!head) return [];

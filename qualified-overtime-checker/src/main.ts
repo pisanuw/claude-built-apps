@@ -28,9 +28,9 @@ function browserStore() {
 const auth: AuthHooks | undefined = hasSupabase()
   ? {
       mount: (el) => void mountSignIn(el),
-      onUser: (cb) => void onAuth((u) => cb(u ? { email: u.email ?? null } : null)),
+      onUser: (cb) => void onAuth((u) => cb(u ? { id: u.id, email: u.email ?? null } : null)),
       accountStore: () => new SupabaseFileStore(getSupabase() as unknown as TableClient),
     }
   : undefined;
 
-void mountApp(root, { files: new Files(browserStore()), auth, newId: () => crypto.randomUUID() });
+void mountApp(root, { files: new Files(browserStore()), auth });

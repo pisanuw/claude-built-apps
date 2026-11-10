@@ -38,7 +38,6 @@ create policy client_files_delete_own on app_qualified_overtime_checker.client_f
 
 -- Signed-in users only; anonymous visitors get no grants in app schemas.
 grant usage on schema app_qualified_overtime_checker to authenticated;
-grant all on all tables in schema app_qualified_overtime_checker to authenticated;
-grant all on all sequences in schema app_qualified_overtime_checker to authenticated;
-alter default privileges in schema app_qualified_overtime_checker grant all on tables to authenticated;
-alter default privileges in schema app_qualified_overtime_checker grant all on sequences to authenticated;
+-- Row operations only (no truncate, which row level security does not cover).
+grant select, insert, update, delete on all tables in schema app_qualified_overtime_checker to authenticated;
+alter default privileges in schema app_qualified_overtime_checker grant select, insert, update, delete on tables to authenticated;

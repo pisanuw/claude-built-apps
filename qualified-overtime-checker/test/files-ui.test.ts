@@ -31,7 +31,7 @@ async function importCsv(name: string, text: string) {
 }
 
 function fakeAuth(account: FileStore) {
-  let cb: (u: { email: string | null } | null) => void = () => {};
+  let cb: (u: { id: string; email: string | null } | null) => void = () => {};
   const hooks: AuthHooks = {
     mount: (el) => {
       el.textContent = 'sign-in panel';
@@ -41,7 +41,7 @@ function fakeAuth(account: FileStore) {
     },
     accountStore: () => account,
   };
-  return { hooks, signIn: async () => (cb({ email: 'ann@example.com' }), settle()), signOut: async () => (cb(null), settle()) };
+  return { hooks, signIn: async (id = 'u1') => (cb({ id, email: `${id}@example.com` }), settle()), signOut: async () => (cb(null), settle()) };
 }
 
 interface Opts {

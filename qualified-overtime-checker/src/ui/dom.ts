@@ -62,3 +62,13 @@ export function readFileText(file: Blob): Promise<string> {
     reader.readAsText(file);
   });
 }
+
+/** A version 4 UUID: crypto.randomUUID where it exists (secure origins, Safari 15.4+), getRandomValues otherwise. */
+export function uuid(c: Pick<Crypto, 'getRandomValues'> & { randomUUID?: () => string } = crypto): string {
+  if (typeof c.randomUUID === 'function') return c.randomUUID();
+  const b = c.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const x = [...b].map((v) => v.toString(16).padStart(2, '0')).join('');
+  return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20)}`;
+}
