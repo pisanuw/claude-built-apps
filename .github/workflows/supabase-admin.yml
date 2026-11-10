@@ -7,6 +7,7 @@
 #   apply-shared             run platform/supabase/shared/*.sql, recording each in platform.migrations
 #   migrate <arg: slug>      run <slug>/supabase/migrations/*.sql the same way
 #   expose-schema <arg>      add a schema (platform, app_<slug_>) to PostgREST's db_schema
+#   check-schema <arg>       read-only security check of a schema
 #   configure-auth           additive auth settings; flags "--dry-run" and "--google"
 #   keys                     print the URL and anon key as platform/supabase.json
 #   usage [arg: days]        print the LLM usage report
@@ -15,25 +16,32 @@
 #   domain-activate          flag --callbacks-ready: switch Auth to the custom domain
 #   check-google [arg: return URL]  test the Google sign-in request without logging in; flag --base=URL for a custom auth domain
 # Shell commands (Supabase CLI, project dir platform/):
-#   deploy-gateway           deploy the llm-gateway edge function
+#   deploy-function <arg: name>  deploy platform/supabase/functions/<name> (verify_jwt from supabase/config.toml)
+#   deploy-gateway           the same as deploy-function llm-gateway
 #   set-gateway-key          set the ANTHROPIC_API_KEY function secret from the repo secret
+#   set-sign-in-secrets      set the sign-in-link and auth-email-hook function secrets (RESEND_API,
+#                            ADMIN_EMAIL, TURNSTILE_SECRET, TURNSTILE_SITE_KEY) and generate
+#                            SIGN_IN_HASH_KEY and SEND_EMAIL_HOOK_SECRET once
+#   email-hook <arg: status | check | on | off>  Supabase Auth's Send Email hook; "on" (owner's yes
+#                            first) sets a fresh SEND_EMAIL_HOOK_SECRET in the function and in Auth;
+#                            flag "--dry-run" with on
 name: Supabase admin
 
 on:
   workflow_dispatch:
     inputs:
       command:
-        description: 'inspect | sql | apply-shared | migrate | expose-schema | check-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | deploy-gateway | set-gateway-key'
+        description: 'inspect | sql | apply-shared | migrate | expose-schema | check-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | deploy-function | deploy-gateway | set-gateway-key | set-sign-in-secrets | email-hook'
         required: true
         default: 'inspect'
         type: string
       arg:
-        description: 'sql: file path; migrate: app slug; expose-schema, check-schema: schema; usage: days; check-google: return URL; domain-setup: host'
+        description: 'sql: file path; migrate: app slug; expose-schema, check-schema: schema; usage: days; check-google: return URL; domain-setup: host; deploy-function: function name; email-hook: status, check, on or off'
         required: false
         default: ''
         type: string
       flags:
-        description: 'Flags for the script, e.g. "--google --dry-run" (configure-auth), "--write" (keys), "--base=https://auth.hintwise.org" (check-google), "--callbacks-ready" (domain-activate)'
+        description: 'Flags for the script, e.g. "--google --dry-run" (configure-auth), "--write" (keys), "--base=https://auth.hintwise.org" (check-google), "--callbacks-ready" (domain-activate), "--dry-run" (email-hook on)'
         required: false
         default: ''
         type: string
@@ -55,7 +63,7 @@ jobs:
           node-version: '22'
 
       - name: Run
-        if: inputs.command != 'deploy-gateway' && inputs.command != 'set-gateway-key'
+        if: inputs.command != 'deploy-function' && inputs.command != 'deploy-gateway' && inputs.command != 'set-gateway-key' && inputs.command != 'set-sign-in-secrets' && inputs.command != 'email-hook'
         run: node platform/supabase-admin.mjs "$CMD" $ARG $FLAGS
         env:
           CMD: ${{ inputs.command }}
@@ -86,25 +94,38 @@ jobs:
           echo "Committed platform/supabase.json."
 
       - uses: supabase/setup-cli@v1
-        if: inputs.command == 'deploy-gateway' || inputs.command == 'set-gateway-key'
+        if: inputs.command == 'deploy-function' || inputs.command == 'deploy-gateway' || inputs.command == 'set-gateway-key' || inputs.command == 'set-sign-in-secrets' || inputs.command == 'email-hook'
         with:
           version: latest
 
-      - name: Deploy the llm-gateway edge function
-        if: inputs.command == 'deploy-gateway'
+      - name: Deploy an edge function
+        if: inputs.command == 'deploy-function' || inputs.command == 'deploy-gateway'
         # The CLI reads SUPABASE_ACCESS_TOKEN from the environment. The project
         # dir is platform/ (it holds supabase/config.toml and
-        # supabase/functions/llm-gateway). The CLI (9 Nov 2026) asks before
+        # supabase/functions/<name>). The CLI (9 Nov 2026) asks before
         # changing a remote project and refuses without a terminal, so pass
         # --yes; it calls --project-ref deprecated in favour of --remote=<ref>,
-        # so try --remote first and fall back for older CLIs.
+        # so try --remote first and fall back for older CLIs. A function whose
+        # config.toml section says verify_jwt = false also gets
+        # --no-verify-jwt, so it stays public even if the CLI ignored the file.
         working-directory: platform
         run: |
           REF=$(printf '%s' "$SUPABASE_URL" | sed -nE 's#^https?://([a-z0-9]+)\.supabase\.co.*#\1#p')
           [ -n "$REF" ] || { echo "::error::SUPABASE_URL does not look like https://<ref>.supabase.co"; exit 1; }
-          supabase functions deploy llm-gateway --remote="$REF" --yes \
-            || supabase functions deploy llm-gateway --project-ref "$REF" --yes
+          NAME="$ARG"
+          [ "$CMD" = "deploy-gateway" ] && NAME="llm-gateway"
+          printf '%s' "$NAME" | grep -Eq '^[a-z0-9][a-z0-9-]*$' || { echo "::error::deploy-function needs the function name as arg, e.g. sign-in-link"; exit 1; }
+          [ -f "supabase/functions/$NAME/index.ts" ] || { echo "::error::platform/supabase/functions/$NAME/index.ts does not exist"; exit 1; }
+          grep -q "^\[functions\.$NAME\]" supabase/config.toml || { echo "::error::platform/supabase/config.toml has no [functions.$NAME] section"; exit 1; }
+          VERIFY=$(awk -v s="[functions.$NAME]" '$0 == s { f = 1; next } /^\[/ { f = 0 } f && /^verify_jwt[ \t]*=/ { gsub(/[ \t]/, ""); split($0, a, "="); print a[2]; exit }' supabase/config.toml)
+          EXTRA=""
+          [ "$VERIFY" = "false" ] && EXTRA="--no-verify-jwt"
+          echo "Deploying $NAME (verify_jwt ${VERIFY:-true})"
+          supabase functions deploy "$NAME" --remote="$REF" --yes $EXTRA \
+            || supabase functions deploy "$NAME" --project-ref "$REF" --yes $EXTRA
         env:
+          CMD: ${{ inputs.command }}
+          ARG: ${{ inputs.arg }}
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
 
@@ -122,3 +143,90 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Set the sign-in function secrets
+        if: inputs.command == 'set-sign-in-secrets'
+        # RESEND_API and ADMIN_EMAIL from the repo secrets of the same names;
+        # TURNSTILE_SECRET from the repo secret TURNSTILE_SECRET_KEY (left as
+        # it is when that is absent); TURNSTILE_SITE_KEY from the repo variable
+        # or secret TURNSTILE_SITE_KEY, else the public key committed in
+        # platform/supabase.json. SIGN_IN_HASH_KEY and SEND_EMAIL_HOOK_SECRET
+        # are generated only when the project does not have them yet (a new
+        # hash key would cut every address off its history); the names come
+        # from the Management API, which lists names and digests, not values.
+        # The log shows booleans only.
+        working-directory: platform
+        run: |
+          set -euo pipefail
+          REF=$(printf '%s' "$SUPABASE_URL" | sed -nE 's#^https?://([a-z0-9]+)\.supabase\.co.*#\1#p')
+          [ -n "$REF" ] || { echo "::error::SUPABASE_URL does not look like https://<ref>.supabase.co"; exit 1; }
+          [ -n "$RESEND_API" ] || { echo "::error::RESEND_API repo secret is not set"; exit 1; }
+          [ -n "$ADMIN_EMAIL" ] || { echo "::error::ADMIN_EMAIL repo secret is not set"; exit 1; }
+          NAMES=$(curl -fsS -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" "https://api.supabase.com/v1/projects/$REF/secrets" | jq -r '.[].name')
+          has() { printf '%s\n' "$NAMES" | grep -qx "$1"; }
+          ARGS=("RESEND_API=$RESEND_API" "ADMIN_EMAIL=$ADMIN_EMAIL")
+          SITE_KEY="${TURNSTILE_SITE_KEY_REPO:-0x4AAAAAAF7YqIR2_9E_hu1x}"
+          ARGS+=("TURNSTILE_SITE_KEY=$SITE_KEY")
+          if [ -n "$TURNSTILE_SECRET_KEY" ]; then ARGS+=("TURNSTILE_SECRET=$TURNSTILE_SECRET_KEY"); fi
+          HASH_NEW=false
+          if ! has SIGN_IN_HASH_KEY; then
+            V=$(openssl rand -hex 32); echo "::add-mask::$V"; ARGS+=("SIGN_IN_HASH_KEY=$V"); HASH_NEW=true
+          fi
+          HOOK_NEW=false
+          if ! has SEND_EMAIL_HOOK_SECRET; then
+            V="v1,whsec_$(openssl rand -base64 32)"; echo "::add-mask::$V"; ARGS+=("SEND_EMAIL_HOOK_SECRET=$V"); HOOK_NEW=true
+          fi
+          supabase secrets set --remote="$REF" --yes "${ARGS[@]}" >/dev/null \
+            || supabase secrets set --project-ref "$REF" --yes "${ARGS[@]}" >/dev/null
+          present() { if [ -n "$1" ]; then echo true; else echo false; fi; }
+          echo "Function secrets set (values not shown):"
+          echo "  RESEND_API: true"
+          echo "  ADMIN_EMAIL: true"
+          echo "  TURNSTILE_SECRET from repo secret TURNSTILE_SECRET_KEY: $(present "$TURNSTILE_SECRET_KEY")"
+          echo "  TURNSTILE_SITE_KEY from repo variable or secret TURNSTILE_SITE_KEY: $(present "$TURNSTILE_SITE_KEY_REPO") (else the committed public key)"
+          echo "  SIGN_IN_HASH_KEY generated now: $HASH_NEW (false: kept the one already set)"
+          echo "  SEND_EMAIL_HOOK_SECRET generated now: $HOOK_NEW (false: kept the one already set)"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          RESEND_API: ${{ secrets.RESEND_API }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          TURNSTILE_SITE_KEY_REPO: ${{ vars.TURNSTILE_SITE_KEY || secrets.TURNSTILE_SITE_KEY }}
+
+      - name: Switch the Send Email hook
+        if: inputs.command == 'email-hook'
+        # status, check and off only call the script. on (owner's yes first):
+        # check that auth-email-hook is deployed with its secrets, generate a
+        # fresh secret, set it as the function secret, then point Auth's Send
+        # Email hook at the function with the same secret. The function
+        # secret cannot be read back, so on always starts a new one; while it
+        # replaces an old one, auth emails can fail for a few seconds.
+        working-directory: platform
+        run: |
+          set -euo pipefail
+          REF=$(printf '%s' "$SUPABASE_URL" | sed -nE 's#^https?://([a-z0-9]+)\.supabase\.co.*#\1#p')
+          [ -n "$REF" ] || { echo "::error::SUPABASE_URL does not look like https://<ref>.supabase.co"; exit 1; }
+          case "$ARG" in
+            on)
+              node supabase-admin.mjs email-hook check
+              if printf '%s' "$FLAGS" | grep -q -- '--dry-run'; then node supabase-admin.mjs email-hook on --dry-run; exit 0; fi
+              SECRET="v1,whsec_$(openssl rand -base64 32)"
+              echo "::add-mask::$SECRET"
+              supabase secrets set --remote="$REF" --yes "SEND_EMAIL_HOOK_SECRET=$SECRET" >/dev/null \
+                || supabase secrets set --project-ref "$REF" --yes "SEND_EMAIL_HOOK_SECRET=$SECRET" >/dev/null
+              echo "Function secret SEND_EMAIL_HOOK_SECRET replaced (value not shown)."
+              SEND_EMAIL_HOOK_SECRET="$SECRET" node supabase-admin.mjs email-hook on
+              ;;
+            ''|status|check|off)
+              node supabase-admin.mjs email-hook "${ARG:-status}" $FLAGS
+              ;;
+            *)
+              echo "::error::email-hook takes status, check, on or off"; exit 1
+              ;;
+          esac
+        env:
+          ARG: ${{ inputs.arg }}
+          FLAGS: ${{ inputs.flags }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

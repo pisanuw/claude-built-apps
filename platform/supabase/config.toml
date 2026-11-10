@@ -1,8 +1,9 @@
-# Minimal Supabase CLI project file so that `supabase functions deploy
-# llm-gateway` runs from platform/ (the "Supabase admin" workflow's
-# deploy-gateway command). No local stack is configured here; the CLI needs
-# only the project id and the function entry. Secrets (ANTHROPIC_API_KEY) are
-# set with `supabase secrets set` (set-gateway-key), never in this file.
+# Minimal Supabase CLI project file so that `supabase functions deploy <name>`
+# runs from platform/ (the "Supabase admin" workflow's deploy-function and
+# deploy-gateway commands). No local stack is configured here; the CLI needs
+# only the project id and each function's entry. Secrets (ANTHROPIC_API_KEY,
+# RESEND_API, SIGN_IN_HASH_KEY, ...) are set with `supabase secrets set`
+# (set-gateway-key, set-sign-in-secrets), never in this file.
 project_id = "hintwise-platform"
 
 [functions.llm-gateway]
@@ -10,3 +11,16 @@ project_id = "hintwise-platform"
 # then verifies the user itself with auth.getUser.
 verify_jwt = true
 entrypoint = "./functions/llm-gateway/index.ts"
+
+[functions.sign-in-link]
+# Public: apps call it before anyone is signed in (anon key as apikey). It
+# checks the Origin, the body and its own limits itself.
+verify_jwt = false
+entrypoint = "./functions/sign-in-link/index.ts"
+
+[functions.auth-email-hook]
+# Called by Supabase Auth (Send Email hook), which signs the request with
+# Standard Webhooks instead of a JWT; the function verifies that signature
+# (SEND_EMAIL_HOOK_SECRET).
+verify_jwt = false
+entrypoint = "./functions/auth-email-hook/index.ts"

@@ -51,15 +51,25 @@
  *                           back. No login, no secret. --base is the auth host
  *                           to test (default SUPABASE_URL; later the custom
  *                           domain). Exits 1 when the flow is broken.
+ *   email-hook status|check|on|off [--dry-run]
+ *                           Supabase Auth's Send Email hook (auth-email-hook):
+ *                           status prints it; check exits 1 unless the function
+ *                           is deployed and its secrets are set; on points the
+ *                           hook at the function with SEND_EMAIL_HOOK_SECRET
+ *                           from the env (the workflow generates it and sets
+ *                           the same value as the function secret first); off
+ *                           switches it off. Owner's yes before on.
  *
- * The gateway itself is deployed by shell steps of the same workflow
- * (deploy-gateway, set-gateway-key), not by this script.
+ * Edge functions are deployed, and their secrets set, by shell steps of the
+ * same workflow (deploy-function, deploy-gateway, set-gateway-key,
+ * set-sign-in-secrets), not by this script.
  *
  * Env: SUPABASE_ACCESS_TOKEN (personal access token), and SUPABASE_URL
  * (https://<ref>.supabase.co) or SUPABASE_PROJECT_REF. configure-auth also
  * reads RESEND_API and, with --google, HINTWISE_AUTH_GOOGLE_ID and
  * HINTWISE_AUTH_GOOGLE_SECRET. domain-setup also reads CLOUDFLARE_API_TOKEN
- * (and CLOUDFLARE_ZONE_ID as a fallback) for the DNS records.
+ * (and CLOUDFLARE_ZONE_ID as a fallback) for the DNS records. email-hook on
+ * reads SEND_EMAIL_HOOK_SECRET.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -132,7 +142,7 @@ async function inspect() {
   console.log('\nAuth settings (values hidden for secret-like keys):');
   try {
     const a = await api(`/v1/projects/${ref}/config/auth`);
-    const keep = /^(site_url|uri_allow_list|disable_signup|external_email_enabled|external_anonymous_users_enabled|mailer_autoconfirm|mailer_otp_exp|mailer_otp_length|smtp_host|smtp_port|smtp_user|smtp_sender_name|smtp_admin_email|smtp_max_frequency|rate_limit_email_sent|external_google_enabled|external_google_client_id|external_google_skip_nonce_check|password_min_length|jwt_exp|refresh_token_rotation_enabled|security_captcha_enabled|mfa_totp_enroll_enabled|external_github_enabled|external_apple_enabled|external_azure_enabled)$/;
+    const keep = /^(site_url|uri_allow_list|disable_signup|external_email_enabled|external_anonymous_users_enabled|mailer_autoconfirm|mailer_otp_exp|mailer_otp_length|smtp_host|smtp_port|smtp_user|smtp_sender_name|smtp_admin_email|smtp_max_frequency|rate_limit_email_sent|external_google_enabled|external_google_client_id|external_google_skip_nonce_check|password_min_length|jwt_exp|refresh_token_rotation_enabled|security_captcha_enabled|mfa_totp_enroll_enabled|external_github_enabled|external_apple_enabled|external_azure_enabled|hook_send_email_enabled|hook_send_email_uri)$/;
     const shown = Object.fromEntries(Object.entries(safe(a)).filter(([k]) => keep.test(k)));
     for (const [k, v] of Object.entries(shown)) console.log(`  ${k}: ${JSON.stringify(v)}`);
     const providers = Object.entries(a).filter(([k, v]) => /^external_.*_enabled$/.test(k) && v === true).map(([k]) => k.replace(/^external_|_enabled$/g, ''));
@@ -471,6 +481,13 @@ export function pickAnonKey(keys) {
   return hit && typeof hit.api_key === 'string' ? hit.api_key : null;
 }
 
+/** Pure: platform/supabase.json with url and anonKey first, keeping any other public value it already has. */
+export function publicClientFile(existing, publicUrlValue, anonKey) {
+  const rest = existing && typeof existing === 'object' && !Array.isArray(existing) ? existing : {};
+  const others = Object.fromEntries(Object.entries(rest).filter(([k]) => k !== 'url' && k !== 'anonKey'));
+  return { url: publicUrlValue, anonKey, ...others };
+}
+
 async function keys() {
   const list = await api(`/v1/projects/${ref}/api-keys`);
   const anon = pickAnonKey(list);
@@ -482,7 +499,10 @@ async function keys() {
   // The anon key is public by design (it is shipped in every app's bundle);
   // the service_role key in the same listing is never printed. Once the custom
   // domain is active, apps use it (docs/platform.md section 2, step 7).
-  const out = { url: publicUrl(await hostnameConfig(), url || `https://${ref}.supabase.co`), anonKey: anon };
+  // Other public values already in the file (turnstileSiteKey) are kept.
+  let existing = {};
+  try { existing = JSON.parse(fs.readFileSync(path.join(ROOT, 'platform', 'supabase.json'), 'utf8')); } catch { /* no file yet */ }
+  const out = publicClientFile(existing, publicUrl(await hostnameConfig(), url || `https://${ref}.supabase.co`), anon);
   const json = JSON.stringify(out, null, 2) + '\n';
   console.log('platform/supabase.json:');
   console.log(json);
@@ -707,6 +727,59 @@ async function checkGoogle(returnTo) {
   console.log('Google sign-in request accepted: a person can sign in from here.');
 }
 
+// ---- Send Email hook (auth-email-hook) -------------------------------------
+
+/** The function secrets auth-email-hook needs before Auth may hand it every email. */
+export const EMAIL_HOOK_SECRETS = ['SEND_EMAIL_HOOK_SECRET', 'RESEND_API', 'SIGN_IN_HASH_KEY'];
+
+/** Pure: the function URL Auth calls (the project's own address, not the custom domain). */
+export const emailHookUri = (projectRef) => `https://${projectRef}.supabase.co/functions/v1/auth-email-hook`;
+
+/** Pure: what stops the hook from being switched on: the function not deployed, or a secret missing. */
+export function emailHookProblems(functions, secrets) {
+  const problems = [];
+  const fn = (Array.isArray(functions) ? functions : []).find((f) => f?.slug === 'auth-email-hook');
+  if (!fn) problems.push('the auth-email-hook function is not deployed (deploy-function auth-email-hook)');
+  else if (fn.status && fn.status !== 'ACTIVE') problems.push(`the auth-email-hook function is ${fn.status}`);
+  const names = new Set((Array.isArray(secrets) ? secrets : []).map((s) => s?.name));
+  for (const n of EMAIL_HOOK_SECRETS) if (!names.has(n)) problems.push(`function secret ${n} is not set (set-sign-in-secrets)`);
+  return problems;
+}
+
+/**
+ * Pure: the PATCH for config/auth. On: enabled, the function URL and the
+ * secret (a 'v1,whsec_<base64>' value, the same as the function secret).
+ * Off: only the enabled flag, so switching it on again needs a new secret.
+ */
+export function emailHookPatch(action, { uri, secret } = {}) {
+  if (action === 'off') return { hook_send_email_enabled: false };
+  if (action !== 'on') throw new Error(`email-hook: unknown action ${action}`);
+  if (!uri) throw new Error('email-hook on: no function URL');
+  if (!/^v1,whsec_[A-Za-z0-9+/]+=*$/.test(String(secret || ''))) throw new Error('email-hook on: SEND_EMAIL_HOOK_SECRET must be v1,whsec_<base64>');
+  return { hook_send_email_enabled: true, hook_send_email_uri: uri, hook_send_email_secrets: secret };
+}
+
+async function emailHook(action = 'status') {
+  const current = await api(`/v1/projects/${ref}/config/auth`);
+  console.log(`Send Email hook: enabled ${current.hook_send_email_enabled === true}; uri ${current.hook_send_email_uri || '(none)'}; secret ${current.hook_send_email_secrets ? '(set)' : '(unset)'}`);
+  if (action === 'status') return;
+  if (action === 'check' || action === 'on') {
+    const problems = emailHookProblems(await api(`/v1/projects/${ref}/functions`), await api(`/v1/projects/${ref}/secrets`));
+    for (const p of problems) console.log(`::error::${p}`);
+    if (problems.length) fail('the Send Email hook cannot be switched on yet');
+    console.log('auth-email-hook is deployed and its secrets are set.');
+    if (action === 'check') return;
+  }
+  const dryRun = flags.has('--dry-run');
+  const patch = emailHookPatch(action, { uri: emailHookUri(ref), secret: dryRun ? 'v1,whsec_DRYRUN' : process.env.SEND_EMAIL_HOOK_SECRET });
+  console.log(`${dryRun ? 'Would change' : 'Changing'}:`);
+  for (const [k, v] of Object.entries(patch)) console.log(`  ${k}: ${SECRET_KEY.test(k) ? '(new secret)' : JSON.stringify(v)}`);
+  if (dryRun) { console.log('Dry run: nothing sent.'); return; }
+  await api(`/v1/projects/${ref}/config/auth`, { method: 'PATCH', body: JSON.stringify(patch) });
+  const after = await api(`/v1/projects/${ref}/config/auth`);
+  console.log(`After: enabled ${after.hook_send_email_enabled === true}; uri ${after.hook_send_email_uri || '(none)'}; secret ${after.hook_send_email_secrets ? '(set)' : '(unset)'}`);
+}
+
 // ---- main -----------------------------------------------------------------
 
 const commands = {
@@ -723,6 +796,10 @@ const commands = {
   'domain-setup': () => domainSetup(arg),
   'domain-status': () => domainStatus(),
   'domain-activate': () => domainActivate(),
+  'email-hook': () => {
+    if (arg && !['status', 'check', 'on', 'off'].includes(arg)) fail('email-hook: give status, check, on or off');
+    return emailHook(arg || 'status');
+  },
 };
 
 // SUPABASE_ADMIN_NO_RUN=1 lets tests import the pure helpers without running.

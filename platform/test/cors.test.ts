@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { corsHeaders, isAllowedOrigin, jsonHeaders, preflight } from '../src/gateway/cors.ts';
+import { corsHeaders, HINTWISE_ONLY, isAllowedOrigin, isHintwiseOrigin, jsonHeaders, preflight } from '../src/gateway/cors.ts';
+
+describe('hintwise-only CORS (sign-in-link)', () => {
+  it('drops the dev server and keeps hintwise.org', () => {
+    expect(isHintwiseOrigin('https://x.hintwise.org')).toBe(true);
+    expect(isHintwiseOrigin('http://localhost:5173')).toBe(false);
+    expect(isHintwiseOrigin(null)).toBe(false);
+    expect(isAllowedOrigin('http://localhost:5173', HINTWISE_ONLY)).toBe(false);
+    expect(isAllowedOrigin('https://x.hintwise.org', HINTWISE_ONLY)).toBe(true);
+    expect(preflight('http://localhost:5173', HINTWISE_ONLY).status).toBe(403);
+    expect(jsonHeaders('http://localhost:5173', HINTWISE_ONLY)['access-control-allow-origin']).toBeUndefined();
+    expect(corsHeaders('https://x.hintwise.org', HINTWISE_ONLY)['access-control-allow-headers']).toContain('apikey');
+  });
+});
 
 describe('isAllowedOrigin', () => {
   it('allows hintwise.org subdomains and the Vite dev server', () => {
