@@ -452,3 +452,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-10 [decision] Owner: no Resend sending subdomains (each counts against the plan's domain limit); app mail is <slug>@hintwise.org with the app's name as display name.
 2026-11-10 [code] backend-hub on a paid Render instance: owner set it in the dashboard (API showed 0.5c-512mb); the deploy then set plan starter from target.yml; health 200.
 2026-11-10 [decision] Owner: apps follow Google's sign-in branding guidelines; BUILD_ROUTINE.md lists the custom-button rules (text, G logo, themes, type, padding, prominence).
+2026-11-10 [code] StepWise schema app_stepwise: its 0001 migration copied into stepwise/ (sha256 checked) and applied with migrate stepwise (owner's yes); external repo.
