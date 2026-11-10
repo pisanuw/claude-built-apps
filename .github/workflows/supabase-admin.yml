@@ -23,12 +23,12 @@ on:
   workflow_dispatch:
     inputs:
       command:
-        description: 'inspect | sql | apply-shared | migrate | expose-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | deploy-gateway | set-gateway-key'
+        description: 'inspect | sql | apply-shared | migrate | expose-schema | check-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | deploy-gateway | set-gateway-key'
         required: true
         default: 'inspect'
         type: string
       arg:
-        description: 'sql: file path; migrate: app slug; expose-schema: schema; usage: days; check-google: return URL; domain-setup: host'
+        description: 'sql: file path; migrate: app slug; expose-schema, check-schema: schema; usage: days; check-google: return URL; domain-setup: host'
         required: false
         default: ''
         type: string

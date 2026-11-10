@@ -18,6 +18,11 @@
  *                           add a schema to PostgREST's db_schema list;
  *                           --reapply sends the list again when it is stored
  *                           but the API does not serve it yet
+ *   check-schema <schema>   security check of an app schema, read-only:
+ *                           RLS on every table, no anon table access,
+ *                           security definer functions pin search_path, a
+ *                           signed-in stranger sees no row of real data, and
+ *                           Supabase's security advisor; exits 1 on a finding
  *   configure-auth [--google] [--email-rate=N] [--dry-run]
  *                           additive auth settings: hintwise.org redirect
  *                           allow-list, Resend SMTP (RESEND_API), email
@@ -287,6 +292,109 @@ async function waitServed(schema, list, { tries = 12, delayMs = 5000 } = {}) {
     }
   }
   console.log(`::warning::The Data API still does not serve ${schema}; run Supabase admin expose-schema ${schema} --reapply later.`);
+}
+
+// ---- Schema security check -------------------------------------------------
+
+/** SQL expression: the exact row count of table `<alias>.relname` in schema n, run as the current role. */
+const ROWS = (alias) => `(xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', n.nspname, ${alias}.relname), false, true, '')))[1]::text::int`;
+
+/** Pure: SQL (run as postgres) describing every table and risky function of `schema`. */
+export function schemaFactsSql(schema) {
+  const s = lit(schema);
+  return `select json_build_object(
+  'tables', (select coalesce(json_agg(t order by t.name), '[]'::json) from (
+    select c.relname as name, c.relrowsecurity as rls,
+      (select count(*) from pg_policies p where p.schemaname = n.nspname and p.tablename = c.relname)::int as policies,
+      (has_table_privilege('anon', c.oid, 'SELECT') or has_table_privilege('anon', c.oid, 'INSERT')
+        or has_table_privilege('anon', c.oid, 'UPDATE') or has_table_privilege('anon', c.oid, 'DELETE')) as anon_access,
+      ${ROWS('c')} as rows
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = ${s} and c.relkind in ('r', 'p')) t),
+  'definers', (select coalesce(json_agg(p.proname order by p.proname), '[]'::json)
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = ${s} and p.prosecdef
+      and not exists (select 1 from unnest(coalesce(p.proconfig, '{}'::text[])) cfg where cfg like 'search_path=%'))
+) as result;`;
+}
+
+/**
+ * Pure: SQL that counts, per table of `schema`, the rows a signed-in user with
+ * id `uid` (nobody's real id) can see. SET LOCAL keeps the role and claims to
+ * this transaction, which the API ends; nothing is written.
+ */
+export function strangerSql(schema, uid) {
+  const claims = JSON.stringify({ sub: uid, role: 'authenticated' });
+  return `begin;
+set local role authenticated;
+set local request.jwt.claims = ${lit(claims)};
+set local request.jwt.claim.sub = ${lit(uid)};
+select coalesce(json_object_agg(c.relname, ${ROWS('c')}), '{}'::json) as result
+from pg_class c join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = ${lit(schema)} and c.relkind in ('r', 'p') and has_table_privilege('authenticated', c.oid, 'SELECT');`;
+}
+
+/** Pure: the first `result` value anywhere in a query response. */
+export function queryResult(resp) {
+  if (Array.isArray(resp)) {
+    for (const item of resp) {
+      const r = queryResult(item);
+      if (r !== undefined) return r;
+    }
+    return undefined;
+  }
+  if (resp && typeof resp === 'object' && 'result' in resp) {
+    return typeof resp.result === 'string' ? JSON.parse(resp.result) : resp.result;
+  }
+  return undefined;
+}
+
+/**
+ * Pure: findings from the facts, the stranger's view and the advisor lints.
+ * Errors fail the check; notes say what could not be exercised.
+ */
+export function schemaFindings(schema, facts, visible, lints) {
+  const errors = [];
+  const warnings = [];
+  const notes = [];
+  for (const t of facts?.tables ?? []) {
+    if (!t.rls) errors.push(`${schema}.${t.name}: row level security is off`);
+    else if (!t.policies) warnings.push(`${schema}.${t.name}: RLS is on but has no policy, so the app cannot use it`);
+    if (t.anon_access) errors.push(`${schema}.${t.name}: the anon role has table access (share rows through a security definer function instead)`);
+    const seen = visible?.[t.name];
+    if (typeof seen === 'number' && seen > 0) errors.push(`${schema}.${t.name}: a signed-in stranger sees ${seen} of ${t.rows} row(s)`);
+    if (!t.rows) notes.push(`${schema}.${t.name}: no rows yet, so the stranger check had nothing to see`);
+  }
+  for (const fn of facts?.definers ?? []) errors.push(`${schema}.${fn}(): security definer without a fixed search_path`);
+  for (const l of lints ?? []) {
+    if (l?.metadata?.schema !== schema) continue;
+    const line = `advisor ${l.level}: ${l.title || l.name}${l.metadata?.name ? ` (${l.metadata.name})` : ''}`;
+    if (String(l.level).toUpperCase() === 'ERROR') errors.push(line);
+    else warnings.push(line);
+  }
+  return { errors, warnings, notes };
+}
+
+async function checkSchema(schema) {
+  if (!schema || !/^[a-z_][a-z0-9_]*$/.test(schema)) fail('check-schema: give a schema name, e.g. check-schema app_my_app');
+  const facts = queryResult(await sql(schemaFactsSql(schema)));
+  if (!facts?.tables?.length) { console.log(`${schema} has no tables; nothing to check.`); return; }
+  console.log(`${schema}: ${facts.tables.map((t) => `${t.name} (${t.rows} row(s), RLS ${t.rls ? 'on' : 'OFF'}, ${t.policies} polic${t.policies === 1 ? 'y' : 'ies'})`).join('; ')}`);
+  const visible = queryResult(await sql(strangerSql(schema, crypto.randomUUID())));
+  console.log(`A signed-in stranger sees: ${JSON.stringify(visible ?? {})}`);
+  let lints = [];
+  try {
+    const adv = await api(`/v1/projects/${ref}/advisors/security`);
+    lints = Array.isArray(adv) ? adv : (adv?.lints ?? []);
+  } catch (e) {
+    console.log(`::warning::Security advisor not read: ${String(e.message || e).slice(0, 200)}`);
+  }
+  const { errors, warnings, notes } = schemaFindings(schema, facts, visible, lints);
+  for (const n of notes) console.log(`note: ${n}`);
+  for (const w of warnings) console.log(`::warning::${w}`);
+  for (const e of errors) console.log(`::error::${e}`);
+  if (errors.length) process.exit(1);
+  console.log(`${schema}: security check passed.`);
 }
 
 // ---- Auth -----------------------------------------------------------------
@@ -607,6 +715,7 @@ const commands = {
   'apply-shared': () => applyShared(),
   migrate: () => migrate(arg),
   'expose-schema': () => exposeSchema(arg),
+  'check-schema': () => checkSchema(arg),
   'configure-auth': () => configureAuth(),
   keys: () => keys(),
   usage: () => usage(arg),
