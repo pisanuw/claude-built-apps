@@ -38,7 +38,10 @@ values.
   selects it with `createClient(url, anon, { db: { schema: 'app_x' } })`.
   A schema is reachable through the Data API only once it is listed in the
   PostgREST `db_schema` setting, a comma-separated string (today
-  `public,graphql_public,wcv`); `expose-schema app_x` appends to it.
+  `public,graphql_public,wcv`); `expose-schema app_x` appends to it, then waits
+  until the Data API serves the schema and sends the list once more if it does
+  not (on 10 Nov PostgREST kept the old list for 25 minutes until then;
+  `expose-schema app_x --reapply` does it by hand).
 - Every app table has `user_id uuid not null default auth.uid() references
   auth.users(id) on delete cascade`, row level security on, and policies
   `using (user_id = auth.uid())` for select/insert/update/delete. `grant usage

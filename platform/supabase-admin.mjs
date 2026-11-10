@@ -258,6 +258,35 @@ async function exposeSchema(schema) {
   await api(`/v1/projects/${ref}/postgrest`, { method: 'PATCH', body: JSON.stringify({ db_schema: after }) });
   const check = await api(`/v1/projects/${ref}/postgrest`);
   console.log(`db_schema after:  ${check.db_schema}`);
+  await waitServed(schema, after);
+}
+
+/**
+ * Waits until the Data API serves `schema` (any answer but PGRST106, "Invalid
+ * schema"). On 10 Nov the stored list had the new schema but PostgREST kept
+ * the old one for 25 minutes, until the same list was sent again; so after
+ * 60 seconds the list is sent once more, then a warning is printed.
+ */
+async function waitServed(schema, list, { tries = 12, delayMs = 5000 } = {}) {
+  let anonKey = '';
+  try { anonKey = JSON.parse(fs.readFileSync(path.join(ROOT, 'platform', 'supabase.json'), 'utf8')).anonKey || ''; } catch { /* no public key file */ }
+  if (!anonKey || !url) { console.log('Not checking the Data API (no platform/supabase.json anon key or SUPABASE_URL).'); return; }
+  const served = async () => {
+    const res = await fetch(`${url.replace(/\/$/, '')}/rest/v1/`, { headers: { apikey: anonKey, authorization: `Bearer ${anonKey}`, 'accept-profile': schema } });
+    const text = await res.text();
+    return !text.includes('PGRST106');
+  };
+  for (let round = 0; round < 2; round++) {
+    for (let i = 0; i < tries; i++) {
+      if (await served()) { console.log(`The Data API serves ${schema}.`); return; }
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+    if (round === 0) {
+      console.log(`The Data API does not serve ${schema} yet; sending the list again.`);
+      await api(`/v1/projects/${ref}/postgrest`, { method: 'PATCH', body: JSON.stringify({ db_schema: list }) });
+    }
+  }
+  console.log(`::warning::The Data API still does not serve ${schema}; run Supabase admin expose-schema ${schema} --reapply later.`);
 }
 
 // ---- Auth -----------------------------------------------------------------

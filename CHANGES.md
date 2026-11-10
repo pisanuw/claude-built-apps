@@ -443,3 +443,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-10 [note] Owner: UpvoteMe Google sign-in through Supabase works. Its two Google redirect URIs (upvoteme.hintwise.org, upvoteme.netlify.app /api/auth/callback/google) can be removed.
 2026-11-10 [decision] Owner: yes to applying StepWise's migration (schema app_stepwise) to the shared project and exposing the schema once its SQL arrives.
 2026-11-10 [plan] BUILD_ROUTINE.md: "The usual architecture" table (owner: paid Netlify, Render, Supabase, Resend; Google via Supabase); stale supabase.json and migration notes fixed.
+
+2026-11-10 [code] platform: expose-schema now waits until the Data API serves the new schema and re-sends the list once (PostgREST kept the old db_schema for 25 minutes after the qualified-overtime-checker deploy, until expose-schema --reapply); deploy runner passes target.yml env VITE_* values to the local build (they only reached the Netlify site before).
