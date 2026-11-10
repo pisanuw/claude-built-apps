@@ -3,13 +3,17 @@
  * auth email to this function instead of sending it. Pure parts: the
  * Standard Webhooks signature check, the payload, and what to do with it.
  *
- * Only magic links, sign-up confirmations, sign-in codes and password
- * recovery are sent, and only for the apps outside HintWise that share the
- * project (their hosts in HOOK_EXTERNAL_HOSTS, judged by the payload's
- * redirect_to, else site_url). Everything else, including any of these for a
- * hintwise.org page or an unknown host, is refused, so nothing gets around
- * the sign-in-link limits. What is sent goes through the same per-address
- * ladder (hook-service.ts) and links to <SUPABASE_URL>/auth/v1/verify with
+ * The four sign-in emails (magic link, sign-up confirmation, sign-in code,
+ * password recovery) are sent only for the apps outside HintWise that share
+ * the project: their hosts are in HOOK_EXTERNAL_HOSTS, judged by the
+ * payload's redirect_to, else site_url. For a hintwise.org page or an
+ * unknown host they are refused, because HintWise apps send sign-in links
+ * through sign-in-link, so nothing gets around its limits. The other emails
+ * (invite, email change, reauthentication, account notices) come from a
+ * signed-in user or the service role and are sent for every host.
+ *
+ * Everything sent goes through the same per-address ladder
+ * (hook-service.ts), and its links go to <SUPABASE_URL>/auth/v1/verify with
  * token, type and redirect_to, as Supabase's docs describe.
  *
  * Errors use the shape Auth reads from a 200 answer:
@@ -17,13 +21,28 @@
  * status and message. Any status other than 200/202/204 (or 429/503 with
  * retry-after) becomes a bare 500 for the app.
  */
-import { codeEmail, recoveryEmail, signInEmail, signupEmail } from './email.ts';
+import {
+  codeEmail,
+  emailChangeCurrentEmail,
+  emailChangeNewEmail,
+  inviteEmail,
+  noticeEmail,
+  reauthenticationEmail,
+  recoveryEmail,
+  signInEmail,
+  signupEmail,
+} from './email.ts';
 import type { EmailMessage } from './resend.ts';
 
 /** Seconds a signed hook call stays valid either side of now (Standard Webhooks' usual five minutes). */
 export const TOLERANCE_SECONDS = 5 * 60;
-/** The only email types the hook sends, and only for HOOK_EXTERNAL_HOSTS. */
-export const HOOK_ALLOWED_TYPES: readonly string[] = ['magiclink', 'signup', 'email', 'recovery'];
+/** Sign-in emails: sent only for HOOK_EXTERNAL_HOSTS (HintWise apps use sign-in-link). */
+export const HOOK_SIGN_IN_TYPES: readonly string[] = ['magiclink', 'signup', 'email', 'recovery'];
+/** Emails a signed-in user or the service role causes: sent for every host. Plus every *_notification type. */
+export const HOOK_ACCOUNT_TYPES: readonly string[] = ['invite', 'email_change', 'reauthentication'];
+
+/** True for a type the hook sends for every host. */
+export const isAccountType = (type: string): boolean => HOOK_ACCOUNT_TYPES.includes(type) || /^[a-z_]+_notification$/.test(type);
 export const REFUSAL_MESSAGE = 'Use the HintWise sign-in-link service';
 const HOST = /^(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)+$/;
 
@@ -160,7 +179,7 @@ export function verifyUrl(authBase: string, tokenHash: string, type: string, red
 
 export type HookPlan =
   | { action: 'refuse'; actionType: string; email: string; host: string | null; reason: string }
-  | { action: 'send'; actionType: string; email: string; host: string; message: EmailMessage };
+  | { action: 'send'; actionType: string; email: string; host: string | null; messages: EmailMessage[] };
 
 /**
  * What the hook does with one payload. `authBase` is the project URL
@@ -172,16 +191,35 @@ export function planHook(p: HookPayload, authBase: string, externalHosts: readon
   const to = p.user.email;
   const host = hostOf(d.redirect_to) ?? hostOf(d.site_url);
   const refuse = (reason: string): HookPlan => ({ action: 'refuse', actionType: type, email: to, host, reason });
-  if (!HOOK_ALLOWED_TYPES.includes(type)) return refuse('type');
-  if (!host || !hostAllowed(host, externalHosts)) return refuse('host');
-  const send = (message: EmailMessage): HookPlan => ({ action: 'send', actionType: type, email: to, host, message });
+  const send = (...messages: EmailMessage[]): HookPlan => ({ action: 'send', actionType: type, email: to, host, messages });
   const redirect = d.redirect_to || undefined;
-  if (type === 'email') return d.token ? send(codeEmail(to, d.token, host)) : refuse('no token');
-  if (!d.token_hash) return refuse('no token_hash');
-  const href = verifyUrl(authBase, d.token_hash, type, redirect);
-  if (type === 'magiclink') return send(signInEmail(to, href, null, host));
-  if (type === 'signup') return send(signupEmail(to, href, host));
-  return send(recoveryEmail(to, href));
+  const link = (hash: string) => verifyUrl(authBase, hash, type, redirect);
+
+  if (HOOK_SIGN_IN_TYPES.includes(type)) {
+    if (!host || !hostAllowed(host, externalHosts)) return refuse('host');
+    if (type === 'email') return d.token ? send(codeEmail(to, d.token, host)) : refuse('no token');
+    if (!d.token_hash) return refuse('no token_hash');
+    if (type === 'magiclink') return send(signInEmail(to, link(d.token_hash), null, host));
+    if (type === 'signup') return send(signupEmail(to, link(d.token_hash), host));
+    return send(recoveryEmail(to, link(d.token_hash)));
+  }
+  if (!isAccountType(type)) return refuse('type');
+  // Name the site only when it is an app's, not Auth's own address.
+  const site = host && (hostAllowed(host, externalHosts) || host.endsWith('.hintwise.org')) && host !== 'auth.hintwise.org' ? host : null;
+  if (type === 'reauthentication') return d.token ? send(reauthenticationEmail(to, d.token)) : refuse('no token');
+  if (type === 'invite') return d.token_hash ? send(inviteEmail(to, link(d.token_hash), site)) : refuse('no token_hash');
+  if (type === 'email_change') {
+    // Supabase's names are reversed for backward compatibility:
+    // token_hash_new goes to the current address, token_hash to the new one.
+    const newEmail = p.user.new_email;
+    if (d.token_hash_new && d.token_hash && newEmail) {
+      return send(emailChangeCurrentEmail(to, newEmail, link(d.token_hash_new), site), emailChangeNewEmail(newEmail, link(d.token_hash), site));
+    }
+    // Secure email change off: one pair, sent to the new address.
+    const only = d.token_hash || d.token_hash_new;
+    return only ? send(emailChangeNewEmail(newEmail || to, link(only), site)) : refuse('no token_hash');
+  }
+  return send(noticeEmail(to, type, site));
 }
 
 /** The JSON body Auth reads as a hook error: it answers the app with this status and message. */

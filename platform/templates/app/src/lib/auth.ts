@@ -142,8 +142,12 @@ export async function sendMagicLink(email: string, redirectTo: string, opts: Sen
 export type CompleteResult =
   | { status: 'none' }
   | { status: 'signed-in' }
-  /** The same account is signed in already: the link was left unused and the session kept. */
-  | { status: 'kept' }
+  /**
+   * The link's masked address matches the signed-in account: the session is
+   * kept, and `accept` still verifies the link if the visitor asks (masks
+   * collide: a***@example.com is many people).
+   */
+  | { status: 'kept'; current: string; accept: () => Promise<CompleteResult> }
   /** Another account is signed in: `accept` verifies the link (switching accounts) when the visitor says so. */
   | { status: 'confirm'; hint: string; accept: () => Promise<CompleteResult> }
   | { status: 'error'; message: string };
@@ -155,6 +159,15 @@ export interface UrlWindow {
 }
 
 export const EXPIRED_LINK = 'This sign-in link has expired or was already used. Ask for a new one.';
+
+/** The shape of a link's email_hint ("a***@example.com"); anything else is ignored. */
+export const EMAIL_HINT = /^[^@\s]\*{3}@[a-z0-9.-]{1,253}$/i;
+
+/** The link's email_hint when it has the right shape and length, else ''. */
+export function validHint(hint: string | null | undefined): string {
+  const h = String(hint ?? '');
+  return h.length <= 260 && EMAIL_HINT.test(h) ? h.toLowerCase() : '';
+}
 
 /** "a***@example.com", the same masking sign-in-link uses for the link's email_hint. */
 export function maskEmail(email: string | null | undefined): string {
@@ -169,8 +182,9 @@ export function maskEmail(email: string | null | undefined): string {
  * so a reload does not reuse the link), then:
  * - nobody signed in: supabase.auth.verifyOtp({ token_hash, type: 'email' }),
  *   which works in any browser, not only the one that asked;
- * - the link's account (by its masked email_hint) signed in already: keeps
- *   the session and leaves the link unused;
+ * - an account with the same masked address signed in already: keeps the
+ *   session and offers to use the link instead ({ status: 'kept' }; masks
+ *   collide, so the link is never dropped silently);
  * - another account signed in: asks first ({ status: 'confirm' }), so a link
  *   someone else sent cannot silently swap the visitor's account.
  */
@@ -184,7 +198,7 @@ export async function completeSignInFromUrl(client: AuthClient = getSupabase(), 
   const tokenHash = url.searchParams.get('token_hash');
   const type = url.searchParams.get('type');
   if (!tokenHash || !type) return { status: 'none' };
-  const hint = url.searchParams.get('email_hint') ?? '';
+  const hint = validHint(url.searchParams.get('email_hint'));
   url.searchParams.delete('token_hash');
   url.searchParams.delete('type');
   url.searchParams.delete('email_hint');
@@ -196,7 +210,7 @@ export async function completeSignInFromUrl(client: AuthClient = getSupabase(), 
   const { data } = await client.auth.getSession();
   const current = data.session?.user;
   if (!current) return verify();
-  if (hint && maskEmail(current.email) === hint.toLowerCase()) return { status: 'kept' };
+  if (hint && maskEmail(current.email) === hint) return { status: 'kept', current: hint, accept: verify };
   return { status: 'confirm', hint: hint || 'another account', accept: verify };
 }
 
@@ -372,8 +386,8 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
   let widget: { id: string | null } | null = null;
   let pendingEmail = '';
   let failedChecks = 0;
-  /** A sign-in link for another account, waiting for the visitor's yes. */
-  let pendingSwitch: { hint: string; accept: () => Promise<CompleteResult> } | null = null;
+  /** A sign-in link waiting for the visitor's yes: "Switch to ...?", or "Use the link instead". */
+  let pendingSwitch: { note: string; label: string; accept: () => Promise<CompleteResult> } | null = null;
   let shownUser: User | null = null;
   let shownUserId: string | null = null;
   ensureSignInStyles(el.ownerDocument);
@@ -474,7 +488,13 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
       el.append(who, button('Sign out', () => void signOut(client)));
       if (pendingSwitch) {
         const offer = pendingSwitch;
-        const sw = button(`Switch to ${offer.hint}?`, () => {
+        if (offer.note) {
+          const note = document.createElement('p');
+          note.className = 'hw-signin-note';
+          note.textContent = offer.note;
+          el.append(note);
+        }
+        const sw = button(offer.label, () => {
           pendingSwitch = null;
           void offer.accept().then((r) => {
             if (r.status === 'error') say(r.message);
@@ -527,8 +547,11 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
   if (opts.completeFromUrl !== false) {
     void completeSignInFromUrl(client, opts.window ?? window).then((r) => {
       if (r.status === 'error') say(r.message);
-      if (r.status === 'confirm') {
-        pendingSwitch = { hint: r.hint, accept: r.accept };
+      if (r.status === 'confirm' || r.status === 'kept') {
+        pendingSwitch =
+          r.status === 'confirm'
+            ? { note: '', label: `Switch to ${r.hint}?`, accept: r.accept }
+            : { note: `Already signed in as ${r.current}`, label: 'Use the link instead', accept: r.accept };
         // If the signed-in view is not drawn yet, onAuth's first render shows the offer.
         if (shownUserId) render(shownUser);
       }

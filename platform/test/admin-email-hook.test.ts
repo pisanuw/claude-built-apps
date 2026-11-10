@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { HOOK_ACCOUNT_TYPES, HOOK_SIGN_IN_TYPES } from '../src/signin/hook.ts';
 
 type Admin = typeof import('../supabase-admin.mjs');
 let m: Admin;
@@ -65,6 +66,17 @@ describe('email-hook', () => {
     expect(m.DIRECT_AUTH_CALLS).toEqual(['signInWithOtp', 'signUp', 'resend']);
     expect(m.otpCallers(files)).toEqual(['a/src/lib/auth.ts (signInWithOtp)', 'c/src/x.ts (signInWithOtp, signUp)', 'e/src/z.ts (resend)']);
     expect(m.otpCallers(null)).toEqual([]);
+  });
+  it('says which types the hook refuses or sends for which hosts, with the same lists as the hook', () => {
+    expect(m.HOOK_SIGN_IN_TYPES).toEqual([...HOOK_SIGN_IN_TYPES]);
+    expect(m.HOOK_ACCOUNT_TYPES).toEqual([...HOOK_ACCOUNT_TYPES]);
+    expect(m.hookPolicyLines(['how-of-happiness.netlify.app', '*.wcv.example'])).toEqual([
+      'Refused (logged, bypass alert): magiclink, signup, email, recovery for hintwise.org pages and every host not in HOOK_EXTERNAL_HOSTS; HintWise apps send these through sign-in-link.',
+      'Sent through the per-address ladder: magiclink, signup, email, recovery for how-of-happiness.netlify.app, *.wcv.example.',
+      'Sent through the per-address ladder: invite, email_change, reauthentication and every *_notification, for every host.',
+      'Refused: any other type.',
+    ]);
+    expect(m.hookPolicyLines([])[1]).toBe('Sent through the per-address ladder: magiclink, signup, email, recovery for (none).');
   });
   it('computes HOOK_EXTERNAL_HOSTS from the auth allow-list and site URL, minus hintwise.org', () => {
     const cfg = {

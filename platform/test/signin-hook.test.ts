@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { HOOK_ALLOWED_TYPES, hookError, hookSecretBytes, hostAllowed, hostOf, parseHookPayload, parseHostList, planHook, sameText, TOLERANCE_SECONDS, verifyUrl, verifyWebhook, webhookSignature, type HookPayload } from '../src/signin/hook.ts';
+import { HOOK_ACCOUNT_TYPES, HOOK_SIGN_IN_TYPES, hookError, isAccountType, hookSecretBytes, hostAllowed, hostOf, parseHookPayload, parseHostList, planHook, sameText, TOLERANCE_SECONDS, verifyUrl, verifyWebhook, webhookSignature, type HookPayload } from '../src/signin/hook.ts';
 
 const KEY = crypto.randomBytes(32);
 const SECRET = `v1,whsec_${KEY.toString('base64')}`;
@@ -108,44 +108,85 @@ describe('planHook', () => {
   const EXT = ['how-of-happiness.netlify.app'];
   const plan = (text: string, hosts: readonly string[] = EXT) => planHook(parseHookPayload(text)!, 'https://ref.supabase.co/', hosts);
   const ext = { redirect_to: 'https://how-of-happiness.netlify.app/welcome' };
+  const hw = { redirect_to: 'https://pluck-lab.hintwise.org/' };
 
   it('sends a magic link for an external app, with a verify link back to it', () => {
     const r = plan(payload('magiclink', ext));
     expect(r).toMatchObject({ action: 'send', actionType: 'magiclink', email: 'ann@example.com', host: 'how-of-happiness.netlify.app' });
     if (r.action !== 'send') return;
-    expect(r.message.to).toEqual(['ann@example.com']);
-    expect(r.message.subject).toBe('Your sign-in link');
-    expect(r.message.text).toContain('sign in to how-of-happiness.netlify.app:');
-    expect(r.message.text).toContain('https://ref.supabase.co/auth/v1/verify?token=th&type=magiclink&redirect_to=https%3A%2F%2Fhow-of-happiness.netlify.app%2Fwelcome');
+    expect(r.messages).toHaveLength(1);
+    expect(r.messages[0].to).toEqual(['ann@example.com']);
+    expect(r.messages[0].subject).toBe('Your sign-in link');
+    expect(r.messages[0].text).toContain('sign in to how-of-happiness.netlify.app:');
+    expect(r.messages[0].text).toContain('https://ref.supabase.co/auth/v1/verify?token=th&type=magiclink&redirect_to=https%3A%2F%2Fhow-of-happiness.netlify.app%2Fwelcome');
   });
   it('sends a sign-up confirmation, a sign-in code and a recovery email for an external app', () => {
     const s = plan(payload('signup', ext));
-    expect(s.action === 'send' && s.message.subject).toBe('Confirm your email address');
-    expect(s.action === 'send' && s.message.text).toContain('type=signup');
+    expect(s.action === 'send' && s.messages[0].subject).toBe('Confirm your email address');
+    expect(s.action === 'send' && s.messages[0].text).toContain('type=signup');
     const c = plan(payload('email', ext));
-    expect(c.action === 'send' && c.message.subject).toBe('Your sign-in code');
-    expect(c.action === 'send' && c.message.text).toContain('\n\n123456\n\n');
+    expect(c.action === 'send' && c.messages[0].subject).toBe('Your sign-in code');
+    expect(c.action === 'send' && c.messages[0].text).toContain('\n\n123456\n\n');
     const r = plan(payload('recovery', ext));
-    expect(r.action === 'send' && r.message.subject).toBe('Reset your password');
-    expect(r.action === 'send' && r.message.text).toContain('type=recovery');
-  });
-  it('judges by site_url when there is no redirect_to', () => {
+    expect(r.action === 'send' && r.messages[0].subject).toBe('Reset your password');
+    expect(r.action === 'send' && r.messages[0].text).toContain('type=recovery');
     expect(plan(payload('magiclink', { redirect_to: '', site_url: 'https://how-of-happiness.netlify.app' })).action).toBe('send');
   });
-  it('refuses every allowed type for a hintwise.org page or an unknown host', () => {
-    for (const type of HOOK_ALLOWED_TYPES) {
-      expect(plan(payload(type))).toMatchObject({ action: 'refuse', actionType: type, host: 'pluck-lab.hintwise.org', reason: 'host' });
+  it('refuses the sign-in types for a hintwise.org page or an unknown host', () => {
+    for (const type of HOOK_SIGN_IN_TYPES) {
+      expect(plan(payload(type, hw))).toMatchObject({ action: 'refuse', actionType: type, host: 'pluck-lab.hintwise.org', reason: 'host' });
       expect(plan(payload(type, { redirect_to: 'https://evil.example/' }))).toMatchObject({ action: 'refuse', reason: 'host' });
       expect(plan(payload(type, ext), [])).toMatchObject({ action: 'refuse', reason: 'host' });
     }
     expect(plan(payload('recovery', { redirect_to: '', site_url: '' }))).toMatchObject({ action: 'refuse', host: null, reason: 'host' });
   });
-  it('refuses every other type, even for an external app', () => {
-    for (const type of ['invite', 'email_change', 'reauthentication', 'password_changed_notification', 'carrier_pigeon']) {
-      expect(plan(payload(type, ext))).toMatchObject({ action: 'refuse', actionType: type, reason: 'type' });
+  it('sends the account emails for every host: external, HintWise, unknown or none', () => {
+    for (const data of [ext, hw, { redirect_to: 'https://evil.example/' }, { redirect_to: '', site_url: '' }]) {
+      for (const type of ['invite', 'email_change', 'reauthentication', 'password_changed_notification', 'some_new_notification']) {
+        expect(plan(payload(type, data), []).action, `${type} ${JSON.stringify(data)}`).toBe('send');
+      }
     }
+    expect(HOOK_ACCOUNT_TYPES).toEqual(['invite', 'email_change', 'reauthentication']);
+    expect(isAccountType('mfa_factor_enrolled_notification')).toBe(true);
+    expect(isAccountType('notification')).toBe(false);
   });
-  it('refuses a payload without its token', () => {
+  it('names the app in account emails, but not Auth\'s own address or an unknown host', () => {
+    const inv = plan(payload('invite', hw));
+    expect(inv.action === 'send' && inv.messages[0].text).toContain('an account on pluck-lab.hintwise.org');
+    expect(inv.action === 'send' && inv.messages[0].text).toContain('type=invite');
+    const ext2 = plan(payload('password_changed_notification', ext));
+    expect(ext2.action === 'send' && ext2.messages[0].subject).toBe('Your account on how-of-happiness.netlify.app changed');
+    const auth = plan(payload('password_changed_notification', { redirect_to: '', site_url: 'https://auth.hintwise.org/auth/v1' }));
+    expect(auth.action === 'send' && auth.messages[0].subject).toBe('Your account changed');
+    const unk = plan(payload('invite', { redirect_to: 'https://evil.example/' }));
+    expect(unk.action === 'send' && unk.messages[0].text).toContain('invited to an account for ann@example.com');
+    const generic = plan(payload('some_new_notification', hw));
+    expect(generic.action === 'send' && generic.messages[0].text).toContain('A setting of your account was changed.');
+  });
+  it('sends both email-change messages with Supabase\'s reversed hash names', () => {
+    const r = plan(payload('email_change', { ...hw, token_hash: 'for-new', token_hash_new: 'for-current' }, { new_email: 'new@example.com' }));
+    expect(r.action).toBe('send');
+    if (r.action !== 'send') return;
+    expect(r.messages.map((m) => m.to[0])).toEqual(['ann@example.com', 'new@example.com']);
+    expect(r.messages[0].text).toContain('token=for-current&type=email_change');
+    expect(r.messages[0].text).toContain('from ann@example.com to new@example.com');
+    expect(r.messages[1].text).toContain('token=for-new&type=email_change');
+  });
+  it('sends one email-change message to the new address when secure change is off', () => {
+    const r = plan(payload('email_change', { token_hash: 'only' }, { new_email: 'new@example.com' }));
+    expect(r.action === 'send' && r.messages.map((m) => [m.to[0], m.text.includes('token=only')])).toEqual([['new@example.com', true]]);
+    const other = plan(payload('email_change', { token_hash: '', token_hash_new: 'other' }));
+    expect(other.action === 'send' && other.messages[0].to).toEqual(['ann@example.com']);
+    expect(plan(payload('email_change', { token_hash: '' }))).toMatchObject({ action: 'refuse', reason: 'no token_hash' });
+  });
+  it('sends the reauthentication code', () => {
+    const r = plan(payload('reauthentication', hw));
+    expect(r.action === 'send' && r.messages[0].text).toContain('\n\n123456\n\n');
+    expect(plan(payload('reauthentication', { token: '' }))).toMatchObject({ action: 'refuse', reason: 'no token' });
+    expect(plan(payload('invite', { token_hash: '' }))).toMatchObject({ action: 'refuse', reason: 'no token_hash' });
+  });
+  it('refuses an unknown type, and a sign-in payload without its token', () => {
+    expect(plan(payload('carrier_pigeon', ext))).toMatchObject({ action: 'refuse', reason: 'type' });
     expect(plan(payload('magiclink', { ...ext, token_hash: '' }))).toMatchObject({ action: 'refuse', reason: 'no token_hash' });
     expect(plan(payload('email', { ...ext, token: '' }))).toMatchObject({ action: 'refuse', reason: 'no token' });
   });

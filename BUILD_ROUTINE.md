@@ -254,6 +254,21 @@ the "Supabase admin" workflow with `expose-schema app_<slug_> --reapply`
 Do not add the "built by" footer
 (the deploy injects it). Do not redeploy other apps.
 
+Email sign-in links come from the platform's `sign-in-link` function, which
+only returns links to the apps listed in `platform/src/signin/app-hosts.ts`.
+
+After the first deploy of a new app:
+1. Run `npm run app-hosts` in `platform/`.
+2. Commit the result.
+3. Redeploy sign-in-link: dispatch "Supabase admin" with command
+   `deploy-function` and arg `sign-in-link`. This is a platform function, not
+   another app.
+
+Until then the app's sign-in links are refused, though Google sign-in works.
+CI's platform job fails while `app-hosts.ts` is out of date, so run the
+command in the same push that adds the app's first `deploy/target.yml` when
+you can.
+
 ## Step 5: Finish (day 7, or earlier when PLAN.md is done)
 
 1. PISAN-LABS MIRROR. In claude-built-apps: copy the root LICENSE into

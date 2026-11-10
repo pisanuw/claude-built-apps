@@ -23,9 +23,9 @@ const hmac = (s: string) => crypto.createHmac('sha256', 'hash-key').update(s).di
 const key = (over: Partial<KeyStats> = {}): KeyStats => ({ sent: 0, last_sent_at: null, requests_24h: 0, ...over });
 const quiet = (): AlertCounts => ({ ip_addresses_1h: 0, browser_addresses_1h: 0, email_requests_1h: 1, ip_challenge_failures_1h: 0, sent_1h: 1, alerts: {} });
 
-function signed(type: string, data: Record<string, unknown> = {}, over: { signature?: string; method?: string; email?: string } = {}) {
+function signed(type: string, data: Record<string, unknown> = {}, over: { signature?: string; method?: string; email?: string; newEmail?: string } = {}) {
   const body = JSON.stringify({
-    user: { id: 'u1', email: over.email ?? 'Ann+news@Example.com' },
+    user: { id: 'u1', email: over.email ?? 'Ann+news@Example.com', new_email: over.newEmail ?? '' },
     email_data: { token: '123456', token_hash: 'th', redirect_to: EXT, email_action_type: type, site_url: '', token_new: '', token_hash_new: '', ...data },
   });
   const sig = crypto.createHmac('sha256', KEY).update(`msg_1.${TS}.${body}`).digest('base64');
@@ -43,6 +43,8 @@ interface Setup {
   failRpc?: string;
   noDb?: boolean;
   begin?: BeginResult;
+  /** A begin answer per call (undefined: the default). */
+  beginFor?: () => BeginResult | undefined;
   counts?: AlertCounts | null;
 }
 
@@ -53,7 +55,7 @@ function setup(o: Setup = {}) {
       rpc.push([fn, args]);
       if (o.failRpc === fn) throw new Error(`${fn} down`);
       if (fn === 'sign_in_claim_alert') return (o.claim ?? true) as T;
-      if (fn === 'sign_in_begin') return (o.begin ?? { id: 9, email: key(), browser: key(), ip: { requests_1h: 0 } }) as T;
+      if (fn === 'sign_in_begin') return (o.beginFor?.() ?? o.begin ?? { id: 9, email: key(), browser: key(), ip: { requests_1h: 0 } }) as T;
       if (fn === 'sign_in_finish') return (o.counts === undefined ? quiet() : o.counts) as T;
       return 1 as T;
     }) as Db['rpc'],
@@ -144,6 +146,51 @@ describe('handleEmailHook: emails it lets through', () => {
   });
 });
 
+describe('handleEmailHook: account emails', () => {
+  const HW = 'https://pluck-lab.hintwise.org/settings';
+  it('sends a HintWise app\'s email change to both addresses, each through the ladder', async () => {
+    const s = setup();
+    const req = signed('email_change', { redirect_to: HW, token_hash: 'for-new', token_hash_new: 'for-current' }, { email: 'ann@example.com', newEmail: 'new@example.com' });
+    expect(await (await handleEmailHook(req, s.deps)).json()).toEqual({});
+    const begins = s.rpc.filter(([fn]) => fn === 'sign_in_begin').map(([, a]) => a.p_email_hash);
+    expect(begins).toEqual([hmac('email:ann@example.com'), hmac('email:new@example.com')]);
+    expect(s.sent.map((m) => (m.to as string[])[0])).toEqual(['ann@example.com', 'new@example.com']);
+    expect(s.rpc.filter(([fn]) => fn === 'sign_in_finish').map(([, a]) => a.p_outcome)).toEqual(['sent', 'sent']);
+  });
+  it('sends neither email-change message when one address must wait', async () => {
+    let n = 0;
+    const s = setup({ beginFor: () => (n++ === 1 ? { id: 8, email: key({ sent: 1, last_sent_at: '2026-11-10T11:59:30Z' }), browser: key(), ip: { requests_1h: 0 } } : undefined) });
+    const req = signed('email_change', { redirect_to: HW, token_hash: 'a', token_hash_new: 'b' }, { email: 'ann@example.com', newEmail: 'new@example.com' });
+    expect(await (await handleEmailHook(req, s.deps)).json()).toEqual({ error: { http_code: 429, message: HOOK_WAIT_MESSAGE } });
+    expect(s.sent).toHaveLength(0);
+    expect(s.rpc.filter(([fn]) => fn === 'sign_in_finish').map(([, a]) => a.p_outcome)).toEqual(['wait', 'wait']);
+  });
+  it('counts a change between two +tags of one mailbox as one ladder step', async () => {
+    const s = setup();
+    const req = signed('email_change', { redirect_to: HW, token_hash: 'a', token_hash_new: 'b' }, { email: 'ann+old@example.com', newEmail: 'ann+new@example.com' });
+    expect(await (await handleEmailHook(req, s.deps)).json()).toEqual({});
+    expect(s.rpc.filter(([fn]) => fn === 'sign_in_begin')).toHaveLength(1);
+    expect(s.sent).toHaveLength(2);
+    expect(s.rpc.filter(([fn]) => fn === 'sign_in_finish')).toHaveLength(1);
+  });
+  it('logs an error for the address whose message failed', async () => {
+    let n = 0;
+    const s = setup({ resend: () => (n++ === 0 ? json(200, { id: 'ok' }) : json(500, {})) });
+    const req = signed('email_change', { redirect_to: HW, token_hash: 'a', token_hash_new: 'b' }, { email: 'ann@example.com', newEmail: 'new@example.com' });
+    expect((await (await handleEmailHook(req, s.deps)).json()).error.http_code).toBe(502);
+    expect(s.rpc.filter(([fn]) => fn === 'sign_in_finish').map(([, a]) => a.p_outcome)).toEqual(['sent', 'error']);
+    expect(s.logs.join()).toContain('1 of 2 went out');
+  });
+  it('sends reauthentication, notices and invites for HintWise apps and unknown hosts too', async () => {
+    for (const [type, redirect] of [['reauthentication', HW], ['password_changed_notification', ''], ['invite', HW], ['identity_linked_notification', 'https://evil.example/']]) {
+      const s = setup();
+      expect(await (await handleEmailHook(signed(type, { redirect_to: redirect }), s.deps)).json(), type).toEqual({});
+      expect(s.sent).toHaveLength(1);
+      expect(s.rpc[0][0]).toBe('sign_in_begin');
+    }
+  });
+});
+
 describe('handleEmailHook: refusals', () => {
   it('refuses a HintWise app\'s direct magic link, logs it under the canonical mailbox and alerts once', async () => {
     const s = setup();
@@ -159,15 +206,15 @@ describe('handleEmailHook: refusals', () => {
     expect(s.sent[0]).toMatchObject({ from: 'HintWise <builder@hintwise.org>', to: ['owner@example.org'] });
     expect(String(s.sent[0].text)).not.toContain('ann');
   });
-  it('refuses recovery for an unknown host, and any other type for anyone', async () => {
+  it('refuses recovery for an unknown host, an unknown type, and a sign-in email with no host', async () => {
     const a = setup({ claim: false });
     expect((await (await handleEmailHook(signed('recovery', { redirect_to: 'https://evil.example/' }), a.deps)).json()).error.http_code).toBe(403);
     expect(a.rpc[0][1]).toMatchObject({ p_app: 'evil.example', p_detail: 'bypass: recovery via evil.example (host)' });
     await a.settle();
     expect(a.sent).toHaveLength(0); // the bypass alert already went this hour
     const b = setup();
-    expect((await (await handleEmailHook(signed('email_change'), b.deps)).json()).error.http_code).toBe(403);
-    expect(b.rpc[0][1]).toMatchObject({ p_detail: 'bypass: email_change via how-of-happiness.netlify.app (type)' });
+    expect((await (await handleEmailHook(signed('carrier_pigeon'), b.deps)).json()).error.http_code).toBe(403);
+    expect(b.rpc[0][1]).toMatchObject({ p_detail: 'bypass: carrier_pigeon via how-of-happiness.netlify.app (type)' });
     const c = setup();
     expect((await (await handleEmailHook(signed('magiclink', { redirect_to: '', site_url: '' }), c.deps)).json()).error.http_code).toBe(403);
     expect(c.rpc[0][1]).toMatchObject({ p_app: null, p_detail: 'bypass: magiclink via (no host) (host)' });
@@ -181,15 +228,15 @@ describe('handleEmailHook: refusals', () => {
     expect((await (await handleEmailHook(signed('signup', { redirect_to: 'https://pluck-lab.hintwise.org/' }), s.deps)).json()).error.http_code).toBe(403);
     expect(s.logs.join()).toContain('logging the refusal failed');
     const a = setup({ failRpc: 'sign_in_claim_alert' });
-    await handleEmailHook(signed('invite'), a.deps);
+    await handleEmailHook(signed('carrier_pigeon'), a.deps);
     await a.settle();
     expect(a.logs.join()).toContain('bypass alert failed');
     const r = setup({ resend: () => json(500, {}) });
-    await handleEmailHook(signed('invite'), r.deps);
+    await handleEmailHook(signed('carrier_pigeon'), r.deps);
     await r.settle();
     expect(r.logs.join()).toContain('bypass alert not sent');
     const n = setup({ env: { ADMIN_EMAIL: '' } });
-    await handleEmailHook(signed('invite'), n.deps);
+    await handleEmailHook(signed('carrier_pigeon'), n.deps);
     expect(n.rpc.some(([fn]) => fn === 'sign_in_claim_alert')).toBe(false);
   });
   it('refuses an unsigned or wrongly signed call with 401', async () => {

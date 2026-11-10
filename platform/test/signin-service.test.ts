@@ -115,6 +115,14 @@ describe('handleSignInLink: sending', () => {
     const res = await handleSignInLink(request({}, { 'x-forwarded-for': '' }), s.deps);
     expect(await res.json()).toEqual({ status: 'challenge', siteKey: '0x4AAAAAAF7YqIR2_9E_hu1x' });
     expect(s.rpc[1][1].p_detail).toBe('ip unknown; challenge: ip-unknown');
+    // No hard per-IP limit on the shared 'unknown' key: one busy network must not throttle everyone.
+    expect(s.rpc[0][1]).toMatchObject({ p_ip_hash: hmac('ip:unknown'), p_ip_limit: null });
+    const proxy = setup();
+    await handleSignInLink(request({}, { 'cf-connecting-ip': '172.70.1.1' }), proxy.deps); // a Cloudflare address
+    expect(proxy.rpc[0][1]).toMatchObject({ p_ip_hash: hmac('ip:unknown'), p_ip_limit: null });
+    const bad = setup();
+    await handleSignInLink(request({ email: 'nope' }, { 'x-forwarded-for': '192.168.0.4' }), bad.deps);
+    expect(bad.rpc[0]).toEqual(['sign_in_log', expect.objectContaining({ p_outcome: 'invalid', p_ip_limit: null })]);
     const passed = setup();
     expect(await (await handleSignInLink(request({ turnstileToken: 'tok' }, { 'x-forwarded-for': '' }), passed.deps)).json()).toEqual({ status: 'sent' });
     expect(new URLSearchParams(String(passed.calls.find(([u]) => u.includes('siteverify'))![1].body)).has('remoteip')).toBe(false);

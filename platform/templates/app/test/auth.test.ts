@@ -17,6 +17,7 @@ import {
   googleLogoSvg,
   loadTurnstile,
   maskEmail,
+  validHint,
   MAX_FAILED_CHECKS,
   mountSignIn,
   onAuth,
@@ -195,12 +196,26 @@ describe('completeSignInFromUrl', () => {
     auth.verifyOtp.mockResolvedValueOnce({ data: { user: null, session: null }, error: { message: 'Token has expired or is invalid' } });
     expect(await completeSignInFromUrl(client, win('https://x.hintwise.org/?token_hash=a&type=email'))).toEqual({ status: 'error', message: EXPIRED_LINK });
   });
-  it('keeps the session when the link is for the account already signed in', async () => {
+  it('keeps the session when the mask matches the account signed in, and still offers the link', async () => {
     const { client, auth } = fakeAuth(session); // ann@example.com
-    const w = win('https://x.hintwise.org/app?token_hash=abc&type=email&email_hint=a***@example.com');
-    expect(await completeSignInFromUrl(client, w)).toEqual({ status: 'kept' });
+    const w = win('https://x.hintwise.org/app?token_hash=abc&type=email&email_hint=A***@Example.com');
+    const r = await completeSignInFromUrl(client, w);
+    expect(r.status).toBe('kept');
+    if (r.status !== 'kept') return;
+    expect(r.current).toBe('a***@example.com');
     expect(w.history.replaceState).toHaveBeenCalledWith({ s: 1 }, '', '/app');
     expect(auth.verifyOtp).not.toHaveBeenCalled();
+    expect(await r.accept()).toEqual({ status: 'signed-in' }); // masks collide: the visitor may still use the link
+    expect(auth.verifyOtp).toHaveBeenCalledWith({ token_hash: 'abc', type: 'email' });
+  });
+  it('ignores an email_hint of the wrong shape or length', async () => {
+    expect(validHint('a***@example.com')).toBe('a***@example.com');
+    for (const bad of ['', 'ann@example.com', 'a**@example.com', 'ab***@example.com', 'a***@exa mple.com', 'a***@<b>.com', ' ***@x.org', `a***@${'b'.repeat(254)}`, `a***@${'b'.repeat(253)}.org`, null]) {
+      expect(validHint(bad), String(bad)).toBe('');
+    }
+    const { client } = fakeAuth(session);
+    const r = await completeSignInFromUrl(client, win('https://x.hintwise.org/?token_hash=abc&type=email&email_hint=Click%20here%20to%20win'));
+    expect(r).toMatchObject({ status: 'confirm', hint: 'another account' });
   });
   it('asks before switching when another account is signed in, and verifies only on yes', async () => {
     const { client, auth } = fakeAuth(session);
@@ -548,6 +563,19 @@ describe('mountSignIn', () => {
     expect(f.auth.verifyOtp).toHaveBeenCalledWith({ token_hash: 'h', type: 'email' });
     expect(statusText()).toBe(EXPIRED_LINK);
     expect(root.querySelector('.hw-signin-switch')).toBeNull();
+  });
+  it('says who is signed in and offers "Use the link instead" when the masks match', async () => {
+    const f = fakeAuth(session);
+    const w = { location: { href: 'https://x.hintwise.org/?token_hash=h&type=email&email_hint=a***@example.com' }, history: { state: null, replaceState: vi.fn() } };
+    mountSignIn(root, { client: f.client, redirectTo: 'https://x/', window: w });
+    await flush();
+    await flush();
+    expect(root.querySelector('.hw-signin-note')!.textContent).toBe('Already signed in as a***@example.com');
+    expect(f.auth.verifyOtp).not.toHaveBeenCalled();
+    button('Use the link instead').click();
+    await flush();
+    expect(f.auth.verifyOtp).toHaveBeenCalledWith({ token_hash: 'h', type: 'email' });
+    expect(root.querySelector('.hw-signin-note')).toBeNull();
   });
   it('shows the offer once the signed-in view is drawn, even if the check finishes first', async () => {
     const f = fakeAuth(session);

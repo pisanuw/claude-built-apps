@@ -192,8 +192,12 @@ short:
   - The address counts as its canonical mailbox: no `+tag`, and Gmail dots
     and googlemail.com folded. The email still goes to the address as typed.
   - The IP counts by network: IPv4 as it is, IPv6 by its /64. It is read
-    from `cf-connecting-ip`, else the right-most `x-forwarded-for` entry. To
-    be checked live after the deploy.
+    from `cf-connecting-ip` when that header is there, else the right-most
+    `x-forwarded-for` entry. To be checked live after the deploy.
+  - The IP is `unknown` when it does not parse as an address, or when it is
+    private, loopback, link-local, CGNAT, reserved or one of Cloudflare's
+    published proxy ranges. The list is hard-coded in
+    `platform/src/signin/keys.ts`, dated 10 Nov.
 - **Ladder per address and per browser.** The wait between links is 1, 3,
   5, 8, 13 and 21 minutes, then the sum of the previous two (34, 55, 89, ...),
   capped at 24 h. Only links since the key's last quiet day count: 24 h
@@ -202,8 +206,9 @@ short:
 - **Per IP.**
   - Lenient, because classrooms and offices share an IP: 20 requests an
     hour pass freely, and above that the challenge is required.
-  - Above 100 an hour from one network, the answer is a wait and no row is
-    written.
+  - Above 100 an hour from one known network, the answer is a wait and no
+    row is written. An unknown IP has no hard limit, since all unknown
+    requests share one key; it gets the challenge instead.
 - **Challenge.** A Cloudflare Turnstile check is required when any of these
   holds:
   - the 10th request in 24 h for one address or one browser;
@@ -227,9 +232,11 @@ short:
   `?token_hash=<hash>&type=email&email_hint=<a***@example.com>`.
 
   The app calls `supabase.auth.verifyOtp({ token_hash, type: 'email' })`,
-  which works in any browser. When another account is signed in, the
-  template asks "Switch to a***@example.com?" first; for the same account
-  it keeps the session.
+  which works in any browser. The template ignores an `email_hint` of the
+  wrong shape. When another account is signed in, it asks "Switch to
+  a***@example.com?" first. When the signed-in account has the same masked
+  address, it says "Already signed in as a***@example.com" and offers "Use
+  the link instead", since masks collide.
 - **Log.** Every request is a row in `platform.sign_in_requests`: hashed
   keys (HMAC-SHA256 under the function secret `SIGN_IN_HASH_KEY`), app,
   outcome, detail. Rows are kept 30 days. Only the service role touches it,
@@ -243,26 +250,29 @@ short:
   - more than 100 links go out in an hour.
 - **Closing the side door.** Supabase's Send Email hook, the function
   `auth-email-hook`, takes every auth email once it is switched on.
-  - It sends only magic links, sign-ups, sign-in codes and password recovery
+  - Magic links, sign-ups, sign-in codes and password recovery are sent only
     for the apps outside HintWise on this project, the hosts in
     `HOOK_EXTERNAL_HOSTS`. That list is computed from the auth redirect
     allow-list and site URL by `set-sign-in-secrets`; rerun it after
-    changing the allow-list. Those emails go through the same per-address
-    ladder.
-  - Everything else is refused with 403 "Use the HintWise sign-in-link
-    service", logged and raises the bypass alert: a HintWise app's direct
-    `signInWithOtp`/`signUp`/`resend`, recovery for an unknown host, invite,
-    email change, reauthentication and notices.
+    changing the allow-list.
+  - The same four for a hintwise.org page or an unknown host are refused
+    with 403 "Use the HintWise sign-in-link service", logged, and raise the
+    bypass alert. HintWise apps send them through sign-in-link.
+  - Invite, email change (both messages), reauthentication and account
+    notices are sent for every host.
+  - Everything the hook sends goes through the same per-address ladder. A
+    due wait refuses it.
 
-  **Switching it on changes every app on the shared project.** External apps
-  keep only those four emails, laddered. qualified-overtime-checker, whose
+  **Switching it on changes every app on the shared project.** Every email
+  is laddered. qualified-overtime-checker, whose
   `src/lib/auth.ts` still calls `signInWithOtp` (10 Nov), loses its email
   sign-in until it moves to `sign-in-link`.
 
   `email-hook check` lists every app in this repo that still calls
   `signInWithOtp`, `signUp` or `resend`. `email-hook on` refuses while there
   is one, unless given `--allow-otp-apps`, and refuses with an empty
-  `HOOK_EXTERNAL_HOSTS` unless given `--accept-external-breakage`.
+  `HOOK_EXTERNAL_HOSTS` unless given `--accept-external-breakage`. It also
+  prints which types are refused or sent for which hosts.
 
 Deployment order, each step a "Supabase admin" dispatch:
 

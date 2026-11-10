@@ -738,7 +738,22 @@ async function checkGoogle(returnTo) {
 /** The function secrets auth-email-hook needs before Auth may hand it every email. */
 export const EMAIL_HOOK_SECRETS = ['SEND_EMAIL_HOOK_SECRET', 'RESEND_API', 'SIGN_IN_HASH_KEY', 'HOOK_EXTERNAL_HOSTS'];
 
-/** The Auth calls that send an email without sign-in-link: the hook refuses them for HintWise apps. */
+/** The same lists as platform/src/signin/hook.ts (a test keeps them equal). */
+export const HOOK_SIGN_IN_TYPES = ['magiclink', 'signup', 'email', 'recovery'];
+export const HOOK_ACCOUNT_TYPES = ['invite', 'email_change', 'reauthentication'];
+
+/** Pure: which types auth-email-hook refuses or sends for which hosts, printed by email-hook check. */
+export function hookPolicyLines(hosts) {
+  const ext = hosts.length ? hosts.join(', ') : '(none)';
+  return [
+    `Refused (logged, bypass alert): ${HOOK_SIGN_IN_TYPES.join(', ')} for hintwise.org pages and every host not in HOOK_EXTERNAL_HOSTS; HintWise apps send these through sign-in-link.`,
+    `Sent through the per-address ladder: ${HOOK_SIGN_IN_TYPES.join(', ')} for ${ext}.`,
+    `Sent through the per-address ladder: ${HOOK_ACCOUNT_TYPES.join(', ')} and every *_notification, for every host.`,
+    'Refused: any other type.',
+  ];
+}
+
+/** The Auth calls that send a sign-in email without sign-in-link: the hook refuses those for HintWise apps. */
 export const DIRECT_AUTH_CALLS = ['signInWithOtp', 'signUp', 'resend'];
 
 /**
@@ -844,7 +859,9 @@ async function emailHook(action = 'status') {
     if (problems.length) fail('the Send Email hook cannot be switched on yet');
     console.log('auth-email-hook is deployed, its secrets are set, and no app in this repo sends Auth email directly.');
     const hosts = externalHosts(current);
-    console.log(`Hosts outside HintWise whose magic links, sign-ups and recovery emails the hook still sends (HOOK_EXTERNAL_HOSTS, set by set-sign-in-secrets from this list): ${hosts.join(', ') || '(none)'}`);
+    console.log(`HOOK_EXTERNAL_HOSTS (set by set-sign-in-secrets from this list): ${hosts.join(', ') || '(none)'}`);
+    console.log('What the hook does:');
+    for (const line of hookPolicyLines(hosts)) console.log(`  ${line}`);
     if (!hosts.length && action === 'on' && !flags.has('--accept-external-breakage')) {
       fail('no external hosts: with the hook on, every app outside HintWise on this project loses its email sign-in, sign-up and recovery. Pass --accept-external-breakage to go ahead.');
     }

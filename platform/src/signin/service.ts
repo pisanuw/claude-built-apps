@@ -126,6 +126,9 @@ async function handlePost(req: Request, deps: Deps, reply: (status: number, body
 
   const ip = clientIp(req.headers);
   const ipKnown = ip !== UNKNOWN_IP;
+  // No hard per-IP limit for an unknown IP: every such request would share one
+  // key, so one busy network could throttle everyone. The challenge covers it.
+  const ipLimit = ipKnown ? IP_HARD_LIMIT_PER_HOUR : null;
   const text = await readBody(req, MAX_BODY_BYTES);
   const parsed: Parsed = text === null ? { ok: false, status: 413, message: 'The request is too large.', known: {} } : parseSignInRequest(text);
 
@@ -134,7 +137,7 @@ async function handlePost(req: Request, deps: Deps, reply: (status: number, body
     try {
       const h = await hashKeys(hashKey, { email: known.email, ip, browserId: known.browserId });
       // Over the hard per-IP limit sign_in_log writes nothing (it answers null).
-      await db.rpc('sign_in_log', { p_email_hash: h.email_hash, p_ip_hash: h.ip_hash, p_browser_hash: h.browser_hash, p_app: known.app ?? null, p_outcome: outcome, p_detail: detail, p_ip_limit: IP_HARD_LIMIT_PER_HOUR });
+      await db.rpc('sign_in_log', { p_email_hash: h.email_hash, p_ip_hash: h.ip_hash, p_browser_hash: h.browser_hash, p_app: known.app ?? null, p_outcome: outcome, p_detail: detail, p_ip_limit: ipLimit });
     } catch (e) {
       log(`sign_in_log failed: ${errorText(e)}`);
     }
@@ -158,7 +161,7 @@ async function handlePost(req: Request, deps: Deps, reply: (status: number, body
       p_ip_hash: hashes.ip_hash,
       p_browser_hash: hashes.browser_hash,
       p_app: r.app,
-      p_ip_limit: IP_HARD_LIMIT_PER_HOUR,
+      p_ip_limit: ipLimit,
     });
     if (!result || (result.limited !== true && typeof result.id !== 'number')) throw new Error(`sign_in_begin returned ${JSON.stringify(result).slice(0, 100)}`);
   } catch (e) {

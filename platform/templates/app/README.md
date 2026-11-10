@@ -87,10 +87,15 @@ The emailed link comes back to the page with
 `completeSignInFromUrl` in an app with its own UI) takes those out of the
 address bar, then acts on who is signed in:
 - nobody: it calls `verifyOtp`, so the link works in any browser;
-- the link's own account: it keeps the session;
+- an account with the same masked address: it keeps the session, says
+  "Already signed in as a***@example.com" and offers "Use the link instead"
+  (masks collide, so the link is never dropped silently);
 - another account: it asks first, with the button "Switch to
   a***@example.com?", so a link someone else sent cannot silently swap
   accounts.
+
+An `email_hint` that does not look like `a***@example.com` (`EMAIL_HINT`,
+at most 260 characters) is ignored.
 
 `redirectTo` must be a page of a deployed app: sign-in-link only accepts the
 labels in `platform/src/signin/app-hosts.ts`. After the new app's first

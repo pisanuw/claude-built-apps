@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
-import { canonicalEmail, clientIp, hashKeys, hmacHex, ipKey, ipv6Groups, maskEmail, shortHash, UNKNOWN_IP } from '../src/signin/keys.ts';
+import { canonicalEmail, classifyIp, clientIp, hashKeys, hmacHex, ipKey, ipv4Number, ipv6Groups, maskEmail, parseIp, shortHash, UNKNOWN_IP, UNKNOWN_V4, UNKNOWN_V6 } from '../src/signin/keys.ts';
 import { authFailure, createLinkToken, createUser, generateMagicLink, isUserNotFound, signInLink } from '../src/signin/link.ts';
 import { RESEND_URL, sendEmail } from '../src/signin/resend.ts';
 import { isAllowedTurnstileHost, MAX_TOKEN_CHARS, SITEVERIFY_TIMEOUT_MS, SITEVERIFY_URL, TURNSTILE_ACTION, TURNSTILE_SITE_KEY, verifyTurnstile } from '../src/signin/turnstile.ts';
@@ -9,43 +9,73 @@ const h = (pairs: Record<string, string>) => new Headers(pairs);
 const json = (status: number, body: unknown) => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 describe('clientIp', () => {
-  it('prefers cf-connecting-ip, which the client cannot forge past Cloudflare', () => {
-    // A forged first x-forwarded-for entry does not win.
-    expect(clientIp(h({ 'x-forwarded-for': '6.6.6.6, 203.0.113.7', 'cf-connecting-ip': '203.0.113.7' }))).toBe('203.0.113.7');
-    expect(clientIp(h({ 'cf-connecting-ip': ' 2001:DB8::1 ' }))).toBe('2001:db8::1');
+  it('uses cf-connecting-ip when the header is there, whatever x-forwarded-for says', () => {
+    expect(clientIp(h({ 'x-forwarded-for': '6.6.6.6, 203.0.113.7', 'cf-connecting-ip': '198.51.100.9' }))).toBe('198.51.100.9');
+    expect(clientIp(h({ 'cf-connecting-ip': ' 2001:DB8::1 ' }))).toBe('2001:db8:0:0:0:0:0:1');
+    // A cf-connecting-ip that is no visitor's address is unknown, not a reason to trust x-forwarded-for.
+    expect(clientIp(h({ 'cf-connecting-ip': '10.0.0.7', 'x-forwarded-for': '198.51.100.1' }))).toBe(UNKNOWN_IP);
+    expect(clientIp(h({ 'cf-connecting-ip': 'not-an-ip', 'x-forwarded-for': '198.51.100.1' }))).toBe(UNKNOWN_IP);
   });
   it('falls back to the right-most x-forwarded-for entry (the one the last proxy added), then unknown', () => {
     expect(clientIp(h({ 'x-forwarded-for': '6.6.6.6, 203.0.113.7' }))).toBe('203.0.113.7');
     expect(clientIp(h({ 'x-forwarded-for': ' 198.51.100.1 ' }))).toBe('198.51.100.1');
-    expect(clientIp(h({ 'cf-connecting-ip': 'not-an-ip', 'x-forwarded-for': '1.1.1.1, 198.51.100.1' }))).toBe('198.51.100.1');
+    expect(clientIp(h({ 'cf-connecting-ip': '  ', 'x-forwarded-for': '198.51.100.1' }))).toBe('198.51.100.1');
     expect(clientIp(h({}))).toBe(UNKNOWN_IP);
     expect(clientIp(h({ 'x-forwarded-for': '203.0.113.7, <script>' }))).toBe(UNKNOWN_IP);
+    // A proxy's own address on the right says nothing about the visitor.
+    expect(clientIp(h({ 'x-forwarded-for': '203.0.113.7, 172.70.1.1' }))).toBe(UNKNOWN_IP);
+    expect(clientIp(h({ 'x-forwarded-for': '203.0.113.7, 10.1.2.3' }))).toBe(UNKNOWN_IP);
+  });
+});
+
+describe('parsing addresses', () => {
+  it('accepts only real IPv4 and IPv6 addresses', () => {
+    expect(ipv4Number('203.0.113.7')).toBe(203 * 2 ** 24 + 113 * 256 + 7);
+    expect(ipv4Number('255.255.255.255')).toBe(2 ** 32 - 1);
+    for (const bad of ['1.2.3', '1.2.3.4.5', '01.2.3.4', '256.1.1.1', '1.2.3.-4', '1.2.3.a', '']) expect(ipv4Number(bad), bad).toBeNull();
+    for (const bad of ['1:2:3', '1::2::3', '1:2:3:4:5:6:7:8:9', '::ffff:1.2.3', '::ffff:1.2.3.999', 'gggg::1', '1:2:3:4:5:6:7::8', 'nocolons']) {
+      expect(ipv6Groups(bad), bad).toBeNull();
+    }
+    expect(ipv6Groups('fe80::1%eth0')).toEqual([0xfe80, 0, 0, 0, 0, 0, 0, 1]);
+    expect(parseIp('::ffff:203.0.113.7')).toEqual({ v: 4, n: ipv4Number('203.0.113.7') });
+    expect(parseIp('::ffff:cb00:7107')).toEqual({ v: 4, n: ipv4Number('203.0.113.7') });
+    expect(parseIp('x'.repeat(65))).toBeNull();
+    expect(classifyIp('1.2.3.4 , 5.6.7.8')).toBe(UNKNOWN_IP);
+    expect(classifyIp(null)).toBe(UNKNOWN_IP);
+  });
+  it('calls private, loopback, link-local, CGNAT, reserved and Cloudflare addresses unknown', () => {
+    const unknown = [
+      '10.0.0.1', '10.255.255.255', '172.16.0.0', '172.31.255.255', '192.168.1.1', '127.0.0.1', '169.254.1.1', '100.64.0.0', '100.127.255.255',
+      '0.1.2.3', '224.0.0.1', '255.255.255.255', '::ffff:10.0.0.1',
+      '104.16.0.1', '172.64.0.1', '172.71.255.255', '162.159.1.1', '131.0.75.255', '198.41.255.255',
+      '::', '::1', 'fc00::1', 'fdff:ffff::1', 'fe80::1', 'febf::1', 'ff02::1', '2606:4700::1', '2400:cb00:1::1', '2a06:98c0::1', '2a06:98c7:ffff::1', '2c0f:f248::1',
+    ];
+    for (const ip of unknown) expect(classifyIp(ip), ip).toBe(UNKNOWN_IP);
+    const visitors = ['172.15.255.255', '172.32.0.0', '100.63.255.255', '100.128.0.0', '192.169.0.1', '203.0.113.7', '104.15.255.255', '104.28.0.0', 'fec0::1', 'fe00::1', '2a06:98c8::1', '2001:db8::1'];
+    for (const ip of visitors) expect(classifyIp(ip), ip).not.toBe(UNKNOWN_IP);
+    expect(UNKNOWN_V4).toContain('173.245.48.0/20');
+    expect(UNKNOWN_V6).toContain('2606:4700::/32');
   });
 });
 
 describe('ipKey', () => {
-  it('keeps an IPv4 address and unknown as they are', () => {
+  it('keeps an IPv4 address, unknown and the hook key as they are', () => {
     expect(ipKey('203.0.113.7')).toBe('203.0.113.7');
     expect(ipKey(UNKNOWN_IP)).toBe(UNKNOWN_IP);
+    expect(ipKey('hook')).toBe('hook');
   });
   it('counts an IPv6 address by its /64', () => {
     expect(ipKey('2001:db8:1:2:aaaa:bbbb:cccc:dddd')).toBe('2001:db8:1:2::/64');
     expect(ipKey('2001:db8:1:2::1')).toBe('2001:db8:1:2::/64');
     expect(ipKey('2001:DB8:0001:0002:ffff::9')).toBe('2001:db8:1:2::/64');
     expect(ipKey('2001:db8::1')).toBe('2001:db8:0:0::/64');
-    expect(ipKey('::1')).toBe('0:0:0:0::/64');
-    expect(ipKey('fe80::1%eth0')).toBe('fe80:0:0:0::/64');
   });
   it('counts an IPv4-mapped IPv6 address as its IPv4 address', () => {
     expect(ipKey('::ffff:203.0.113.7')).toBe('203.0.113.7');
     expect(ipKey('::ffff:cb00:7107')).toBe('203.0.113.7');
   });
-  it('leaves something unparseable as it is', () => {
-    for (const bad of ['1:2:3', '1::2::3', '1:2:3:4:5:6:7:8:9', '::ffff:1.2.3', '::ffff:1.2.3.999', 'gggg::1', '1:2:3:4:5:6:7::8']) {
-      expect(ipv6Groups(bad), bad).toBeNull();
-      expect(ipKey(bad)).toBe(bad);
-    }
-    expect(ipv6Groups('nocolons')).toBeNull();
+  it('makes anything unparseable or not a visitor\'s own unknown', () => {
+    for (const bad of ['1:2:3', '1.2.3', 'abc', '10.0.0.1', '::1', 'fe80::1%eth0', '2606:4700::1']) expect(ipKey(bad), bad).toBe(UNKNOWN_IP);
   });
 });
 

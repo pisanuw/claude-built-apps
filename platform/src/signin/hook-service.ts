@@ -3,12 +3,12 @@
  * the pure parts). Supabase Auth calls it for every auth email once the
  * Send Email hook is switched on; it never calls it before.
  *
- * An email the plan allows (a magic link, sign-up, code or recovery for a
- * host in HOOK_EXTERNAL_HOSTS) goes through the same per-address ladder as
- * sign-in-link: sign_in_begin under the canonical mailbox, the fixed 'hook'
- * IP key and no browser, with no per-IP limit. A due wait refuses it.
- * Everything else is refused, logged as 'refused' and raises the bypass
- * alert.
+ * An email the plan allows (hook.ts: the sign-in emails for a host in
+ * HOOK_EXTERNAL_HOSTS, the account emails for every host) goes through the
+ * same per-address ladder as sign-in-link: sign_in_begin under each
+ * recipient's canonical mailbox, the fixed 'hook' IP key and no browser,
+ * with no per-IP limit. A due wait for any recipient refuses it. Everything
+ * else is refused, logged as 'refused' and raises the bypass alert.
  *
  * Answers, all JSON:
  *   200 {}                                    the email went out
@@ -20,8 +20,8 @@
 import { bypassAlertEmail, type AlertCounts } from './alerts.ts';
 import { restDb, type Db } from './db.ts';
 import { hookError, parseHookPayload, parseHostList, planHook, REFUSAL_MESSAGE, verifyWebhook } from './hook.ts';
-import { hashKeys, HOOK_IP } from './keys.ts';
-import { ladderOnly, type BeginResult } from './policy.ts';
+import { hashKeys, HOOK_IP, type KeyHashes } from './keys.ts';
+import { ladderOnly, type BeginResult, type KeyStats } from './policy.ts';
 import { sendEmail } from './resend.ts';
 import { raiseAlerts, type Outcome } from './service.ts';
 import { errorText, readBody } from './util.ts';
@@ -121,28 +121,42 @@ async function handleHookPost(req: Request, deps: HookDeps): Promise<Response> {
     return reply(200, hookError(403, REFUSAL_MESSAGE));
   }
 
-  // Allowed: the same per-address ladder as sign-in-link.
-  const begin = await db.rpc<BeginResult>('sign_in_begin', {
-    p_email_hash: hashes.email_hash,
-    p_ip_hash: hashes.ip_hash,
-    p_browser_hash: null,
-    p_app: plan.host,
-    p_ip_limit: null,
-  });
-  if (!begin || begin.limited === true || typeof begin.id !== 'number') throw new Error(`sign_in_begin returned ${JSON.stringify(begin).slice(0, 100)}`);
-  const what = `hook: ${plan.actionType} via ${plan.host}`;
-  const finish = async (outcome: Outcome, detail: string): Promise<void> => {
+  // Allowed: each recipient through the same per-address ladder as sign-in-link.
+  const hashKey = env.SIGN_IN_HASH_KEY;
+  const what = `hook: ${plan.actionType} via ${plan.host ?? '(no host)'}`;
+  // One ladder step per mailbox: an email change between two +tags of one mailbox is one step.
+  const steps: Array<{ to: string; hashes: KeyHashes; id: number; email: KeyStats }> = [];
+  const stepOf: number[] = [];
+  for (const message of plan.messages) {
+    const to = message.to[0];
+    const h = to === plan.email ? hashes : await hashKeys(hashKey, { email: to, ip: HOOK_IP });
+    const same = steps.findIndex((st) => st.hashes.email_hash === h.email_hash);
+    if (same >= 0) {
+      stepOf.push(same);
+      continue;
+    }
+    const begin = await db.rpc<BeginResult>('sign_in_begin', {
+      p_email_hash: h.email_hash,
+      p_ip_hash: h.ip_hash,
+      p_browser_hash: null,
+      p_app: plan.host,
+      p_ip_limit: null,
+    });
+    if (!begin || begin.limited === true || typeof begin.id !== 'number') throw new Error(`sign_in_begin returned ${JSON.stringify(begin).slice(0, 100)}`);
+    stepOf.push(steps.length);
+    steps.push({ to, hashes: h, id: begin.id, email: begin.email });
+  }
+  const finish = async (step: (typeof steps)[number], outcome: Outcome, detail: string): Promise<void> => {
     let counts: AlertCounts | null = null;
     try {
-      counts = await db.rpc<AlertCounts>('sign_in_finish', { p_id: begin.id, p_outcome: outcome, p_detail: detail });
+      counts = await db.rpc<AlertCounts>('sign_in_finish', { p_id: step.id, p_outcome: outcome, p_detail: detail });
     } catch (e) {
       log(`auth-email-hook: sign_in_finish failed: ${errorText(e)}`);
     }
     if (counts && env.ADMIN_EMAIL) {
-      const c = counts;
-      const task = raiseAlerts({ env: { ADMIN_EMAIL: env.ADMIN_EMAIL, RESEND_API: resend }, fetch: deps.fetch, now, log }, db, c, {
-        hashes: { ...hashes, ip_hash: null },
-        email: plan.email,
+      const task = raiseAlerts({ env: { ADMIN_EMAIL: env.ADMIN_EMAIL, RESEND_API: resend }, fetch: deps.fetch, now, log }, db, counts, {
+        hashes: { ...step.hashes, ip_hash: null },
+        email: step.to,
         app: plan.host,
         outcome,
         ipKnown: false,
@@ -151,17 +165,25 @@ async function handleHookPost(req: Request, deps: HookDeps): Promise<Response> {
     }
   };
 
-  const decision = ladderOnly(begin.email, now());
-  if (decision.action === 'wait') {
-    await finish('wait', `${what}; wait until ${decision.retryAt}`);
+  const waits = steps.map((st) => ladderOnly(st.email, now()));
+  const wait = waits.find((d) => d.action === 'wait');
+  if (wait && wait.action === 'wait') {
+    // One address waits: none of the messages goes (an email change needs both).
+    await Promise.all(steps.map((st) => finish(st, 'wait', `${what}; wait until ${wait.retryAt}`)));
     return reply(200, hookError(429, HOOK_WAIT_MESSAGE));
   }
-  const res = await sendEmail(deps.fetch, resend, plan.message);
-  if (!res.ok) {
-    log(`auth-email-hook: ${plan.actionType} email not sent: ${res.message}`);
-    await finish('error', `${what}; ${res.message}`);
+  // Together, so an email change's two messages fit Auth's 5-second hook budget.
+  const results = await Promise.all(plan.messages.map((msg) => sendEmail(deps.fetch, resend, msg)));
+  await Promise.all(
+    steps.map((st, i) => {
+      const bad = results.find((r, m) => stepOf[m] === i && !r.ok);
+      return bad && !bad.ok ? finish(st, 'error', `${what}; ${bad.message}`) : finish(st, 'sent', what);
+    }),
+  );
+  const failed = results.find((r) => !r.ok);
+  if (failed && !failed.ok) {
+    log(`auth-email-hook: ${plan.actionType} email not sent (${results.filter((r) => r.ok).length} of ${results.length} went out): ${failed.message}`);
     return reply(200, hookError(502, 'Could not send the email. Try again in a minute.'));
   }
-  await finish('sent', what);
   return reply(200, {});
 }
