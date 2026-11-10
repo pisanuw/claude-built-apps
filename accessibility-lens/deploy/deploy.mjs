@@ -207,6 +207,26 @@ async function deployRender(cfg) {
 
   if (found) {
     log(`Service "${cfg.projectName}" exists (${found.id}); syncing env then triggering a deploy.`);
+    // render.plan is applied on create; for an existing service, bring the
+    // instance type in line with target.yml too (owner, 10 Nov 2026: backend-hub
+    // moves from free to starter). A refused change warns and the deploy goes on.
+    const wantPlan = r.plan ?? 'free';
+    const havePlan = found.serviceDetails?.plan;
+    if (havePlan && havePlan !== wantPlan) {
+      log(`Changing the Render plan of "${cfg.projectName}" from ${havePlan} to ${wantPlan}.`);
+      try {
+        await renderFetch(token, `/services/${found.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ serviceDetails: { plan: wantPlan } }),
+        });
+        const after = await renderFetch(token, `/services/${found.id}`);
+        log(`Render plan now: ${after?.serviceDetails?.plan ?? '(not reported)'}`);
+      } catch (e) {
+        console.log(`::warning::Could not change the Render plan of ${cfg.projectName} to ${wantPlan}: ${String(e.message || e).slice(0, 300)}`);
+      }
+    } else {
+      log(`Render plan: ${havePlan ?? '(not reported)'}${havePlan ? ' (as wanted)' : ''}`);
+    }
     await ensureRenderEnv(token, found.id, desiredEnv, generateKeys);
     const deploy = await renderFetch(token, `/services/${found.id}/deploys`, {
       method: 'POST',

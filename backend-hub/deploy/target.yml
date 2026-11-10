@@ -43,7 +43,8 @@ render:
   # cookies once, which for a game is fine).
   generateEnv:
     - COOKIE_SECRET
-  plan: free
+  # Paid instance since 10 Nov 2026 (owner): always on, no cold starts.
+  plan: starter
   region: oregon
   startCommand: npm start
   healthCheckPath: /api/health
