@@ -156,7 +156,7 @@ jobs:
       - name: Set the sign-in function secrets
         if: inputs.command == 'set-sign-in-secrets'
         # RESEND_API and ADMIN_EMAIL from the repo secrets of the same names;
-        # TURNSTILE_SECRET from the repo secret TURNSTILE_SECRET_KEY, which
+        # TURNSTILE_SECRET from the repo secret TURNSTILE_SECRET (or TURNSTILE_SECRET_KEY), which
         # must exist (without it sign-in-link pauses email sign-in whenever a
         # challenge is due); TURNSTILE_SITE_KEY from the repo variable or
         # secret TURNSTILE_SITE_KEY, else turnstileSiteKey in
@@ -175,7 +175,7 @@ jobs:
           [ -n "$REF" ] || { echo "::error::SUPABASE_URL does not look like https://<ref>.supabase.co"; exit 1; }
           [ -n "$RESEND_API" ] || { echo "::error::RESEND_API repo secret is not set"; exit 1; }
           [ -n "$ADMIN_EMAIL" ] || { echo "::error::ADMIN_EMAIL repo secret is not set"; exit 1; }
-          [ -n "$TURNSTILE_SECRET_KEY" ] || { echo "::error::TURNSTILE_SECRET_KEY repo secret is not set: without it email sign-in pauses whenever a challenge is due"; exit 1; }
+          [ -n "$TURNSTILE_SECRET_KEY" ] || { echo "::error::Neither the TURNSTILE_SECRET nor the TURNSTILE_SECRET_KEY repo secret is set: without it email sign-in pauses whenever a challenge is due"; exit 1; }
           SITE_KEY="${TURNSTILE_SITE_KEY_REPO:-$(jq -r '.turnstileSiteKey // empty' supabase.json)}"
           [ -n "$SITE_KEY" ] || { echo "::error::no TURNSTILE_SITE_KEY repo value and no turnstileSiteKey in platform/supabase.json"; exit 1; }
           HOSTS_OUT=$(node supabase-admin.mjs external-hosts)
@@ -210,7 +210,7 @@ jobs:
           echo "Function secrets set (values not shown):"
           echo "  RESEND_API: true"
           echo "  ADMIN_EMAIL: true"
-          echo "  TURNSTILE_SECRET from repo secret TURNSTILE_SECRET_KEY: true"
+          echo "  TURNSTILE_SECRET from repo secret TURNSTILE_SECRET (or TURNSTILE_SECRET_KEY): true"
           echo "  TURNSTILE_SITE_KEY from repo variable or secret TURNSTILE_SITE_KEY: $(present "$TURNSTILE_SITE_KEY_REPO") (false: platform/supabase.json turnstileSiteKey)"
           echo "  HOOK_EXTERNAL_HOSTS: $HOSTS"
           echo "  SIGN_IN_HASH_KEY generated now: $HASH_NEW (false: kept the one already set)"
@@ -220,7 +220,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           RESEND_API: ${{ secrets.RESEND_API }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
-          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          # The owner stored it as TURNSTILE_SECRET (10 Nov); TURNSTILE_SECRET_KEY also works.
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET || secrets.TURNSTILE_SECRET_KEY }}
           TURNSTILE_SITE_KEY_REPO: ${{ vars.TURNSTILE_SITE_KEY || secrets.TURNSTILE_SITE_KEY }}
 
       - name: Switch the Send Email hook

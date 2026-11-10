@@ -234,7 +234,7 @@ private env file (umask 077, removed on exit), never as command-line
 arguments:
 
 - `RESEND_API` and `ADMIN_EMAIL`, from the repo secrets of the same names.
-- `TURNSTILE_SECRET`, from the repo secret `TURNSTILE_SECRET_KEY`. The step
+- `TURNSTILE_SECRET`, from the repo secret `TURNSTILE_SECRET` (or `TURNSTILE_SECRET_KEY`). The step
   exits 1 without it.
 - `TURNSTILE_SITE_KEY`, from the repo variable or secret of that name, else
   the committed public key.
