@@ -64,6 +64,12 @@ describe('authPatch', () => {
     expect(authPatch(done, {})).toEqual({});
     expect(authPatch({ ...done, external_email_enabled: false }, {})).toEqual({ external_email_enabled: true });
   });
+  it('raises the project email limit to --email-rate, never lowers it', () => {
+    expect(authPatch({ ...current, rate_limit_email_sent: 30 }, {}, { emailRate: 200 })).toMatchObject({ rate_limit_email_sent: 200 });
+    expect(authPatch({ ...current, rate_limit_email_sent: 300 }, {}, { emailRate: 200 })).not.toHaveProperty('rate_limit_email_sent');
+    expect(authPatch({ ...current, rate_limit_email_sent: 200 }, {}, { emailRate: 200 })).not.toHaveProperty('rate_limit_email_sent');
+    expect(authPatch({ ...current, rate_limit_email_sent: 30 }, {}, { emailRate: 10 })).not.toHaveProperty('rate_limit_email_sent');
+  });
   it('switches the Google client only with --google and only when both values are present', () => {
     const env = { HINTWISE_AUTH_GOOGLE_ID: '985338662899-new', HINTWISE_AUTH_GOOGLE_SECRET: 's' };
     expect(authPatch(current, env)).not.toHaveProperty('external_google_client_id');

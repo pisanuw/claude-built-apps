@@ -18,7 +18,7 @@
  *                           add a schema to PostgREST's db_schema list;
  *                           --reapply sends the list again when it is stored
  *                           but the API does not serve it yet
- *   configure-auth [--google] [--dry-run]
+ *   configure-auth [--google] [--email-rate=N] [--dry-run]
  *                           additive auth settings: hintwise.org redirect
  *                           allow-list, Resend SMTP (RESEND_API), email
  *                           rate limit; --google also switches the Google
@@ -293,8 +293,13 @@ async function waitServed(schema, list, { tries = 12, delayMs = 5000 } = {}) {
 
 const HINTWISE_REDIRECT = 'https://*.hintwise.org/**';
 
-/** Pure: the additive PATCH for config/auth given the current config. */
-export function authPatch(current, env, { google = false } = {}) {
+/**
+ * Pure: the additive PATCH for config/auth given the current config.
+ * @param {Record<string, unknown>} current
+ * @param {Record<string, string | undefined>} env
+ * @param {{ google?: boolean, emailRate?: number }} [opts]
+ */
+export function authPatch(current, env, { google = false, emailRate } = {}) {
   const patch = {};
   const want = (k, v) => { if (current[k] !== v) patch[k] = v; };
 
@@ -308,8 +313,11 @@ export function authPatch(current, env, { google = false } = {}) {
   if (env.RESEND_API) want('smtp_pass', env.RESEND_API);
   want('smtp_admin_email', 'sign-in@hintwise.org');
   want('smtp_sender_name', 'HintWise');
+  // Emails an hour for the whole project (every app shares it). Only ever
+  // raised here: 30 by default, or --email-rate=N (owner, 10 Nov: 200).
   const rate = Number(current.rate_limit_email_sent);
-  if (!Number.isFinite(rate) || rate < 30) patch.rate_limit_email_sent = 30; // only ever raised
+  const wantRate = Math.max(30, Number.isInteger(emailRate) && emailRate > 0 ? emailRate : 30);
+  if (!Number.isFinite(rate) || rate < wantRate) patch.rate_limit_email_sent = wantRate;
 
   if (google) {
     want('external_google_enabled', true);
@@ -326,8 +334,11 @@ async function configureAuth() {
   if (google && !(process.env.HINTWISE_AUTH_GOOGLE_ID && process.env.HINTWISE_AUTH_GOOGLE_SECRET)) {
     fail('--google needs HINTWISE_AUTH_GOOGLE_ID and HINTWISE_AUTH_GOOGLE_SECRET');
   }
+  const rateFlag = flagValue('--email-rate');
+  const emailRate = rateFlag === undefined ? undefined : Number(rateFlag);
+  if (rateFlag !== undefined && !(Number.isInteger(emailRate) && emailRate > 0 && emailRate <= 10000)) fail(`--email-rate wants a whole number of emails an hour, got ${rateFlag}`);
   const current = await api(`/v1/projects/${ref}/config/auth`);
-  const patch = authPatch(current, process.env, { google });
+  const patch = authPatch(current, process.env, { google, emailRate });
   const keys = Object.keys(patch);
   if (!keys.length) { console.log('Auth config already as wanted; nothing to change.'); return; }
   console.log(`${dryRun ? 'Would change' : 'Changing'} ${keys.length} key(s):`);
