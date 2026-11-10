@@ -462,3 +462,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-10 [code] StepWise migrations 0002 (preferences, delete-my-data) and 0003 (lesson lists) added under stepwise/, sha256 checked; owner's yes. Applied next.
 2026-11-10 [code] StepWise 0002 and 0003 applied (run 45); check-schema app_stepwise passed (4 tables, RLS on, stranger sees 0; advisor warns only on the 2 public share functions).
 2026-11-10 [decision] Owner: StepWise carries the shared HintWise footer. Sent its session footerHtml('stepwise') (sha256 f40ff32d), on every page. UpvoteMe and PasteMD (own repos) lack it too.
+2026-11-10 [code] UpvoteMe #5 (335af9e) and PasteMD #3 (904fe66) live: Google-compliant buttons and the shared footer, checked live. StepWise: button and footer approved, deploy pending.
