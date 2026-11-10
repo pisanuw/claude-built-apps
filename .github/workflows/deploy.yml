@@ -154,6 +154,10 @@ jobs:
           echo "Applying $SLUG/supabase/migrations and exposing $SCHEMA"
           node platform/supabase-admin.mjs migrate "$SLUG"
           node platform/supabase-admin.mjs expose-schema "$SCHEMA"
+          # Read-only security check (RLS, anon access, definer functions, a
+          # signed-in stranger sees no real row, Supabase's advisor): a
+          # finding fails the job, so the site is not deployed.
+          node platform/supabase-admin.mjs check-schema "$SCHEMA"
 
       - name: Deploy ${{ matrix.config }}
         run: node accessibility-lens/deploy/deploy.mjs --config "${{ matrix.config }}"

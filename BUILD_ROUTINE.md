@@ -217,7 +217,11 @@ the app and carries the footer (`curl -s LIVE_URL | grep -c "Want something
 like this"`). Apps with a Supabase schema set `supabase: true` in target.yml
 so the Deploy workflow applies `supabase/migrations/*.sql` and exposes the
 schema (first used on 10 November by qualified-overtime-checker); read that
-step's log. The expose step waits until the Data API serves the schema and
+step's log; it ends with `check-schema`, which fails the deploy if a table
+has row level security off, the anon role can reach a table, a security
+definer function has no fixed search_path, or a signed-in stranger can see
+any real row (share rows with visitors through a security definer function,
+as StepWise does). The expose step waits until the Data API serves the schema and
 sends the list again if it does not; if its log ends with a warning, dispatch
 the "Supabase admin" workflow with `expose-schema app_<slug_> --reapply`
 (`sql` with `platform/supabase/ops/reload-postgrest.sql` is the fallback).
