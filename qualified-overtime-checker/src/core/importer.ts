@@ -33,8 +33,12 @@ export function normHeader(h: string): string {
 }
 
 const SSN_HEADER = /\b(ssn|ss#|ss ?no|ss ?num(ber)?|social security|soc sec|taxpayer id|tax ?id|tin|itin)(?!\w)/;
+/** Run-together headers: "SocialSecurityNumber", "EmpSSN", "SocSecNo". */
+const SSN_SQUASHED = /ssn|socialsecurity|socsec|taxpayerid/;
 // Dashed, or nine digits in a row (an undashed SSN in an "ID" column must not be kept).
-const SSN_VALUE = /^\d{3}-\d{2}-\d{4}$|^\d{9}$/;
+const SSN_VALUE = /^\d{9}$/;
+/** Digits of a value written 123-45-6789, 123 45 6789, 123.45.6789 or 123456789. */
+const ssnDigits = (v: string) => (/^\d{3}[-. ]?\d{2}[-. ]?\d{4}$/.test(v) ? v.replace(/[-. ]/g, '') : v);
 
 /** Indexes of columns that hold SSNs, by header or by values shaped 123-45-6789 or 123456789. */
 export function ssnColumns(table: CsvTable): number[] {
@@ -42,12 +46,12 @@ export function ssnColumns(table: CsvTable): number[] {
   if (!head) return [];
   const out: number[] = [];
   head.cells.forEach((h, i) => {
-    if (SSN_HEADER.test(normHeader(h)) || SSN_HEADER.test(h.toLowerCase())) {
+    if (SSN_HEADER.test(normHeader(h)) || SSN_HEADER.test(h.toLowerCase()) || SSN_SQUASHED.test(h.toLowerCase().replace(/[^a-z]/g, ''))) {
       out.push(i);
       return;
     }
     const values = body.map((r) => (r.cells[i] ?? '').trim()).filter((v) => v !== '');
-    if (values.length > 0 && values.filter((v) => SSN_VALUE.test(v)).length / values.length >= 0.5) out.push(i);
+    if (values.length > 0 && values.filter((v) => SSN_VALUE.test(ssnDigits(v))).length / values.length >= 0.5) out.push(i);
   });
   return out;
 }

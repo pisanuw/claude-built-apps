@@ -173,3 +173,21 @@ describe('day-2 review fixes', () => {
     expect(uuid(fake)).toMatch(/^ffffffff-ffff-4fff-bfff-ffffffffffff$/);
   });
 });
+
+describe('security review fixes', () => {
+  it('drops run-together SSN headers and spaced or dotted SSN values', () => {
+    expect(ssnColumns(parseCsv('SocialSecurityNumber,EmpSSN,Name,Ref\n1,2,A,123 45 6789\n3,4,B,123.45.6789\n'))).toEqual([0, 1, 3]);
+    expect(ssnColumns(parseCsv('Name,Phone\nA,555 123 4567\n'))).toEqual([]);
+  });
+
+  it('does not keep a browser copy on sign-out unless the user says yes', async () => {
+    const account = new MemoryFileStore('account');
+    const a = auth(account);
+    const browser = await mount({ hooks: a.hooks, saveDelay: 10_000, confirm: () => false });
+    await a.as('u1');
+    await importCsv();
+    await a.as(null);
+    expect(status()).toBe('Signed out. Files in your account show again when you sign in.');
+    expect(await browser.list()).toHaveLength(0);
+  });
+});

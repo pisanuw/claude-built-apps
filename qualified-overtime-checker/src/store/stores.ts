@@ -116,7 +116,7 @@ export interface TableClient {
       order(column: string, opts: { ascending: boolean }): PromiseLike<{ data: unknown[] | null; error: DbError }>;
       eq(column: string, value: string): { maybeSingle(): PromiseLike<{ data: unknown; error: DbError }> };
     };
-    upsert(row: Record<string, unknown>): PromiseLike<{ error: DbError }>;
+    upsert(row: Record<string, unknown>, opts: { onConflict: string }): PromiseLike<{ error: DbError }>;
     delete(): { eq(column: string, value: string): PromiseLike<{ error: DbError }> };
   };
 }
@@ -171,7 +171,7 @@ export class SupabaseFileStore implements FileStore {
       summary: { employees: summary.employees, needCorrection: summary.needCorrection, notEntered: summary.notEntered },
       data: encodeFile(file),
       updated_at: file.updatedAt,
-    });
+    }, { onConflict: 'user_id,id' });
     if (error) fail('save', error);
   }
 

@@ -664,7 +664,8 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       if (switched && location === 'account') {
         // The open file belongs to the account that just left: never show it to
         // the next user. Unsaved changes are kept as a copy in this browser.
-        const unsaved = dirty && worthSaving(file) ? { ...file, id: makeId() } : null;
+        // Ask first: on a shared computer the next person would see the copy.
+        const unsaved = dirty && worthSaving(file) && ask('You are signed out, and the last changes to this file were not saved to your account. Keep a copy of the file in this browser? Anyone using this browser could open it.') ? { ...file, id: makeId() } : null;
         if (timer) clearTimeout(timer);
         timer = null;
         dirty = false;

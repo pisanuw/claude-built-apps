@@ -40,7 +40,8 @@ function fakeDb(opts: { fail?: boolean } = {}) {
             eq: (_c: string, id: string) => ({ maybeSingle: async () => ({ data: err ? null : (rows.get(id) ? { id, data: rows.get(id)?.data } : null), error: err }) }),
           };
         },
-        upsert: async (row: Record<string, unknown>) => {
+        upsert: async (row: Record<string, unknown>, opts: { onConflict: string }) => {
+          calls.push(`upsert on ${opts.onConflict}`);
           if (!err) rows.set(row.id as string, JSON.parse(JSON.stringify(row)));
           return { error: err };
         },
@@ -128,6 +129,7 @@ describe('stores', () => {
     expect(row).toMatchObject({ name: 'Cedar Lane Kitchen (sample)', tax_year: 2026, summary: { employees: 6, needCorrection: 4, notEntered: 0 } });
     expect(JSON.stringify(row)).not.toContain('***-**');
     expect(db.calls).toContain(`from ${TABLE}`);
+    expect(db.calls).toContain('upsert on user_id,id');
     expect(await s.list()).toEqual([expect.objectContaining({ id: f.id, employees: 6, needCorrection: 4, location: 'account', taxYear: 2026 })]);
     expect(await s.get(f.id)).toEqual(f);
     expect(await s.get('missing')).toBeUndefined();

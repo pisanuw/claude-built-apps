@@ -42,6 +42,9 @@ provisional; three tied at 19 (this one 2026-11-07, Delivery Canary
 - Pushed, not deployed yet (ships with the day-3 deploy): sign-out of this
   app only (scope local) and the PKCE sign-in flow, carried over from the
   template fix 67727d4 at the Plabs session's request (fb46c8b).
+  Also waiting for that deploy: migration `0002_owner_key.sql` (primary key
+  `(user_id, id)`, upsert on_conflict user_id,id), the sign-out prompt before
+  keeping a browser copy, and wider SSN detection (security review fixes).
 - Not live yet: milestones 3 to 7.
 
 ## Milestones (docs/PLAN.md)
@@ -142,4 +145,5 @@ None open. Answered 2026-11-10: saved files allowed (as recommended); free.
 ## Log
 
 - Day 1 (2026-11-10): picked, claimed, planned; milestone 1 built, reviewed, fixed and deployed.
+- Day 2 security review (security-review, by a subagent; the skill itself failed on the missing origin/HEAD ref, so the diff was reviewed by hand): nothing serious; three low items fixed (owner-scoped primary key, ask before a sign-out copy, SSN header and value gaps).
 - Day 2 (2026-11-10, second run the same day at the owner's request): milestone 2, saved client files with sign-in, reviewed, fixed and deployed; first app on the Supabase migrations step; two platform fixes (VITE env in the build, expose-schema wait).
