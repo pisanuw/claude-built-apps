@@ -32,8 +32,15 @@ export function hasSupabase(): boolean {
   return supabaseEnv() !== null;
 }
 
+/**
+ * PKCE: sign-in returns ?code= in the query instead of tokens in the #hash
+ * (safer, and it leaves hash routes alone). A magic link must then be opened
+ * in the browser that asked for it.
+ */
+export const CLIENT_OPTIONS = { db: { schema: APP_SCHEMA }, auth: { flowType: 'pkce' as const } };
+
 function makeClient(url: string, anonKey: string) {
-  return createClient(url, anonKey, { db: { schema: APP_SCHEMA } });
+  return createClient(url, anonKey, CLIENT_OPTIONS);
 }
 
 /** The app's client type: a SupabaseClient bound to APP_SCHEMA. */

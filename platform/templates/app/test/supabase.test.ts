@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { APP_SCHEMA, APP_SLUG, getSupabase, hasSupabase, resetSupabase, supabaseEnv } from '../src/lib/supabase';
+import { APP_SCHEMA, APP_SLUG, CLIENT_OPTIONS, getSupabase, hasSupabase, resetSupabase, supabaseEnv } from '../src/lib/supabase';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -39,5 +39,9 @@ describe('getSupabase', () => {
     expect(getSupabase()).toBe(a);
     resetSupabase();
     expect(getSupabase()).not.toBe(a);
+  });
+
+  it('uses the PKCE flow and the app schema', () => {
+    expect(CLIENT_OPTIONS).toEqual({ db: { schema: APP_SCHEMA }, auth: { flowType: 'pkce' } });
   });
 });

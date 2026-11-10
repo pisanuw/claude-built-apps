@@ -90,6 +90,14 @@ Wait up to 5 minutes for a message from the owner. Accept:
   placeholder again with "day 1 of 7 (continued)").
 With no message, continue.
 
+**Same-day continue.** If the owner replies `continue` (or "continue with
+day N") to a run's end-of-day message while the session is still open, run
+the next day in the same session: today's Step 4 is already done, so the
+placeholder says "day N of 7"; do Step 3 for day N+1 and then Step 4 again.
+Each such day counts as a day, and tomorrow's run reads the placeholder as
+usual. The owner sends that reply to the build session itself, not to
+another session, so two sessions never work on one project at once.
+
 ## Step 2: Day 1: pick, plan, vertical slice
 
 **PICK.** From daily-project-ideas/ideas/*.json of the last 21 days, choose
@@ -126,7 +134,9 @@ the owner's key only through the gateway and its caps; deterministic code
 wherever it does the job), backend-hub when a server is unavoidable. No live
 app may call Claude or any paid API on the owner's key except through the
 gateway. An app that uses no platform piece must say in PLAN.md why the shape
-marks still hold.
+marks still hold. Apps are free unless the owner says otherwise (owner, 10
+November 2026): a price in the idea is market research, not a requirement, so
+build no payments and do not ask about pricing.
 
 **SCAFFOLD.** Create `<slug>/` from `platform/templates/app/` if it exists,
 otherwise from the newest app's package.json, vite, vitest (85% thresholds),
@@ -154,7 +164,10 @@ answers (`curl -sI https://<slug>.hintwise.org/` is 200). Then:
    not a stopping point. Use subagents for independent pieces (tests, docs,
    a second component) when that saves wall-clock time.
 3. Before pushing, have a reviewer subagent run the code-review skill (level
-   high) on the day's diff and fix what it finds. Then `npm run lint`,
+   high) on the day's diff and fix what it finds. When the milestone touches
+   sign-in, a migration or row level security, a server function, file
+   storage or email, also run the security-review skill on the day's diff
+   (not only on the polish day) and fix what it finds. Then `npm run lint`,
    `typecheck`, `coverage` (85%) and `build` must pass.
 4. Push to main. Deploy by touching `deploy/target.yml` **once per day at
    most**, and only when the live app changed (each Netlify deploy costs
@@ -204,9 +217,11 @@ the app and carries the footer (`curl -s LIVE_URL | grep -c "Want something
 like this"`). Apps with a Supabase schema set `supabase: true` in target.yml
 so the Deploy workflow applies `supabase/migrations/*.sql` and exposes the
 schema (first used on 10 November by qualified-overtime-checker); read that
-step's log. If the API then answers PGRST106 ("Invalid schema") for the new
-schema, dispatch the "Supabase admin" workflow with command `sql` and
-`platform/supabase/ops/reload-postgrest.sql`. Do not add the "built by" footer
+step's log. The expose step waits until the Data API serves the schema and
+sends the list again if it does not; if its log ends with a warning, dispatch
+the "Supabase admin" workflow with `expose-schema app_<slug_> --reapply`
+(`sql` with `platform/supabase/ops/reload-postgrest.sql` is the fallback).
+Do not add the "built by" footer
 (the deploy injects it). Do not redeploy other apps.
 
 ## Step 5: Finish (day 7, or earlier when PLAN.md is done)

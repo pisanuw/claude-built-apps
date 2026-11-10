@@ -41,7 +41,7 @@ describe('auth functions', () => {
     await sendMagicLink('ann@example.com', 'https://x.hintwise.org/', client);
     expect(auth.signInWithOtp).toHaveBeenCalledWith({ email: 'ann@example.com', options: { emailRedirectTo: 'https://x.hintwise.org/' } });
     await signOut(client);
-    expect(auth.signOut).toHaveBeenCalled();
+    expect(auth.signOut).toHaveBeenCalledWith({ scope: 'local' });
   });
   it('reads the session token for the gateway', async () => {
     expect(await currentToken(fakeAuth(null).client)).toBeNull();
@@ -93,7 +93,7 @@ describe('mountSignIn', () => {
     expect(auth.signInWithOtp).toHaveBeenCalledWith({ email: 'ann@example.com', options: { emailRedirectTo: 'https://x/' } });
     expect(root.querySelector('.hw-signin-status')!.textContent).toBe('Sending...');
     await flush();
-    expect(root.querySelector('.hw-signin-status')!.textContent).toBe('Check ann@example.com for a sign-in link.');
+    expect(root.querySelector('.hw-signin-status')!.textContent).toBe('Check ann@example.com for a sign-in link, and open it in this browser.');
     expect(button('Email me a sign-in link').disabled).toBe(false);
   });
   it('shows the error when the link cannot be sent', async () => {
