@@ -30,8 +30,13 @@ export function sendMagicLink(email: string, redirectTo: string, client: AuthCli
   return client.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } });
 }
 
+/**
+ * Signs out of this app only. Every HintWise app shares one user pool, and
+ * Supabase's default scope ("global") would revoke the user's sessions in
+ * every other app too.
+ */
 export function signOut(client: AuthClient = getSupabase()) {
-  return client.auth.signOut();
+  return client.auth.signOut({ scope: 'local' });
 }
 
 /** The part of the Supabase client ensureProfile uses. */
@@ -143,7 +148,7 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
       send.disabled = true;
       status.textContent = 'Sending...';
       void sendMagicLink(email, redirectTo, client).then(({ error }) => {
-        status.textContent = error ? `Could not send the link: ${error.message}` : `Check ${email} for a sign-in link.`;
+        status.textContent = error ? `Could not send the link: ${error.message}` : `Check ${email} for a sign-in link, and open it in this browser.`;
         send.disabled = false;
       });
     });
