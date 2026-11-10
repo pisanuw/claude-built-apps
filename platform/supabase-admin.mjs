@@ -14,7 +14,10 @@
  *                           sha256 in platform.migrations (app "platform")
  *   migrate <slug>          run <slug>/supabase/migrations/*.sql the same way
  *                           (app = slug); refuses if a recorded file changed
- *   expose-schema <schema>  add a schema to PostgREST's db_schema list
+ *   expose-schema <schema> [--reapply]
+ *                           add a schema to PostgREST's db_schema list;
+ *                           --reapply sends the list again when it is stored
+ *                           but the API does not serve it yet
  *   configure-auth [--google] [--dry-run]
  *                           additive auth settings: hintwise.org redirect
  *                           allow-list, Resend SMTP (RESEND_API), email
@@ -246,8 +249,11 @@ async function exposeSchema(schema) {
   const before = String(pg.db_schema || '');
   const list = before.split(',').map((s) => s.trim()).filter(Boolean);
   console.log(`db_schema before: ${before}`);
-  if (list.includes(schema)) { console.log(`${schema} is already exposed; nothing to do.`); return; }
-  const after = [...list, schema].join(',');
+  // --reapply: the stored list already has the schema but the API still answers
+  // PGRST106 (seen 10 Nov: PostgREST was not restarted after the PATCH), so
+  // send the same list again to make Supabase reconfigure PostgREST.
+  if (list.includes(schema) && !flags.has('--reapply')) { console.log(`${schema} is already exposed; nothing to do (add --reapply to send the list again).`); return; }
+  const after = (list.includes(schema) ? list : [...list, schema]).join(',');
   // PATCH only this one field; the config also carries jwt_secret, never sent back or printed.
   await api(`/v1/projects/${ref}/postgrest`, { method: 'PATCH', body: JSON.stringify({ db_schema: after }) });
   const check = await api(`/v1/projects/${ref}/postgrest`);
