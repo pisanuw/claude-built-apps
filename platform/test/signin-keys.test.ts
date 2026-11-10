@@ -9,15 +9,16 @@ const h = (pairs: Record<string, string>) => new Headers(pairs);
 const json = (status: number, body: unknown) => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 describe('clientIp', () => {
-  it('takes the first x-forwarded-for entry', () => {
-    expect(clientIp(h({ 'x-forwarded-for': '203.0.113.7, 10.0.0.1', 'cf-connecting-ip': '198.51.100.1' }))).toBe('203.0.113.7');
-    expect(clientIp(h({ 'x-forwarded-for': ' 2001:DB8::1 ' }))).toBe('2001:db8::1');
+  it('prefers cf-connecting-ip, which the client cannot forge past Cloudflare', () => {
+    // A forged first x-forwarded-for entry does not win.
+    expect(clientIp(h({ 'x-forwarded-for': '6.6.6.6, 203.0.113.7', 'cf-connecting-ip': '203.0.113.7' }))).toBe('203.0.113.7');
+    expect(clientIp(h({ 'cf-connecting-ip': ' 2001:DB8::1 ' }))).toBe('2001:db8::1');
   });
-  it('falls back to cf-connecting-ip, then unknown', () => {
-    expect(clientIp(h({ 'cf-connecting-ip': '198.51.100.1' }))).toBe('198.51.100.1');
-    expect(clientIp(h({ 'x-forwarded-for': 'not-an-ip', 'cf-connecting-ip': '198.51.100.1' }))).toBe('198.51.100.1');
+  it('falls back to the first x-forwarded-for entry, then unknown', () => {
+    expect(clientIp(h({ 'x-forwarded-for': '203.0.113.7, 10.0.0.1' }))).toBe('203.0.113.7');
+    expect(clientIp(h({ 'cf-connecting-ip': 'not-an-ip', 'x-forwarded-for': '198.51.100.1' }))).toBe('198.51.100.1');
     expect(clientIp(h({}))).toBe(UNKNOWN_IP);
-    expect(clientIp(h({ 'cf-connecting-ip': '<script>' }))).toBe(UNKNOWN_IP);
+    expect(clientIp(h({ 'x-forwarded-for': '<script>' }))).toBe(UNKNOWN_IP);
   });
 });
 

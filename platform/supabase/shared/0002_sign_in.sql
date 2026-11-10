@@ -155,7 +155,7 @@ comment on function platform.sign_in_key_stats(text, text) is 'For one hashed ke
 -- Takes a transaction lock per address and per browser first, so a burst of
 -- parallel requests is decided one at a time: the second sees the first's
 -- 'pending' row as a link being sent and waits. Returns
--- { id, email: stats, browser: stats, ip: { requests_1h, requests_24h } },
+-- { id, email: stats, browser: stats, ip: { requests_1h } },
 -- counts excluding the new row.
 create or replace function platform.sign_in_begin(p_email_hash text, p_ip_hash text, p_browser_hash text, p_app text)
 returns jsonb
@@ -167,7 +167,6 @@ declare
   v_email jsonb;
   v_browser jsonb;
   v_ip_hour int := 0;
-  v_ip_day int := 0;
 begin
   if p_email_hash is not null then
     perform pg_advisory_xact_lock(7301, hashtext(p_email_hash));
@@ -178,12 +177,10 @@ begin
   v_email := platform.sign_in_key_stats('email_hash', p_email_hash);
   v_browser := platform.sign_in_key_stats('browser_hash', p_browser_hash);
   if p_ip_hash is not null then
+    -- Only "more than 20" matters, so the count stops at 1000.
     select count(*)::int into v_ip_hour from (
       select 1 from platform.sign_in_requests
       where ip_hash = p_ip_hash and created_at > now() - interval '1 hour' limit 1000) s;
-    select count(*)::int into v_ip_day from (
-      select 1 from platform.sign_in_requests
-      where ip_hash = p_ip_hash and created_at > now() - interval '24 hours' limit 5000) s;
   end if;
   insert into platform.sign_in_requests (app, outcome, email_hash, ip_hash, browser_hash)
   values (left(p_app, 64), 'pending', p_email_hash, p_ip_hash, p_browser_hash)
@@ -192,7 +189,7 @@ begin
     'id', v_id,
     'email', v_email,
     'browser', v_browser,
-    'ip', jsonb_build_object('requests_1h', v_ip_hour, 'requests_24h', v_ip_day));
+    'ip', jsonb_build_object('requests_1h', v_ip_hour));
 end;
 $$;
 comment on function platform.sign_in_begin(text, text, text, text) is 'sign-in-link, step 1: per-address and per-browser lock, the ladder and challenge counts, and a new pending request row (its id).';

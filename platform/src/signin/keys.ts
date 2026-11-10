@@ -15,15 +15,19 @@ export interface HeaderLike {
 }
 
 /**
- * The client IP: the first x-forwarded-for entry, else cf-connecting-ip,
- * else 'unknown'. Anything that does not look like an IPv4 or IPv6 address
- * is ignored.
+ * The client IP: cf-connecting-ip, else the first x-forwarded-for entry,
+ * else 'unknown'. cf-connecting-ip comes first because Cloudflare (in front
+ * of Supabase and its custom domain) sets it and overwrites any value the
+ * client sends, while proxies append to an x-forwarded-for the client may
+ * have started, so its first entry can be forged. (The design said
+ * x-forwarded-for first; the code review of 10 Nov changed the order.)
+ * Anything that does not look like an IPv4 or IPv6 address is ignored.
  */
 export function clientIp(headers: HeaderLike): string {
-  const forwarded = (headers.get('x-forwarded-for') ?? '').split(',')[0].trim().toLowerCase();
-  if (IP_CHARS.test(forwarded)) return forwarded;
   const cf = (headers.get('cf-connecting-ip') ?? '').trim().toLowerCase();
   if (IP_CHARS.test(cf)) return cf;
+  const forwarded = (headers.get('x-forwarded-for') ?? '').split(',')[0].trim().toLowerCase();
+  if (IP_CHARS.test(forwarded)) return forwarded;
   return UNKNOWN_IP;
 }
 

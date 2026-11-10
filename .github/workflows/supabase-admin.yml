@@ -41,7 +41,7 @@ on:
         default: ''
         type: string
       flags:
-        description: 'Flags for the script, e.g. "--google --dry-run" (configure-auth), "--write" (keys), "--base=https://auth.hintwise.org" (check-google), "--callbacks-ready" (domain-activate), "--dry-run" (email-hook on)'
+        description: 'Flags for the script, e.g. "--google --dry-run" (configure-auth), "--write" (keys), "--base=https://auth.hintwise.org" (check-google), "--callbacks-ready" (domain-activate), "--dry-run" or "--allow-otp-apps" (email-hook on)'
         required: false
         default: ''
         type: string
@@ -149,8 +149,8 @@ jobs:
         # RESEND_API and ADMIN_EMAIL from the repo secrets of the same names;
         # TURNSTILE_SECRET from the repo secret TURNSTILE_SECRET_KEY (left as
         # it is when that is absent); TURNSTILE_SITE_KEY from the repo variable
-        # or secret TURNSTILE_SITE_KEY, else the public key committed in
-        # platform/supabase.json. SIGN_IN_HASH_KEY and SEND_EMAIL_HOOK_SECRET
+        # or secret TURNSTILE_SITE_KEY, else turnstileSiteKey in
+        # platform/supabase.json (read with jq). SIGN_IN_HASH_KEY and SEND_EMAIL_HOOK_SECRET
         # are generated only when the project does not have them yet (a new
         # hash key would cut every address off its history); the names come
         # from the Management API, which lists names and digests, not values.
@@ -165,7 +165,8 @@ jobs:
           NAMES=$(curl -fsS -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" "https://api.supabase.com/v1/projects/$REF/secrets" | jq -r '.[].name')
           has() { printf '%s\n' "$NAMES" | grep -qx "$1"; }
           ARGS=("RESEND_API=$RESEND_API" "ADMIN_EMAIL=$ADMIN_EMAIL")
-          SITE_KEY="${TURNSTILE_SITE_KEY_REPO:-0x4AAAAAAF7YqIR2_9E_hu1x}"
+          SITE_KEY="${TURNSTILE_SITE_KEY_REPO:-$(jq -r '.turnstileSiteKey // empty' supabase.json)}"
+          [ -n "$SITE_KEY" ] || { echo "::error::no TURNSTILE_SITE_KEY repo value and no turnstileSiteKey in platform/supabase.json"; exit 1; }
           ARGS+=("TURNSTILE_SITE_KEY=$SITE_KEY")
           if [ -n "$TURNSTILE_SECRET_KEY" ]; then ARGS+=("TURNSTILE_SECRET=$TURNSTILE_SECRET_KEY"); fi
           HASH_NEW=false
@@ -183,7 +184,7 @@ jobs:
           echo "  RESEND_API: true"
           echo "  ADMIN_EMAIL: true"
           echo "  TURNSTILE_SECRET from repo secret TURNSTILE_SECRET_KEY: $(present "$TURNSTILE_SECRET_KEY")"
-          echo "  TURNSTILE_SITE_KEY from repo variable or secret TURNSTILE_SITE_KEY: $(present "$TURNSTILE_SITE_KEY_REPO") (else the committed public key)"
+          echo "  TURNSTILE_SITE_KEY from repo variable or secret TURNSTILE_SITE_KEY: $(present "$TURNSTILE_SITE_KEY_REPO") (false: platform/supabase.json turnstileSiteKey)"
           echo "  SIGN_IN_HASH_KEY generated now: $HASH_NEW (false: kept the one already set)"
           echo "  SEND_EMAIL_HOOK_SECRET generated now: $HOOK_NEW (false: kept the one already set)"
         env:
@@ -197,7 +198,9 @@ jobs:
       - name: Switch the Send Email hook
         if: inputs.command == 'email-hook'
         # status, check and off only call the script. on (owner's yes first):
-        # check that auth-email-hook is deployed with its secrets, generate a
+        # check that auth-email-hook is deployed with its secrets and that no
+        # app in this repo still calls signInWithOtp (flag --allow-otp-apps
+        # overrides), generate a
         # fresh secret, set it as the function secret, then point Auth's Send
         # Email hook at the function with the same secret. The function
         # secret cannot be read back, so on always starts a new one; while it
@@ -209,14 +212,14 @@ jobs:
           [ -n "$REF" ] || { echo "::error::SUPABASE_URL does not look like https://<ref>.supabase.co"; exit 1; }
           case "$ARG" in
             on)
-              node supabase-admin.mjs email-hook check
-              if printf '%s' "$FLAGS" | grep -q -- '--dry-run'; then node supabase-admin.mjs email-hook on --dry-run; exit 0; fi
+              node supabase-admin.mjs email-hook check $FLAGS
+              if printf '%s' "$FLAGS" | grep -q -- '--dry-run'; then node supabase-admin.mjs email-hook on $FLAGS; exit 0; fi
               SECRET="v1,whsec_$(openssl rand -base64 32)"
               echo "::add-mask::$SECRET"
               supabase secrets set --remote="$REF" --yes "SEND_EMAIL_HOOK_SECRET=$SECRET" >/dev/null \
                 || supabase secrets set --project-ref "$REF" --yes "SEND_EMAIL_HOOK_SECRET=$SECRET" >/dev/null
               echo "Function secret SEND_EMAIL_HOOK_SECRET replaced (value not shown)."
-              SEND_EMAIL_HOOK_SECRET="$SECRET" node supabase-admin.mjs email-hook on
+              SEND_EMAIL_HOOK_SECRET="$SECRET" node supabase-admin.mjs email-hook on $FLAGS
               ;;
             ''|status|check|off)
               node supabase-admin.mjs email-hook "${ARG:-status}" $FLAGS

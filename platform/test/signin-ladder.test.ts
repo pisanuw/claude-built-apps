@@ -5,7 +5,7 @@ import { DAY_CHALLENGE_REQUESTS, decide, decisionDetail, IP_FREE_PER_HOUR, type 
 const NOW = new Date('2026-11-10T12:00:00.000Z');
 const ago = (minutes: number) => new Date(NOW.getTime() - minutes * 60_000).toISOString();
 const key = (over: Partial<KeyStats> = {}): KeyStats => ({ sent: 0, last_sent_at: null, requests_24h: 0, ...over });
-const ip = (requests_1h = 0) => ({ requests_1h, requests_24h: requests_1h });
+const ip = (requests_1h = 0) => ({ requests_1h });
 
 describe('gapMinutes', () => {
   it('is 0 before the first link, then 1, 3, 5, 8, 13, 21', () => {

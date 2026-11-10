@@ -4,6 +4,7 @@
  * platform.sign_in_begin (which does not count the request being decided).
  */
 import { nextAllowed } from './ladder.ts';
+import { num as n } from './util.ts';
 
 /** A request of one address or one browser that reaches this many in 24 hours needs the challenge. */
 export const DAY_CHALLENGE_REQUESTS = 10;
@@ -21,8 +22,8 @@ export interface KeyStats {
 }
 
 export interface IpStats {
+  /** Requests from the IP in the last hour (any outcome). */
   requests_1h: number;
-  requests_24h: number;
 }
 
 /** What platform.sign_in_begin returns: the new request's id and the counts before it. */
@@ -39,10 +40,6 @@ export type Decision =
   | { action: 'wait'; retryAt: string; keys: Array<'email' | 'browser'> }
   | { action: 'send'; challenge: ChallengeReason[] };
 
-const n = (v: unknown): number => {
-  const x = typeof v === 'string' ? Number(v) : v;
-  return typeof x === 'number' && Number.isFinite(x) ? x : 0;
-};
 
 /**
  * Wait when either ladder says so (the later time wins); otherwise send,

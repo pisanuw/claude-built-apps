@@ -131,6 +131,35 @@ describe('handleEmailHook', () => {
     const req = new Request('https://x/', { method: 'POST', headers: { 'webhook-id': 'msg_1', 'webhook-timestamp': TS, 'webhook-signature': `v1,${sig}` }, body });
     expect((await (await handleEmailHook(req, empty.deps)).json()).error.http_code).toBe(400);
   });
+  it('sends the two email-change messages together and reports a partial failure', async () => {
+    let n = 0;
+    const s = setup({ resend: () => (n++ === 0 ? json(200, { id: 'ok' }) : json(500, {})) });
+    const res = await handleEmailHook(signed('email_change', { token_hash: 'a', token_hash_new: 'b' }), s.deps);
+    expect((await res.json()).error.http_code).toBe(502);
+    expect(s.sent).toHaveLength(2);
+    expect(s.logs.join()).toContain('1 of 2 went out');
+  });
+  it('refuses a payload over 256 KB before checking it', async () => {
+    const s = setup();
+    const req = new Request('https://x/', { method: 'POST', headers: { 'content-length': String(300 * 1024) }, body: 'x' });
+    const res = await handleEmailHook(req, s.deps);
+    expect(res.status).toBe(413);
+    expect(s.logs).toHaveLength(0);
+  });
+  it('answers anything unforeseen with a hook error', async () => {
+    const s = setup();
+    s.deps.now = () => {
+      throw new Error('clock broke');
+    };
+    const res = await handleEmailHook(signed('recovery'), s.deps);
+    expect(await res.json()).toEqual({ error: { http_code: 500, message: 'The email could not be sent. Try again in a minute.' } });
+    expect(s.logs.join()).toContain('auth-email-hook failed: clock broke');
+    const quietLog = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    delete s.deps.log;
+    expect((await handleEmailHook(signed('recovery'), s.deps)).status).toBe(200);
+    expect(quietLog).toHaveBeenCalled();
+    quietLog.mockRestore();
+  });
   it('refuses an unsigned or wrongly signed call with 401', async () => {
     const s = setup();
     const res = await handleEmailHook(signed('recovery', {}, { signature: 'v1,AAAA' }), s.deps);

@@ -19,7 +19,7 @@ to the handlers here. Tests: `platform/test/signin-*.test.ts`.
 | Module | What it does |
 |---|---|
 | `validate.ts` | `parseSignInRequest`: the body, email (trimmed, lower-cased), `redirectTo` (one `https://<label>.hintwise.org/` page), app slug, browser id |
-| `keys.ts` | `clientIp` (first `x-forwarded-for` entry, else `cf-connecting-ip`, else `unknown`), `hashKeys` (HMAC-SHA256 under `SIGN_IN_HASH_KEY`) |
+| `keys.ts` | `clientIp` (`cf-connecting-ip`, else the first `x-forwarded-for` entry, else `unknown`; Cloudflare overwrites the first, a client can forge the second), `hashKeys` (HMAC-SHA256 under `SIGN_IN_HASH_KEY`) |
 | `ladder.ts` | `gapMinutes`, `nextAllowed`: the wait between links |
 | `policy.ts` | `decide`: wait, send, or send after a challenge |
 | `turnstile.ts` | `verifyTurnstile` (siteverify) and the hostname allowlist; `TURNSTILE_SITE_KEY` |

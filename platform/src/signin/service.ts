@@ -18,7 +18,8 @@ import { createLinkToken, signInLink } from './link.ts';
 import { decide, decisionDetail, type BeginResult } from './policy.ts';
 import { sendEmail } from './resend.ts';
 import { TURNSTILE_SITE_KEY, verifyTurnstile } from './turnstile.ts';
-import { parseSignInRequest, type Known } from './validate.ts';
+import { errorText, readBody } from './util.ts';
+import { MAX_BODY_BYTES, parseSignInRequest, type Known, type Parsed } from './validate.ts';
 
 export type Outcome = 'sent' | 'wait' | 'challenge' | 'challenge_failed' | 'refused' | 'error' | 'invalid';
 export const OUTCOMES: readonly Outcome[] = ['sent', 'wait', 'challenge', 'challenge_failed', 'refused', 'error', 'invalid'];
@@ -57,8 +58,6 @@ export type SignInAnswer =
 
 const SORRY = 'Something went wrong on our side. Try again in a minute.';
 
-const errorText = (e: unknown): string => String((e as Error)?.message ?? e).slice(0, 300);
-
 /** Runs a task in the background, logging instead of rejecting. */
 function later(deps: Deps, task: () => Promise<unknown>): void {
   const run = (async () => {
@@ -95,7 +94,17 @@ export async function handleSignInLink(req: Request, deps: Deps): Promise<Respon
     return new Response(null, { status: p.status, headers: p.headers });
   }
   if (req.method !== 'POST') return reply(405, { status: 'error', message: 'Use POST.' });
+  try {
+    return await handlePost(req, deps, reply);
+  } catch (e) {
+    // Anything unforeseen still gets a JSON answer with CORS headers, and a log line.
+    (deps.log ?? console.warn)(`sign-in-link failed: ${errorText(e)}`);
+    return reply(500, { status: 'error', message: SORRY });
+  }
+}
 
+async function handlePost(req: Request, deps: Deps, reply: (status: number, body: SignInAnswer) => Response): Promise<Response> {
+  const origin = req.headers.get('origin');
   const log = deps.log ?? ((m: string) => console.warn(m));
   const now = deps.now ?? (() => new Date());
   const env = deps.env;
@@ -112,7 +121,8 @@ export async function handleSignInLink(req: Request, deps: Deps): Promise<Respon
 
   const ip = clientIp(req.headers);
   const ipKnown = ip !== UNKNOWN_IP;
-  const parsed = parseSignInRequest(await req.text());
+  const text = await readBody(req, MAX_BODY_BYTES);
+  const parsed: Parsed = text === null ? { ok: false, status: 413, message: 'The request is too large.', known: {} } : parseSignInRequest(text);
 
   /** One finished row for a request refused before sign_in_begin. */
   const logOnly = async (known: Known, outcome: Outcome, detail: string): Promise<void> => {

@@ -49,5 +49,18 @@ describe('email-hook', () => {
       'function secret SIGN_IN_HASH_KEY is not set (set-sign-in-secrets)',
     ]);
     expect(m.emailHookProblems(null, null)).toHaveLength(1 + m.EMAIL_HOOK_SECRETS.length);
+    expect(m.emailHookProblems(fns, secrets, ['qualified-overtime-checker/src/lib/auth.ts'])).toEqual([
+      "qualified-overtime-checker/src/lib/auth.ts still calls signInWithOtp: its email sign-in stops while the hook is on (move it to the template's sendMagicLink, or pass --allow-otp-apps)",
+    ]);
+  });
+  it('finds the app files that still call signInWithOtp', () => {
+    const files = [
+      { path: 'a/src/lib/auth.ts', text: 'return client.auth.signInWithOtp({ email });' },
+      { path: 'b/src/lib/auth.ts', text: "// was signInWithOtp, now the platform's sign-in-link\nsendMagicLink(email)" },
+      { path: 'c/src/x.ts', text: 'auth.signInWithOtp (\n{ email })' },
+      { path: 'd/src/y.ts', text: null },
+    ];
+    expect(m.otpCallers(files)).toEqual(['a/src/lib/auth.ts', 'c/src/x.ts']);
+    expect(m.otpCallers(null)).toEqual([]);
   });
 });

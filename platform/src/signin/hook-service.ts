@@ -14,6 +14,7 @@ import { restDb, type Db } from './db.ts';
 import { hashKeys } from './keys.ts';
 import { hookError, parseHookPayload, planHook, REFUSAL_MESSAGE, verifyWebhook } from './hook.ts';
 import { sendEmail } from './resend.ts';
+import { errorText, readBody } from './util.ts';
 import { hintwiseLabel } from './validate.ts';
 
 export interface HookEnv {
@@ -34,7 +35,8 @@ export interface HookDeps {
   background?: (task: Promise<unknown>) => void;
 }
 
-const errorText = (e: unknown): string => String((e as Error)?.message ?? e).slice(0, 300);
+/** Auth's payloads are a few kilobytes; anything far larger is not from Auth. */
+export const MAX_HOOK_BYTES = 256 * 1024;
 
 /** The host of a URL, or null. */
 export function hostOf(url: string): string | null {
@@ -45,14 +47,24 @@ export function hostOf(url: string): string | null {
   }
 }
 
+const reply = (status: number, body: unknown): Response => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+
 export async function handleEmailHook(req: Request, deps: HookDeps): Promise<Response> {
-  const reply = (status: number, body: unknown): Response => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  if (req.method !== 'POST') return reply(405, hookError(405, 'Use POST.'));
+  try {
+    return await handleHookPost(req, deps);
+  } catch (e) {
+    (deps.log ?? console.warn)(`auth-email-hook failed: ${errorText(e)}`);
+    return reply(200, hookError(500, 'The email could not be sent. Try again in a minute.'));
+  }
+}
+
+async function handleHookPost(req: Request, deps: HookDeps): Promise<Response> {
   const log = deps.log ?? ((m: string) => console.warn(m));
   const now = deps.now ?? (() => new Date());
   const env = deps.env;
-  if (req.method !== 'POST') return reply(405, hookError(405, 'Use POST.'));
-
-  const body = await req.text();
+  const body = await readBody(req, MAX_HOOK_BYTES);
+  if (body === null) return reply(413, hookError(413, 'Payload too large.'));
   const verified = await verifyWebhook(
     env.SEND_EMAIL_HOOK_SECRET,
     { id: req.headers.get('webhook-id'), timestamp: req.headers.get('webhook-timestamp'), signature: req.headers.get('webhook-signature') },
@@ -113,12 +125,13 @@ export async function handleEmailHook(req: Request, deps: HookDeps): Promise<Res
     return reply(200, hookError(500, 'This kind of email is not supported yet.'));
   }
 
-  for (const msg of plan.emails) {
-    const res = await sendEmail(deps.fetch, env.RESEND_API, msg);
-    if (!res.ok) {
-      log(`auth-email-hook: ${plan.actionType} email not sent: ${res.message}`);
-      return reply(200, hookError(502, 'Could not send the email. Try again in a minute.'));
-    }
+  // Together, so an email change's two messages fit Auth's 5-second hook budget.
+  const resend = env.RESEND_API;
+  const results = await Promise.all(plan.emails.map((msg) => sendEmail(deps.fetch, resend, msg)));
+  const failed = results.find((res) => !res.ok);
+  if (failed && !failed.ok) {
+    log(`auth-email-hook: ${plan.actionType} email not sent (${results.filter((x) => x.ok).length} of ${results.length} went out): ${failed.message}`);
+    return reply(200, hookError(502, 'Could not send the email. Try again in a minute.'));
   }
   return reply(200, {});
 }

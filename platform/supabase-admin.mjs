@@ -51,10 +51,11 @@
  *                           back. No login, no secret. --base is the auth host
  *                           to test (default SUPABASE_URL; later the custom
  *                           domain). Exits 1 when the flow is broken.
- *   email-hook status|check|on|off [--dry-run]
+ *   email-hook status|check|on|off [--dry-run] [--allow-otp-apps]
  *                           Supabase Auth's Send Email hook (auth-email-hook):
  *                           status prints it; check exits 1 unless the function
- *                           is deployed and its secrets are set; on points the
+ *                           is deployed, its secrets are set and no app in this
+ *                           repo still calls signInWithOtp; on points the
  *                           hook at the function with SEND_EMAIL_HOOK_SECRET
  *                           from the env (the workflow generates it and sets
  *                           the same value as the function secret first); off
@@ -735,9 +736,38 @@ export const EMAIL_HOOK_SECRETS = ['SEND_EMAIL_HOOK_SECRET', 'RESEND_API', 'SIGN
 /** Pure: the function URL Auth calls (the project's own address, not the custom domain). */
 export const emailHookUri = (projectRef) => `https://${projectRef}.supabase.co/functions/v1/auth-email-hook`;
 
-/** Pure: what stops the hook from being switched on: the function not deployed, or a secret missing. */
-export function emailHookProblems(functions, secrets) {
+/** Pure: the files that still call supabase.auth.signInWithOtp, whose email sign-in the hook would refuse. */
+export function otpCallers(files) {
+  return (Array.isArray(files) ? files : []).filter((f) => /\.signInWithOtp\s*\(/.test(String(f?.text ?? ''))).map((f) => f.path);
+}
+
+/** The app sources in this repo: <app>/src/**.{ts,tsx,js,jsx,mjs}, without node_modules, dist and the platform. */
+function appSources(root) {
+  const out = [];
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (e.name === 'node_modules' || e.name === 'dist' || e.name.startsWith('.')) continue;
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) walk(full);
+      else if (/\.(ts|tsx|js|jsx|mjs)$/.test(e.name)) out.push({ path: path.relative(root, full), text: fs.readFileSync(full, 'utf8') });
+    }
+  };
+  for (const e of fs.readdirSync(root, { withFileTypes: true })) {
+    if (!e.isDirectory() || e.name.startsWith('.') || e.name === 'platform' || e.name === 'node_modules') continue;
+    const src = path.join(root, e.name, 'src');
+    if (fs.existsSync(src)) walk(src);
+  }
+  return out;
+}
+
+/**
+ * Pure: what stops the hook from being switched on: the function not
+ * deployed, a secret missing, or an app in this repo still calling
+ * signInWithOtp (its email sign-in would stop; --allow-otp-apps overrides).
+ */
+export function emailHookProblems(functions, secrets, otpFiles = []) {
   const problems = [];
+  for (const f of otpFiles) problems.push(`${f} still calls signInWithOtp: its email sign-in stops while the hook is on (move it to the template's sendMagicLink, or pass --allow-otp-apps)`);
   const fn = (Array.isArray(functions) ? functions : []).find((f) => f?.slug === 'auth-email-hook');
   if (!fn) problems.push('the auth-email-hook function is not deployed (deploy-function auth-email-hook)');
   else if (fn.status && fn.status !== 'ACTIVE') problems.push(`the auth-email-hook function is ${fn.status}`);
@@ -764,10 +794,12 @@ async function emailHook(action = 'status') {
   console.log(`Send Email hook: enabled ${current.hook_send_email_enabled === true}; uri ${current.hook_send_email_uri || '(none)'}; secret ${current.hook_send_email_secrets ? '(set)' : '(unset)'}`);
   if (action === 'status') return;
   if (action === 'check' || action === 'on') {
-    const problems = emailHookProblems(await api(`/v1/projects/${ref}/functions`), await api(`/v1/projects/${ref}/secrets`));
+    const otp = flags.has('--allow-otp-apps') ? [] : otpCallers(appSources(ROOT));
+    const problems = emailHookProblems(await api(`/v1/projects/${ref}/functions`), await api(`/v1/projects/${ref}/secrets`), otp);
     for (const p of problems) console.log(`::error::${p}`);
     if (problems.length) fail('the Send Email hook cannot be switched on yet');
-    console.log('auth-email-hook is deployed and its secrets are set.');
+    console.log('auth-email-hook is deployed, its secrets are set, and no app in this repo calls signInWithOtp.');
+    console.log('::warning::Apps outside this repo on the same project (WCV Live Together, how-of-happiness, the quiz app) are not checked: their email sign-in and sign-up stop while the hook is on.');
     if (action === 'check') return;
   }
   const dryRun = flags.has('--dry-run');

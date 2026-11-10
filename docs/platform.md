@@ -217,8 +217,15 @@ function `sign-in-link` (public, `verify_jwt = false`, CORS for
   with 403 "Use the HintWise sign-in-link service" and raises the bypass
   alert. It sends recovery, invite, email change, reauthentication and
   account notices through Resend. **Switching it on affects every app on the
-  shared project**, including WCV Live Together and how-of-happiness: their
-  email sign-in and sign-up stop until they move to `sign-in-link`.
+  shared project.** Email sign-in and sign-up stop, until the app moves to
+  `sign-in-link`, in:
+  - WCV Live Together, how-of-happiness and the quiz app, which are outside
+    this repo;
+  - qualified-overtime-checker, whose `src/lib/auth.ts` still calls
+    `signInWithOtp` (10 Nov).
+
+  `email-hook check` lists every app in this repo that still calls it, and
+  `email-hook on` refuses while there is one unless given `--allow-otp-apps`.
 
 Deployment order, each step a "Supabase admin" dispatch:
 
@@ -381,10 +388,15 @@ Added by the scaffolding (branch `platform-scaffold`, 9 Nov):
 
 Added with the sign-in links (10 Nov), not exercised live yet:
 
-- **Client IP.** Whether Supabase's edge puts the client's own address
-  first in `x-forwarded-for`. The function trusts the first entry, as the
-  design says. If a request with a forged `X-Forwarded-For` shows up under
-  the forged value, switch to `cf-connecting-ip` first (`clientIp` in
+- **Client IP.** The function reads `cf-connecting-ip` first and the first
+  `x-forwarded-for` entry only when that header is missing. This reverses
+  the design's order, changed after the code review of 10 Nov. Cloudflare
+  sets `cf-connecting-ip` and overwrites a client's own value, while proxies
+  append to an `X-Forwarded-For` the client may have started, so its first
+  entry can be forged. Not yet checked: whether Supabase's edge passes
+  `cf-connecting-ip` through to the function. After the deploy, send one
+  request with a made-up `X-Forwarded-For` and check that its `ip_hash` is
+  the same as for an ordinary request (`clientIp` in
   `platform/src/signin/keys.ts`).
 - **First-time addresses.** `generate_link` with `type: 'magiclink'` creates
   the user. GoTrue's `adminGenerateLink` turns it into a signup; source read

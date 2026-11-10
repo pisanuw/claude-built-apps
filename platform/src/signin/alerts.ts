@@ -10,6 +10,7 @@
 import { renderEmail } from './email.ts';
 import { shortHash, type KeyHashes } from './keys.ts';
 import type { EmailMessage } from './resend.ts';
+import { num as n } from './util.ts';
 
 export type AlertKind = 'many-addresses' | 'address-repeated' | 'challenge-failures' | 'bypass' | 'volume';
 export const ALERT_KINDS: readonly AlertKind[] = ['many-addresses', 'address-repeated', 'challenge-failures', 'bypass', 'volume'];
@@ -39,10 +40,6 @@ export interface AlertCounts {
   alerts?: Record<string, string | null>;
 }
 
-const n = (v: unknown): number => {
-  const x = typeof v === 'string' ? Number(v) : v;
-  return typeof x === 'number' && Number.isFinite(x) ? x : 0;
-};
 
 /** The kinds whose rule holds now. IP rules are skipped when the IP is unknown. */
 export function triggeredAlerts(c: AlertCounts, ipKnown = true): AlertKind[] {

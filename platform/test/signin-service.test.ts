@@ -17,7 +17,7 @@ const ENV: SignInEnv = {
   TURNSTILE_SECRET: '1x0000000000000000000000000000000AA',
 };
 const key = (over: Partial<KeyStats> = {}): KeyStats => ({ sent: 0, last_sent_at: null, requests_24h: 0, ...over });
-const fresh = (): BeginResult => ({ id: 41, email: key(), browser: key(), ip: { requests_1h: 0, requests_24h: 0 } });
+const fresh = (): BeginResult => ({ id: 41, email: key(), browser: key(), ip: { requests_1h: 0 } });
 const quiet = (): AlertCounts => ({ ip_addresses_1h: 1, browser_addresses_1h: 1, email_requests_1h: 1, ip_challenge_failures_1h: 0, sent_1h: 1, alerts: {} });
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
@@ -107,7 +107,7 @@ describe('handleSignInLink: sending', () => {
     expect(s.rpc[1][1].p_detail).toContain('user created before the link');
   });
   it('notes an unknown IP and skips the IP rule', async () => {
-    const s = setup({ begin: { ...fresh(), ip: { requests_1h: 99, requests_24h: 99 } } });
+    const s = setup({ begin: { ...fresh(), ip: { requests_1h: 99 } } });
     const res = await handleSignInLink(request({}, { 'x-forwarded-for': '' }), s.deps);
     expect(await res.json()).toEqual({ status: 'sent' });
     expect(s.rpc[1][1].p_detail).toBe('ip unknown; resend re_9');
@@ -167,7 +167,7 @@ describe('handleSignInLink: challenge', () => {
     expect(long.calls.filter(([u]) => u.includes('siteverify'))).toHaveLength(0);
   });
   it('sends without the challenge, with a warning, while TURNSTILE_SECRET is unset', async () => {
-    const s = setup({ begin: { ...fresh(), ip: { requests_1h: 20, requests_24h: 20 } }, env: { TURNSTILE_SECRET: '' } });
+    const s = setup({ begin: { ...fresh(), ip: { requests_1h: 20 } }, env: { TURNSTILE_SECRET: '' } });
     const res = await handleSignInLink(request(), s.deps);
     expect(await res.json()).toEqual({ status: 'sent' });
     expect(s.rpc[1][1].p_detail).toBe('warning: challenge skipped, TURNSTILE_SECRET unset (ip-hour); resend re_9');
@@ -262,6 +262,29 @@ describe('handleSignInLink: refusals and failures', () => {
     expect(await res.json()).toEqual({ status: 'sent' });
     expect(s.logs.join()).toContain('sign_in_finish failed');
     expect(s.tasks).toHaveLength(0);
+  });
+  it('refuses a body over 8 KB with 413, logged as invalid', async () => {
+    const s = setup();
+    const big = new Request('https://x/', { method: 'POST', headers: { origin: ORIGIN, 'content-length': '20000' }, body: 'x' });
+    const res = await handleSignInLink(big, s.deps);
+    expect(res.status).toBe(413);
+    expect(s.rpc[0][1]).toMatchObject({ p_outcome: 'invalid', p_email_hash: null, p_detail: 'The request is too large.' });
+  });
+  it('answers anything unforeseen with a JSON 500 that keeps the CORS headers', async () => {
+    const s = setup();
+    s.deps.now = () => {
+      throw new Error('clock broke');
+    };
+    const res = await handleSignInLink(request(), s.deps);
+    expect(res.status).toBe(500);
+    expect(res.headers.get('access-control-allow-origin')).toBe(ORIGIN);
+    expect(await res.json()).toMatchObject({ status: 'error' });
+    expect(s.logs.join()).toContain('sign-in-link failed: clock broke');
+    const quietLog = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    delete s.deps.log;
+    expect((await handleSignInLink(request(), s.deps)).status).toBe(500);
+    expect(quietLog).toHaveBeenCalled();
+    quietLog.mockRestore();
   });
 });
 

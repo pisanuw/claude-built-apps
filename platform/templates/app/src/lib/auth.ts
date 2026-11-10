@@ -340,7 +340,8 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
   let challengeBox: HTMLElement | null = null;
   let send: HTMLButtonElement | null = null;
   let turnstile: TurnstileApi | null = null;
-  let widgetId: string | null = null;
+  /** The widget on the page, or on its way; callbacks of any other one are ignored. */
+  let widget: { id: string | null } | null = null;
   let pendingEmail = '';
   let failedChecks = 0;
   ensureSignInStyles(el.ownerDocument);
@@ -352,28 +353,38 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
   };
 
   const dropWidget = (): void => {
-    if (turnstile && widgetId) turnstile.remove?.(widgetId);
-    widgetId = null;
+    if (turnstile && widget?.id) turnstile.remove?.(widget.id);
+    widget = null;
     challengeBox?.replaceChildren();
   };
 
   const showChallenge = (siteKey: string, box: HTMLElement): void => {
-    if (widgetId) return; // reset after the last request: it is ready for a new token
+    if (widget) return; // on the page (reset after the last request) or still loading
+    const mine: { id: string | null } = { id: null };
+    widget = mine;
     void getTurnstile()
       .then((api) => {
-        if (box !== challengeBox) return; // the panel was re-rendered meanwhile
+        if (widget !== mine || box !== challengeBox) return; // dropped or re-rendered meanwhile
         turnstile = api;
         const slot = document.createElement('div');
         box.replaceChildren(slot);
-        widgetId =
+        mine.id =
           api.render(slot, {
             sitekey: siteKey || TURNSTILE_SITE_KEY,
             action: TURNSTILE_ACTION,
-            callback: (token: string) => void submit(pendingEmail, token),
-            'error-callback': () => say('The check could not run. Reload the page and try again.'),
+            callback: (token: string) => {
+              if (widget === mine) void submit(pendingEmail, token);
+            },
+            'error-callback': () => {
+              if (widget === mine) say('The check could not run. Reload the page and try again.');
+            },
           }) ?? null;
       })
-      .catch(() => say('The check could not load. Reload the page and try again.'));
+      .catch(() => {
+        if (widget !== mine) return;
+        widget = null;
+        say('The check could not load. Reload the page and try again.');
+      });
   };
 
   async function submit(email: string, token?: string): Promise<void> {
@@ -382,7 +393,7 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
     say('Sending...');
     const result = await sendLink(email, redirectTo, token ? { turnstileToken: token } : {});
     // A token works once: reset the widget after every request, before any retry.
-    if (turnstile && widgetId) turnstile.reset(widgetId);
+    if (turnstile && widget?.id) turnstile.reset(widget.id);
     if (result.status === 'sent') {
       dropWidget();
       say(`Check ${email} for a sign-in link.`);
@@ -400,6 +411,8 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
         if (challengeBox) showChallenge(result.siteKey, challengeBox);
       }
     } else {
+      // A reset widget would hand out a new token and resubmit on its own: drop it.
+      dropWidget();
       say(`Could not send the link: ${result.message}`);
     }
     if (send) send.disabled = false;

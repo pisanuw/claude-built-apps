@@ -38,7 +38,7 @@ Dispatch "Supabase admin" with `command`, optional `arg` and `flags`:
 | `deploy-gateway` | | the same as `deploy-function llm-gateway` |
 | `set-gateway-key` | | Supabase CLI: `supabase secrets set ANTHROPIC_API_KEY=...` from the repo secret |
 | `set-sign-in-secrets` | | function secrets `RESEND_API`, `ADMIN_EMAIL`, `TURNSTILE_SECRET` (repo secret `TURNSTILE_SECRET_KEY`, when present), `TURNSTILE_SITE_KEY` (repo variable or secret, else the committed public key); generates `SIGN_IN_HASH_KEY` and `SEND_EMAIL_HOOK_SECRET` only when the project has none; prints booleans |
-| `email-hook` | arg: `status`, `check`, `on`, `off`; flag `--dry-run` | Supabase Auth's Send Email hook. `on` (owner's yes first) checks the function and its secrets, sets a fresh `SEND_EMAIL_HOOK_SECRET` and points the hook at `auth-email-hook` with it. It affects every app on the project |
+| `email-hook` | arg: `status`, `check`, `on`, `off`; flags `--dry-run`, `--allow-otp-apps` | Supabase Auth's Send Email hook. `on` (owner's yes first) checks the function, its secrets and that no app in this repo still calls `signInWithOtp`, sets a fresh `SEND_EMAIL_HOOK_SECRET` and points the hook at `auth-email-hook` with it. It affects every app on the project |
 
 First-time order (after the owner's key rotation): `apply-shared`,
 `expose-schema platform`, `configure-auth --dry-run` then `configure-auth`,

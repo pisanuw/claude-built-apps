@@ -400,6 +400,38 @@ describe('mountSignIn', () => {
       expect(statusText()).toBe('Check ann@example.com for a sign-in link.');
       expect(root.querySelector('.hw-signin-challenge')!.children).toHaveLength(0);
     });
+    it('drops the widget when the request after a passed check fails, so it cannot resubmit on its own', async () => {
+      const t = turnstile();
+      const answers: SignInLinkResult[] = [{ status: 'challenge', siteKey: 'k' }, { status: 'error', message: 'Could not send the email. Try again in a minute.' }];
+      const sendLink = vi.fn(async () => answers.shift()!);
+      mount(sendLink, { loadTurnstile: async () => t.api });
+      await flush();
+      submit('ann@example.com');
+      await flush();
+      await flush();
+      t.solve('tok-1');
+      await flush();
+      expect(t.api.remove).toHaveBeenCalledWith('widget-1');
+      expect(statusText()).toBe('Could not send the link: Could not send the email. Try again in a minute.');
+      t.solve('tok-2'); // a late callback from the dropped widget is ignored
+      t.fail();
+      await flush();
+      expect(sendLink).toHaveBeenCalledTimes(2);
+      expect(statusText()).toBe('Could not send the link: Could not send the email. Try again in a minute.');
+    });
+    it('renders one widget even when the visitor submits twice while the script loads', async () => {
+      const t = turnstile();
+      let finishLoad: (api: TurnstileApi) => void = () => undefined;
+      mount(async () => ({ status: 'challenge', siteKey: 'k' }), { loadTurnstile: () => new Promise<TurnstileApi>((r) => (finishLoad = r)) });
+      await flush();
+      submit('a@b.org');
+      await flush();
+      submit('a@b.org');
+      await flush();
+      finishLoad(t.api);
+      await flush();
+      expect(t.api.render).toHaveBeenCalledTimes(1);
+    });
     it('asks again after a failed check, with the reset widget, and stops after three failures', async () => {
       const t = turnstile();
       const sendLink = vi.fn(async (_e: string, _r: string, o: { turnstileToken?: string }) => (o.turnstileToken ? { status: 'challenge', siteKey: 'k', failed: true } : { status: 'challenge', siteKey: 'k' }) as SignInLinkResult);
