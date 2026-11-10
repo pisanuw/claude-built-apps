@@ -440,3 +440,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-10 [code] UpvoteMe: pisanuw/upvote#3 merged (ce9549c); upvoteme.netlify.app/* now 301s to upvoteme.hintwise.org with path and query kept, so sign-in stays on one host. Checked live 12:37 UTC.
 2026-11-10 [code] UpvoteMe signs in to Google through Supabase (pisanuw/upvote#4): NextAuth provider `supabase`, PKCE, users linked by verified email; rollback NEXT_PUBLIC_GOOGLE_AUTH_VIA=direct.
 2026-11-10 [doc] Sent StepWise how to use the shared project: auth.hintwise.org, PKCE, schema app_stepwise, shared links via an RPC. Plabs applies its migration after the owner's yes.
+2026-11-10 [note] Owner: UpvoteMe Google sign-in through Supabase works. Its two Google redirect URIs (upvoteme.hintwise.org, upvoteme.netlify.app /api/auth/callback/google) can be removed.
+2026-11-10 [decision] Owner: yes to applying StepWise's migration (schema app_stepwise) to the shared project and exposing the schema once its SQL arrives.
