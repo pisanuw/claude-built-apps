@@ -22,6 +22,36 @@ lead source for paid custom builds. Customer priority: small businesses first,
 then startups, edtech, universities. Each app also gets its own repo in the
 pisan-labs GitHub org, so people can find, star and fork it.
 
+## The usual architecture (owner, 10 November 2026)
+
+The owner has paid accounts on Netlify, Render, Supabase and Resend, and
+Google sign-in goes through Supabase. Build on this stack by default and plan
+the features the customer actually needs (sign-in, saved data, file uploads,
+email, scheduled checks) instead of cutting them to stay on a free tier. Add
+no other provider without the owner's yes.
+
+| Need | Use |
+|---|---|
+| The app | Vite + TypeScript from `platform/templates/app/`, on Netlify at `https://<slug>.hintwise.org`, deployed by the Deploy workflow from `deploy/target.yml` (Step 4). |
+| Server-side code (a secret, a webhook, a signed URL, sending email) | Netlify Functions in the same site: `netlify/functions/`, served at `/api/*` (the deploy runner bundles them; `netlify.functionsDir` in target.yml). A secret reaches them by name through target.yml `envPassthrough`, filled from a GitHub repo secret (`RESEND_API` is one already). A function that touches the database acts with the signed-in user's token, so row level security applies; apps never get the service-role key. |
+| Sign-in | Supabase Auth at `https://auth.hintwise.org`: Google through Supabase, and magic link (docs/platform.md section 2). Never add a Google OAuth client, a redirect URI or an auth setting for one app. Sign-in only returns to `https://*.hintwise.org/**`, so it cannot finish on localhost or a deploy preview: tests and the Playwright walkthrough mock it. |
+| Data | Supabase Postgres in the app's own schema `app_<slug_>`, row level security on every table, migrations in `<slug>/supabase/migrations/` (Step 4). The project is shared with live apps: never touch `public` or another app's schema. |
+| Files | Supabase Storage: one private bucket per app named `<slug>`, created with its `storage.objects` policies in the app's migration; downloads through signed URLs. |
+| Sign-in email | Nothing to build: Supabase sends magic links through Resend (sign-in@hintwise.org). |
+| App email (notifications, reports, reminders) | Resend, from a Netlify Function only (the key never reaches the browser), sender `<slug>@hintwise.org` (hintwise.org is already the sending domain for sign-in mail and the usage report). Recurring mail is opt-in and carries an unsubscribe link; cap sends per user and per day in code. |
+| Model calls | The LLM gateway, with bring-your-own-key always offered (docs/platform.md section 3). |
+| Scheduled work | Netlify Scheduled Functions for light jobs (not yet used with this deploy runner: verify on first use); Render for heavy or long-running jobs. |
+| A long-running server (websockets, queues, heavy compute, a Python library) | Render: a path prefix in `backend-hub` first. backend-hub runs on Render's free instance (sleeps when idle, 512 MB). |
+| DNS | Cloudflare (hintwise.org); the deploy runner creates the app's record. |
+
+Ask the owner first, as a numbered open question with a recommendation (Step
+4), before anything that adds a bill or changes what other apps share: a new
+Render service or plan, a Supabase add-on, a new provider, a new GitHub secret
+(only the owner adds them: give the exact name and what uses it), or a shared
+setting (Supabase auth, the Google client, DNS beyond the app's own name).
+Netlify charges credits for each production deploy, so the once-a-day deploy
+rule in Step 3 stays.
+
 ## Git workflow: this routine is authorized to finalize on main, unattended
 
 1. Before anything else, in each repo run:
@@ -89,7 +119,7 @@ record it in HANDOFF.md section 14 of this repo; do not build a Weekend MVP.
 idea's `buildPlan` (or one you write to the same rules: 5 to 7 milestones,
 each about a day, milestone 1 a deployable vertical slice, the last ones
 polish and finish), the shape marks, and the platform needs decided against
-`docs/platform.md`: Supabase when the customer returns to saved data or signs
+the architecture table above and `docs/platform.md`: Supabase when the customer returns to saved data or signs
 in (schema `app_<slug_>`, migrations in `supabase/migrations/`), the LLM
 gateway when a model genuinely adds value (bring-your-own-key always offered;
 the owner's key only through the gateway and its caps; deterministic code
@@ -107,10 +137,7 @@ owner (what it does, for whom), finished on the polish day.
 
 **VERTICAL SLICE.** Build milestone 1 end to end: UI, core logic, tests,
 `deploy/target.yml` (Step 4 has the deploy rules), push, verify the live site.
-If the slice needs Supabase and `platform/supabase.json` does not exist yet
-(it appears once the owner has rotated the project's keys), build the
-database-free part of the slice behind the repository interface with the
-in-memory implementation, and list the dependency under "Remaining".
+The public Supabase URL and anon key are in `platform/supabase.json`.
 
 Then do the end-of-day work in Step 4.
 
@@ -176,9 +203,10 @@ list the DNS step under owner actions. Verify LIVE_URL returns 200, renders
 the app and carries the footer (`curl -s LIVE_URL | grep -c "Want something
 like this"`). Apps with a Supabase schema set `supabase: true` in target.yml
 so the Deploy workflow applies `supabase/migrations/*.sql` and exposes the
-schema; until that step exists in `.github/workflows/deploy.yml`, apply a
-migration by dispatching the "Supabase admin" workflow with command `sql`
-and the file path, and read its run log. Do not add the "built by" footer
+schema (first used on 10 November by qualified-overtime-checker); read that
+step's log. If the API then answers PGRST106 ("Invalid schema") for the new
+schema, dispatch the "Supabase admin" workflow with command `sql` and
+`platform/supabase/ops/reload-postgrest.sql`. Do not add the "built by" footer
 (the deploy injects it). Do not redeploy other apps.
 
 ## Step 5: Finish (day 7, or earlier when PLAN.md is done)

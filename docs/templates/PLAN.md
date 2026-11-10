@@ -12,8 +12,9 @@ milestone that proves unnecessary is struck through with the reason.
 ## Shape
 
 Marks: <stateful | connected | unattended | engine | shared>, because <one
-line each>. Platform needs: <accounts, database, llm, email, scheduled,
-backend; or "none, because ...">.
+line each>. Platform needs, from the architecture table in BUILD_ROUTINE.md:
+<sign-in, database, files, app email, llm, scheduled, server functions,
+Render backend; or "none, because ...">, each with the piece it uses.
 
 ## Milestones
 
