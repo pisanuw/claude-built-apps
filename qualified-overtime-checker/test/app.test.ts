@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientFile } from '../src/core/clientFile';
 import { newClientFile } from '../src/core/clientFile';
-import { InMemoryRepository } from '../src/lib/repository';
+import { Files, MemoryFileStore } from '../src/store/stores';
 import { mountApp } from '../src/ui/app';
 import { fileSlug, fill, h, hours, money, signedMoney } from '../src/ui/dom';
 
@@ -12,7 +12,8 @@ const settle = async () => {
 };
 
 let root: HTMLElement;
-let repo: InMemoryRepository<ClientFile>;
+let repo: MemoryFileStore;
+let ids: number;
 let downloads: { name: string; text: string }[];
 
 function button(name: string | RegExp): HTMLButtonElement {
@@ -29,9 +30,11 @@ async function pickFile(input: HTMLInputElement, name: string, text: string) {
 }
 
 async function mount(seed: ClientFile[] = [], confirm: (q: string) => boolean = () => true) {
-  repo = new InMemoryRepository<ClientFile>(seed);
+  repo = new MemoryFileStore('browser');
+  for (const f of seed) await repo.put(f);
   downloads = [];
-  await mountApp(root, { repo, download: (name, text) => downloads.push({ name, text }), now: () => new Date('2026-11-10T12:00:00Z'), newId: () => 'f1', confirm });
+  ids = 0;
+  await mountApp(root, { files: new Files(repo), download: (name, text) => downloads.push({ name, text }), now: () => new Date('2026-11-10T12:00:00Z'), newId: () => `f${++ids}`, confirm, saveDelay: 0 });
 }
 
 beforeEach(() => {
@@ -197,21 +200,15 @@ describe('the checker page', () => {
     expect(root.querySelector('.status')?.textContent).toBe('Imported 1 lines for 1 employees from d.csv.');
   });
 
-  it('asks before the sample replaces imported hours', async () => {
-    const answers: boolean[] = [false, true];
-    const asked: string[] = [];
-    await mount([], (q) => {
-      asked.push(q);
-      return answers.shift() as boolean;
-    });
+  it('opens the sample as a file of its own', async () => {
+    await mount();
     await pickFile(root.querySelector('#hours-file') as HTMLInputElement, 'mine.csv', 'Employee,Date,Hours,Rate\nAnn,2026-11-02,8,20\n');
     button('Try the sample employer').click();
     await settle();
-    expect(asked).toHaveLength(1);
-    expect(root.textContent).not.toContain('Dev Patel');
-    button('Try the sample employer').click();
-    await settle();
     expect(root.textContent).toContain('Dev Patel');
+    const list = await repo.list();
+    expect(list.map((f) => f.name).sort()).toEqual(['', 'Cedar Lane Kitchen (sample)']);
+    expect(list.find((f) => f.name === '')?.employees).toBe(1);
   });
 
   it('keeps payroll figures per tax year in the form', async () => {

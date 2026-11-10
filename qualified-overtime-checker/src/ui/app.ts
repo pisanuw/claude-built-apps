@@ -1,8 +1,8 @@
 /**
  * The checker's page: employer settings, the timesheet import with editable
  * columns, the payroll's TT figures, and the results with a week-by-week
- * worksheet per employee. Everything runs in the browser; the client file is
- * kept through the repository (in the tab until sign-in arrives).
+ * worksheet per employee. Everything is worked out in the browser. Client
+ * files are saved in this browser, or in the signed-in user's account.
  */
 import { needsCorrection, type EmployeeCheck } from '../core/compare';
 import { newClientFile, reportedFor, runChecks, withReported, type ClientFile } from '../core/clientFile';
@@ -13,17 +13,28 @@ import { resultsCsv, STATUS_TEXT, worksheetCsv } from '../core/export';
 import { FIELD_LABELS, FIELDS, guessMapping, importRows, mappingProblems, parseMoney, ssnColumns, type Mapping } from '../core/importer';
 import { importReported, keepKnown } from '../core/reported';
 import { buildSample, sampleCsv } from '../core/sample';
+import { worthSaving, type FileLocation, type FileSummary } from '../core/codec';
 import type { WeekResult } from '../core/types';
-import type { Repository } from '../lib/repository';
+import type { Files, FileStore } from '../store/stores';
 import { downloadText, fileSlug, fill, h, readFileText, hours, money, signedMoney } from './dom';
 
+/** Sign-in, when the build has Supabase: the panel, the user, and the account store. */
+export interface AuthHooks {
+  mount(el: HTMLElement): void;
+  onUser(callback: (user: { email: string | null } | null) => void): void;
+  accountStore(): FileStore;
+}
+
 export interface AppDeps {
-  repo: Repository<ClientFile>;
+  files: Files;
+  auth?: AuthHooks;
   download?: (name: string, text: string) => void;
   now?: () => Date;
   newId?: () => string;
-  /** Asks before the sample replaces imported hours; window.confirm by default. */
+  /** Asks before deleting a file; window.confirm by default. */
   confirm?: (question: string) => boolean;
+  /** Milliseconds to wait after a change before saving (default 700; tests pass 0). */
+  saveDelay?: number;
 }
 
 export const TAX_YEARS = [2026, 2025];
@@ -41,18 +52,49 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
   const makeId = deps.newId ?? (() => `file-${now().getTime()}`);
   const ask = deps.confirm ?? ((q: string) => window.confirm(q));
 
-  const existing = await deps.repo.list();
-  let file: ClientFile = existing[0] ?? newClientFile(makeId(), {}, now());
+  const files = deps.files;
+  const delay = deps.saveDelay ?? 700;
+  let user: { email: string | null } | null = null;
+  let file: ClientFile = newClientFile(makeId(), {}, now());
+  let location: FileLocation = 'browser';
   let pending: PendingImport | null = null;
   const open = new Set<string>();
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let saveText = '';
+  let saveError = false;
 
+  /** Writes the open file now (if it is worth keeping) and refreshes the list. */
+  async function flush(): Promise<void> {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    if (!worthSaving(file)) return;
+    try {
+      await files.store(location).put(file);
+      saveText = location === 'account' ? 'Saved to your account.' : 'Saved in this browser.';
+      saveError = false;
+    } catch (e) {
+      saveText = `Not saved: ${(e as Error).message}`;
+      saveError = true;
+      say(saveText);
+    }
+    await renderFiles();
+  }
+
+  /** Marks the file changed; it is saved after a short pause (or at once with saveDelay 0). */
   const save = async () => {
     file = { ...file, updatedAt: now().toISOString() };
-    await deps.repo.put(file);
+    if (delay <= 0) return flush();
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => void flush(), delay);
   };
 
   root.replaceChildren();
   const status = h('p', { class: 'status', role: 'status', 'aria-live': 'polite' });
+  const privacy = h('p', { class: 'privacy' });
+  const filesSec = h('section', { class: 'card', 'aria-labelledby': 'files-h' });
+  const authBox = h('div', { class: 'auth' });
   const employerSec = h('section', { class: 'card', 'aria-labelledby': 'employer-h' });
   const hoursSec = h('section', { class: 'card', 'aria-labelledby': 'hours-h' });
   const reportedSec = h('section', { class: 'card', 'aria-labelledby': 'reported-h' });
@@ -62,11 +104,10 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     h('header', { class: 'top' },
       h('h1', { text: 'Qualified Overtime Checker' }),
       h('p', { class: 'lede', text: 'Check the overtime figure on your staff’s W-2s (Box 12, code TT) before you file. Upload your timesheet, enter what your payroll calculated, and see who is off and by how much.' }),
-      h('p', { class: 'privacy' },
-        h('strong', { text: 'Your data stays in this browser tab. ' }),
-        'Social Security numbers are ignored: a column that holds them is dropped before anything is read. This is a worksheet, not tax advice.'),
+      privacy,
     ),
     status,
+    filesSec,
     employerSec,
     hoursSec,
     reportedSec,
@@ -77,6 +118,135 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
   const say = (text: string) => {
     status.textContent = text;
   };
+
+  function renderPrivacy() {
+    const where = user
+      ? 'Files you save to your account are kept in HintWise\u2019s database (United States) where only you can read them; files kept in this browser never leave it.'
+      : 'Your files are kept in this browser only. Sign in to keep them in your account instead.';
+    fill(privacy, h('strong', { text: `${where} ` }), 'Social Security numbers are never read or kept: a column that holds them is dropped first. This is a worksheet, not tax advice.');
+  }
+
+  // ---- Client files -----------------------------------------------------
+  async function openFile(s: FileSummary) {
+    await flush();
+    try {
+      const next = await files.store(s.location).get(s.id);
+      if (!next) {
+        say(`${s.name || 'That file'} is no longer there.`);
+        await renderFiles();
+        return;
+      }
+      file = next;
+      location = s.location;
+    } catch (e) {
+      say((e as Error).message);
+      return;
+    }
+    pending = null;
+    open.clear();
+    saveText = '';
+    renderAll();
+    say(`Opened ${file.settings.name || 'the file'} (tax year ${file.settings.taxYear}).`);
+  }
+
+  /** Starts a blank file; the open one is saved first unless it was just deleted. */
+  async function newFile(announce = true, discard = false) {
+    if (discard && timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    if (!discard) await flush();
+    file = newClientFile(makeId(), {}, now());
+    location = files.signedIn ? 'account' : 'browser';
+    pending = null;
+    open.clear();
+    saveText = '';
+    renderAll();
+    if (announce) say('New client file. Give it the employer\u2019s name and import their hours.');
+    (document.getElementById('emp-name') as HTMLInputElement | null)?.focus();
+  }
+
+  async function moveFile(s: FileSummary, to: FileLocation) {
+    await flush();
+    try {
+      const f = s.id === file.id ? file : await files.store(s.location).get(s.id);
+      if (!f) return;
+      await files.move(f, s.location, to);
+      if (s.id === file.id) location = to;
+      say(to === 'account' ? `${s.name || 'The file'} is now saved to your account.` : `${s.name || 'The file'} is now kept in this browser only, and removed from your account.`);
+    } catch (e) {
+      say((e as Error).message);
+    }
+    saveText = '';
+    await renderFiles();
+  }
+
+  async function deleteFile(s: FileSummary) {
+    if (!ask(`Delete ${s.name || 'this file'} (tax year ${s.taxYear})? This cannot be undone.`)) return;
+    if (s.id === file.id && timer) {
+      // A pending save of the open file must not bring it back.
+      clearTimeout(timer);
+      timer = null;
+    }
+    try {
+      await files.store(s.location).remove(s.id);
+    } catch (e) {
+      say((e as Error).message);
+      return;
+    }
+    say(`Deleted ${s.name || 'the file'}.`);
+    if (s.id === file.id) await newFile(false, true);
+    else await renderFiles();
+  }
+
+  async function renderFiles() {
+    const { files: list, error } = await files.list();
+    const heading = h('h2', { id: 'files-h', text: 'Client files' });
+    const add = h('button', { type: 'button', text: 'New client file' });
+    add.addEventListener('click', () => void newFile());
+    const where = (l: FileLocation) => (l === 'account' ? 'Your account' : 'This browser');
+    const rows = list.map((s) => {
+      const current = s.id === file.id;
+      const actions: HTMLElement[] = [];
+      if (!current) {
+        const b = h('button', { type: 'button', class: 'link', 'aria-label': `Open ${s.name || 'unnamed file'} ${s.taxYear}`, text: 'Open' });
+        b.addEventListener('click', () => void openFile(s));
+        actions.push(b);
+      }
+      if (files.signedIn) {
+        const to: FileLocation = s.location === 'account' ? 'browser' : 'account';
+        const b = h('button', { type: 'button', class: 'link', 'aria-label': `${to === 'account' ? 'Save to your account' : 'Keep in this browser only'}: ${s.name || 'unnamed file'} ${s.taxYear}`, text: to === 'account' ? 'Save to account' : 'Keep in browser only' });
+        b.addEventListener('click', () => void moveFile(s, to));
+        actions.push(b);
+      }
+      const del = h('button', { type: 'button', class: 'link danger', 'aria-label': `Delete ${s.name || 'unnamed file'} ${s.taxYear}`, text: 'Delete' });
+      del.addEventListener('click', () => void deleteFile(s));
+      actions.push(del);
+      const state = s.employees === 0 ? 'No hours yet' : s.needCorrection ? `${s.needCorrection} of ${s.employees} need correcting` : s.notEntered ? `${s.notEntered} of ${s.employees} not entered` : `${s.employees} checked, none off`;
+      return h('tr', { class: current ? 'current' : '', 'aria-current': current ? 'true' : null },
+        h('th', { scope: 'row' }, s.name || '(no name yet)', current ? h('span', { class: 'id', text: ' (open)' }) : null),
+        h('td', { 'data-label': 'Tax year', text: String(s.taxYear) }),
+        h('td', { 'data-label': 'Status', text: state }),
+        h('td', { 'data-label': 'Kept in', text: where(s.location) }),
+        h('td', { 'data-label': 'Saved', text: new Date(s.updatedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) }),
+        h('td', { class: 'actions' }, ...actions),
+      );
+    });
+    fill(filesSec,
+      heading,
+      deps.auth ? authBox : null,
+      error ? h('p', { class: 'warn', text: error }) : null,
+      list.length
+        ? h('div', { class: 'scroll' },
+            h('table', { class: 'files' },
+              h('caption', { class: 'sr-only', text: 'Your client files' }),
+              h('thead', {}, h('tr', {}, ...['Employer', 'Tax year', 'Status', 'Kept in', 'Saved', 'Actions'].map((t) => h('th', { scope: 'col', text: t })))),
+              h('tbody', {}, ...rows),
+            ))
+        : h('p', { class: 'empty', text: 'No saved files yet. A file is saved as soon as it has a name or hours.' }),
+      h('div', { class: 'row' }, add, h('span', { class: saveError ? 'save-status bad-text' : 'save-status', text: saveText })),
+    );
+  }
 
   // ---- Employer ---------------------------------------------------------
   function renderEmployer() {
@@ -163,10 +333,14 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     say(`Imported ${report.linesUsed} lines for ${report.employees} employees from ${pending.name}.`);
   }
 
+  /** The sample opens as a file of its own, so it never replaces a client's data. */
   async function loadSample() {
-    if (file.lines.length && !ask('Replace the hours and figures you imported with the sample employer?')) return;
+    await flush();
     const s = buildSample();
-    file = withReported({ ...newClientFile(file.id, s.settings, now()), lines: s.lines, source: 'sample-timesheet.csv' }, s.reported);
+    const id = worthSaving(file) ? makeId() : file.id;
+    if (id !== file.id) location = files.signedIn ? 'account' : 'browser';
+    open.clear();
+    file = withReported({ ...newClientFile(id, s.settings, now()), lines: s.lines, source: 'sample-timesheet.csv' }, s.reported);
     const table = parseCsv(s.csv);
     const ssn = ssnColumns(table);
     pending = { name: 'sample-timesheet.csv', table, mapping: guessMapping(table.rows[0].cells, ssn), ssn };
@@ -411,13 +585,36 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
   }
 
   function renderAll() {
+    renderPrivacy();
+    void renderFiles();
     renderEmployer();
     renderHours();
     renderReported();
     renderResults();
   }
 
-  renderAll();
+  // Open the most recent saved file, if any.
+  const first = (await files.list()).files[0];
+  if (first) await openFile(first);
+  else renderAll();
+  say('');
+
+  if (deps.auth) {
+    const auth = deps.auth;
+    auth.mount(authBox);
+    auth.onUser((u) => {
+      const was = user;
+      user = u;
+      files.setAccount(u ? auth.accountStore() : null);
+      renderPrivacy();
+      if (!u && was && location === 'account') {
+        void newFile(false).then(() => say('Signed out. Files in your account show again when you sign in.'));
+        return;
+      }
+      if (u && !was && location === 'browser' && !worthSaving(file)) location = 'account';
+      void renderFiles();
+    });
+  }
 }
 
 function methodSection(): HTMLElement {

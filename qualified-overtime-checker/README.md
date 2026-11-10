@@ -18,13 +18,25 @@ calculated, and tells you who is off, by how much, and the likely reason.
 - See each employee's correct figure and a week-by-week worksheet; download
   both as CSV.
 
-Your data stays in your browser tab. A column of Social Security numbers is
-dropped before anything is read. This is a worksheet, not tax advice.
+Each employer is a client file. Without signing in, files are kept in this
+browser only. Sign in with Google or an emailed link to keep them in your
+account, so they follow you to another computer; you can move any file back
+to "this browser only" at any time.
 
-Still being built (week of 10 November 2026): saved client files with
-sign-in, bonuses and tip-credit staff, presets for QuickBooks, Toast and
-EasyAcct exports, and PDF worksheets. The full write-up comes with the
-finished app.
+**What is stored, and where.** A saved file holds the employer's name and
+settings, each employee's name and ID, their dated hours and pay rates, and
+the TT figures your payroll produced. Social Security numbers are never
+read or kept: a column that holds them is dropped before anything else
+happens. Files in your account are kept in HintWise's database (Supabase,
+United States East) and only your account can read them. **Deleting:** the
+Delete button removes a file at once; to remove your account and everything
+in it, email builder@hintwise.org from the address you signed in with.
+
+This is a worksheet, not tax advice.
+
+Still being built (week of 10 November 2026): bonuses and tip-credit staff,
+presets for QuickBooks, Toast and EasyAcct exports, and PDF worksheets. The
+full write-up comes with the finished app.
 
 ## For developers
 

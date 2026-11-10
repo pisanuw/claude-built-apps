@@ -106,3 +106,22 @@ th.nowrap { white-space: nowrap; }
   table.results > tbody > tr.detail > td { padding: 0.5rem; }
   td.notes { min-width: 10rem; }
 }
+.auth { margin: 0 0 0.75rem; }
+.hw-signin { display: grid; gap: 0.5rem; max-width: 28rem; }
+.hw-signin form { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.hw-signin input[type='email'] { flex: 1 1 12rem; font: inherit; padding: 0.4rem 0.5rem; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); }
+.hw-signin p { margin: 0; }
+.hw-signin-user { font-weight: 600; }
+table.files tr.current { background: var(--shade); }
+td.actions { white-space: nowrap; }
+td.actions button + button { margin-left: 0.75rem; }
+button.danger { color: var(--bad); }
+.save-status { color: var(--muted); font-size: 0.9rem; }
+@media (max-width: 40rem) {
+  table.files > thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  table.files, table.files > tbody, table.files > tbody > tr, table.files > tbody > tr > th, table.files > tbody > tr > td { display: block; width: 100%; }
+  table.files > tbody > tr { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 0.75rem; padding: 0.25rem 0; }
+  table.files > tbody > tr > th, table.files > tbody > tr > td { border-bottom: none; padding: 0.2rem 0.6rem; }
+  table.files > tbody > tr > td[data-label] { display: flex; justify-content: space-between; gap: 1rem; }
+  table.files > tbody > tr > td[data-label]::before { content: attr(data-label); color: var(--muted); font-size: 0.85rem; }
+}

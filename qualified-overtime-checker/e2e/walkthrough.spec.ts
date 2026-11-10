@@ -41,3 +41,17 @@ test('import a timesheet file', async ({ page }) => {
   await expect(page.getByRole('status')).toHaveText('Imported 5 lines for 1 employees from week.csv.');
   await expect(page.getByRole('table', { name: 'TT check for 2026' }).getByRole('row', { name: /Pat Doe/ })).toContainText('$50.00');
 });
+
+test('a file is kept in this browser across a reload, and can be deleted', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Try the sample employer' }).click();
+  await expect(page.getByText('Saved in this browser.')).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel('Employer name')).toHaveValue('Cedar Lane Kitchen (sample)');
+  await expect(page.getByRole('table', { name: 'Your client files' })).toContainText('This browser');
+  page.once('dialog', (d) => void d.accept());
+  await page.getByRole('button', { name: 'Delete Cedar Lane Kitchen (sample) 2026' }).click();
+  await expect(page.getByText('No saved files yet.')).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel('Employer name')).toHaveValue('');
+});

@@ -344,10 +344,25 @@ function netlify(argv, opts = {}) {
   }
 }
 
-/** Run the configured build command inside the app directory. */
+/** The literal `env` values a Vite build bakes in: only VITE_* names (public
+ *  by Vite's rules), never passthrough secrets. */
+function buildEnv(cfg) {
+  const out = {};
+  if (cfg.env && typeof cfg.env === 'object') {
+    for (const [k, v] of Object.entries(cfg.env)) {
+      if (k.startsWith('VITE_') && v !== null && v !== undefined && String(v).length > 0) out[k] = String(v);
+    }
+  }
+  return out;
+}
+
+/** Run the configured build command inside the app directory. Netlify uploads
+ *  this prebuilt directory, so VITE_* values from target.yml `env` must be in
+ *  the build's environment, not only on the Netlify site. */
 function runBuild(cfg, appDir) {
-  log(`Building in ${appDir}: ${cfg.build}`);
-  execSync(cfg.build, { cwd: appDir, stdio: 'inherit', env: process.env });
+  const extra = buildEnv(cfg);
+  log(`Building in ${appDir}: ${cfg.build}${Object.keys(extra).length ? ` (with ${Object.keys(extra).join(', ')})` : ''}`);
+  execSync(cfg.build, { cwd: appDir, stdio: 'inherit', env: { ...process.env, ...extra } });
 }
 
 async function deployNetlify(cfg) {
