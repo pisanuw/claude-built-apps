@@ -46,8 +46,10 @@ relative fetch paths resolve. mult-streak is consumed as a
    the dashboard.
 
 Trade-offs accepted: one shared failure domain and one shared 512 MB
-instance (Render Starter, paid and always on since 10 Nov 2026; it was the
-free instance, which slept when idle); any deploy restarts every mounted app. Fine for hobby-scale
+instance (moving from Render's free instance, which sleeps when idle, to
+Starter, always on: owner's decision of 10 Nov 2026. Render's API refuses a
+free-to-paid switch, so the instance type is changed once in the dashboard);
+any deploy restarts every mounted app. Fine for hobby-scale
 services, worth revisiting if one app grows real traffic.
 
 ## Develop
