@@ -37,8 +37,8 @@ provisional; three tied at 19 (this one 2026-11-07, Delivery Canary
   700 ms, plus on page hide. The sample opens as a file of its own.
 - Verified live: sign-in panel renders; browser save survives a reload;
   anonymous API read and write both answer 401 "permission denied for
-  schema". Not verified: a real signed-in save (needs a person to sign in;
-  owner action 1 below).
+  schema". Owner confirmed 2026-11-10 13:50 UTC: sign-in, sample employer,
+  saved to the account, delete all work on the live site.
 - Pushed, not deployed yet (ships with the day-3 deploy): sign-out of this
   app only (scope local) and the PKCE sign-in flow, carried over from the
   template fix 67727d4 at the Plabs session's request (fb46c8b).
@@ -120,7 +120,13 @@ None open. Answered 2026-11-10: saved files allowed (as recommended); free.
 
 ## Owner actions
 
-1. Two-minute check of a real signed-in save: open https://qualified-overtime-checker.hintwise.org, sign in (Google or email link), click "Try the sample employer", wait for "Saved to your account.", reload: the file list should show it as "Your account". Then Delete it.
+None. (The signed-in save check was done by the owner on 2026-11-10.)
+
+## Next (owner, 2026-11-10 13:50 UTC; paused for the session limit until 15:40 Lisbon = 15:40 UTC)
+
+1. Move the standard Google sign-in button to the top right of the page (header), with the email-link option beside it or in a small menu; the file list stays in "Client files". Use Google's standard button look (white, the G logo, "Sign in with Google").
+2. Then milestone 3, "The hard cases" (docs/PLAN.md).
+3. One deploy at the end of that work ships everything pending (sign-out scope, PKCE, migration 0002, the security fixes, the header button, milestone 3).
 
 ## Remaining and known issues
 
