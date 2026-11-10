@@ -128,6 +128,11 @@ None. (The signed-in save check was done by the owner on 2026-11-10.)
 2. Then milestone 3, "The hard cases" (docs/PLAN.md).
 3. One deploy at the end of that work ships everything pending (sign-out scope, PKCE, migration 0002, the security fixes, the header button, milestone 3).
 
+Platform note (Plabs session, 10 Nov 18:20 UTC), do it with item 1:
+- The Google button must follow Google's branding rules, now in BUILD_ROUTINE.md ("Google sign-in button"): "Continue with Google" (or "Sign in with Google"), the official G, light theme, 14/20 Google Sans, padding 12/10/12. The app template has a compliant button to copy: platform/templates/app/src/lib/auth.ts and signin-styles.ts.
+- Magic links move to the platform's rate-limited sign-in-link service (live since 10 Nov). Replace `signInWithOtp` (src/lib/auth.ts) with the template's `sendMagicLink`, handle its wait and challenge answers (Turnstile), and finish sign-in on page load with the template's `completeSignInFromUrl` (verifyOtp with token_hash). The contract is in platform/src/signin/README.md.
+- The owner will switch on the email hook, which refuses direct signInWithOtp mail, only after this app has moved. Until then its email sign-in keeps working as it is.
+
 ## Remaining and known issues
 
 - Milestones 2 to 7.

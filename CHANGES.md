@@ -457,3 +457,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-10 [code] platform: sign-in-link and auth-email-hook functions (ladder, Turnstile, hashed log, alerts), 0002_sign_in.sql; template sign-in panel with branded Google button. Not deployed.
 2026-11-10 [code] platform sign-in-link security review fixes: canonical mailbox and IPv6 /64 keys, hard per-IP limit, project brake, app allow-list, laddered hook for external hosts. Not deployed.
 2026-11-10 [code] Sign-in links: 0002_sign_in.sql applied, check-schema platform passed, sign-in-link and auth-email-hook deployed (hook off). Secrets wait on the TURNSTILE_SECRET_KEY repo secret.
+2026-11-10 [code] Sign-in-link live: 7 function secrets set (Turnstile secret read from repo secret TURNSTILE_SECRET); HOOK_EXTERNAL_HOSTS how-of-happiness, wcv-live-together; hook still off.
+2026-11-10 [note] Live IP check: 9 invalid requests; spoofed X-Forwarded-For values do not set the IP key (same value, different keys; different values, same key). The function uses a trusted header.
