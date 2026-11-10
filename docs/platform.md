@@ -109,10 +109,12 @@ values.
   the owner's call, taken with `configure-auth --google` after the callback
   URI is on the HintWise client.
 - In an app: `supabase.auth.signInWithOAuth({ provider: 'google', options:
-  { redirectTo: location.origin + location.pathname } })` and
-  `supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: ... } })`;
-  `onAuthStateChange` drives the UI. The shared template in
-  `platform/templates/app/` has the sign-in panel.
+  { redirectTo: location.origin + location.pathname } })`, and for email the
+  platform's `sign-in-link` function, not `signInWithOtp` (next section; the
+  template's `sendMagicLink` calls it); `onAuthStateChange` drives the UI.
+  The shared template in `platform/templates/app/` has the sign-in panel,
+  with a Google button that follows Google's branding guidelines
+  (BUILD_ROUTINE.md, "Google sign-in button").
 - **Google sign-in goes through Supabase** (owner, 9 Nov): the browser goes
   to Supabase, then Google, then Supabase's callback, then back to the app.
   No per-app Google setup: one callback URL on the Google client and the
@@ -158,6 +160,78 @@ values.
      project ref from it.
 - Branding: a verified Google consent screen also shows the HintWise name and
   logo instead of a domain; that verification is a separate Google review.
+
+## Sign-in links and abuse limits
+
+Approved by the owner on 10 Nov 2026. Built on branch `feat/sign-in-link`;
+nothing is deployed until the steps below run.
+
+Supabase's own magic-link limits are coarse: a fixed 60 seconds per
+address, a per-IP limit and 200 emails an hour for the whole project, with
+no escalation and no alerts. Sign-in links therefore go through the edge
+function `sign-in-link` (public, `verify_jwt = false`, CORS for
+`https://*.hintwise.org` only). The contract is
+`platform/src/signin/README.md`. In short:
+
+- **Request.** `POST <url>/functions/v1/sign-in-link`, JSON body
+  `{ email, redirectTo, app, browserId, turnstileToken? }`. `redirectTo` is a
+  page on one `https://<label>.hintwise.org`. `browserId` is a random id kept
+  in localStorage `hintwise.browserId`, a soft signal.
+- **Answers.** `{status:'sent'}` (200), `{status:'wait', retryAt}` (429,
+  ISO time), `{status:'challenge', siteKey, failed?}` (403), or
+  `{status:'error', message}`.
+- **Ladder per address and per browser.** The wait between links is 1, 3,
+  5, 8, 13 and 21 minutes, then the sum of the previous two (34, 55, 89, ...),
+  capped at 24 h. Only links since the key's last quiet day count: 24 h
+  without any request for it resets the ladder.
+- **Per IP.** Lenient, because classrooms and offices share an IP: 20
+  requests an hour pass freely, and above that the challenge is required.
+  An IP is never simply blocked.
+- **Challenge.** A Cloudflare Turnstile check is required for the 10th
+  request in 24 h for one address or one browser, or above 20 an hour from
+  one IP. The widget covers hintwise.org and digital-student-assistant.com;
+  it was created by the owner on 10 Nov. Its public site key is
+  `platform/supabase.json` `turnstileSiteKey`. The secret is the repo secret
+  `TURNSTILE_SECRET_KEY`, set as the function secret `TURNSTILE_SECRET`. A
+  token passes only with action `sign-in` on a hintwise.org host. Without
+  the secret, a due challenge is skipped with a warning in the log.
+- **The link.** Auth's admin `generate_link` makes the token; for a
+  first-time address GoTrue turns the magic link into a sign-up and creates
+  the user. The email, from `HintWise <sign-in@hintwise.org>` through
+  Resend, links to the app's own page with
+  `?token_hash=<hash>&type=email`. The app calls
+  `supabase.auth.verifyOtp({ token_hash, type: 'email' })`, which works in any
+  browser, so a link from a phone's mail app signs in there.
+- **Log.** Every request is a row in `platform.sign_in_requests`: hashed
+  keys (HMAC-SHA256 under the function secret `SIGN_IN_HASH_KEY`), app,
+  outcome, detail. Rows are kept 30 days. Only the service role touches it,
+  through RPCs in `platform/supabase/shared/0002_sign_in.sql`.
+- **Alerts.** These go to `ADMIN_EMAIL` from `builder@hintwise.org`, at most
+  one per kind an hour. They fire when one IP or browser asks for 5 or more
+  addresses in an hour, one address is asked for 5 or more times in an hour,
+  3 or more checks fail from one IP in an hour, a direct magic link is
+  refused, or more than 100 links go out in an hour.
+- **Closing the side door.** Supabase's Send Email hook, the function
+  `auth-email-hook`, takes every auth email once it is switched on. It
+  refuses `magiclink`, `signup` and `email` (direct `signInWithOtp`/`signUp`)
+  with 403 "Use the HintWise sign-in-link service" and raises the bypass
+  alert. It sends recovery, invite, email change, reauthentication and
+  account notices through Resend. **Switching it on affects every app on the
+  shared project**, including WCV Live Together and how-of-happiness: their
+  email sign-in and sign-up stop until they move to `sign-in-link`.
+
+Deployment order, each step a "Supabase admin" dispatch:
+
+1. `apply-shared`, which runs `0002_sign_in.sql`.
+2. `check-schema platform`.
+3. `deploy-function sign-in-link`.
+4. `deploy-function auth-email-hook`.
+5. `set-sign-in-secrets`.
+6. After the owner's yes: `email-hook check`, then `email-hook on --dry-run`,
+   then `email-hook on`. This sets `hook_send_email_enabled`,
+   `hook_send_email_uri` and `hook_send_email_secrets` in the auth config,
+   with the same fresh secret as the function. `email-hook off` switches the
+   hook off again.
 
 ## 3. LLM calls: bring your own key, or the owner's key behind caps
 
@@ -305,16 +379,43 @@ Added by the scaffolding (branch `platform-scaffold`, 9 Nov):
   prices in the ledger so the caps still bind; add the model to
   `platform/src/gateway/pricing.ts` when it appears.
 
+Added with the sign-in links (10 Nov), not exercised live yet:
+
+- **Client IP.** Whether Supabase's edge puts the client's own address
+  first in `x-forwarded-for`. The function trusts the first entry, as the
+  design says. If a request with a forged `X-Forwarded-For` shows up under
+  the forged value, switch to `cf-connecting-ip` first (`clientIp` in
+  `platform/src/signin/keys.ts`).
+- **First-time addresses.** `generate_link` with `type: 'magiclink'` creates
+  the user. GoTrue's `adminGenerateLink` turns it into a signup; source read
+  10 Nov. `verifyOtp` with `type: 'email'` accepts both the signup and the
+  magic-link hash; `verify.go` was read the same day. If an Auth version
+  answers "user not found", the function creates the user
+  (`/auth/v1/admin/users`, `email_confirm: false`) and asks once more.
+- **Hook errors.** A hook answers HTTP 200 with
+  `{error: {http_code, message}}`, and Auth fails the app's request with that
+  status and message (GoTrue's `hookserrors.Check`, read 10 Nov; the docs
+  only show it for Postgres hooks). Other statuses reach the app as a bare
+  500.
+- **Function secrets.** `set-sign-in-secrets` reads the secret names from
+  `GET /v1/projects/{ref}/secrets`, which `inspect` already uses. The
+  secrets themselves are set with the CLI, as for the gateway.
+
 ## Files
 
 - `platform/supabase-admin.mjs`, `.github/workflows/supabase-admin.yml`:
   admin commands (inspect, sql, apply-shared, migrate, expose-schema,
-  configure-auth, keys, usage) and the CLI steps deploy-gateway and
-  set-gateway-key.
-- `platform/supabase/shared/0001_platform.sql`: schema `platform`.
+  check-schema, configure-auth, keys, usage, email-hook) and the CLI steps
+  deploy-function, deploy-gateway, set-gateway-key and set-sign-in-secrets.
+- `platform/supabase/shared/0001_platform.sql`: schema `platform`;
+  `0002_sign_in.sql`: the sign-in log, alerts and their RPCs.
 - `platform/supabase/config.toml`, `platform/supabase/functions/llm-gateway/index.ts`:
   the edge function; `platform/src/gateway/` (pricing, caps, validate, cors,
   request) its tested logic, `platform/src/gateway/README.md` the contract.
+- `platform/supabase/functions/sign-in-link/index.ts`,
+  `platform/supabase/functions/auth-email-hook/index.ts`: the sign-in
+  functions; `platform/src/signin/` their tested logic,
+  `platform/src/signin/README.md` the contract.
 - `platform/llm-usage-report.mjs`, `platform/src/report/format.mjs`,
   `.github/workflows/llm-usage-report.yml`: the daily email.
 - `platform/templates/app/`: the app baseline (README inside).
@@ -323,4 +424,5 @@ Added by the scaffolding (branch `platform-scaffold`, 9 Nov):
 - `.github/workflows/ci.yml`: the `platform` job (lint, typecheck, coverage).
 - `platform/README.md`: what is here and the first-time command order.
 - `platform/supabase.json`: public URL and anon key, committed by the
-  Supabase admin workflow's `keys --write` (9 Nov).
+  Supabase admin workflow's `keys --write` (9 Nov), and the public Turnstile
+  site key `turnstileSiteKey` (10 Nov; `keys --write` keeps it).

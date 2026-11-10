@@ -9,8 +9,9 @@ prints names and booleans only.
 | Piece | Where | Run by |
 |---|---|---|
 | Admin script | `supabase-admin.mjs` | the "Supabase admin" workflow (`.github/workflows/supabase-admin.yml`) |
-| Shared SQL | `supabase/shared/0001_platform.sql` (schema `platform`: profiles, llm_apps, llm_usage, migrations, llm_spend, llm_usage_report) | `apply-shared` |
+| Shared SQL | `supabase/shared/0001_platform.sql` (schema `platform`: profiles, llm_apps, llm_usage, migrations, llm_spend, llm_usage_report); `0002_sign_in.sql` (sign_in_requests, sign_in_alerts and their RPCs) | `apply-shared` |
 | LLM gateway | `supabase/functions/llm-gateway/index.ts` (Deno entry) over `src/gateway/` (pure modules, tests in `test/`); `supabase/config.toml` for the CLI | `deploy-gateway`, `set-gateway-key` |
+| Sign-in links | `supabase/functions/sign-in-link/index.ts` and `supabase/functions/auth-email-hook/index.ts` (Deno entries) over `src/signin/` (pure modules, contract in `src/signin/README.md`) | `deploy-function sign-in-link`, `deploy-function auth-email-hook`, `set-sign-in-secrets`, `email-hook` |
 | Usage report | `llm-usage-report.mjs` over `src/report/format.mjs` | `.github/workflows/llm-usage-report.yml`, daily 9:10 Pacific |
 | App template | `templates/app/` | copied by the weekly build (its README says how) |
 | Public client values | `supabase.json` (`url`, `anonKey`), written from the `keys` command | every app's `target.yml` `env` |
@@ -33,13 +34,19 @@ Dispatch "Supabase admin" with `command`, optional `arg` and `flags`:
 | `domain-setup` | arg: host | custom domain add-on: start the host, create its Cloudflare CNAME and TXT records (DNS only), ask Supabase to verify |
 | `domain-status` | | where the custom domain stands; re-verifies while waiting |
 | `domain-activate` | flag `--callbacks-ready` | switch Auth to the custom domain, only once every OAuth client lists `https://<host>/auth/v1/callback` |
-| `deploy-gateway` | | Supabase CLI: `supabase functions deploy llm-gateway` from `platform/` |
+| `deploy-function` | arg: function name | Supabase CLI: `supabase functions deploy <name>` from `platform/`; adds `--no-verify-jwt` when its `config.toml` section says `verify_jwt = false` |
+| `deploy-gateway` | | the same as `deploy-function llm-gateway` |
 | `set-gateway-key` | | Supabase CLI: `supabase secrets set ANTHROPIC_API_KEY=...` from the repo secret |
+| `set-sign-in-secrets` | | function secrets `RESEND_API`, `ADMIN_EMAIL`, `TURNSTILE_SECRET` (repo secret `TURNSTILE_SECRET_KEY`, when present), `TURNSTILE_SITE_KEY` (repo variable or secret, else the committed public key); generates `SIGN_IN_HASH_KEY` and `SEND_EMAIL_HOOK_SECRET` only when the project has none; prints booleans |
+| `email-hook` | arg: `status`, `check`, `on`, `off`; flag `--dry-run` | Supabase Auth's Send Email hook. `on` (owner's yes first) checks the function and its secrets, sets a fresh `SEND_EMAIL_HOOK_SECRET` and points the hook at `auth-email-hook` with it. It affects every app on the project |
 
 First-time order (after the owner's key rotation): `apply-shared`,
 `expose-schema platform`, `configure-auth --dry-run` then `configure-auth`,
 `keys` (commit `platform/supabase.json`), `set-gateway-key`, `deploy-gateway`,
-then a dry run of the "LLM usage report" workflow.
+then a dry run of the "LLM usage report" workflow. Sign-in links:
+`apply-shared`, `check-schema platform`, `deploy-function sign-in-link`,
+`deploy-function auth-email-hook`, `set-sign-in-secrets`, and after the
+owner's yes `email-hook check`, `email-hook on --dry-run`, `email-hook on`.
 
 ## Deploy integration
 
@@ -58,6 +65,7 @@ npm run lint && npm run typecheck && npm run coverage   # 85% thresholds on src/
 npm run check-scripts                                   # node --check on the .mjs files
 ```
 
-The gateway's Deno entry is not type-checked or covered here (Deno globals,
-`npm:` imports); its logic is in `src/gateway/` and fully tested. To check the
+The Deno entries are not type-checked or covered here (Deno globals,
+`npm:` imports); their logic is in `src/gateway/` and `src/signin/` and fully
+tested. To check the
 app template, see `templates/app/README.md`.

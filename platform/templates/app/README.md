@@ -39,7 +39,8 @@ Then edit:
 | File | What it gives the app |
 |---|---|
 | `supabase.ts` | `getSupabase()` (one client, `db.schema` = the app's schema), `hasSupabase()`, `APP_SLUG`, `APP_SCHEMA` |
-| `auth.ts` | `signInWithGoogle`, `sendMagicLink`, `signOut`, `onAuth`, `currentToken`, and `mountSignIn(el)`: a plain-DOM panel with a Google button, an email field and the signed-in state |
+| `auth.ts` | `signInWithGoogle`, `sendMagicLink` (the platform's `sign-in-link` function, never `signInWithOtp`), `completeSignInFromUrl`, `signOut`, `onAuth`, `currentToken`, and `mountSignIn(el)`: a plain-DOM panel with the Google button, an email field, the Turnstile check when asked for, and the signed-in state |
+| `signin-styles.ts`, `google-g-light.svg` | the panel's CSS block (added to the page once) and Google's light G, unmodified from signin-assets.zip |
 | `llm.ts` | `ask({system, messages, model?})` in the visitor's mode: `byok` (their key in localStorage `hintwise.anthropicKey`, browser SDK), `gateway` (the owner's key through `llm-gateway` with the session token), `off`; `CapReached` carries the scope and reset time |
 | `repository.ts` | `Repository<T>` (list/get/put/remove), `InMemoryRepository` for tests and `vite preview`, `SupabaseRepository` over one table (the database fills `user_id`) |
 
@@ -65,6 +66,46 @@ the repo, install, and run the gates:
 cp -r platform/templates/app /tmp/tmpl-check && cd /tmp/tmpl-check
 npm install && npm run lint && npm run typecheck && npm run coverage && npm run build
 ```
+
+## Email sign-in links
+
+`sendMagicLink(email, redirectTo)` posts `{ email, redirectTo, app, browserId }`
+to `<VITE_SUPABASE_URL>/functions/v1/sign-in-link` with the anon key as
+`apikey`. `browserId` is kept in localStorage `hintwise.browserId`. The
+answer is typed: `{status:'sent'}`, `{status:'wait', retryAt}` (shown in the
+visitor's local time), `{status:'challenge', siteKey}` or
+`{status:'error', message}`.
+
+On a challenge, the panel loads Cloudflare Turnstile once
+(`api.js?render=explicit`) and renders the widget into the panel with
+`action: 'sign-in'`. It sends the request again with the token and resets
+the widget after every request. After three failed checks in a row it stops
+until the visitor asks again.
+
+The emailed link comes back to the page with `?token_hash=...&type=email`.
+`mountSignIn` (or `completeSignInFromUrl` in an app with its own UI) takes
+those out of the address bar and calls `verifyOtp`, so the link works in any
+browser. The contract and the limits are in `platform/src/signin/README.md`.
+
+## The Google button
+
+It follows Google's branding guidelines (BUILD_ROUTINE.md, "Google sign-in
+button"):
+
+- the text "Continue with Google";
+- Google's standard G, unmodified (`src/lib/google-g-light.svg` is the
+  light icon from signin-assets.zip, shown through a 20px window);
+- the light theme: #FFFFFF fill, 1px #747775 border, #1F1F1F text;
+- 14px/20px type at weight 500;
+- 12px before the logo, 10px after it, 12px after the text;
+- a pill shape;
+- the same size and weight as the email button.
+
+The font stack is `'Google Sans', Roboto, Arial, sans-serif`. The template
+loads no external fonts, so Roboto or Arial stand in unless the app already
+loads Google Sans from Google Fonts. Do not restyle the button. For a dark
+page, use the guideline's dark values and the dark asset from the same zip.
+`test/auth.test.ts` pins the text, the G (byte for byte) and the border.
 
 ## Profiles
 
