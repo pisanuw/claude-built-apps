@@ -442,3 +442,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-10 [doc] Sent StepWise how to use the shared project: auth.hintwise.org, PKCE, schema app_stepwise, shared links via an RPC. Plabs applies its migration after the owner's yes.
 2026-11-10 [note] Owner: UpvoteMe Google sign-in through Supabase works. Its two Google redirect URIs (upvoteme.hintwise.org, upvoteme.netlify.app /api/auth/callback/google) can be removed.
 2026-11-10 [decision] Owner: yes to applying StepWise's migration (schema app_stepwise) to the shared project and exposing the schema once its SQL arrives.
+2026-11-10 [plan] BUILD_ROUTINE.md: "The usual architecture" table (owner: paid Netlify, Render, Supabase, Resend; Google via Supabase); stale supabase.json and migration notes fixed.

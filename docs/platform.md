@@ -5,7 +5,8 @@ The shared infrastructure every weekly build can use. Owner decisions of
 day; reuse and restructure the existing Supabase project; Google sign-in plus
 magic link (email through Resend); LLM features either with the visitor's own
 key or with the owner's key behind caps, with usage reported to the owner.
-Netlify, Supabase and Render subscriptions exist. The project found on 9 Nov
+Netlify, Render, Supabase and Resend accounts are paid (owner, 10 Nov); the
+usual architecture, need by need, is the table in BUILD_ROUTINE.md. The project found on 9 Nov
 is shared with live apps, so every platform change is additive (section 1).
 
 Admin tasks run from the **Supabase admin** GitHub Actions workflow
