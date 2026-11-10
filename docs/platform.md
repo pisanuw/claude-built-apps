@@ -69,7 +69,11 @@ values.
   through the Management API query endpoint (works from IPv4 GitHub runners,
   needs no database password), each recorded in `platform.migrations`. The
   Deploy workflow runs it for every app whose `deploy/target.yml` has
-  `supabase: true`, before the Netlify deploy. Write migrations idempotently
+  `supabase: true`, before the Netlify deploy, then `check-schema
+  app_<slug_>` (read-only; since 10 Nov): row level security on every
+  table, no anon table access, security definer functions with a fixed
+  search_path, a signed-in stranger sees no real row, and Supabase's security
+  advisor; a finding fails the deploy. Write migrations idempotently
   (`create table if not exists`, `create or replace function`) so a re-run is
   harmless.
 - Public client values (URL and anon key) are public by design and live in
