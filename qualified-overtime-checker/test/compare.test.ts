@@ -75,7 +75,7 @@ describe('likely causes', () => {
 
 describe('the sample employer', () => {
   const s = buildSample();
-  const file = { ...newClientFile('f', s.settings), lines: s.lines, reported: s.reported };
+  const file = { ...newClientFile('f', s.settings), lines: s.lines, reported: { '2026': s.reported } };
   const { checks, summary } = runChecks(file);
   const by = (id: string) => checks.find((c) => c.employee.id === id)!;
 

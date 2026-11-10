@@ -5,7 +5,7 @@
  * kept through the repository (in the tab until sign-in arrives).
  */
 import { needsCorrection, type EmployeeCheck } from '../core/compare';
-import { newClientFile, runChecks, type ClientFile } from '../core/clientFile';
+import { newClientFile, reportedFor, runChecks, withReported, type ClientFile } from '../core/clientFile';
 import { parseCsv, type CsvTable } from '../core/csv';
 import { formatDay, WEEKDAYS } from '../core/dates';
 import { employeesOf } from '../core/engine';
@@ -22,6 +22,8 @@ export interface AppDeps {
   download?: (name: string, text: string) => void;
   now?: () => Date;
   newId?: () => string;
+  /** Asks before the sample replaces imported hours; window.confirm by default. */
+  confirm?: (question: string) => boolean;
 }
 
 export const TAX_YEARS = [2026, 2025];
@@ -37,6 +39,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
   const download = deps.download ?? downloadText;
   const now = deps.now ?? (() => new Date());
   const makeId = deps.newId ?? (() => `file-${now().getTime()}`);
+  const ask = deps.confirm ?? ((q: string) => window.confirm(q));
 
   const existing = await deps.repo.list();
   let file: ClientFile = existing[0] ?? newClientFile(makeId(), {}, now());
@@ -88,6 +91,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     year.addEventListener('change', async () => {
       file = { ...file, settings: { ...file.settings, taxYear: Number(year.value) } };
       await save();
+      renderReported();
       renderResults();
       say(`Checking tax year ${year.value}.`);
     });
@@ -112,6 +116,17 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
   }
 
   // ---- Hours ------------------------------------------------------------
+  async function readFile(f: Blob & { name: string }, then: (name: string, text: string) => void | Promise<void>) {
+    let text: string;
+    try {
+      text = await readFileText(f);
+    } catch {
+      say(`${f.name} could not be read. Save it as CSV and try again.`);
+      return;
+    }
+    await then(f.name, text);
+  }
+
   function readTable(name: string, text: string) {
     const table = parseCsv(text);
     if (table.rows.length < 2) {
@@ -139,7 +154,8 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       return;
     }
     const employees = employeesOf(lines);
-    file = { ...file, lines, report, mapping: pending.mapping, source: pending.name, reported: keepKnown(file.reported, employees) };
+    file = { ...file, lines, report, mapping: pending.mapping, source: pending.name };
+    file = withReported(file, keepKnown(reportedFor(file), employees));
     await save();
     renderHours();
     renderReported();
@@ -148,8 +164,9 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
   }
 
   async function loadSample() {
+    if (file.lines.length && !ask('Replace the hours and figures you imported with the sample employer?')) return;
     const s = buildSample();
-    file = { ...newClientFile(file.id, s.settings, now()), lines: s.lines, reported: s.reported, source: 'sample-timesheet.csv' };
+    file = withReported({ ...newClientFile(file.id, s.settings, now()), lines: s.lines, source: 'sample-timesheet.csv' }, s.reported);
     const table = parseCsv(s.csv);
     const ssn = ssnColumns(table);
     pending = { name: 'sample-timesheet.csv', table, mapping: guessMapping(table.rows[0].cells, ssn), ssn };
@@ -212,7 +229,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     const input = h('input', { id: 'hours-file', type: 'file', accept: '.csv,.txt,text/csv', 'aria-describedby': 'hours-help' });
     input.addEventListener('change', async () => {
       const f = input.files?.[0];
-      if (f) readTable(f.name, await readFileText(f));
+      if (f) await readFile(f, readTable);
     });
     const sample = h('button', { type: 'button', text: 'Try the sample employer' });
     sample.addEventListener('click', () => void loadSample());
@@ -232,7 +249,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       e.preventDefault();
       drop.classList.remove('over');
       const f = e.dataTransfer?.files?.[0];
-      if (f) readTable(f.name, await readFileText(f));
+      if (f) await readFile(f, readTable);
     });
     fill(hoursSec, 
       h('h2', { id: 'hours-h', text: '2. Hours worked' }),
@@ -244,6 +261,19 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
   }
 
   // ---- Payroll figures ---------------------------------------------------
+  async function importFigures(name: string, text: string, employees: ReturnType<typeof employeesOf>) {
+    const r = importReported(text, employees);
+    file = withReported(file, { ...reportedFor(file), ...r.values });
+    await save();
+    renderReported();
+    renderResults();
+    const parts = [`Read ${Object.keys(r.values).length} figures from ${name}.`];
+    if (r.otherCodes) parts.push(`${r.otherCodes} rows for other Box 12 codes were skipped.`);
+    if (r.unmatched.length) parts.push(`${r.unmatched.length} rows named nobody in the timesheet (${r.unmatched.slice(0, 3).map((u) => u.name).join(', ')}${r.unmatched.length > 3 ? ', ...' : ''}).`);
+    if (r.unreadable.length) parts.push(`${r.unreadable.length} amounts could not be read (lines ${r.unreadable.slice(0, 5).join(', ')}).`);
+    say(parts.join(' '));
+  }
+
   function renderReported() {
     const employees = employeesOf(file.lines);
     if (!employees.length) {
@@ -253,25 +283,16 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     const input = h('input', { id: 'reported-file', type: 'file', accept: '.csv,.txt,text/csv' });
     input.addEventListener('change', async () => {
       const f = input.files?.[0];
-      if (!f) return;
-      const r = importReported(await readFileText(f), employees);
-      file = { ...file, reported: { ...file.reported, ...r.values } };
-      await save();
-      renderReported();
-      renderResults();
-      const parts = [`Read ${Object.keys(r.values).length} figures from ${f.name}.`];
-      if (r.unmatched.length) parts.push(`${r.unmatched.length} rows named nobody in the timesheet (${r.unmatched.slice(0, 3).map((u) => u.name).join(', ')}${r.unmatched.length > 3 ? ', ...' : ''}).`);
-      if (r.unreadable.length) parts.push(`${r.unreadable.length} amounts could not be read (lines ${r.unreadable.slice(0, 5).join(', ')}).`);
-      say(parts.join(' '));
+      if (f) await readFile(f, (name, text) => importFigures(name, text, employees));
     });
-    const rows = employees.map((e) => {
-      const id = `rep-${e.key.replace(/[^a-z0-9]/gi, '-')}`;
-      const v = file.reported[e.key];
+    const rows = employees.map((e, n) => {
+      const id = `rep-${n}`;
+      const v = reportedFor(file)[e.key];
       const field = h('input', { id, type: 'text', inputmode: 'decimal', value: typeof v === 'number' ? v.toFixed(2) : '', placeholder: '0.00', 'aria-label': `TT reported for ${e.name}` });
       field.addEventListener('change', async () => {
         const raw = field.value.trim();
         const n = parseMoney(raw);
-        const next = { ...file.reported };
+        const next = { ...reportedFor(file) };
         if (raw === '') delete next[e.key];
         else if (Number.isFinite(n)) next[e.key] = n;
         else {
@@ -281,7 +302,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
         }
         field.removeAttribute('aria-invalid');
         say('');
-        file = { ...file, reported: next };
+        file = withReported(file, next);
         await save();
         renderResults();
       });
@@ -340,15 +361,16 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
         ? `Enter your payroll’s figures in step 3 to compare. The correct figures for ${year} are below.`
         : `No figure needs correcting for ${year}${summary.notEntered ? ` (${summary.notEntered} not entered yet)` : ''}.`;
     const body: HTMLElement[] = [];
-    for (const c of checks) {
+    checks.forEach((c, n) => {
       const key = c.employee.key;
+      const detailId = `weeks-${n}`;
       const isOpen = open.has(key);
-      const toggle = h('button', { type: 'button', class: 'link', 'aria-expanded': isOpen ? 'true' : 'false', 'aria-controls': `weeks-${key.replace(/[^a-z0-9]/gi, '-')}`, text: isOpen ? 'Hide weeks' : 'Show weeks' });
+      const toggle = h('button', { type: 'button', class: 'link', 'data-toggle': n, 'aria-expanded': isOpen ? 'true' : 'false', 'aria-controls': isOpen ? detailId : null, 'aria-label': `${isOpen ? 'Hide' : 'Show'} weeks for ${c.employee.name}`, text: isOpen ? 'Hide weeks' : 'Show weeks' });
       toggle.addEventListener('click', () => {
         if (open.has(key)) open.delete(key);
         else open.add(key);
         renderResults();
-        (resultsSec.querySelector(`[aria-controls="weeks-${key.replace(/[^a-z0-9]/gi, '-')}"]`) as HTMLElement | null)?.focus();
+        (resultsSec.querySelector(`[data-toggle="${n}"]`) as HTMLElement | null)?.focus();
       });
       const cls = needsCorrection(c.status) ? 'bad' : c.status === 'not-entered' ? 'muted' : 'good';
       body.push(
@@ -363,8 +385,8 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
           h('td', { class: 'toggle' }, toggle),
         ),
       );
-      if (isOpen) body.push(h('tr', { id: `weeks-${key.replace(/[^a-z0-9]/gi, '-')}`, class: 'detail' }, h('td', { colspan: 8 }, weekTable(c))));
-    }
+      if (isOpen) body.push(h('tr', { id: detailId, class: 'detail' }, h('td', { colspan: 8 }, weekTable(c))));
+    });
     const dlResults = h('button', { type: 'button', text: 'Download results (CSV)' });
     dlResults.addEventListener('click', () => download(`tt-check-${fileSlug(file.settings.name)}-${year}.csv`, resultsCsv(checks, file.settings)));
     const dlWeeks = h('button', { type: 'button', text: 'Download week-by-week worksheet (CSV)' });

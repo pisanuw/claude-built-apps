@@ -28,10 +28,10 @@ async function pickFile(input: HTMLInputElement, name: string, text: string) {
   await settle();
 }
 
-async function mount(seed: ClientFile[] = []) {
+async function mount(seed: ClientFile[] = [], confirm: (q: string) => boolean = () => true) {
   repo = new InMemoryRepository<ClientFile>(seed);
   downloads = [];
-  await mountApp(root, { repo, download: (name, text) => downloads.push({ name, text }), now: () => new Date('2026-11-10T12:00:00Z'), newId: () => 'f1' });
+  await mountApp(root, { repo, download: (name, text) => downloads.push({ name, text }), now: () => new Date('2026-11-10T12:00:00Z'), newId: () => 'f1', confirm });
 }
 
 beforeEach(() => {
@@ -195,6 +195,56 @@ describe('the checker page', () => {
     drop.dispatchEvent(ev);
     await settle();
     expect(root.querySelector('.status')?.textContent).toBe('Imported 1 lines for 1 employees from d.csv.');
+  });
+
+  it('asks before the sample replaces imported hours', async () => {
+    const answers: boolean[] = [false, true];
+    const asked: string[] = [];
+    await mount([], (q) => {
+      asked.push(q);
+      return answers.shift() as boolean;
+    });
+    await pickFile(root.querySelector('#hours-file') as HTMLInputElement, 'mine.csv', 'Employee,Date,Hours,Rate\nAnn,2026-11-02,8,20\n');
+    button('Try the sample employer').click();
+    await settle();
+    expect(asked).toHaveLength(1);
+    expect(root.textContent).not.toContain('Dev Patel');
+    button('Try the sample employer').click();
+    await settle();
+    expect(root.textContent).toContain('Dev Patel');
+  });
+
+  it('keeps payroll figures per tax year in the form', async () => {
+    await mount();
+    button('Try the sample employer').click();
+    await settle();
+    const year = root.querySelector('#tax-year') as HTMLSelectElement;
+    year.value = '2025';
+    year.dispatchEvent(new Event('change'));
+    await settle();
+    expect((root.querySelector('input[aria-label="TT reported for Dev Patel"]') as HTMLInputElement).value).toBe('');
+    year.value = '2026';
+    year.dispatchEvent(new Event('change'));
+    await settle();
+    expect((root.querySelector('input[aria-label="TT reported for Dev Patel"]') as HTMLInputElement).value).toBe('1706.25');
+  });
+
+  it('says so when a file cannot be read', async () => {
+    await mount();
+    const bad = { name: 'locked.csv', text: () => Promise.reject(new Error('denied')) } as unknown as File;
+    const input = root.querySelector('#hours-file') as HTMLInputElement;
+    Object.defineProperty(input, 'files', { configurable: true, value: [bad] });
+    input.dispatchEvent(new Event('change'));
+    await settle();
+    expect(root.querySelector('.status')?.textContent).toBe('locked.csv could not be read. Save it as CSV and try again.');
+  });
+
+  it('reports other Box 12 codes skipped in a figures import', async () => {
+    await mount();
+    button('Try the sample employer').click();
+    await settle();
+    await pickFile(root.querySelector('#reported-file') as HTMLInputElement, 'w2.csv', 'Employee ID,Box 12 Code,Box 12 Amount\nE101,TT,1071\nE101,DD,4000\n');
+    expect(root.querySelector('.status')?.textContent).toBe('Read 1 figures from w2.csv. 1 rows for other Box 12 codes were skipped.');
   });
 
   it('reopens a saved file', async () => {

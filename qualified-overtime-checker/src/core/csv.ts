@@ -84,6 +84,18 @@ export function csvCell(value: string | number | null | undefined): string {
   return /[",\r\n]/.test(s) || /^\s|\s$/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+/**
+ * A text cell a spreadsheet would run as a formula (=, +, -, @ or a control
+ * character first) gets a leading apostrophe; numbers and plain negative
+ * amounts are left alone.
+ */
+export function safeCell(value: string | number | null | undefined): string | number | null | undefined {
+  if (typeof value !== 'string') return value;
+  if (/^-?\d+(\.\d+)?$/.test(value)) return value;
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
+
+/** CSV for download: formula-safe and quoted where needed. */
 export function toCsv(rows: (string | number | null | undefined)[][]): string {
-  return rows.map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
+  return rows.map((r) => r.map((v) => csvCell(safeCell(v))).join(',')).join('\r\n') + '\r\n';
 }

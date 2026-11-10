@@ -89,9 +89,10 @@ export function mistakeCandidates(weeks: WeekResult[], allWeeks: WeekResult[], t
   }
 
   // Year-end weeks: worked in the year but paid in the next, or worked in the previous year and paid in this one.
-  const spill = allWeeks.filter((w) => w.taxYear === taxYear + 1 && Number(w.start.slice(0, 4)) === taxYear && w.premium > 0);
+  // Only weeks with a pay date: without one the file says nothing about when a week was paid.
+  const spill = allWeeks.filter((w) => !w.yearFromWeekEnd && w.taxYear === taxYear + 1 && Number(w.start.slice(0, 4)) === taxYear && w.premium > 0);
   if (spill.length) out.push({ value: round2(correct + sum(spill.map((w) => w.premium))), cause: `It includes overtime worked in late ${taxYear} but paid in ${taxYear + 1}; that belongs on the ${taxYear + 1} W-2.` });
-  const carried = weeks.filter((w) => Number(w.start.slice(0, 4)) === taxYear - 1 && w.premium > 0);
+  const carried = weeks.filter((w) => !w.yearFromWeekEnd && Number(w.start.slice(0, 4)) === taxYear - 1 && w.premium > 0);
   if (carried.length) out.push({ value: round2(correct - sum(carried.map((w) => w.premium))), cause: `It leaves out overtime worked in late ${taxYear - 1} but paid in ${taxYear}; that belongs on the ${taxYear} W-2.` });
   // Generic mistakes last, so the most specific explanation is named first.
   if (correct > 0) out.push({ value: 0, cause: 'The payroll reported no qualified overtime, but these workweeks have hours over 40.' });

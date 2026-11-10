@@ -12,8 +12,8 @@ From the repo root, with the new app's slug (lowercase, dashes):
 slug=my-new-app
 cp -r platform/templates/app "$slug"
 cd "$slug"
-# SLUG -> the slug everywhere (not inside APP_SLUG); app_SLUG -> app_ plus the slug with underscores
-grep -rl SLUG . | xargs sed -i "s/app_SLUG/app_${slug//-/_}/g; s/\bSLUG\b/$slug/g"
+# SLUG -> the slug everywhere (APP_SLUG stays a constant name); app_SLUG -> app_ plus the slug with underscores
+grep -rl SLUG . | xargs perl -pi -e "s/app_SLUG/app_${slug//-/_}/g; s/(?<!APP_)SLUG/$slug/g"
 mv supabase/migrations/0001_init.sql.example supabase/migrations/0001_init.sql
 mv deploy/target.yml.example deploy/target.yml
 npm install

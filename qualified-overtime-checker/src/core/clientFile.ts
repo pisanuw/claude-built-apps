@@ -12,8 +12,8 @@ export interface ClientFile {
   id: string;
   settings: EmployerSettings;
   lines: TimeLine[];
-  /** Payroll TT figures by employee key. */
-  reported: Record<string, number>;
+  /** Payroll TT figures by tax year ("2026"), then by employee key. */
+  reported: Record<string, Record<string, number>>;
   /** File name of the last timesheet import. */
   source: string | null;
   mapping: Mapping | null;
@@ -34,6 +34,16 @@ export function newClientFile(id: string, settings?: Partial<EmployerSettings>, 
   };
 }
 
+/** The payroll's figures for the file's tax year. */
+export function reportedFor(file: ClientFile): Record<string, number> {
+  return file.reported[String(file.settings.taxYear)] ?? {};
+}
+
+/** The file with the figures for its tax year replaced. */
+export function withReported(file: ClientFile, values: Record<string, number>): ClientFile {
+  return { ...file, reported: { ...file.reported, [String(file.settings.taxYear)]: values } };
+}
+
 export interface FileResults {
   checks: EmployeeCheck[];
   summary: Summary;
@@ -41,7 +51,7 @@ export interface FileResults {
 
 export function runChecks(file: ClientFile): FileResults {
   const checks = buildWeeks(file.lines, file.settings).map((ew) => {
-    const r = file.reported[ew.employee.key];
+    const r = reportedFor(file)[ew.employee.key];
     return checkEmployee(ew, file.settings.taxYear, typeof r === 'number' && Number.isFinite(r) ? r : null);
   });
   return { checks, summary: summarize(checks) };

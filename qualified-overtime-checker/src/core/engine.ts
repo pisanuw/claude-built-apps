@@ -38,6 +38,19 @@ function hrs(x: number): string {
   return `${Number(x.toFixed(2))}`;
 }
 
+/**
+ * The straight-time rate of a line. An overtime line's rate is normally the
+ * overtime rate (1.5x or 2x the base), so it is divided by the multiplier;
+ * but some timeclock exports put the base rate on the overtime line, so when
+ * the rate matches a regular line of the same week and the divided rate does
+ * not, the rate is taken as the straight rate.
+ */
+export function straightRate(l: TimeLine, isWorkRate: (r: number) => boolean): number {
+  if (l.kind !== 'overtime') return l.rate;
+  const divided = l.rate / l.multiplier;
+  return !isWorkRate(divided) && isWorkRate(l.rate) ? l.rate : divided;
+}
+
 /** One workweek from its lines. */
 export function computeWeek(startDay: number, lines: TimeLine[]): WeekResult {
   let hours = 0;
@@ -47,12 +60,14 @@ export function computeWeek(startDay: number, lines: TimeLine[]): WeekResult {
   let hasOtLines = false;
   let excludedHours = 0;
   const rates = new Map<number, number>();
+  const workRates = lines.filter((l) => l.kind === 'work').map((l) => l.rate);
+  const isWorkRate = (r: number) => workRates.some((w) => Math.abs(w - r) < 0.005);
   for (const l of lines) {
     if (l.kind === 'excluded') {
       excludedHours += l.hours;
       continue;
     }
-    const straight = l.rate / l.multiplier;
+    const straight = straightRate(l, isWorkRate);
     hours += l.hours;
     straightPay += l.hours * straight;
     const key = Math.round(straight * 10_000) / 10_000;
@@ -60,7 +75,7 @@ export function computeWeek(startDay: number, lines: TimeLine[]): WeekResult {
     if (l.kind === 'overtime') {
       hasOtLines = true;
       otCoded += l.hours;
-      paid += l.hours * (l.rate - straight);
+      paid += l.hours * straight * (l.multiplier - 1);
     }
   }
   const overtimeHours = Math.max(0, hours - OVERTIME_THRESHOLD);

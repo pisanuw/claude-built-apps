@@ -8,7 +8,7 @@ import { parseCsv, type CsvTable } from './csv';
 import { parseDate } from './dates';
 import type { LineKind, TimeLine } from './types';
 
-export const FIELDS = ['employeeId', 'employeeName', 'firstName', 'lastName', 'date', 'hours', 'rate', 'amount', 'payDate', 'code'] as const;
+export const FIELDS = ['employeeId', 'employeeName', 'firstName', 'lastName', 'date', 'hours', 'overtimeHours', 'doubleHours', 'rate', 'amount', 'payDate', 'code'] as const;
 export type Field = (typeof FIELDS)[number];
 export type Mapping = Record<Field, number | null>;
 
@@ -18,7 +18,9 @@ export const FIELD_LABELS: Record<Field, string> = {
   firstName: 'First name',
   lastName: 'Last name',
   date: 'Work date',
-  hours: 'Hours',
+  hours: 'Hours (regular, or all hours)',
+  overtimeHours: 'Overtime hours (own column)',
+  doubleHours: 'Double-time hours (own column)',
   rate: 'Hourly rate',
   amount: 'Pay amount',
   payDate: 'Pay date (check date)',
@@ -30,7 +32,7 @@ export function normHeader(h: string): string {
   return h.toLowerCase().replace(/[^a-z0-9#]+/g, ' ').trim();
 }
 
-const SSN_HEADER = /\b(ssn|ss#|ss ?no|social security|soc sec|taxpayer id|tin|itin)\b/;
+const SSN_HEADER = /\b(ssn|ss#|ss ?no|ss ?num(ber)?|social security|soc sec|taxpayer id|tax ?id|tin|itin)(?!\w)/;
 const SSN_VALUE = /^\d{3}-\d{2}-\d{4}$/;
 
 /** Indexes of columns that hold SSNs, by header or by values shaped 123-45-6789. */
@@ -52,11 +54,13 @@ export function ssnColumns(table: CsvTable): number[] {
 /** Header patterns, tried in order; the first unused column that matches wins. */
 const GUESSES: [Field, RegExp][] = [
   ['payDate', /^(pay|check|payment|paid|payroll) ?(date|day)$|^paid on$|^check dt$/],
-  ['employeeId', /^(employee|emp|worker|staff|team member|payroll)? ?(id|#|no|number|num|code|badge)$|^badge( number)?$/],
+  ['overtimeHours', /^(ot|overtime|o t) ?(hours|hrs)$|^(hours|hrs) ?(ot|overtime)$|^overtime$/],
+  ['doubleHours', /^(dt|double|double time|doubletime) ?(hours|hrs)?$|^(hours|hrs) ?(dt|double)$/],
+  ['employeeId', /^(employee|emp|worker|staff|team member|payroll) ?(id|#|no|number|num|code|badge)$|^(id|badge( number)?)$/],
   ['firstName', /^(employee )?first( name)?$|^given name$/],
   ['lastName', /^(employee )?(last|sur)( name)?$|^surname$|^family name$/],
   ['employeeName', /^(employee|employee name|employee full name|name|full name|worker|staff|team member|staff member)$/],
-  ['date', /^(date|work date|activity date|shift date|day|date worked|clock in date|in date|business date|time entry date)$/],
+  ['date', /^(date|work date|activity date|shift date|date worked|clock in date|in date|business date|time entry date)$/],
   ['hours', /^(hours|hrs|duration|total hours|hours worked|regular hours|qty|quantity|time|total)$/],
   ['rate', /^(rate|pay rate|hourly rate|wage|wage rate|hourly wage|rate per hour|bill rate|cost rate)$/],
   ['amount', /^(amount|earnings|pay|gross|gross pay|total pay|wages|current amount|line total)$/],
@@ -110,9 +114,13 @@ export function mappingProblems(m: Mapping): string[] {
   return out;
 }
 
-/** Parses a money cell: $1,234.50, (12.00), -12, 18.5. NaN when empty or not a number. */
-export function parseMoney(raw: string): number {
-  let s = raw.trim().replace(/[$\s,]/g, '').replace(/USD$/i, '');
+/**
+ * Parses a money cell: $1,234.50, (12.00), -12, 18.5. NaN when empty or not a
+ * number. With `decimalComma` (semicolon-separated files) 1.234,50 is 1234.5.
+ */
+export function parseMoney(raw: string, decimalComma = false): number {
+  let s = raw.trim().replace(/[$\s]/g, '').replace(/USD$/i, '');
+  s = decimalComma ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
   let sign = 1;
   if (/^\(.*\)$/.test(s)) {
     sign = -1;
@@ -127,7 +135,7 @@ export function parseMoney(raw: string): number {
 }
 
 /** Parses hours: 8.5, 8:30 (hours:minutes), 8h 30m, 8 hrs. NaN when not hours. */
-export function parseHours(raw: string): number {
+export function parseHours(raw: string, decimalComma = false): number {
   const s = raw.trim().toLowerCase();
   if (s === '') return NaN;
   let m = /^(-?)(\d+):([0-5]\d)(?::[0-5]\d)?$/.exec(s);
@@ -136,7 +144,7 @@ export function parseHours(raw: string): number {
   if (m) return Number(m[1]) + (m[2] ? Number(m[2]) / 60 : 0);
   m = /^(\d+) ?m(?:in(?:utes?)?)?$/.exec(s);
   if (m) return Number(m[1]) / 60;
-  return parseMoney(s);
+  return parseMoney(s, decimalComma);
 }
 
 const EXCLUDED = /\b(holiday|vacation|sick|pto|paid time off|bereavement|jury|leave|personal|unworked|time off)\b/;
@@ -149,9 +157,9 @@ const LUMP = /\b(bonus|commission|incentive|award|tips?|gratuit\w*|reimburse\w*|
 export function classifyCode(code: string): { kind: LineKind; multiplier: number } | { kind: 'lump' } {
   const c = code.toLowerCase();
   if (LUMP.test(c)) return { kind: 'lump' };
-  if (EXCLUDED.test(c) && !HOLIDAY_WORKED.test(c)) return { kind: 'excluded', multiplier: 1 };
   if (DOUBLE.test(c)) return { kind: 'overtime', multiplier: 2 };
   if (OVERTIME.test(c)) return { kind: 'overtime', multiplier: 1.5 };
+  if (EXCLUDED.test(c) && !HOLIDAY_WORKED.test(c)) return { kind: 'excluded', multiplier: 1 };
   return { kind: 'work', multiplier: 1 };
 }
 
@@ -195,6 +203,7 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
   const safe = { ...mapping };
   for (const f of FIELDS) if (safe[f] !== null && drop.has(safe[f] as number)) safe[f] = null;
 
+  const comma = table.separator === ';';
   const lines: TimeLine[] = [];
   const skipped: SkippedRow[] = [];
   let badPayDates = 0;
@@ -214,9 +223,16 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
     }
     const code = cell(c, safe.code);
     const cls = classifyCode(code);
-    const hours = parseHours(cell(c, safe.hours));
-    const rateCell = parseMoney(cell(c, safe.rate));
-    const amount = parseMoney(cell(c, safe.amount));
+    const regRaw = parseHours(cell(c, safe.hours), comma);
+    const ot = safe.overtimeHours === null ? 0 : parseHours(cell(c, safe.overtimeHours), comma);
+    const dt = safe.doubleHours === null ? 0 : parseHours(cell(c, safe.doubleHours), comma);
+    const otHours = Number.isFinite(ot) ? ot : 0;
+    const dtHours = Number.isFinite(dt) ? dt : 0;
+    const wide = otHours !== 0 || dtHours !== 0;
+    // In a wide row (own overtime columns) a blank regular-hours cell means 0.
+    const hours = wide && !Number.isFinite(regRaw) ? 0 : regRaw;
+    const rateCell = parseMoney(cell(c, safe.rate), comma);
+    const amount = parseMoney(cell(c, safe.amount), comma);
     if (cls.kind === 'lump' || (!Number.isFinite(hours) && Number.isFinite(amount))) {
       skipped.push({ line: row.line, reason: `${code || 'Pay without hours'}: bonuses, commissions, tips and shift differentials are not used yet, so the regular rate may be understated.` });
       continue;
@@ -230,12 +246,14 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
       skipped.push({ line: row.line, reason: `The hours "${cell(c, safe.hours)}" could not be read.` });
       continue;
     }
-    if (hours === 0) {
+    if (hours + otHours + dtHours === 0) {
       skipped.push({ line: row.line, reason: 'Zero hours.' });
       continue;
     }
+    // The rate column is the straight rate in a wide row; without one, the
+    // amount pays the regular hours plus 1.5x and 2x for the overtime columns.
     let rate = rateCell;
-    if (!Number.isFinite(rate) || rate === 0) rate = Number.isFinite(amount) ? amount / hours : NaN;
+    if (!Number.isFinite(rate) || rate === 0) rate = Number.isFinite(amount) ? amount / (hours + 1.5 * otHours + 2 * dtHours) : NaN;
     if (!Number.isFinite(rate) || rate < 0) {
       skipped.push({ line: row.line, reason: 'No hourly rate or pay amount.' });
       continue;
@@ -243,19 +261,26 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
     const payRaw = cell(c, safe.payDate);
     const payDate = payRaw ? parseDate(payRaw) : null;
     if (payRaw && !payDate) badPayDates++;
-    lines.push({
-      employeeKey: employeeKey(id, name),
-      employeeId: id,
-      employeeName: name,
-      date,
-      hours,
-      rate,
-      kind: cls.kind,
-      multiplier: cls.multiplier,
-      payDate,
-      code,
-      line: row.line,
-    });
+    const base = { employeeKey: employeeKey(id, name), employeeId: id, employeeName: name, date, payDate, code, line: row.line };
+    if (hours !== 0) lines.push({ ...base, hours, rate, kind: cls.kind, multiplier: cls.multiplier });
+    if (otHours !== 0) lines.push({ ...base, hours: otHours, rate: rate * 1.5, kind: 'overtime', multiplier: 1.5, code: code || 'Overtime hours column' });
+    if (dtHours !== 0) lines.push({ ...base, hours: dtHours, rate: rate * 2, kind: 'overtime', multiplier: 2, code: code || 'Double-time hours column' });
+  }
+  // A row with a blank ID but the name of an employee who has one (a
+  // correction line, say) belongs to that employee, not to a second one.
+  const idsByName = new Map<string, Set<string>>();
+  for (const l of lines) {
+    if (!l.employeeId) continue;
+    const n = employeeKey('', l.employeeName);
+    idsByName.set(n, (idsByName.get(n) ?? new Set()).add(l.employeeId));
+  }
+  for (const l of lines) {
+    if (l.employeeId) continue;
+    const ids = idsByName.get(l.employeeKey);
+    if (ids && ids.size === 1) {
+      l.employeeId = [...ids][0];
+      l.employeeKey = employeeKey(l.employeeId, l.employeeName);
+    }
   }
   const dates = lines.map((l) => l.date).sort();
   return {
