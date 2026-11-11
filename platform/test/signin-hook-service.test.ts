@@ -91,7 +91,8 @@ describe('handleEmailHook: emails it lets through', () => {
     expect(fn).toBe('sign_in_begin');
     // The canonical mailbox, the fixed 'hook' IP key, no browser, no per-IP limit.
     expect(args).toEqual({ p_email_hash: hmac('email:ann@example.com'), p_ip_hash: hmac('ip:hook'), p_browser_hash: null, p_app: 'how-of-happiness.netlify.app', p_ip_limit: null });
-    expect(s.rpc[1]).toEqual(['sign_in_finish', { p_id: 9, p_outcome: 'sent', p_detail: 'hook: magiclink via how-of-happiness.netlify.app' }]);
+    expect(s.rpc[1]).toEqual(['email_optout_check', { p_email_hash: hmac('email:ann@example.com'), p_scopes: [] }]);
+    expect(s.rpc[2]).toEqual(['sign_in_finish', { p_id: 9, p_outcome: 'sent', p_detail: 'hook: magiclink via how-of-happiness.netlify.app' }]);
     expect(s.sent).toHaveLength(1);
     expect(s.sent[0]).toMatchObject({ from: 'HintWise <sign-in@hintwise.org>', to: ['ann+news@example.com'], subject: 'Your sign-in link' });
     expect(String(s.sent[0].text)).toContain('https://ref.supabase.co/auth/v1/verify?token=th&type=magiclink');
@@ -131,7 +132,7 @@ describe('handleEmailHook: emails it lets through', () => {
   it('reports a send failure as a hook error, logged as error', async () => {
     const s = setup({ resend: () => json(500, {}) });
     expect(await (await handleEmailHook(signed('recovery'), s.deps)).json()).toEqual({ error: { http_code: 502, message: 'Could not send the email. Try again in a minute.' } });
-    expect(s.rpc[1][1]).toMatchObject({ p_outcome: 'error' });
+    expect(s.rpc[2][1]).toMatchObject({ p_outcome: 'error' });
     expect(s.logs.join()).toContain('recovery email not sent');
   });
   it('still answers when sign_in_finish fails', async () => {
@@ -142,7 +143,7 @@ describe('handleEmailHook: emails it lets through', () => {
   it('uses PostgREST by default', async () => {
     const s = setup({ noDb: true });
     expect(await (await handleEmailHook(signed('magiclink'), s.deps)).json()).toEqual({});
-    expect(s.rpc.map(([fn]) => fn)).toEqual(['rest:sign_in_begin', 'rest:sign_in_finish']);
+    expect(s.rpc.map(([fn]) => fn)).toEqual(['rest:sign_in_begin', 'rest:email_optout_check', 'rest:sign_in_finish']);
   });
 });
 
