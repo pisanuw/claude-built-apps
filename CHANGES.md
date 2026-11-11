@@ -469,3 +469,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-11 [decision] Owner's yes: Send Email hook on (run 42990951896, 08:56; check passed 08:50). Direct Auth email now refused except 2 external hosts. Undo: email-hook off.
 2026-11-11 [note] Owner: the 08:56 Qualified Overtime Checker sign-in link (sign-in-link service, hook on) arrived and signed in. Email sign-in verified end to end.
 2026-11-11 [note] Owner: Qualified Overtime Checker signed-in save works after migration 0002 (sample saved, survived reload, deleted). Its owner action 1 is done.
+
+2026-11-11 [code] qualified-overtime-checker day 4: milestone 4 live: Toast time entries recognised from its published columns, QuickBooks Online time activities as an inferred layout, hourly rates typed per employee for hours-only files, column choices saved per layout, add a second export without duplicates (Toast by GUID), weekly totals checked by week, pay-period totals refused; EasyACCT not supported (no dated hours found); code review 10 findings fixed.

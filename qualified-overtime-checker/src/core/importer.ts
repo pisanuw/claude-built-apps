@@ -263,6 +263,8 @@ export interface SkippedRow {
 export interface ImportReport {
   rowsRead: number;
   linesUsed: number;
+  /** Rows that gave at least one line (a row with overtime columns gives two). */
+  rowsUsed: number;
   skipped: SkippedRow[];
   /** Header names of the columns dropped as Social Security numbers. */
   droppedColumns: string[];
@@ -473,6 +475,7 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
     report: {
       rowsRead: body.length,
       linesUsed: lines.length,
+      rowsUsed: new Set(lines.map((l) => l.line)).size,
       skipped,
       droppedColumns: [...drop].map((i) => header[i] || `column ${i + 1}`),
       employees: new Set(lines.map((l) => l.employeeKey)).size,

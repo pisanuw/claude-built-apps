@@ -31,6 +31,7 @@ describe('Toast time entries (columns from Toast’s field reference)', () => {
 
   it('loses no rows and reports the malformed one by its line', () => {
     expect(r.report.rowsRead).toBe(12);
+    expect(r.report).toMatchObject({ rowsUsed: 11, linesUsed: 13 });
     expect(r.report.skipped).toEqual([{ line: 13, reason: 'The work date "not a date" could not be read.' }]);
     expect(r.report.employees).toBe(2);
   });
