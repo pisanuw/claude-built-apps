@@ -2,6 +2,8 @@
 
 Rolling handoff for the Plabs relay (session-relay skill). Rewritten at each handover; the last section has the owner's standing instructions, the relay parameters and Scheduling.
 
+Written 11 November 2026 by session_01JyJzMZ1aBTZCRkUXLJnRG4 and fact-checked the same day by a separate agent against git, the Actions runs, the routines list and the live hosts (4 errors fixed: branch CI, the Chess TD head, the host count, the disabled one-shots). Not verified: the owner's ask times, the other apps on the Supabase project, the halflife sync time.
+
 ## 1. Goal
 
 Owner's words (2026-11-02): "Get people using these projects, advertise these projects to get customers that may want me to build similar projects for them." "One way to be noticed is for github repos to be noticed, forked and get stars." Paid custom builds are the offer, part-time; "I care more about connections and being useful than money." "Built by Claude" is the headline. Customer priority: small businesses, startups, edtech, universities. Domain: hintwise.org (every app at `<app>.hintwise.org` since 8 Nov; docs/hintwise-migration.md).
@@ -10,7 +12,7 @@ Since 9 Nov the build routine builds one substantial project a week on a shared 
 
 ## 2. What is live (11 November)
 
-- **Apps:** claude-built-apps has 63 deploy targets (*/deploy/target.yml); 64 hosts answer 200 (the 62 in platform/src/signin/app-hosts.ts plus upvoteme and paste-md, which live in their own repos). Every app has the shared footer (scripts/site-footer.mjs) except the own-repo apps, which embed the same markup (below). 61 pisan-labs mirrors (.github/mirrors.txt), synced on push and daily by halflife (04:13).
+- **Apps:** claude-built-apps has 63 deploy targets (*/deploy/target.yml); 65 hosts answer 200 (the 62 in platform/src/signin/app-hosts.ts plus upvoteme, paste-md and stepwise, which live in their own repos). Every app has the shared footer (scripts/site-footer.mjs) except the own-repo apps, which embed the same markup (below). 61 pisan-labs mirrors (.github/mirrors.txt), synced on push and daily by halflife (04:13).
 - **Newest app:** Qualified Overtime Checker (qualified-overtime-checker.hintwise.org), the first weekly build, finished 11 Nov (all 7 milestones, final deploy b46ccf1 at 11:13 UTC with its migration 0004). Its own handoff: qualified-overtime-checker/HANDOFF.md ("Remaining").
 - **Shared platform** (docs/platform.md; platform/):
   - Supabase project `arktxlrlyceffyozdwhq` (also hosts UpvoteMe, WCV Live Together, how-of-happiness, a quiz app, chess_kv) on the custom domain **auth.hintwise.org** (add-on bought 9 Nov). Schema `platform` (profiles, llm_usage, sign-in log); per-app schemas `app_<slug>` with RLS: app_qualified_overtime_checker, app_stepwise. Migrations go through `supabase-admin.mjs migrate <slug>` (sha256-checked) then `expose-schema` and `check-schema` (the Deploy workflow runs them too).
@@ -26,7 +28,7 @@ Since 9 Nov the build routine builds one substantial project a week on a shared 
 - **backend-hub** on a paid Render instance (0.5c-512mb, owner set it 10 Nov).
 - **Brand:** the HintWise logo (owner's choice 11 Nov): lowercase "hintwise", Outfit Regular + Bold, deep indigo #312E81 with coral #FF7A45 four-point sparks over dotless i's; files in platform/brand/ (4331076) with a usage guide. Not yet used anywhere live.
 - **Routines (owner's, not relay):** ideas trig_01K986yzFbf3noGkLA6RgZkn 01:51 Pacific (10:51 CET); build trig_01BAP9nsXTtxTdpMiwk5GdXE 02:49 Pacific (11:49 CET). 11 Nov's ideas (cacc9cb) were saved after a CHANGES.md clash; ROUTINE.md now keeps both lines of an append-only CHANGES.md conflict (781948f, owner's default).
-- **Heads at handoff:** claude-built-apps main 40b2c04 (before this commit), daily-project-ideas 781948f, upvote 335af9e, pastemd 904fe66, chess-tournament-director c785de7.
+- **Heads at handoff:** claude-built-apps main 40b2c04 (before this commit), daily-project-ideas 781948f, upvote 335af9e, pastemd 904fe66, chess-tournament-director 68f844d.
 
 ## 3. Landed 9 to 11 November (this session, session_01JyJzMZ1aBTZCRkUXLJnRG4)
 
@@ -57,7 +59,7 @@ Since 9 Nov the build routine builds one substantial project a week on a shared 
 
 ## 4. Branches not merged
 
-- claude-built-apps **`feat/email-footer-optout`** (head 23fef9e, 18 commits ahead, up to date with main; CI green to c138138, 23fef9e was running). Ready to ship; **waits for the owner's yes** (section 6).
+- claude-built-apps **`feat/email-footer-optout`** (head 23fef9e, 18 commits ahead, up to date with main; CI green through 23fef9e, run 43014081744). Ready to ship; **waits for the owner's yes** (section 6).
   - What it is:
     - every HintWise email gets a footer (why you got it, support@hintwise.org, the HintWise line with studio.hintwise.org, "Stop all email from HintWise");
     - Reply-To support@hintwise.org;
@@ -216,5 +218,5 @@ The build routine (BUILD_ROUTINE.md) picks a substantial idea (small business fi
   - trig_01NAfm62qztXkR5RUrYuPXZy: Plabs hourly status report, `46 * * * *`
   - trig_01DDT69peni1JYMUF8dyCCCK: Plabs handoff check, `CRON_TZ=Europe/Berlin 56 13 * * *`
   - trig_01GfNe88huewMUQ7tk5Rxx4t: Plabs session start, `CRON_TZ=Europe/Berlin 52 14 * * *`
-- One-shot check-ins from the previous session have all fired; disabled ones (e.g. trig_01GXgEy75jjqyW6uVe5bfDPg, trig_01ATSrYiV8dttFXM3PuaSVof) may be deleted by the new session.
-- Not relay, leave alone: the owner's ideas (trig_01K986yzFbf3noGkLA6RgZkn) and build (trig_01BAP9nsXTtxTdpMiwk5GdXE) routines; the Chess TD, Chess Analyzer and DSA relays (other sessions); the StepWise relay has ended (its session is archived); TPT daily product builder; research-map; SIGCSE poster reminder.
+- No one-shot check-in from the previous session is pending; two disabled ones that never fired (trig_01GXgEy75jjqyW6uVe5bfDPg, trig_01ATSrYiV8dttFXM3PuaSVof, 9 Nov) may be deleted by the new session.
+- Not relay, leave alone: the owner's ideas (trig_01K986yzFbf3noGkLA6RgZkn) and build (trig_01BAP9nsXTtxTdpMiwk5GdXE) routines; the Chess TD, Chess Analyzer and DSA relays (other sessions); the StepWise relay has ended (its session said its routines are deleted and the owner is archiving it; not checked); TPT daily product builder; research-map; SIGCSE poster reminder.
