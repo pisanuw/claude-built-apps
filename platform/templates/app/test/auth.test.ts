@@ -624,7 +624,8 @@ describe('mountSignIn', () => {
     const off = mountSignIn(root, { client, redirectTo: 'https://x/' });
     await flush();
     expect(root.querySelector('.hw-signin-user')!.textContent).toBe('Signed in as ann@example.com');
-    expect(root.querySelector('form')).toBeNull();
+    expect(root.querySelector('input[type="email"]')).toBeNull();
+    expect(root.querySelector('.hw-account-delete summary')!.textContent).toBe('Delete my account');
     button('Sign out').click();
     expect(auth.signOut).toHaveBeenCalled();
     emit(null);
@@ -633,6 +634,23 @@ describe('mountSignIn', () => {
     expect(root.querySelector('.hw-signin-user')!.textContent).toBe('Signed in as u2');
     off();
     expect(unsubscribe).toHaveBeenCalled();
+  });
+  it('shows the farewell on the signed-out panel after the account is deleted', async () => {
+    const { client, emit } = fakeAuth(session);
+    const env = { VITE_SUPABASE_URL: 'https://auth.hintwise.org', VITE_SUPABASE_ANON_KEY: 'anon' };
+    const f = (async () => new Response(JSON.stringify({ status: 'data-deleted', message: 'Data gone, sign-in kept.' }), { status: 200 })) as unknown as typeof fetch;
+    mountSignIn(root, { client, redirectTo: 'https://x/', deleteOptions: { env, fetch: f } });
+    await flush();
+    const box = root.querySelector('.hw-account-delete')!;
+    const input = box.querySelector('input')!;
+    input.value = 'DELETE';
+    input.dispatchEvent(new Event('input'));
+    box.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await flush();
+    await flush();
+    emit(null);
+    expect(root.querySelector('.hw-signin-status')!.textContent).toBe('Data gone, sign-in kept.');
+    emit(null);
   });
   it('defaults the redirect to this page', async () => {
     const { client, auth } = fakeAuth();

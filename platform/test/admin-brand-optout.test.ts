@@ -86,8 +86,8 @@ describe('the Supabase admin workflow', () => {
     expect(wf).not.toContain('github.event.inputs.email');
     expect(wf).toMatch(/inputs\.command != 'email-hook' && inputs\.command != 'email-optout'\n/);
   });
-  it('gives the service-role key to the generic step only for brand-upload and optout-ready', () => {
-    expect(wf).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.command == 'brand-upload' || inputs.command == 'optout-ready') && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}");
+  it('gives the service-role key to the generic step only for brand-upload, optout-ready and account-deletion-test', () => {
+    expect(wf).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.command == 'brand-upload' || inputs.command == 'optout-ready' || inputs.command == 'account-deletion-test') && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}");
     expect(wf.match(/SUPABASE_SERVICE_ROLE_KEY: \$\{\{ secrets\.SUPABASE_SERVICE_ROLE_KEY \}\}/g)).toHaveLength(1);
   });
   it('deploys sign-in-link and auth-email-hook only after optout-ready passes', () => {

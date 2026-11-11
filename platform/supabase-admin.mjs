@@ -1124,6 +1124,88 @@ async function optOutReady() {
   console.log('platform.email_optout_check answers: the opt-out list is in place.');
 }
 
+/**
+ * account-deletion-test: the live test of "Delete my account" (docs/platform.md,
+ * "Account deletion"), end to end through the deployed delete-account
+ * function. It creates a throwaway sign-in (deletion-test+<random>@hintwise.org,
+ * confirmed, no email sent: generate_link only returns the token), signs it
+ * in, gives it a platform profile and one Qualified Overtime Checker file,
+ * asks delete-account to delete it from the app's Origin, and then checks
+ * that the sign-in and both rows are gone. The address and id are masked in
+ * the log; it prints outcomes and counts only. If anything fails, the
+ * throwaway sign-in is removed anyway.
+ */
+async function accountDeletionTest() {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) fail('account-deletion-test needs SUPABASE_SERVICE_ROLE_KEY (the workflow passes the repo secret)');
+  const base = (url || `https://${ref}.supabase.co`).replace(/\/+$/, '');
+  const anon = JSON.parse(fs.readFileSync(path.join(ROOT, 'platform', 'supabase.json'), 'utf8')).anonKey;
+  const admin = { apikey: key, ...(key.startsWith('sb_') ? {} : { authorization: `Bearer ${key}` }), 'content-type': 'application/json' };
+  const email = `deletion-test+${crypto.randomBytes(6).toString('hex')}@hintwise.org`;
+  console.log(`::add-mask::${email}`);
+  const call = async (u, init) => {
+    const res = await fetch(u, init);
+    const text = await res.text();
+    let body = null;
+    try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+    return { status: res.status, body };
+  };
+  let uid = null;
+  const step = (name, ok, detail = '') => {
+    console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? `: ${detail}` : ''}`);
+    if (!ok) throw new Error(`account-deletion-test: ${name} failed`);
+  };
+  try {
+    const created = await call(`${base}/auth/v1/admin/users`, { method: 'POST', headers: admin, body: JSON.stringify({ email, email_confirm: true }) });
+    uid = created.body?.id ?? null;
+    if (uid) console.log(`::add-mask::${uid}`);
+    step('create a throwaway sign-in', created.status === 200 && !!uid, `HTTP ${created.status}`);
+
+    const link = await call(`${base}/auth/v1/admin/generate_link`, { method: 'POST', headers: admin, body: JSON.stringify({ type: 'magiclink', email }) });
+    const hashed = link.body?.hashed_token ?? link.body?.properties?.hashed_token;
+    step('make a sign-in token (no email sent)', link.status === 200 && !!hashed, `HTTP ${link.status}`);
+
+    const session = await call(`${base}/auth/v1/verify`, { method: 'POST', headers: { apikey: anon, 'content-type': 'application/json' }, body: JSON.stringify({ type: 'magiclink', token_hash: hashed }) });
+    const tok = session.body?.access_token;
+    if (tok) console.log(`::add-mask::${tok}`);
+    step('sign in with it', session.status === 200 && !!tok, `HTTP ${session.status}`);
+    const user = { apikey: anon, authorization: `Bearer ${tok}`, 'content-type': 'application/json' };
+
+    const prof = await call(`${base}/rest/v1/rpc/ensure_profile`, { method: 'POST', headers: { ...user, 'content-profile': 'platform' }, body: '{}' });
+    step('give it a platform profile', prof.status === 200, `HTTP ${prof.status}`);
+    const file = await call(`${base}/rest/v1/client_files`, {
+      method: 'POST',
+      headers: { ...user, 'content-profile': 'app_qualified_overtime_checker', prefer: 'return=minimal' },
+      body: JSON.stringify({ id: crypto.randomUUID(), name: 'deletion test', tax_year: 2026, data: {} }),
+    });
+    step('give it one Qualified Overtime Checker file', file.status === 201, `HTTP ${file.status}`);
+
+    const countRows = async () => (await sql(`select
+        (select count(*) from platform.profiles where id = ${lit(uid)}::uuid)::int as profiles,
+        (select count(*) from app_qualified_overtime_checker.client_files where user_id = ${lit(uid)}::uuid)::int as files,
+        (select count(*) from auth.users where id = ${lit(uid)}::uuid)::int as users`))[0];
+    const before = await countRows();
+    step('rows are there before', before.profiles === 1 && before.files === 1 && before.users === 1, JSON.stringify(before));
+
+    const del = await call(`${base}/functions/v1/delete-account`, {
+      method: 'POST',
+      headers: { ...user, origin: 'https://qualified-overtime-checker.hintwise.org' },
+      body: JSON.stringify({ confirm: 'DELETE' }),
+    });
+    step('delete-account answers deleted', del.status === 200 && del.body?.status === 'deleted', `HTTP ${del.status} ${JSON.stringify(del.body?.status ?? null)}`);
+
+    const after = await countRows();
+    step('sign-in, profile and file are gone', after.profiles === 0 && after.files === 0 && after.users === 0, JSON.stringify(after));
+    uid = null;
+    console.log('account-deletion-test passed.');
+  } finally {
+    if (uid) {
+      const r = await fetch(`${base}/auth/v1/admin/users/${uid}`, { method: 'DELETE', headers: admin }).catch(() => null);
+      console.log(`  cleanup: removed the throwaway sign-in (HTTP ${r?.status ?? 'none'})`);
+    }
+  }
+}
+
 // ---- main -----------------------------------------------------------------
 
 const commands = {
@@ -1148,6 +1230,7 @@ const commands = {
   'brand-upload': () => brandUpload(),
   'email-optout': () => emailOptout(arg),
   'optout-ready': () => optOutReady(),
+  'account-deletion-test': () => accountDeletionTest(),
 };
 
 /** Commands that use only SUPABASE_URL and the service-role key, never the Management API token. */

@@ -23,6 +23,7 @@
 #                            it; the log shows only the action, the time and the hash prefix. add on any
 #                            request; remove ONLY on a request sent from that address that passes DMARC,
 #                            or after a confirming reply from it
+#   account-deletion-test    live test of Delete my account with a throwaway sign-in (masked; counts only)
 #   optout-ready             exit 1 unless platform.email_optout_check answers (deploy-function runs it
 #                            first for sign-in-link and auth-email-hook)
 # Shell commands (Supabase CLI, project dir platform/):
@@ -42,7 +43,7 @@ on:
   workflow_dispatch:
     inputs:
       command:
-        description: 'inspect | sql | apply-shared | migrate | expose-schema | check-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | external-hosts | brand-upload | email-optout | optout-ready | deploy-function | deploy-gateway | set-gateway-key | set-sign-in-secrets | email-hook'
+        description: 'inspect | sql | apply-shared | migrate | expose-schema | check-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | external-hosts | brand-upload | email-optout | optout-ready | account-deletion-test | deploy-function | deploy-gateway | set-gateway-key | set-sign-in-secrets | email-hook'
         required: true
         default: 'inspect'
         type: string
@@ -92,8 +93,8 @@ jobs:
           HINTWISE_AUTH_GOOGLE_SECRET: ${{ secrets.HINTWISE_AUTH_GOOGLE_SECRET }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-          # Only brand-upload and optout-ready use the service-role key.
-          SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.command == 'brand-upload' || inputs.command == 'optout-ready') && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
+          # Only brand-upload, optout-ready and account-deletion-test use the service-role key.
+          SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.command == 'brand-upload' || inputs.command == 'optout-ready' || inputs.command == 'account-deletion-test') && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
 
       - name: Mask the address
         if: inputs.command == 'email-optout'
