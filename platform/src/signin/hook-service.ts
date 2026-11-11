@@ -8,16 +8,19 @@
  * same per-address ladder as sign-in-link: sign_in_begin under each
  * recipient's canonical mailbox, the fixed 'hook' IP key and no browser,
  * with no per-IP limit. A recipient who turned HintWise email off
- * (optout.ts) refuses it first, whatever the type: logged as 'refused' with
- * detail 'suppressed', no bypass alert. Then a due wait for any recipient
- * refuses it. Everything else the plan refuses is logged as 'refused' and
+ * (optout.ts) stops it first, whatever the type, logged as 'refused' with
+ * detail 'suppressed' and no bypass alert: the sign-in emails and the
+ * notices are answered as sent (200 {}) with nothing sent (hook.ts
+ * quietWhenSuppressed), invite, email change and reauthentication are
+ * refused with 403. Then a due wait for any recipient refuses it. Everything else the plan refuses is logged as 'refused' and
  * raises the bypass alert.
  *
  * Each message carries the header (logo or wordmark), Reply-To support and
  * the footer with its recipient's opt-out link.
  *
  * Answers, all JSON:
- *   200 {}                                    the email went out
+ *   200 {}                                    the email went out (or, for an opted-out
+ *                                             address, a sign-in email or notice was dropped)
  *   200 { error: { http_code, message } }     Auth answers the app with that status and message
  *                                             (403 refused or suppressed, 429 wait)
  *   401 { error: ... }                        bad or missing signature (Auth reports a 500)
@@ -25,7 +28,7 @@
  */
 import { bypassAlertEmail, type AlertCounts } from './alerts.ts';
 import { restDb, type Db } from './db.ts';
-import { hookError, parseHookPayload, parseHostList, planHook, REFUSAL_MESSAGE, verifyWebhook } from './hook.ts';
+import { hookError, parseHookPayload, parseHostList, planHook, quietWhenSuppressed, REFUSAL_MESSAGE, verifyWebhook } from './hook.ts';
 import { hashKeys, HOOK_IP, type KeyHashes } from './keys.ts';
 import type { EmailLook } from './email.ts';
 import { emailLook, HOOK_SUPPRESSED_MESSAGE, isSuppressed } from './optout.ts';
@@ -201,9 +204,10 @@ async function handleHookPost(req: Request, deps: HookDeps): Promise<Response> {
     return reply(200, hookError(500, 'The email could not be sent. Try again in a minute.'));
   }
   if (off.some(Boolean)) {
-    log(`auth-email-hook: ${plan.actionType} refused: a recipient turned HintWise email off`);
-    await Promise.all(steps.map((st, i) => finish(st, 'refused', `${what}; suppressed${off[i] ? '' : ' (the other address)'}`)));
-    return reply(200, hookError(403, HOOK_SUPPRESSED_MESSAGE));
+    const quiet = quietWhenSuppressed(plan.actionType);
+    log(`auth-email-hook: ${plan.actionType} not sent: a recipient turned HintWise email off${quiet ? ' (answered as sent)' : ''}`);
+    await Promise.all(steps.map((st, i) => finish(st, 'refused', `${what}; suppressed${off[i] ? '' : ' (the other address)'}${quiet ? ', answered as sent' : ''}`)));
+    return quiet ? reply(200, {}) : reply(200, hookError(403, HOOK_SUPPRESSED_MESSAGE));
   }
   const waits = steps.map((st) => ladderOnly(st.email, now()));
   const wait = waits.find((d) => d.action === 'wait');

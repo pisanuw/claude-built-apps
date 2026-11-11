@@ -315,26 +315,39 @@ describe('handleEmailHook: footer, logo and opt-out', () => {
     expect(String(s.sent[0].html)).toContain('<p class="hw-brand"');
     expect(s.logs.join()).toContain('EMAIL_OPTOUT_SECRET is unset');
   });
-  it('refuses every type for an address that turned email off, logged as refused, with no bypass alert', async () => {
-    for (const [type, redirect] of [['magiclink', EXT], ['signup', EXT], ['email', EXT], ['recovery', EXT], ['invite', HW], ['reauthentication', HW], ['password_changed_notification', HW]]) {
+  it('answers sign-in emails and notices for an opted-out address as sent, sending nothing, logged, with no bypass alert', async () => {
+    for (const [type, redirect] of [['magiclink', EXT], ['signup', EXT], ['email', EXT], ['recovery', EXT], ['password_changed_notification', HW], ['identity_linked_notification', HW], ['email_changed_notification', '']]) {
       const s = setup({ suppressed: (h) => h === ann });
       const res = await handleEmailHook(signed(type, { redirect_to: redirect }, { email: 'ann@example.com' }), s.deps);
-      expect(await res.json(), type).toEqual({ error: { http_code: 403, message: HOOK_SUPPRESSED_MESSAGE } });
+      // The same answer as an email that went out: a prober learns nothing, and a notice never fails Auth's change.
+      expect(await res.json(), type).toEqual({});
       expect(s.sent).toHaveLength(0);
       const fin = s.rpc.filter(([fn]) => fn === 'sign_in_finish').map(([, a]) => a);
       expect(fin).toHaveLength(1);
       expect(fin[0]).toMatchObject({ p_outcome: 'refused' });
-      expect(String(fin[0].p_detail)).toMatch(/; suppressed$/);
+      expect(String(fin[0].p_detail)).toMatch(/; suppressed, answered as sent$/);
       await s.settle();
       expect(s.rpc.some(([fn, a]) => fn === 'sign_in_claim_alert' && a.p_kind === 'bypass')).toBe(false);
+      expect(s.logs.join()).toContain('(answered as sent)');
       expect(s.logs.join()).not.toContain('ann');
+    }
+  });
+  it('refuses invite and reauthentication for an opted-out address with 403', async () => {
+    for (const type of ['invite', 'reauthentication']) {
+      const s = setup({ suppressed: (h) => h === ann });
+      const res = await handleEmailHook(signed(type, { redirect_to: HW }, { email: 'ann@example.com' }), s.deps);
+      expect(await res.json(), type).toEqual({ error: { http_code: 403, message: HOOK_SUPPRESSED_MESSAGE } });
+      expect(HOOK_SUPPRESSED_MESSAGE).toContain('Write to support@hintwise.org from this address');
+      expect(s.sent).toHaveLength(0);
+      expect(String(s.rpc.find(([fn]) => fn === 'sign_in_finish')![1].p_detail)).toMatch(/; suppressed$/);
     }
   });
   it('answers suppressed before the ladder', async () => {
     const s = setup({ suppressed: () => true, begin: { id: 9, email: key({ sent: 2, last_sent_at: '2026-11-10T11:59:00Z' }), browser: key(), ip: { requests_1h: 0 } } });
-    expect((await (await handleEmailHook(signed('magiclink'), s.deps)).json()).error.http_code).toBe(403);
+    expect(await (await handleEmailHook(signed('magiclink'), s.deps)).json()).toEqual({});
+    expect((await (await handleEmailHook(signed('invite', { redirect_to: HW }), s.deps)).json()).error.http_code).toBe(403);
   });
-  it('sends neither email-change message when one address turned email off', async () => {
+  it('sends neither email-change message when one address turned email off, and refuses the change (403)', async () => {
     const s = setup({ suppressed: (h) => h === hmac('email:new@example.com') });
     const req = signed('email_change', { redirect_to: HW, token_hash: 'a', token_hash_new: 'b' }, { email: 'ann@example.com', newEmail: 'new@example.com' });
     expect((await (await handleEmailHook(req, s.deps)).json()).error.http_code).toBe(403);
