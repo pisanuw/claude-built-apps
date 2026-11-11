@@ -29,6 +29,8 @@ export interface StoredFile {
   employees: [string, string, string][];
   codes: string[];
   lines: StoredLine[];
+  /** The export's entry id per line (same order as lines), when any line has one. */
+  entryIds?: (string | null)[];
   reported: Record<string, Record<string, number>>;
   source: string | null;
   mapping: Mapping | null;
@@ -69,6 +71,7 @@ export function encodeFile(file: ClientFile): StoredFile {
     employees,
     codes,
     lines,
+    ...(file.lines.some((l) => l.entryId) ? { entryIds: file.lines.map((l) => l.entryId ?? null) } : {}),
     reported: file.reported,
     source: file.source,
     mapping: file.mapping,
@@ -85,7 +88,8 @@ export function decodeFile(id: string, stored: unknown): ClientFile {
   if (!s || typeof s !== 'object' || s.v !== 1 || !Array.isArray(s.lines) || !Array.isArray(s.employees) || !Array.isArray(s.codes)) throw bad();
   const st = s.settings as EmployerSettings | undefined;
   if (!st || typeof st.name !== 'string' || !Number.isInteger(st.taxYear) || !Number.isInteger(st.workweekStart)) throw bad();
-  const lines: TimeLine[] = s.lines.map((l) => {
+  const ids = Array.isArray(s.entryIds) && s.entryIds.length === s.lines.length ? s.entryIds : null;
+  const lines: TimeLine[] = s.lines.map((l, n) => {
     if (!Array.isArray(l) || l.length < 9) throw bad();
     const [e, date, hours, rate, kind, multiplier, payDate, c, line, amount, earnedFrom, earnedTo, byPay, baseRate] = l as unknown[] as [number, string, number, number, number, number, string | null, number, number, (number | null)?, (string | null)?, (string | null)?, number?, (number | null)?];
     const emp = s.employees[e];
@@ -95,6 +99,7 @@ export function decodeFile(id: string, stored: unknown): ClientFile {
     if (typeof amount === 'number' && Number.isFinite(amount)) Object.assign(out, { amount, earnedFrom: earnedFrom ?? null, earnedTo: earnedTo ?? null });
     if (byPay === 1) out.datedByPay = true;
     if (typeof baseRate === 'number' && Number.isFinite(baseRate)) out.baseRate = baseRate;
+    if (ids && typeof ids[n] === 'string' && ids[n]) out.entryId = ids[n] as string;
     return out;
   });
   return {

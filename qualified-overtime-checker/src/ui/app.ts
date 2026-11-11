@@ -198,6 +198,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       file = next;
       location = s.location;
       dirty = false;
+      importMode = 'replace';
     } catch (e) {
       say(`${s.name || 'That file'} could not be opened: ${(e as Error).message}`);
       return false;
@@ -219,6 +220,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     if (!discard && !(await settle())) return;
     file = newClientFile(makeId(), {}, now());
     dirty = false;
+    importMode = 'replace';
     location = files.signedIn ? 'account' : 'browser';
     pending = null;
     open.clear();
@@ -442,7 +444,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       renderHours();
       return;
     }
-    const totals = periodTotals(incoming);
+    const totals = periodTotals(incoming, report.dateHeader);
     if (totals.length) {
       say(`${pending.name} gives hours as pay-period totals (two weeks or more per row) for ${totals.slice(0, 3).join(', ')}${totals.length > 3 ? ' and others' : ''}. Overtime is counted per workweek, so the checker needs daily or weekly hours: export a timesheet or a weekly hours report instead.`);
       renderHours();
@@ -453,8 +455,13 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     const lines = merged.lines;
     const employees = employeesOf(lines);
     const sig = headerSignature(pending.table.rows[0].cells);
-    file = { ...file, lines, report, mapping: pending.mapping, mappings: { ...(file.mappings ?? {}), [sig]: pending.mapping }, source: pending.name };
-    if (!adding) file = withReported(file, keepKnown(reportedFor(file), employees));
+    const source = adding && file.source ? `${file.source} + ${pending.name}` : pending.name;
+    file = { ...file, lines, report, mapping: pending.mapping, mappings: { ...(file.mappings ?? {}), [sig]: pending.mapping }, source };
+    if (!adding) {
+      file = withReported(file, keepKnown(reportedFor(file), employees));
+      // Typed pay rates stay only for employees still in the file.
+      if (file.rates) file = { ...file, rates: keepKnown(file.rates, employees) };
+    }
     await save();
     renderEmployer();
     renderHours();
@@ -470,6 +477,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
   async function loadSample() {
     if (!(await settle())) return;
     const s = buildSample();
+    importMode = 'replace';
     const id = worthSaving(file) ? makeId() : file.id;
     if (id !== file.id) location = files.signedIn ? 'account' : 'browser';
     open.clear();
@@ -525,6 +533,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       r.excludedLines ? h('p', { text: `${r.excludedLines} lines are paid time off (holiday, vacation, sick): not hours worked, left out.` }) : null,
       r.bonusLines ? h('p', { text: `${r.bonusLines} bonus or commission lines are spread over the weeks they were earned in (settings under 1. Employer).` }) : null,
       r.extraLines ? h('p', { text: `${r.extraLines} shift differential or premium lines are added to their week\u2019s pay.` }) : null,
+      r.hoursWereTotal ? h('p', { text: 'The hours column is a total that includes overtime, so the overtime columns were taken out of it.' }) : null,
       r.layout ? h('p', { class: r.layout.confirmed ? 'ok' : 'warn', text: `Recognised: ${r.layout.name} export. ${r.layout.note}` }) : null,
       r.notWagesLines ? h('p', { text: `${r.notWagesLines} lines are tips, gifts, discretionary bonuses or expenses: not part of the regular rate, left out.` }) : null,
       r.badPayDates ? h('p', { class: 'warn', text: `${r.badPayDates} pay dates could not be read; those lines take their year from the workweek.` }) : null,
@@ -611,12 +620,12 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       if (f) await readFile(f, (name, text) => importFigures(name, text, employees));
     });
     const rateFor = new Set(file.lines.filter(needsRate).map((l) => l.employeeKey));
-    const showRates = rateFor.size > 0 || Object.keys(file.rates ?? {}).length > 0;
+    const showRates = rateFor.size > 0;
     const rows = employees.map((e, n) => {
       const id = `rep-${n}`;
       const rateCell = (() => {
         if (!showRates) return null;
-        if (!rateFor.has(e.key) && file.rates?.[e.key] === undefined) return h('td', { class: 'muted-cell', text: 'from the file' });
+        if (!rateFor.has(e.key)) return h('td', { class: 'muted-cell', text: 'from the file' });
         const v = file.rates?.[e.key];
         const input = h('input', { id: `rate-${n}`, type: 'text', inputmode: 'decimal', value: typeof v === 'number' ? v.toFixed(2) : '', placeholder: '0.00', 'aria-label': `Hourly pay rate for ${e.name}` });
         input.addEventListener('change', async () => {
@@ -726,13 +735,13 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
         renderResults();
         (resultsSec.querySelector(`[data-toggle="${n}"]`) as HTMLElement | null)?.focus();
       });
-      const cls = needsCorrection(c.status) ? 'bad' : c.status === 'not-entered' ? 'muted' : 'good';
+      const cls = needsCorrection(c.status) ? 'bad' : c.status === 'not-entered' || c.status === 'rate-needed' ? 'muted' : 'good';
       body.push(
         h('tr', {},
           h('th', { scope: 'row' }, c.employee.name, c.employee.id ? h('span', { class: 'id', text: ` ${c.employee.id}` }) : null),
           h('td', { class: 'num', 'data-label': 'Overtime hours', text: hours(c.overtimeHours) }),
           h('td', { class: 'num', 'data-label': 'Weeks with overtime', text: String(c.weeksWithOvertime) }),
-          h('td', { class: 'num strong', 'data-label': 'Correct TT', text: money(c.correct) }),
+          h('td', { class: 'num strong', 'data-label': 'Correct TT', text: c.status === 'rate-needed' ? '\u2014' : money(c.correct) }),
           h('td', { class: 'num', 'data-label': 'Payroll TT', text: money(c.reported) }),
           h('td', { class: 'num', 'data-label': 'Difference', text: signedMoney(c.difference) }),
           h('td', { 'data-label': 'Status' }, h('span', { class: `badge ${cls}`, text: STATUS_TEXT[c.status] }), c.weeklyOnly ? h('span', { class: 'badge muted', text: 'Checked by week only' }) : null, c.causes.length ? h('p', { class: 'cause', text: c.causes.join(' ') }) : null),

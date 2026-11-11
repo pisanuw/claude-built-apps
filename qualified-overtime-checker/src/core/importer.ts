@@ -8,7 +8,7 @@ import { parseCsv, type CsvTable } from './csv';
 import { parseDate } from './dates';
 import type { LineKind, TimeLine } from './types';
 
-export const FIELDS = ['employeeId', 'employeeName', 'firstName', 'lastName', 'employeeGroup', 'date', 'hours', 'overtimeHours', 'doubleHours', 'rate', 'amount', 'overtimePay', 'payDate', 'code', 'earnedFrom', 'earnedTo'] as const;
+export const FIELDS = ['employeeId', 'employeeName', 'firstName', 'lastName', 'employeeGroup', 'entryId', 'date', 'hours', 'overtimeHours', 'doubleHours', 'rate', 'amount', 'overtimePay', 'payDate', 'code', 'earnedFrom', 'earnedTo'] as const;
 export type Field = (typeof FIELDS)[number];
 export type Mapping = Record<Field, number | null>;
 
@@ -18,6 +18,7 @@ export const FIELD_LABELS: Record<Field, string> = {
   firstName: 'First name',
   lastName: 'Last name',
   employeeGroup: 'Employee (a name row above their lines)',
+  entryId: 'Time entry ID (tells repeated shifts apart)',
   date: 'Work date',
   hours: 'Hours (regular, or all hours)',
   overtimeHours: 'Overtime hours (own column)',
@@ -65,6 +66,7 @@ const GUESSES: [Field, RegExp][] = [
   ['payDate', /^(pay|check|payment|paid|payroll) ?(date|day)$|^paid on$|^check dt$/],
   ['overtimeHours', /^(ot|overtime|o t) ?(hours|hrs)$|^(hours|hrs) ?(ot|overtime)$|^overtime$/],
   ['overtimePay', /^(ot|overtime) ?(pay|earnings|wages|amount)$/],
+  ['entryId', /^(time entry|entry|shift|punch) ?(id|guid|number|no)$/],
   ['doubleHours', /^(dt|double|double time|doubletime) ?(hours|hrs)?$|^(hours|hrs) ?(dt|double)$/],
   ['employeeId', /^(employee|emp|worker|staff|team member|payroll) ?(id|#|no|number|num|code|badge)$|^(id|badge( number)?)$/],
   ['firstName', /^(employee )?first( name)?$|^given name$/],
@@ -117,7 +119,7 @@ export const LAYOUTS: Layout[] = [
     confirmed: true,
     note: 'Columns from Toast\u2019s published field reference. Regular and overtime hours are read separately (Total Hours already includes the overtime), the hourly rate is Wage, and Overtime Pay shows the premium actually paid. Tips are left out of the regular rate.',
     detect: (n) => ['in date', 'regular hours', 'overtime hours', 'wage'].every((h) => n.includes(h)),
-    columns: { employeeName: 'employee', employeeId: 'employee id', date: 'in date', hours: 'regular hours', overtimeHours: 'overtime hours', rate: 'wage', overtimePay: 'overtime pay', amount: null, code: null },
+    columns: { employeeName: 'employee', employeeId: 'employee id', entryId: 'guid', date: 'in date', hours: 'regular hours', overtimeHours: 'overtime hours', rate: 'wage', overtimePay: 'overtime pay', amount: null, code: null },
   },
   {
     // QuickBooks Online "Time Activities by Employee Detail": no published header list; inferred from Intuit community answers (2021, 2025).
@@ -126,7 +128,7 @@ export const LAYOUTS: Layout[] = [
     note: 'Layout inferred, not confirmed by Intuit: check the columns. Each employee\u2019s name is on a row above their lines; Duration is hours:minutes; Rates and Amount are what the customer is billed, not pay, so enter each employee\u2019s pay rate in step 3.',
     detect: (n) => n.includes('activity date') && n.includes('duration') && !n.some((h) => /\b(employee|name|first|last)\b/.test(h)),
     // "Rates" (billing) is never guessed as the pay rate; Amount is what the customer is billed.
-    columns: { date: 'activity date', hours: 'duration', amount: null, code: null },
+    columns: { date: 'activity date', hours: 'duration', rate: null, amount: null, code: null },
   },
 ];
 
@@ -277,6 +279,10 @@ export interface ImportReport {
   notWagesLines: number;
   /** Lines of an hours-only file: their pay rate is entered per employee. */
   rateMissingLines: number;
+  /** The header of the date column (a "period" in it means pay-period rows). */
+  dateHeader: string;
+  /** Hours were a total including overtime; the overtime columns were taken out. */
+  hoursWereTotal: boolean;
   /** The known export layout, when the headers match one. */
   layout: { name: string; confirmed: boolean; note: string } | null;
   /** Rows whose pay date could not be read (the line is kept without one). */
@@ -292,6 +298,28 @@ function cell(cells: string[], i: number | null): string {
   return i === null ? '' : (cells[i] ?? '').trim();
 }
 
+/**
+ * A row with a blank ID but the name of an employee who has one (a correction
+ * line, or a second export without IDs) belongs to that employee, not to a
+ * second one. Changes the lines in place.
+ */
+export function linkNamesToIds(lines: TimeLine[]): void {
+  const idsByName = new Map<string, Set<string>>();
+  for (const l of lines) {
+    if (!l.employeeId) continue;
+    const n = employeeKey('', l.employeeName);
+    idsByName.set(n, (idsByName.get(n) ?? new Set()).add(l.employeeId));
+  }
+  for (const l of lines) {
+    if (l.employeeId) continue;
+    const ids = idsByName.get(employeeKey('', l.employeeName));
+    if (ids && ids.size === 1) {
+      l.employeeId = [...ids][0];
+      l.employeeKey = employeeKey(l.employeeId, l.employeeName);
+    }
+  }
+}
+
 export function employeeKey(id: string, name: string): string {
   return id ? `id:${id.toLowerCase()}` : `name:${name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()}`;
 }
@@ -305,6 +333,7 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
 
   const comma = table.separator === ';';
   let group = '';
+  const hoursAreTotal = (safe.overtimeHours !== null || safe.doubleHours !== null) && safe.hours !== null && /\b(total|payable|all)\b/.test(normHeader(header[safe.hours] ?? ''));
   // No rate and no amount column: an hours-only file; pay rates are entered per employee.
   const hoursOnly = safe.rate === null && safe.amount === null;
   let rateMissingLines = 0;
@@ -346,8 +375,9 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
     const otHours = Number.isFinite(ot) ? ot : 0;
     const dtHours = Number.isFinite(dt) ? dt : 0;
     const wide = otHours !== 0 || dtHours !== 0;
-    // In a wide row (own overtime columns) a blank regular-hours cell means 0.
-    const hours = wide && !Number.isFinite(regRaw) ? 0 : regRaw;
+    // In a wide row (own overtime columns) a blank regular-hours cell means 0;
+    // a total-hours column already includes the overtime, so take it out.
+    const hours = wide && !Number.isFinite(regRaw) ? 0 : hoursAreTotal && Number.isFinite(regRaw) ? regRaw - otHours - dtHours : regRaw;
     const rateCell = parseMoney(cell(c, safe.rate), comma);
     const amount = parseMoney(cell(c, safe.amount), comma);
     const cls = classifyCode(code, (Number.isFinite(hours) && hours !== 0) || wide);
@@ -424,32 +454,19 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
     const payRaw = cell(c, safe.payDate);
     const payDate = payRaw ? parseDate(payRaw) : null;
     if (payRaw && !payDate) badPayDates++;
-    const base = { employeeKey: employeeKey(id, name), employeeId: id, employeeName: name, date, payDate, code, line: row.line };
+    const entry = cell(c, safe.entryId);
+    const base = { employeeKey: employeeKey(id, name), employeeId: id, employeeName: name, date, payDate, code, line: row.line, ...(entry ? { entryId: entry } : {}) };
     if (hours !== 0) lines.push({ ...base, hours, rate, kind: cls.kind, multiplier: cls.multiplier });
     // An overtime pay column shows what was actually paid for the overtime hours.
     const otPay = safe.overtimePay === null ? NaN : parseMoney(cell(c, safe.overtimePay), comma);
-    const otRate = Number.isFinite(otPay) && otHours > 0 && otPay > 0 ? otPay / otHours : rate * 1.5;
+    // An overtime pay of 0.00 is a fact (nothing paid), not a missing value.
+    const otRate = Number.isFinite(otPay) && otHours > 0 && otPay >= 0 ? otPay / otHours : rate * 1.5;
     // The row's rate is the straight rate of its overtime hours (a row may be overtime only, at another job's rate).
     const known = rate > 0 ? { baseRate: rate } : {};
     if (otHours !== 0) lines.push({ ...base, hours: otHours, rate: otRate, kind: 'overtime', multiplier: 1.5, code: code || 'Overtime hours column', ...known });
     if (dtHours !== 0) lines.push({ ...base, hours: dtHours, rate: rate * 2, kind: 'overtime', multiplier: 2, code: code || 'Double-time hours column', ...known });
   }
-  // A row with a blank ID but the name of an employee who has one (a
-  // correction line, say) belongs to that employee, not to a second one.
-  const idsByName = new Map<string, Set<string>>();
-  for (const l of lines) {
-    if (!l.employeeId) continue;
-    const n = employeeKey('', l.employeeName);
-    idsByName.set(n, (idsByName.get(n) ?? new Set()).add(l.employeeId));
-  }
-  for (const l of lines) {
-    if (l.employeeId) continue;
-    const ids = idsByName.get(l.employeeKey);
-    if (ids && ids.size === 1) {
-      l.employeeId = [...ids][0];
-      l.employeeKey = employeeKey(l.employeeId, l.employeeName);
-    }
-  }
+  linkNamesToIds(lines);
   const dates = lines.map((l) => l.date).sort();
   return {
     lines,
@@ -467,6 +484,8 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
       extraLines: lines.filter((l) => l.kind === 'extra').length,
       notWagesLines,
       rateMissingLines,
+      dateHeader: safe.date === null ? '' : header[safe.date] ?? '',
+      hoursWereTotal: hoursAreTotal,
       layout: (() => {
         const l = detectLayout(header);
         return l ? { name: l.name, confirmed: l.confirmed, note: l.note } : null;

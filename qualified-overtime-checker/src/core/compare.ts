@@ -186,7 +186,8 @@ export function summarize(checks: EmployeeCheck[]): Summary {
     needCorrection: checks.filter((c) => needsCorrection(c.status)).length,
     notEntered: checks.filter((c) => c.status === 'not-entered').length,
     rateNeeded: checks.filter((c) => c.status === 'rate-needed').length,
-    totalCorrect: sum(checks.map((c) => c.correct)),
+    // Employees still waiting for a pay rate have no figure yet.
+    totalCorrect: sum(checks.filter((c) => c.status !== 'rate-needed').map((c) => c.correct)),
     totalReported: sum(checks.map((c) => c.reported ?? 0)),
   };
 }

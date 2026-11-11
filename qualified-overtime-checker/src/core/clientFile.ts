@@ -55,7 +55,7 @@ export interface FileResults {
 
 /** True for a line of worked hours with no pay rate (an hours-only file). */
 export function needsRate(l: TimeLine): boolean {
-  return (l.kind === 'work' || l.kind === 'overtime') && l.rate === 0 && l.hours !== 0;
+  return (l.kind === 'work' || l.kind === 'overtime') && l.rate === 0 && l.hours !== 0 && l.baseRate === undefined;
 }
 
 /** The lines with the hand-entered rates filled in (an overtime line at the rate times its multiplier). */

@@ -49,6 +49,8 @@ export interface TimeLine {
   datedByPay?: boolean;
   /** An overtime line's straight rate when the export states it (the row's own rate column). */
   baseRate?: number;
+  /** The export's own id for the time entry (Toast GUID), when it has one. */
+  entryId?: string;
   /** Pay date of the check that paid these hours, ISO, or null when the export has none. */
   payDate: string | null;
   /** The pay code or item as exported, for the worksheet. */

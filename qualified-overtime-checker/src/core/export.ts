@@ -21,7 +21,7 @@ export function resultsCsv(checks: EmployeeCheck[], settings: EmployerSettings):
     ['Employee ID', 'Employee', 'Hours worked', 'Overtime hours', 'Weeks with overtime', 'TT (FLSA workweek method)', 'TT reported by payroll', 'Difference (reported - correct)', 'Status', 'Likely cause'],
   ];
   for (const c of checks) {
-    rows.push([c.employee.id, c.employee.name, hours(c.hours), hours(c.overtimeHours), c.weeksWithOvertime, money(c.correct), money(c.reported), money(c.difference), STATUS_TEXT[c.status], c.causes.join(' ')]);
+    rows.push([c.employee.id, c.employee.name, hours(c.hours), hours(c.overtimeHours), c.weeksWithOvertime, c.status === 'rate-needed' ? '' : money(c.correct), money(c.reported), money(c.difference), STATUS_TEXT[c.status], c.causes.join(' ')]);
   }
   return toCsv(rows);
 }
