@@ -23,6 +23,7 @@
  *
  * Usage: node scripts/site-footer.mjs <publishDir> <appName>
  */
+import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -63,6 +64,14 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 `
   .trim()
   .replace(/\n/g, ' ');
+
+/**
+ * The CSP source that allows the footer's <style>: a page whose
+ * Content-Security-Policy has a style-src without 'unsafe-inline' must list
+ * it, or the browser drops the style and the footer shows unstyled and
+ * left-aligned (PasteMD, 11 Nov 2026). The hash changes whenever STYLE does.
+ */
+export const FOOTER_STYLE_CSP = `'sha256-${createHash('sha256').update(STYLE).digest('base64')}'`;
 
 const escapeHtml = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);

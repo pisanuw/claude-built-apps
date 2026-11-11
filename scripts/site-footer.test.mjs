@@ -6,7 +6,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { footerHtml, injectFooter, injectFooterIntoDir, MARKER, PROJECTS_URL, PROJECTS_LABEL, CONTACT_EMAIL, ACADEMIC_URL, ACADEMIC_LABEL, LOGO_SVG } from './site-footer.mjs';
+import { footerHtml, injectFooter, injectFooterIntoDir, MARKER, PROJECTS_URL, PROJECTS_LABEL, CONTACT_EMAIL, ACADEMIC_URL, ACADEMIC_LABEL, LOGO_SVG, FOOTER_STYLE_CSP } from './site-footer.mjs';
+import { createHash } from 'node:crypto';
 
 const page = '<!doctype html><html><head></head><body><div id="root"></div><script src="a.js"></script></body></html>';
 
@@ -126,4 +127,10 @@ test('CLI adds the footer and rejects missing arguments', () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('FOOTER_STYLE_CSP is the hash of the footer\'s <style> contents, for strict CSPs', () => {
+  const css = footerHtml('app').match(/<style>([\s\S]*?)<\/style>/)[1];
+  assert.equal(FOOTER_STYLE_CSP, `'sha256-${createHash('sha256').update(css).digest('base64')}'`);
+  assert.equal(FOOTER_STYLE_CSP, "'sha256-4VDViIffTKl8oDDJg58VHCVBOHSQm7GPM7eZ1fAKuzc='");
 });
