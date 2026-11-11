@@ -476,3 +476,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 
 2026-11-11 [code] qualified-overtime-checker day 6: milestone 6 live: README for the business owner with a screenshot, weeks shown as cards on a phone, focusable labelled scroll regions and focus to the results after the sample, dark-theme Google button, storage-blocked notice, IRS FS-2026-13 cited in the method; security review nothing serious, fixes for long cells (PDF freeze), stale imports, a 50 MB upload cap and storage caps (migration 0003).
 2026-11-11 [decision] HintWise logo (owner): A1, Outfit 400/700 wordmark, deep indigo #312E81, coral #FF7A45 sparks, sparks on tiny icons too. Outlined SVGs and PNGs in platform/brand.
+2026-11-11 [note] StepWise final deploy 70155fe (10:32); its session relay ended at the owner's request. New StepWise work starts by hand from HANDOFF.md on next in its repo.
