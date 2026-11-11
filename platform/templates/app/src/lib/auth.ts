@@ -56,7 +56,7 @@ export type SignInLinkResult =
   | { status: 'error'; message: string };
 
 /** What the panel says when the function answers suppressed without a message of its own. */
-export const SUPPRESSED_MESSAGE = 'This address asked HintWise not to send it email. Sign in with Google instead, or write to support@hintwise.org to turn email back on.';
+export const SUPPRESSED_MESSAGE = 'This address asked HintWise not to send it email. Sign in with Google instead, or write to support@hintwise.org from this address to turn email back on.';
 
 type KeyStore = Pick<Storage, 'getItem' | 'setItem'>;
 
