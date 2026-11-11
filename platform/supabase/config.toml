@@ -31,3 +31,11 @@ entrypoint = "./functions/auth-email-hook/index.ts"
 # (EMAIL_OPTOUT_SECRET) or, for support commands, the service-role key.
 verify_jwt = false
 entrypoint = "./functions/email-optout/index.ts"
+
+[functions.delete-account]
+# A signed-in person deletes their own account. verify_jwt is off so the CORS
+# preflight (no token) gets through; the function verifies the session token
+# itself with GET /auth/v1/user and refuses anything else, and needs a
+# sign-in from the last 15 minutes.
+verify_jwt = false
+entrypoint = "./functions/delete-account/index.ts"

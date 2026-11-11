@@ -17,6 +17,7 @@
 import type { AuthChangeEvent, Session, SupabaseClient, User } from '@supabase/supabase-js';
 import googleG from './google-g-light.svg?raw';
 import googleGDark from './google-g-dark.svg?raw';
+import { deleteAccountControl, type DeleteOptions } from './account';
 import { ensureSignInStyles } from './signin-styles';
 import { APP_SLUG, getSupabase, supabaseEnv } from './supabase';
 
@@ -351,6 +352,8 @@ export function formatRetryAt(iso: string, now: Date = new Date()): string {
 }
 
 export interface SignInOptions {
+  /** Fakes for the "Delete my account" control (tests); its client is the panel's. */
+  deleteOptions?: Omit<DeleteOptions, 'client'>;
   client?: AuthClient;
   redirectTo?: string;
   /** Client for platform.ensure_profile; default: `client` when it has `schema`, false to skip. */
@@ -389,6 +392,8 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
   let profiled: string | null = null;
   // Kept across re-renders of the signed-out panel.
   let notice = '';
+  /** Shown once on the signed-out panel after the visitor deleted their account. */
+  let farewell = '';
   let status: HTMLElement | null = null;
   let challengeBox: HTMLElement | null = null;
   let send: HTMLButtonElement | null = null;
@@ -494,6 +499,10 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
     if ((user?.id ?? null) !== shownUserId) {
       // Another account (or none): old messages and a pending switch no longer apply.
       if (shownUserId !== null || user) notice = '';
+      if (!user && farewell) {
+        notice = farewell;
+        farewell = '';
+      }
       // Keep an offer made before the first signed-in view (onAuth's first render shows it).
       if (shownUserId !== null) pendingSwitch = null;
       shownUserId = user?.id ?? null;
@@ -503,6 +512,7 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
       who.className = 'hw-signin-user';
       who.textContent = `Signed in as ${user.email ?? user.id}`;
       el.append(who, button('Sign out', () => void signOut(client)));
+      el.append(deleteAccountControl({ ...opts.deleteOptions, client, onDone: (message) => { farewell = message; } }));
       if (pendingSwitch) {
         const offer = pendingSwitch;
         if (offer.note) {

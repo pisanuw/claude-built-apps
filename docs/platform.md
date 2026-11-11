@@ -359,6 +359,31 @@ Ship order, each a "Supabase admin" dispatch after the owner's yes:
    then `deploy-function auth-email-hook`.
 5. `email-hook check`.
 
+## Account deletion
+
+"Delete my account" (platform/templates/app/src/lib/account.ts, shown by
+the sign-in panel under Sign out) lets a signed-in person delete their
+account. The `delete-account` edge function
+(platform/src/account/delete-service.ts) checks the session token, needs a
+sign-in from the last 15 minutes and the word DELETE, then runs
+`platform.delete_hintwise_data(uid)` (shared/0004_account_deletion.sql):
+
+- In `platform` and every `app_%` schema, each column with a foreign key to
+  `auth.users` is handled: its rows are deleted, or set to null where the key
+  says `on delete set null` (`llm_usage` keeps its cost rows without the
+  person). `platform.email_optouts` is kept: it holds only a keyed hash, and a
+  "Stop all email" must outlive the account.
+- The project is shared with apps that are not HintWise (the 11 Nov
+  inventory, `queries/auth-user-references.sql`: `wcv` with 18 cascading
+  columns, `public.profiles`, and `public.attempts.user_id` with no key). The
+  function deletes the sign-in (Auth admin API) only when none of their tables
+  refer to the person; otherwise the sign-in stays and the person is told to
+  email support@hintwise.org to remove it. Columns with no foreign key are
+  listed in `platform.account_soft_references`.
+- Data a HintWise app keeps outside this project (UpvoteMe, PasteMD) is not
+  covered yet.
+- The log holds counts and outcomes only.
+
 ## 3. LLM calls: bring your own key, or the owner's key behind caps
 
 Two modes, both offered by any app that uses a model; the app works without a
@@ -440,9 +465,10 @@ In `<slug>/deploy/target.yml`: `supabase: true` when the app has a schema
   implementation uses supabase-js. A Playwright walkthrough of the main flow
   runs against `vite preview` with the in-memory repository.
 - README for the business owner says what is stored, where (Supabase,
-  US East), and how to delete an account
-  (`supabase.auth` sign-out plus a delete request to builder@hintwise.org for
-  now; self-service deletion is a platform milestone).
+  US East), and how to delete an account: "Delete my account" under the
+  sign-in panel's Sign out (section "Account deletion"). Every table holding
+  a user's rows needs a foreign key to `auth.users(id)` (`on delete cascade`,
+  or `set null` for rows to keep), or deletion will not find them.
 
 ## 6. Owner actions, one time
 
