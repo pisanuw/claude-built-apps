@@ -20,19 +20,55 @@ const WIDTHS = [
 
 /** Unicode characters outside Latin-1 that WinAnsiEncoding still has. */
 const WIN_ANSI: Record<string, number> = {
-  '€': 128, '‚': 130, '„': 132, '…': 133, '‘': 145, '’': 146, '“': 147, '”': 148, '•': 149, '–': 150, '—': 151, '™': 153,
+  '\u20ac': 128, '\u201a': 130, '\u0192': 131, '\u201e': 132, '\u2026': 133, '\u2020': 134, '\u2021': 135, '\u02c6': 136, '\u2030': 137, '\u0160': 138, '\u2039': 139, '\u0152': 140, '\u017d': 142,
+  '\u2018': 145, '\u2019': 146, '\u201c': 147, '\u201d': 148, '\u2022': 149, '\u2013': 150, '\u2014': 151, '\u02dc': 152, '\u2122': 153, '\u0161': 154, '\u203a': 155, '\u0153': 156, '\u017e': 158, '\u0178': 159,
 };
+
+/** Letters with no WinAnsi form and no accent to drop. */
+const FALLBACK: Record<string, string> = { '\u0141': 'L', '\u0142': 'l', '\u0110': 'D', '\u0111': 'd', '\u0131': 'i', '\u00d8': '\u00d8' };
 
 /** Text as single WinAnsi bytes; anything the built-in fonts cannot show becomes "?". */
 export function toWinAnsi(s: string): number[] {
   const out: number[] = [];
-  for (const ch of s.normalize('NFC')) {
+  const one = (ch: string): number | null => {
     const code = ch.codePointAt(0) as number;
-    if (WIN_ANSI[ch] !== undefined) out.push(WIN_ANSI[ch]);
-    else if ((code >= 32 && code <= 126) || (code >= 160 && code <= 255)) out.push(code);
+    if (WIN_ANSI[ch] !== undefined) return WIN_ANSI[ch];
+    if ((code >= 32 && code <= 126) || (code >= 160 && code <= 255)) return code;
+    return null;
+  };
+  for (const ch of s.normalize('NFC')) {
+    const direct = one(ch);
+    if (direct !== null) {
+      out.push(direct);
+      continue;
+    }
+    if (FALLBACK[ch]) {
+      out.push(...FALLBACK[ch].split('').map((c) => one(c) ?? 63));
+      continue;
+    }
+    // Drop accents WinAnsi lacks, one at a time from the last: "\u1ec5" -> "\u00ea", "\u0103" -> "a".
+    const parts = [...ch.normalize('NFD')];
+    let done = false;
+    while (parts.length > 1 && !done) {
+      parts.pop();
+      const c = parts.join('').normalize('NFC');
+      const code = [...c].length === 1 ? one(c) : null;
+      if (code !== null) {
+        out.push(code);
+        done = true;
+      }
+    }
+    if (done) continue;
     else out.push(63);
   }
   return out;
+}
+
+/** A PDF text string (for the document title): UTF-16BE, which every reader shows correctly. */
+export function pdfTextString(s: string): string {
+  let hex = 'FEFF';
+  for (let i = 0; i < s.length; i++) hex += s.charCodeAt(i).toString(16).padStart(4, '0').toUpperCase();
+  return `<${hex}>`;
 }
 
 function charWidth(byte: number): number {
@@ -150,25 +186,45 @@ export class PdfWriter {
   table(columns: Column[], rows: TableRow[], size = 8.5): void {
     const pad = 4;
     const lineH = size + 2.5;
-    const header = () => {
+    const header = (next = lineH * 2) => {
       const lines = columns.map((c) => wrap(c.title, c.width - 2 * pad, size, true));
       const h = Math.max(...lines.map((l) => l.length)) * lineH + 4;
-      this.ensure(h + lineH * 2);
+      // Keep the header with (at least the start of) the first row under it.
+      this.ensure(h + Math.min(next, PAGE_H - 2 * MARGIN - 24 - h));
       this.band(MARGIN, this.y - h + lineH - 2, columns.reduce((a, c) => a + c.width, 0), h, 0.88);
       this.drawCells(columns, lines, size, true, pad, lineH);
       this.y -= h;
     };
-    header();
-    for (const r of rows) {
-      const lines = columns.map((c, i) => wrap(r.cells[i] ?? '', c.width - 2 * pad, size, !!r.bold));
-      const h = Math.max(...lines.map((l) => l.length)) * lineH + 3;
-      if (this.ensure(h)) header();
-      const width = columns.reduce((a, c) => a + c.width, 0);
-      if (r.shade) this.band(MARGIN, this.y - h + lineH - 1, width, h, 0.95);
-      this.drawCells(columns, lines, size, !!r.bold, pad, lineH);
-      this.y -= h;
-      this.line(MARGIN, this.y + lineH - 1, MARGIN + width, this.y + lineH - 1, 0.3, 0.8);
-    }
+    const width = columns.reduce((a, c) => a + c.width, 0);
+    const rowLines = rows.map((r) => columns.map((c, i) => wrap(r.cells[i] ?? '', c.width - 2 * pad, size, !!r.bold)));
+    const heightOf = (lines: string[][]) => Math.max(...lines.map((l) => l.length)) * lineH + 3;
+    header(rowLines.length ? heightOf(rowLines[0]) : lineH * 2);
+    rows.forEach((r, n) => {
+      let lines = rowLines[n];
+      // A row taller than what is left goes on in pieces, one page at a time.
+      for (;;) {
+        const h = heightOf(lines);
+        const room = Math.floor((this.y - (MARGIN + 24) - 3) / lineH);
+        const rowsTall = Math.max(...lines.map((l) => l.length));
+        if (h <= this.y - (MARGIN + 24) || room < 1) {
+          if (this.ensure(h)) header(h);
+          if (r.shade) this.band(MARGIN, this.y - h + lineH - 1, width, h, 0.95);
+          this.drawCells(columns, lines, size, !!r.bold, pad, lineH);
+          this.y -= h;
+          this.line(MARGIN, this.y + lineH - 1, MARGIN + width, this.y + lineH - 1, 0.3, 0.8);
+          break;
+        }
+        const take = Math.min(room, rowsTall);
+        const piece = lines.map((l) => l.slice(0, take));
+        const hp = take * lineH + 3;
+        if (r.shade) this.band(MARGIN, this.y - hp + lineH - 1, width, hp, 0.95);
+        this.drawCells(columns, piece, size, !!r.bold, pad, lineH);
+        this.y -= hp;
+        lines = lines.map((l) => l.slice(take));
+        this.newPage();
+        header(heightOf(lines));
+      }
+    });
     this.y -= 6;
   }
 
@@ -200,7 +256,7 @@ export class PdfWriter {
     add('');
     add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
     add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
-    add(`<< /Title ${pdfString(title)} /Producer (Qualified Overtime Checker) >>`);
+    add(`<< /Title ${pdfTextString(title)} /Producer (Qualified Overtime Checker) >>`);
     const kids: number[] = [];
     for (const ops of this.pages) {
       const stream = ops.join('\n');

@@ -109,7 +109,63 @@ describe('W-2c list', () => {
     const rows = parseCsv(w2cListCsv(checks, f.settings)).rows.slice(2).map((r) => r.cells);
     expect(rows.map((r) => r[0]).sort()).toEqual(checks.filter((c) => needsCorrection(c.status)).map((c) => c.employee.id).sort());
     const ana = rows.find((r) => r[0] === 'E105')!;
-    expect(ana.slice(2, 5)).toEqual(['1200.00', '3000.00', '1800.00']);
+    expect(ana.slice(2, 5)).toEqual(['1200.00', '3000.00', '-1800.00']); // reported - correct, as in the app
     expect(parseCsv(w2cListCsv([], { ...f.settings, name: '' })).rows).toHaveLength(2);
+  });
+});
+
+describe('milestone 5 review fixes', () => {
+  it('writes the title as UTF-16 and transliterates names WinAnsi lacks', () => {
+    const pdf = new PdfWriter();
+    const s = latin1(pdf.render('Café “U” — Ltd'));
+    expect(s).toContain('/Title <FEFF00430061006600E9');
+    expect(toWinAnsi('Nguyễn')).toEqual(toWinAnsi('Nguyên'));
+    expect(toWinAnsi('Łukasz')).toEqual(toWinAnsi('Lukasz'));
+    expect(toWinAnsi('Šœ')).toEqual([138, 156]);
+    expect(toWinAnsi('中')).toEqual([63]);
+  });
+
+  it('splits a row taller than a page and keeps it on the pages', () => {
+    const pdf = new PdfWriter();
+    const long = Array.from({ length: 500 }, (_, i) => `word${i}`).join(' ');
+    pdf.table([{ title: 'Note', width: 300 }, { title: 'N', width: 40 }], [{ cells: [long, '1'] }, { cells: ['next', '2'] }]);
+    const { pages, text } = checkPdf(pdf.render('t'));
+    expect(pages).toBeGreaterThan(1);
+    expect(text).toContain('word499');
+    expect(text).toContain('next');
+    const ys = [...latin1(pdf.render('t')).matchAll(/Td \(word\d+/g)].length;
+    expect(ys).toBeGreaterThan(50);
+    // Nothing drawn below the footer line.
+    for (const m of latin1(pdf.render('t')).matchAll(/ ([\d.-]+) Td/g)) expect(Number(m[1])).toBeGreaterThan(20);
+  });
+
+  it('a worksheet waiting for a rate has no table; weeks paid in another year show only this year’s part', () => {
+    const { f, checks } = sample();
+    const waiting = { ...checks[0], status: 'rate-needed' as const };
+    const t = checkPdf(worksheetPdf([waiting], f.settings, when)).text;
+    expect(t).toContain('hourly pay rate in step 3');
+    expect(t).not.toContain('Total');
+    const lee = checks.find((c) => c.employee.id === 'E106')!;
+    const lt = checkPdf(worksheetPdf([lee], f.settings, when)).text;
+    expect(lt).not.toContain('paid 2027'); // no 2027-paid week adds to 2026
+    const theo = checks.find((c) => c.employee.id === 'E108')!;
+    expect(checkPdf(worksheetPdf([theo], { ...f.settings, taxYear: 2027 }, when)).text).toContain('paid 2026');
+  });
+
+  it('dates the document by the local day', async () => {
+    const { localDay } = await import('../src/core/reports');
+    const d = new Date(2026, 11, 31, 18, 0);
+    expect(localDay(d)).toBe('2026-12-31');
+  });
+
+  it('labels the difference and keeps both summary totals to the same employees', () => {
+    const { f, checks } = sample();
+    const waiting = checks.map((c, i) => (i === 0 ? { ...c, status: 'rate-needed' as const } : c));
+    const t = checkPdf(summaryPdf(waiting, f.settings, when)).text;
+    expect(t).toContain('Reported \\226'); // an en dash, WinAnsi 150 (the header wraps before "correct")
+    expect(t).toMatch(/still waiting for a pay rate/);
+    const header = parseCsv(w2cListCsv(checks, f.settings)).rows[1].cells;
+    expect(header[2]).toBe('TT on the payroll’s W-2 (as entered)');
+    expect(header[4]).toBe('Difference (reported - correct)');
   });
 });

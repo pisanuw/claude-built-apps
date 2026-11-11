@@ -40,7 +40,7 @@ describe('documents in the page', () => {
       ['tt-worksheet-dev-patel-2026.pdf', 'application/pdf'],
     ]);
     expect(got[0].data).toBeInstanceOf(Uint8Array);
-    expect(String(got[2].data)).toContain('E102,Dev Patel,1706.25,1815.25,109.00');
+    expect(String(got[2].data)).toContain('E102,Dev Patel,1706.25,1815.25,-109.00');
   });
 
   it('offers no W-2c list when nothing needs correcting, and a worksheet for an employee without overtime', async () => {

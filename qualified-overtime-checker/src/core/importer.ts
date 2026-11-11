@@ -56,7 +56,9 @@ export function ssnColumns(table: CsvTable): number[] {
       return;
     }
     const values = body.map((r) => (r.cells[i] ?? '').trim()).filter((v) => v !== '');
-    if (values.length > 0 && values.filter((v) => SSN_VALUE.test(ssnDigits(v))).length / values.length >= 0.5) out.push(i);
+    // One value written like an SSN (123-45-6789) is enough: the column is dropped, not kept and printed.
+    if (values.some((v) => /^\d{3}-\d{2}-\d{4}$/.test(v))) out.push(i);
+    else if (values.length > 0 && values.filter((v) => SSN_VALUE.test(ssnDigits(v))).length / values.length >= 0.5) out.push(i);
   });
   return out;
 }

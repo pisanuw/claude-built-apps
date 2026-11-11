@@ -126,3 +126,12 @@ describe('import mode and rates in the page', () => {
     expect((root.querySelector('#mode-replace') as HTMLInputElement).checked).toBe(true);
   });
 });
+
+describe('SSNs in ID columns', () => {
+  it('drops an ID column if even one value is written like an SSN', async () => {
+    const { ssnColumns } = await import('../src/core/importer');
+    const { parseCsv } = await import('../src/core/csv');
+    expect(ssnColumns(parseCsv('Employee ID,Name\nE1,A\nE2,B\n123-45-6789,C\n'))).toEqual([0]);
+    expect(ssnColumns(parseCsv('Employee ID,Name\nE1,A\nE2,B\n'))).toEqual([]);
+  });
+});

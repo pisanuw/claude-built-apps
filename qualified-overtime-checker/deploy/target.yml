@@ -2,7 +2,8 @@
 #
 # Client files are kept in the visitor's browser, or in their account once
 # they sign in (milestone 2; milestone 3 deployed 2026-11-11 with migration
-# 0002 and sign-in in the header; milestone 4, real exports, 2026-11-11).
+# 0002 and sign-in in the header; milestone 4, real exports, and milestone 5,
+# worksheet PDFs and the W-2c list, 2026-11-11).
 # `supabase: true` makes the Deploy workflow apply
 # supabase/migrations/*.sql and expose schema app_qualified_overtime_checker
 # before the Netlify deploy. `env` holds the public client values from
