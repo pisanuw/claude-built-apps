@@ -483,3 +483,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-11 [code] Shared site footer shows the HintWise icon (28px) above the text; owner default taken 14:21 Lisbon, undo: git revert the merge. Apps get it on next deploy.
 
 2026-11-11 [doc] BUILD_ROUTINE.md MARK IMPLEMENTED: add the studio.json entry and the Studio image (studio_media.js); QOC shipped without either.
+
+2026-11-11 [code] Email footer, logo header and opt-out shipped (owner yes 14:26): 0003 applied, brand bucket, secrets (EMAIL_OPTOUT_SECRET new), email-optout, sign-in-link, auth-email-hook deployed; hook check green.

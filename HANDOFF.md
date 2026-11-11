@@ -59,7 +59,7 @@ Since 9 Nov the build routine builds one substantial project a week on a shared 
 
 ## 4. Branches not merged
 
-- claude-built-apps **`feat/email-footer-optout`** (head 23fef9e, 18 commits ahead, up to date with main; CI green through 23fef9e, run 43014081744). Ready to ship; **waits for the owner's yes** (section 6).
+- **Shipped 11 Nov 14:39 Lisbon** (squash 2d27dec on main; Supabase admin runs 49–56; live test link sent 14:40, owner to check Stop/Done/Undo). Was: claude-built-apps **`feat/email-footer-optout`** (head 23fef9e, 18 commits ahead, up to date with main; CI green through 23fef9e, run 43014081744). Ready to ship; **waits for the owner's yes** (section 6).
   - What it is:
     - every HintWise email gets a footer (why you got it, support@hintwise.org, the HintWise line with studio.hintwise.org, "Stop all email from HintWise");
     - Reply-To support@hintwise.org;
