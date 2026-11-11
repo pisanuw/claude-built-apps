@@ -9,7 +9,10 @@ import {
   optOutToken,
   optOutUrl,
   signedText,
+  UNDO_SECONDS,
+  undoToken,
   verifyOptOutToken,
+  verifyUndoToken,
 } from '../src/signin/optout.ts';
 import { handleOptOut, mayBeServiceKey, optOutPage, OPTOUT_PATH, pageHeaders, type OptOutDeps, type OptOutEnv } from '../src/signin/optout-service.ts';
 
@@ -21,13 +24,15 @@ const ENV: OptOutEnv = { SUPABASE_URL: 'https://ref.supabase.co', SUPABASE_SERVI
 const b64url = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
 const jwt = (role: string) => `${b64url({ alg: 'HS256' })}.${b64url({ role })}.sig`;
 const SERVICE = jwt('service_role');
+const NOW = new Date('2026-11-11T12:00:00Z');
+const NOW_S = NOW.getTime() / 1000;
+const mac = (text: string, secret = SECRET) => crypto.createHmac('sha256', secret).update(text).digest('base64url');
 
-describe('the opt-out token', () => {
-  it('is v1.<mailbox hash>.<HMAC-SHA256 of the label, version, scope and hash>, base64url', async () => {
+describe('the stop token (footer link)', () => {
+  it('is v1.<mailbox hash>.<HMAC-SHA256 of the label, purpose stop, version, scope and hash>, base64url', async () => {
     const t = await optOutToken(SECRET, ANN);
-    const want = crypto.createHmac('sha256', SECRET).update(signedText('v1', 'all', ANN)).digest('base64url');
-    expect(t).toBe(`v1.${ANN}.${want}`);
-    expect(signedText('v1', 'all', ANN)).toBe(`hintwise-email-optout:v1:all:${ANN}`);
+    expect(signedText('stop', 'v1', 'all', ANN)).toBe(`hintwise-email-optout:stop:v1:all:${ANN}`);
+    expect(t).toBe(`v1.${ANN}.${mac(signedText('stop', 'v1', 'all', ANN))}`);
     expect(t.length).toBeLessThanOrEqual(MAX_TOKEN_CHARS);
     expect(t).not.toContain('@');
     expect(await verifyOptOutToken(SECRET, t)).toEqual({ ok: true, emailHash: ANN, scope: 'all' });
@@ -39,21 +44,24 @@ describe('the opt-out token', () => {
     expect((await verifyOptOutToken(SECRET, t)).ok).toBe(true);
     vi.useRealTimers();
   });
-  it('refuses a tampered hash or signature, another secret and another version', async () => {
+  it('refuses a tampered hash or signature, another secret, and another version', async () => {
     const t = await optOutToken(SECRET, ANN);
     const [, hash, sig] = t.split('.');
-    const other = hmac('email:bob@example.com');
-    expect(await verifyOptOutToken(SECRET, `v1.${other}.${sig}`)).toEqual({ ok: false, reason: 'signature' });
+    expect(await verifyOptOutToken(SECRET, `v1.${hmac('email:bob@example.com')}.${sig}`)).toEqual({ ok: false, reason: 'signature' });
     const flipped = sig.slice(0, 10) + (sig[10] === 'A' ? 'B' : 'A') + sig.slice(11);
     expect(await verifyOptOutToken(SECRET, `v1.${hash}.${flipped}`)).toEqual({ ok: false, reason: 'signature' });
     expect(await verifyOptOutToken('another-secret', t)).toEqual({ ok: false, reason: 'signature' });
     expect(await verifyOptOutToken(SECRET, `v2.${hash}.${sig}`)).toEqual({ ok: false, reason: 'version' });
-    // A v2 signature over the same hash does not pass as v1 either.
-    const v2sig = crypto.createHmac('sha256', SECRET).update(signedText('v2', 'all', hash)).digest('base64url');
-    expect(await verifyOptOutToken(SECRET, `v1.${hash}.${v2sig}`)).toEqual({ ok: false, reason: 'signature' });
-    // Nor does a signature for another scope.
-    const appSig = crypto.createHmac('sha256', SECRET).update(signedText('v1', 'app:pluck-lab', hash)).digest('base64url');
-    expect(await verifyOptOutToken(SECRET, `v1.${hash}.${appSig}`)).toEqual({ ok: false, reason: 'signature' });
+  });
+  it('refuses a stop signature made for another version or another scope', async () => {
+    const v2 = mac(signedText('stop', 'v2', 'all', ANN));
+    expect(await verifyOptOutToken(SECRET, `v1.${ANN}.${v2}`)).toEqual({ ok: false, reason: 'signature' });
+    expect(await verifyOptOutToken(SECRET, `v2.${ANN}.${v2}`)).toEqual({ ok: false, reason: 'version' });
+    const app = mac(signedText('stop', 'v1', 'app:pluck-lab', ANN));
+    expect(await verifyOptOutToken(SECRET, `v1.${ANN}.${app}`)).toEqual({ ok: false, reason: 'signature' });
+    // An undo signature over the same hash is not a stop signature either.
+    const undoSig = mac(signedText('undo', 'v1', 'all', ANN));
+    expect(await verifyOptOutToken(SECRET, `v1.${ANN}.${undoSig}`)).toEqual({ ok: false, reason: 'signature' });
   });
   it('accepts only the canonical spelling of the signature', async () => {
     const t = await optOutToken(SECRET, ANN);
@@ -63,9 +71,10 @@ describe('the opt-out token', () => {
     const twin = alphabet[alphabet.indexOf(last) ^ 1];
     expect(await verifyOptOutToken(SECRET, t.slice(0, -1) + twin)).toEqual({ ok: false, reason: 'format' });
   });
-  it('refuses bad shapes, a missing secret, and never throws', async () => {
+  it('refuses bad shapes, an undo token, a missing secret, and never throws', async () => {
     const t = await optOutToken(SECRET, ANN);
-    for (const bad of [null, undefined, 42, {}, '', 'v1', `v1.${ANN}`, `v1.${ANN.toUpperCase()}.${t.split('.')[2]}`, `${t}x`, `${t}.x`, `x${t}`, 'a'.repeat(MAX_TOKEN_CHARS + 1), `v1.${'g'.repeat(64)}.${'A'.repeat(43)}`]) {
+    const u = await undoToken(SECRET, ANN, NOW);
+    for (const bad of [null, undefined, 42, {}, '', 'v1', `v1.${ANN}`, `v1.${ANN.toUpperCase()}.${t.split('.')[2]}`, `${t}x`, `${t}.x`, `x${t}`, 'a'.repeat(MAX_TOKEN_CHARS + 1), `v1.${'g'.repeat(64)}.${'A'.repeat(43)}`, u]) {
       expect((await verifyOptOutToken(SECRET, bad)).ok, String(bad)).toBe(false);
     }
     expect(await verifyOptOutToken('', t)).toEqual({ ok: false, reason: 'no secret' });
@@ -74,6 +83,8 @@ describe('the opt-out token', () => {
   it('is not made without a secret or for something that is not a mailbox hash', async () => {
     await expect(optOutToken('', ANN)).rejects.toThrow(/EMAIL_OPTOUT_SECRET/);
     await expect(optOutToken(SECRET, 'ann@example.com')).rejects.toThrow(/mailbox hash/);
+    await expect(undoToken('', ANN, NOW)).rejects.toThrow(/EMAIL_OPTOUT_SECRET/);
+    await expect(undoToken(SECRET, 'nope', NOW)).rejects.toThrow(/mailbox hash/);
   });
   it('makes the footer link on the custom domain, or none', async () => {
     expect(OPTOUT_URL).toBe('https://auth.hintwise.org/functions/v1/email-optout');
@@ -84,6 +95,44 @@ describe('the opt-out token', () => {
   it('gives each recipient their link and the checked logo', async () => {
     expect(await emailLook({ EMAIL_OPTOUT_SECRET: SECRET, EMAIL_LOGO_URL: LOGO }, ANN)).toEqual({ optOutUrl: await optOutUrl(SECRET, ANN), logoUrl: LOGO });
     expect(await emailLook({ EMAIL_LOGO_URL: 'http://insecure.example/x.png' }, ANN)).toEqual({ optOutUrl: null, logoUrl: null });
+  });
+});
+
+describe('the undo token ("Done" page)', () => {
+  it('is u1.<hash>.<expiry>.<HMAC of purpose undo, version, scope, hash and expiry>, valid for an hour', async () => {
+    const u = await undoToken(SECRET, ANN, NOW);
+    const exp = NOW_S + UNDO_SECONDS;
+    expect(UNDO_SECONDS).toBe(3600);
+    expect(signedText('undo', 'u1', 'all', ANN, exp)).toBe(`hintwise-email-optout:undo:u1:all:${ANN}:${exp}`);
+    expect(u).toBe(`u1.${ANN}.${exp}.${mac(signedText('undo', 'u1', 'all', ANN, exp))}`);
+    expect(u.length).toBeLessThanOrEqual(MAX_TOKEN_CHARS);
+    expect(await verifyUndoToken(SECRET, u, NOW)).toEqual({ ok: true, emailHash: ANN, scope: 'all' });
+    expect((await verifyUndoToken(SECRET, u, new Date((exp - 1) * 1000))).ok).toBe(true);
+  });
+  it('is refused once expired', async () => {
+    const u = await undoToken(SECRET, ANN, NOW);
+    const exp = NOW_S + UNDO_SECONDS;
+    expect(await verifyUndoToken(SECRET, u, new Date(exp * 1000))).toEqual({ ok: false, reason: 'expired' });
+    expect(await verifyUndoToken(SECRET, u, new Date('2027-01-01T00:00:00Z'))).toEqual({ ok: false, reason: 'expired' });
+  });
+  it('cannot have its expiry moved, its hash swapped, or be made with another secret', async () => {
+    const u = await undoToken(SECRET, ANN, NOW);
+    const [, hash, exp, sig] = u.split('.');
+    expect(await verifyUndoToken(SECRET, `u1.${hash}.${Number(exp) + 86400}.${sig}`, NOW)).toEqual({ ok: false, reason: 'signature' });
+    expect(await verifyUndoToken(SECRET, `u1.${hmac('email:bob@example.com')}.${exp}.${sig}`, NOW)).toEqual({ ok: false, reason: 'signature' });
+    expect(await verifyUndoToken('another-secret', u, NOW)).toEqual({ ok: false, reason: 'signature' });
+    expect(await verifyUndoToken(SECRET, `u2.${hash}.${exp}.${sig}`, NOW)).toEqual({ ok: false, reason: 'version' });
+    // A stop signature with an expiry bolted on is not an undo token.
+    const stopSig = (await optOutToken(SECRET, ANN)).split('.')[2];
+    expect(await verifyUndoToken(SECRET, `u1.${hash}.${exp}.${stopSig}`, NOW)).toEqual({ ok: false, reason: 'signature' });
+    expect(await verifyUndoToken(SECRET, `u1.${hash}.${exp}.${sig.slice(0, -1)}${sig.at(-1) === 'A' ? 'B' : 'A'}`, NOW)).toMatchObject({ ok: false });
+  });
+  it('refuses a stop token, bad shapes and a missing secret', async () => {
+    const u = await undoToken(SECRET, ANN, NOW);
+    for (const bad of [await optOutToken(SECRET, ANN), '', null, `u1.${ANN}.0.${'A'.repeat(43)}`, `u1.${ANN}.${'9'.repeat(13)}.${'A'.repeat(43)}`, `${u}x`, 'a'.repeat(MAX_TOKEN_CHARS + 1)]) {
+      expect((await verifyUndoToken(SECRET, bad, NOW)).ok, String(bad)).toBe(false);
+    }
+    expect(await verifyUndoToken('', u, NOW)).toEqual({ ok: false, reason: 'no secret' });
   });
 });
 
@@ -133,7 +182,7 @@ function setup(o: { env?: Partial<OptOutEnv>; fail?: string; deny?: boolean } = 
   const fetchFn = vi.fn(async () => {
     throw new Error('no fetch expected');
   });
-  const deps: OptOutDeps = { env: { ...ENV, ...o.env }, fetch: fetchFn as unknown as typeof fetch, db: make('service-key'), dbAs: (key) => make(key), log: (m) => logs.push(m) };
+  const deps: OptOutDeps = { env: { ...ENV, ...o.env }, fetch: fetchFn as unknown as typeof fetch, db: make('service-key'), dbAs: (key) => make(key), now: () => NOW, log: (m) => logs.push(m) };
   return { deps, rows, calls, logs, fetchFn };
 }
 
@@ -188,7 +237,7 @@ describe('email-optout: the page', () => {
     expect(html).not.toMatch(/#1d4ed8/i);
     expect(pageHeaders(null)['content-security-policy']).not.toContain('img-src');
   });
-  it('POST stop puts the hash on the list, idempotently, and shows Done with Undo', async () => {
+  it('POST stop puts the hash on the list, idempotently, and shows Done with an Undo button carrying an undo token', async () => {
     const s = setup();
     const t = await optOutToken(SECRET, ANN);
     for (let i = 0; i < 2; i += 1) {
@@ -196,7 +245,9 @@ describe('email-optout: the page', () => {
       expect(res.status).toBe(200);
       const html = await res.text();
       expect(html).toContain('<h1>Done</h1>');
-      expect(html).toContain('<input type="hidden" name="action" value="undo"><button type="submit" class="quiet">Undo</button>');
+      expect(html).toContain(`<input type="hidden" name="t" value="${await undoToken(SECRET, ANN, NOW)}"><input type="hidden" name="action" value="undo"><button type="submit" class="quiet">Undo</button>`);
+      expect(html).toContain('The Undo button works for an hour. To turn it back on later, write to <a href="mailto:support@hintwise.org">support@hintwise.org</a> from this address.');
+      expect(html).not.toContain(`value="${t}"`);
     }
     expect([...s.rows.keys()]).toEqual([`${ANN}|all`]);
     expect(s.calls.map(([fn, a]) => [fn, a])).toEqual([
@@ -205,20 +256,53 @@ describe('email-optout: the page', () => {
     ]);
     expect(JSON.stringify(s.calls)).not.toContain('example.com');
   });
-  it('POST undo takes it off, idempotently, and offers to stop again', async () => {
+  it('POST undo with the undo token takes it off, idempotently, and offers the stop token again', async () => {
     const s = setup();
     const t = await optOutToken(SECRET, ANN);
     await handleOptOut(post({ t, action: 'stop' }), s.deps);
+    const u = await undoToken(SECRET, ANN, NOW);
     for (let i = 0; i < 2; i += 1) {
-      const html = await (await handleOptOut(post({ t, action: 'undo' }), s.deps)).text();
+      const html = await (await handleOptOut(post({ t: u, action: 'undo' }), s.deps)).text();
       expect(html).toContain('<h1>Email from HintWise is on again</h1>');
-      expect(html).toContain('value="stop"><button type="submit" class="quiet">Stop all email</button>');
+      expect(html).toContain(`<input type="hidden" name="t" value="${t}"><input type="hidden" name="action" value="stop"><button type="submit" class="quiet">Stop all email</button>`);
     }
     expect(s.rows.size).toBe(0);
     expect(s.calls.slice(1).map(([fn, a]) => [fn, a])).toEqual([
       ['email_optout_clear', { p_email_hash: ANN, p_scope: 'all' }],
       ['email_optout_clear', { p_email_hash: ANN, p_scope: 'all' }],
     ]);
+  });
+  it('never lets the footer token undo, nor the undo token stop or open the page', async () => {
+    const s = setup();
+    const t = await optOutToken(SECRET, ANN);
+    const u = await undoToken(SECRET, ANN, NOW);
+    await handleOptOut(post({ t, action: 'stop' }), s.deps);
+    const undoWithStop = await handleOptOut(post({ t, action: 'undo' }), s.deps);
+    expect(undoWithStop.status).toBe(400);
+    expect(await undoWithStop.text()).toContain('This link does not work');
+    expect(s.rows.size).toBe(1);
+    await handleOptOut(post({ t: u, action: 'undo' }), s.deps);
+    const stopWithUndo = await handleOptOut(post({ t: u, action: 'stop' }), s.deps);
+    expect(stopWithUndo.status).toBe(400);
+    expect(s.rows.size).toBe(0);
+    expect((await handleOptOut(get(u), s.deps)).status).toBe(400);
+    expect(s.calls.map(([fn]) => fn)).toEqual(['email_optout_set', 'email_optout_clear']);
+  });
+  it('refuses an expired undo token, says support can turn email back on, and changes nothing', async () => {
+    const s = setup();
+    const t = await optOutToken(SECRET, ANN);
+    await handleOptOut(post({ t, action: 'stop' }), s.deps);
+    const u = await undoToken(SECRET, ANN, NOW);
+    s.deps.now = () => new Date(NOW.getTime() + (UNDO_SECONDS + 1) * 1000);
+    const res = await handleOptOut(post({ t: u, action: 'undo' }), s.deps);
+    expect(res.status).toBe(400);
+    const html = await res.text();
+    expect(html).toContain('<h1>This Undo button has expired</h1>');
+    expect(html).toContain('HintWise email to this address is still off.');
+    expect(html).toContain('from this address.');
+    expect(html).not.toContain('<form');
+    expect(s.rows.size).toBe(1);
+    expect(s.calls.map(([fn]) => fn)).toEqual(['email_optout_set']);
   });
   it('refuses a forged, tampered or missing token and an unknown action, changing nothing', async () => {
     const s = setup();

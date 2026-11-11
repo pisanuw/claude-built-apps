@@ -345,7 +345,7 @@ describe('handleSignInLink: footer, logo and opt-out', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('access-control-allow-origin')).toBe(ORIGIN);
     expect(await res.json()).toEqual({ status: 'suppressed', message: SUPPRESSED_MESSAGE });
-    expect(SUPPRESSED_MESSAGE).toBe('This address asked HintWise not to send it email. Sign in with Google instead, or write to support@hintwise.org to turn email back on.');
+    expect(SUPPRESSED_MESSAGE).toBe('This address asked HintWise not to send it email. Sign in with Google instead, or write to support@hintwise.org from this address to turn email back on.');
     expect(s.calls).toHaveLength(0);
     expect(s.outcomes()).toEqual(['refused']);
     expect(s.finish().p_detail).toBe('suppressed: this address turned HintWise email off');

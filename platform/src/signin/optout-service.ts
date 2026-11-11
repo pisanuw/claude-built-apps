@@ -5,15 +5,20 @@
  * src/signin/README.md, design in docs/platform.md ("Email footer, logo and
  * opt-out").
  *
- *   GET  ?t=<token>          a page asking "Stop all email from HintWise to
+ *   GET  ?t=<stop token>     a page asking "Stop all email from HintWise to
  *                            this address?" with a confirm button. Changes
  *                            nothing and reads nothing (mail scanners open
  *                            links). HEAD: the same status and headers, no body.
- *   POST t=<token>&action=stop|undo   (a plain HTML form, no JavaScript)
- *                            stop puts the address on the list, undo takes
- *                            it off; both idempotent. The page says "Done"
- *                            with an Undo button, or "Email is on again"
- *                            with the stop button.
+ *   POST t=<stop token>&action=stop   (a plain HTML form, no JavaScript)
+ *                            puts the address on the list (idempotent); the
+ *                            page says "Done" with an Undo button carrying a
+ *                            fresh undo token (optout.ts), good for an hour.
+ *   POST t=<undo token>&action=undo
+ *                            takes it off (idempotent) while the undo token
+ *                            is valid; the page says "Email is on again" with
+ *                            the stop button. A stop token never undoes and
+ *                            an undo token never stops; after the hour, only
+ *                            support turns email back on.
  *   POST application/json with Authorization: Bearer <service-role key>
  *        { action: 'status' | 'add' | 'remove', email }
  *                            support: the address is hashed here, under
@@ -22,6 +27,9 @@
  *                            the caller's own key, so only a service-role key
  *                            gets an answer (Postgres grants, not this code,
  *                            decide). The answer never contains the address.
+ *                            Support runs remove only on a request sent from
+ *                            that address that passes DMARC, or after a
+ *                            confirming reply from it; add on any request.
  *
  * HTML is served on the custom domain (auth.hintwise.org): Supabase rewrites
  * a GET's text/html to text/plain on *.supabase.co
@@ -33,7 +41,7 @@
 import { restDb, type Db } from './db.ts';
 import { BRAND_INDIGO, DARK_BRAND, DARK_LINK, emailLogoUrl, escapeHtml, SUPPORT_EMAIL } from './email.ts';
 import { hashKeys, shortHash } from './keys.ts';
-import { OPTOUT_SCOPE_ALL, verifyOptOutToken } from './optout.ts';
+import { OPTOUT_SCOPE_ALL, optOutToken, undoToken, verifyOptOutToken, verifyUndoToken } from './optout.ts';
 import { errorText, readBody } from './util.ts';
 import { normalizeEmail } from './validate.ts';
 
@@ -42,7 +50,7 @@ export interface OptOutEnv {
   SUPABASE_SERVICE_ROLE_KEY?: string;
   /** Hashes the address of a support command, as the sign-in log does. */
   SIGN_IN_HASH_KEY?: string;
-  /** Checks the tokens of the footer links. */
+  /** Signs and checks the stop and undo tokens. */
   EMAIL_OPTOUT_SECRET?: string;
   /** The logo in the page's header (emailLogoUrl); unset: the text wordmark. */
   EMAIL_LOGO_URL?: string;
@@ -55,6 +63,8 @@ export interface OptOutDeps {
   db?: Db;
   /** The database for a support command, with the caller's key. Default: PostgREST with that key. */
   dbAs?: (key: string) => Db;
+  /** The clock for the undo tokens. Default: the real one. */
+  now?: () => Date;
   log?: (message: string) => void;
 }
 
@@ -63,7 +73,7 @@ export const OPTOUT_PATH = '/functions/v1/email-optout';
 /** A form or a support command is a few hundred bytes. */
 export const MAX_OPTOUT_BODY = 4096;
 
-export type PageKind = 'confirm' | 'stopped' | 'restored' | 'invalid' | 'error' | 'unavailable';
+export type PageKind = 'confirm' | 'stopped' | 'restored' | 'expired' | 'invalid' | 'error' | 'unavailable';
 export type SupportAction = 'status' | 'add' | 'remove';
 export const SUPPORT_ACTIONS: readonly SupportAction[] = ['status', 'add', 'remove'];
 
@@ -98,6 +108,7 @@ const CSS = [
 ].join('');
 
 const supportLink = `<a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>`;
+const BACK_ON = `To turn it back on later, write to ${supportLink} from this address.`;
 
 /** The brand at the top of the page: the logo on a white panel, or the text wordmark. */
 function brand(logoUrl: string | null): string {
@@ -116,7 +127,11 @@ function form(token: string, action: 'stop' | 'undo', label: string, quiet = fal
   );
 }
 
-/** The page for one state. `token` is used only by the pages with a form, and only after it verified. */
+/**
+ * The page for one state. `token` is used only by the pages with a form: the
+ * stop token on confirm and restored, a fresh undo token on stopped; each one
+ * either verified or was made here.
+ */
 export function optOutPage(kind: PageKind, token = '', logoUrl: string | null = null): { title: string; html: string } {
   let title: string;
   let body: string;
@@ -125,10 +140,13 @@ export function optOutPage(kind: PageKind, token = '', logoUrl: string | null = 
     body = `<p>This stops every email from HintWise apps to this address, sign-in links included. You can still sign in with Google.</p>${form(token, 'stop', 'Stop all email')}`;
   } else if (kind === 'stopped') {
     title = 'Done';
-    body = `<p>HintWise will send no more email to this address, sign-in links included. You can still sign in with Google.</p>${form(token, 'undo', 'Undo', true)}`;
+    body = `<p>HintWise will send no more email to this address, sign-in links included. You can still sign in with Google.</p>${form(token, 'undo', 'Undo', true)}<p>The Undo button works for an hour. ${BACK_ON}</p>`;
   } else if (kind === 'restored') {
     title = 'Email from HintWise is on again';
     body = `<p>This address gets HintWise email again, sign-in links included.</p>${form(token, 'stop', 'Stop all email', true)}`;
+  } else if (kind === 'expired') {
+    title = 'This Undo button has expired';
+    body = `<p>It works for an hour after the email was stopped, so HintWise email to this address is still off. ${BACK_ON}</p>`;
   } else if (kind === 'invalid') {
     title = 'This link does not work';
     body = `<p>Open the whole link from the email (some apps cut long links), or write to ${supportLink} and we will stop the email for you.</p>`;
@@ -149,7 +167,7 @@ export function optOutPage(kind: PageKind, token = '', logoUrl: string | null = 
   return { title, html };
 }
 
-const STATUS: Record<PageKind, number> = { confirm: 200, stopped: 200, restored: 200, invalid: 400, error: 500, unavailable: 503 };
+const STATUS: Record<PageKind, number> = { confirm: 200, stopped: 200, restored: 200, expired: 400, invalid: 400, error: 500, unavailable: 503 };
 
 const json = (status: number, body: unknown): Response =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
@@ -200,20 +218,27 @@ async function showPage(req: Request, deps: OptOutDeps, page: PageFn): Promise<R
   return check.ok ? page('confirm', token as string, head) : page('invalid', '', head);
 }
 
-/** The form: stop or undo, for the address the token names. */
+/**
+ * The form: stop with the footer's stop token, or undo with the "Done" page's
+ * undo token, for the address the token names. Each action takes only its
+ * own kind of token.
+ */
 async function submit(req: Request, deps: OptOutDeps, log: (m: string) => void, page: PageFn): Promise<Response> {
   const env = deps.env;
   if (!env.EMAIL_OPTOUT_SECRET || !env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
     log('email-optout is not configured: EMAIL_OPTOUT_SECRET, SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY unset');
     return page('unavailable');
   }
+  const secret = env.EMAIL_OPTOUT_SECRET;
+  const now = (deps.now ?? (() => new Date()))();
   const text = await readBody(req, MAX_OPTOUT_BODY);
   if (text === null) return page('invalid');
   const fields = new URLSearchParams(text);
   const token = fields.get('t') ?? '';
   const action = fields.get('action');
-  const check = await verifyOptOutToken(env.EMAIL_OPTOUT_SECRET, token);
-  if (!check.ok || (action !== 'stop' && action !== 'undo')) return page('invalid');
+  if (action !== 'stop' && action !== 'undo') return page('invalid');
+  const check = action === 'stop' ? await verifyOptOutToken(secret, token) : await verifyUndoToken(secret, token, now);
+  if (!check.ok) return page(check.reason === 'expired' ? 'expired' : 'invalid');
   const db = deps.db ?? restDb(deps.fetch, env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
   try {
     if (action === 'stop') await db.rpc('email_optout_set', { p_email_hash: check.emailHash, p_scope: check.scope, p_via: 'link' });
@@ -222,7 +247,7 @@ async function submit(req: Request, deps: OptOutDeps, log: (m: string) => void, 
     log(`email-optout: ${action} failed for ${shortHash(check.emailHash)}: ${errorText(e)}`);
     return page('error');
   }
-  return page(action === 'stop' ? 'stopped' : 'restored', token);
+  return action === 'stop' ? page('stopped', await undoToken(secret, check.emailHash, now)) : page('restored', await optOutToken(secret, check.emailHash));
 }
 
 export interface OptOutEntry {
