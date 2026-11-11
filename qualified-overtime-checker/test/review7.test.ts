@@ -170,6 +170,49 @@ describe('imports', () => {
   });
 });
 
+describe('second review of the fixes', () => {
+  it('lets the earlier read through when a newer one fails', async () => {
+    const browser = await mount();
+    let releaseA: (s: string) => void = () => {};
+    pick(root.querySelector('#hours-file') as HTMLInputElement, { name: 'a.csv', size: 40, text: () => new Promise<string>((r) => (releaseA = r)) });
+    await settle();
+    pick(root.querySelector('#hours-file') as HTMLInputElement, { name: 'b.csv', size: 40, text: () => Promise.reject(new Error('unreadable')) });
+    await settle();
+    expect(status()).toMatch(/b\.csv could not be read/);
+    releaseA('Employee,Date,Hours,Rate\nAnn A,2026-11-02,45,20\n');
+    await settle();
+    expect(status()).toMatch(/^Imported 1 lines/);
+    expect((await browser.get('id1'))?.lines.map((l) => l.employeeName)).toEqual(['Ann A']);
+  });
+
+  it('names an unclosed quote when nothing could be used', async () => {
+    await mount();
+    await importText('q.csv', 'Employee,Date,Hours,Rate\n"Ann,2026-11-02,45,20\nBo,2026-11-03,9,20\n');
+    expect(status()).toMatch(/^No usable rows in q\.csv\. Check the columns\. Line 2 opens a quote/);
+  });
+
+  it('counts exports, not plus signs in a file name', async () => {
+    await mount();
+    await importText('Jan + Feb.csv', `Employee,Date,Hours,Rate\n${days(2, 'Jane Doe').replace(/,9/g, ',9,20')}\n`);
+    const report = root.querySelector('.report')?.textContent ?? '';
+    expect(report).not.toContain('In this file');
+    expect(report).toContain('Jan + Feb.csv:');
+  });
+
+  it('shows no pay for an employee waiting for a rate, and says the totals leave them out', async () => {
+    const s = buildSample();
+    const file = { ...newClientFile('f', s.settings), lines: s.lines, reported: { '2026': s.reported } };
+    const { checks } = runChecks(file);
+    const c = checks.find((x) => worksheetWeeks(x, 2026).length > 0)!;
+    const rows = parseCsv(worksheetCsv([{ ...c, status: 'rate-needed' }], file.settings)).rows.slice(2);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) expect([r.cells[5], r.cells[6], r.cells[11], r.cells[12]]).toEqual(['', '', '', '']);
+    await mount();
+    await importText('names.csv', `Employee,Date,Hours\n${days(2, 'Jane Doe')}\n`);
+    expect(root.textContent).toContain('(both without the 1 employee still waiting for a pay rate)');
+  });
+});
+
 describe('small UI fixes', () => {
   it('does not offer sign-in when storage is blocked and there is no sign-in', async () => {
     await mountApp(root, { files: new Files(new MemoryFileStore('browser')), storageBlocked: true, saveDelay: 0, confirm: () => true });

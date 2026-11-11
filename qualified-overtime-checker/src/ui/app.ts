@@ -65,8 +65,12 @@ interface PendingImport {
 /** Largest CSV read (a year of time entries for a small employer is a few MB). */
 /** Longest employer name kept (the database refuses longer). */
 export const MAX_NAME = 120;
-/** Largest stored file (encoded JSON characters): the database refuses 10 MB, localStorage holds about 5 MB in all. */
-export const MAX_STORED: Record<FileLocation, number> = { account: 9_000_000, browser: 4_000_000 };
+/**
+ * Largest stored file, in encoded JSON characters. The database refuses 10 MB
+ * of jsonb, which is about 2.7 times the JSON text (measured), so an account
+ * file stays under 3.5 million characters; localStorage holds about 5 MB in all.
+ */
+export const MAX_STORED: Record<FileLocation, number> = { account: 3_500_000, browser: 4_000_000 };
 const MAX_UPLOAD = 50 * 1024 * 1024;
 
 export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> {
@@ -439,6 +443,8 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     try {
       text = await readFileText(f);
     } catch {
+      // A failed read gives way to the one before it, if that one is still reading.
+      if (seq === readSeq[kind]) readSeq[kind]--;
       say(`${f.name} could not be read. Save it as CSV and try again.`);
       return;
     }
@@ -453,10 +459,14 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     await then(f.name, text);
   }
 
+  function quoteNote(table: CsvTable): string {
+    return table.unclosedQuote ? ` Line ${table.unclosedQuote} opens a quote (") that is never closed, so the rows after it could not be read.` : '';
+  }
+
   function readTable(name: string, text: string) {
     const table = parseCsv(text);
     if (table.rows.length < 2) {
-      say(`${name} has no rows under a header line.`);
+      say(`${name} has no rows under a header line.${quoteNote(table)}`);
       pending = null;
       renderHours();
       return;
@@ -478,7 +488,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     if (!pending) return;
     const { lines: incoming, report } = importRows(pending.table, pending.mapping);
     if (incoming.length === 0) {
-      say(`No usable rows in ${pending.name}. Check the columns.`);
+      say(`No usable rows in ${pending.name}. Check the columns.${quoteNote(pending.table)}`);
       renderHours();
       return;
     }
@@ -493,7 +503,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     const lines = merged.lines;
     // A file too big to save would fail at every save: refuse it here instead.
     const size = JSON.stringify(encodeFile({ ...file, lines })).length;
-    if (size > MAX_STORED[location]) {
+    if (size > MAX_STORED[location] && !(location === 'browser' && deps.storageBlocked)) {
       say(`${pending.name} gives a client file of ${(size / 1e6).toFixed(1)} MB, more than ${location === 'account' ? 'an account file' : 'this browser'} can keep (${MAX_STORED[location] / 1e6} MB). Export one tax year, or fewer employees at a time, and try again.`);
       renderHours();
       return;
@@ -501,7 +511,8 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     const employees = employeesOf(lines);
     const sig = headerSignature(pending.table.rows[0].cells);
     const source = adding && file.source ? `${file.source} + ${pending.name}` : pending.name;
-    file = { ...file, lines, report, mapping: pending.mapping, mappings: { ...(file.mappings ?? {}), [sig]: pending.mapping }, source };
+    const counted = adding ? { ...report, exports: (file.report?.exports ?? 1) + 1, lastExport: pending.name } : report;
+    file = { ...file, lines, report: counted, mapping: pending.mapping, mappings: { ...(file.mappings ?? {}), [sig]: pending.mapping }, source };
     // An employee known by name who now has an ID keeps their typed rate and figures.
     file = {
       ...file,
@@ -577,15 +588,14 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     const r = file.report;
     if (!r) return null;
     const skipped = r.skipped.length;
-    // After "add", the counts are the last export's; the file's totals follow.
-    const parts = (file.source ?? 'Import').split(' + ');
-    const last = parts[parts.length - 1];
+    // After "add", the counts are the last export's; the file's totals come first.
+    const several = (r.exports ?? 1) > 1;
     return h('div', { class: 'report' },
-      parts.length > 1
-        ? h('p', { text: `In this file: ${file.lines.length} lines for ${employeesOf(file.lines).length} employees, from ${parts.length} exports (${file.source}).` })
+      several
+        ? h('p', { text: `In this file: ${file.lines.length} lines for ${employeesOf(file.lines).length} employees, from ${r.exports} exports (${file.source}).` })
         : null,
       h('p', {},
-        h('strong', { text: `${parts.length > 1 ? `Last added, ${last}` : last}: ` }),
+        h('strong', { text: `${several ? `Last added, ${r.lastExport}` : file.source ?? 'Import'}: ` }),
         `${r.rowsUsed ?? r.linesUsed} of ${r.rowsRead} rows used${r.linesUsed !== (r.rowsUsed ?? r.linesUsed) ? ` (${r.linesUsed} lines)` : ''}, ${r.employees} employees`,
         r.firstDate && r.lastDate ? `, ${formatDay(r.firstDate)} to ${formatDay(r.lastDate)}.` : '.'),
       r.droppedColumns.length ? h('p', { class: 'ok', text: `Dropped as Social Security numbers, never read or kept: ${r.droppedColumns.join(', ')}.` }) : null,
@@ -666,6 +676,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     if (r.otherCodes) parts.push(`${r.otherCodes} rows for other Box 12 codes were skipped.`);
     if (r.unmatched.length) parts.push(`${r.unmatched.length} rows named nobody in the timesheet (${r.unmatched.slice(0, 3).map((u) => u.name).join(', ')}${r.unmatched.length > 3 ? ', ...' : ''}).`);
     if (r.unreadable.length) parts.push(`${r.unreadable.length} amounts could not be read (lines ${r.unreadable.slice(0, 5).join(', ')}).`);
+    if (r.unclosedQuote) parts.push(`Line ${r.unclosedQuote} opens a quote (") that is never closed, so the rows after it could not be read.`);
     say(parts.join(' '));
   }
 
@@ -837,7 +848,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     fill(resultsSec,
       heading,
       h('p', { class: summary.needCorrection ? 'lead bad-text' : 'lead', text: lead }),
-      h('p', { class: 'help', text: `Total TT by the workweek rules: ${money(summary.totalCorrect)}; reported by payroll: ${money(summary.totalReported)}.` }),
+      h('p', { class: 'help', text: `Total TT by the workweek rules: ${money(summary.totalCorrect)}; reported by payroll: ${money(summary.totalReported)}${summary.rateNeeded ? ` (both without the ${summary.rateNeeded} employee${summary.rateNeeded > 1 ? 's' : ''} still waiting for a pay rate)` : ''}.` }),
       spill ? h('p', { class: 'help', text: `${spill} employees have overtime in weeks paid in another year; those weeks count on that year’s W-2 and are shaded in the weeks table.` }) : null,
       weekly ? h('p', { class: 'help', text: `${weekly} employee${weekly > 1 ? 's have' : ' has'} hours as weekly totals: each total is placed in the workweek that contains its date, so check that \u201cWorkweek starts on\u201d matches your export. Daily detail (and so a check of the week boundaries) is not available for them.` }) : null,
       unplaced.length ? h('p', { class: 'warn', text: `${unplaced.length} bonus${unplaced.length > 1 ? 'es' : ''} fell on no worked week of ${unplaced.length > 1 ? 'their' : 'its'} period and raise no rate: ${unplaced.slice(0, 3).join('; ')}${unplaced.length > 3 ? '; ...' : ''}. Check the bonus period setting or the dates.` }) : null,

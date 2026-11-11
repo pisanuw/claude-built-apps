@@ -166,7 +166,9 @@ export class SupabaseFileStore implements FileStore {
     const summary = summarizeFile(file, 'account');
     const { error } = await this.client.from(TABLE).upsert({
       id: file.id,
-      name: file.settings.name,
+      // The database refuses names over 200 characters (migration 0004); a
+      // name kept from before the app's 120-character limit is cut, not refused.
+      name: file.settings.name.slice(0, 200),
       tax_year: file.settings.taxYear,
       summary: { employees: summary.employees, needCorrection: summary.needCorrection, notEntered: summary.notEntered },
       data: encodeFile(file),

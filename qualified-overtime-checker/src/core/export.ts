@@ -41,7 +41,9 @@ export function worksheetCsv(checks: EmployeeCheck[], settings: EmployerSettings
       const shares = w.bonusParts.reduce((t, p) => t + p.amount, 0);
       const fromBonus = w.bonusParts.reduce((t, p) => t + p.premium, 0);
       const notes = rateNeeded ? ['Pay rate needed: no figure yet.', ...w.notes] : w.notes;
-      rows.push([c.employee.id, c.employee.name, w.start, w.end, hours(w.hours), money(w.straightPay), w.regularRate.toFixed(4), hours(w.overtimeHours), money(w.basePremium), money(shares), money(fromBonus), money(w.premium), rateNeeded ? '' : money(inYear(w, year)), w.payDate ?? '', w.taxYear, notes.join(' ')]);
+      // Without a pay rate there is no pay or premium to show yet, only the hours.
+      const pay = (x: number) => (rateNeeded ? '' : money(x));
+      rows.push([c.employee.id, c.employee.name, w.start, w.end, hours(w.hours), pay(w.straightPay), rateNeeded ? '' : w.regularRate.toFixed(4), hours(w.overtimeHours), pay(w.basePremium), pay(shares), pay(fromBonus), pay(w.premium), pay(inYear(w, year)), w.payDate ?? '', w.taxYear, notes.join(' ')]);
     }
   }
   return toCsv(rows);

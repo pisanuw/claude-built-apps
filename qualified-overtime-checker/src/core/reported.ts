@@ -16,6 +16,8 @@ export interface ReportedImport {
   unreadable: number[];
   /** Rows for another Box 12 code, skipped. */
   otherCodes: number;
+  /** Line of a quote never closed: the rows after it were lost. */
+  unclosedQuote?: number;
 }
 
 const AMOUNT_STRICT = /\b(amount|value|tt amount|qualified overtime|overtime comp|qoc)\b/;
@@ -31,7 +33,7 @@ function normName(s: string): string {
 export function importReported(text: string, employees: Employee[]): ReportedImport {
   const table = parseCsv(text);
   const [head, ...body] = table.rows;
-  const out: ReportedImport = { values: {}, unmatched: [], unreadable: [], otherCodes: 0 };
+  const out: ReportedImport = { values: {}, unmatched: [], unreadable: [], otherCodes: 0, ...(table.unclosedQuote ? { unclosedQuote: table.unclosedQuote } : {}) };
   if (!head) return out;
   const skip = new Set(ssnColumns(table));
   const norm = head.cells.map(normHeader);

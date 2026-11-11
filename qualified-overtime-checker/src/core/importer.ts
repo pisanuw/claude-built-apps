@@ -293,6 +293,9 @@ export interface ImportReport {
   badPayDates: number;
   /** Line of a quote never closed in the file: the rows after it were lost. */
   unclosedQuote?: number;
+  /** After "add": how many exports the file holds, and the name of the last one (these counts are its). */
+  exports?: number;
+  lastExport?: string;
 }
 
 export interface ImportResult {
