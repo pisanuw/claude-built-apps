@@ -189,7 +189,7 @@ Relay routines (Scheduling below), the owner's ideas and build routines (section
 
 The build routine (BUILD_ROUTINE.md) picks a substantial idea (small business first), builds one milestone a day for up to 7 days in fresh sessions resuming from `<slug>/HANDOFF.md`, and continues the same day when time allows. The first build, Qualified Overtime Checker, finished in 2 days of wall time (10–11 Nov). The relay session supports the builds: applying migrations for own-repo apps, platform features, and reviewing anything touching auth or email.
 
-**Aborted builds (do not pick or resume):** daily-project-ideas `ideas/2026-11-10.json` #1, "Off-TPT Catalog Kit" (slug off-tpt-catalog-kit, folder `teacher-catalog-kit/`). The owner aborted it on 11 Nov after day 1: do not develop it further. Its placeholder was removed from implemented.json. Milestone 1 is still live at teacher-catalog-kit.hintwise.org with schema app_teacher_catalog_kit, until the owner decides whether to take it down (`teacher-catalog-kit/HANDOFF.md`).
+**Aborted builds (do not pick or resume):** daily-project-ideas `ideas/2026-11-10.json` #1, "Off-TPT Catalog Kit" (slug off-tpt-catalog-kit, folder `teacher-catalog-kit/`). The owner aborted it on 11 Nov after day 1 and then said "take it down": the Netlify site and its DNS, schema app_teacher_catalog_kit and its migration records, the CI job, the deploy target and the sign-in host were removed (tools: Supabase admin `unexpose-schema`, `platform/supabase/ops/retire-teacher-catalog-kit.sql`, the "Retire Netlify site" workflow). The folder stays as the record that keeps the idea from being picked again.
 
 ## Notes for the next session
 

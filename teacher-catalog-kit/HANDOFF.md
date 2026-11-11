@@ -1,12 +1,13 @@
-# Teacher Catalog Kit: handoff (ABORTED after day 1, 2026-11-11)
+# Teacher Catalog Kit: handoff (ABORTED after day 1 and taken down, 2026-11-11)
 
-> **Aborted by the owner on 2026-11-11: do not develop this further.** The
-> build routine must not resume or re-pick it (the implemented.json
-> placeholder was removed; the repo HANDOFF.md section 14 lists it under
-> aborted builds). The resume prompt below is kept only as a record. Still
-> live, pending the owner's decision: the Netlify site and
-> teacher-catalog-kit.hintwise.org, schema app_teacher_catalog_kit, the CI
-> job, and the entry in platform/src/signin/app-hosts.ts.
+> **Aborted by the owner on 2026-11-11 and taken down: do not develop this
+> further.** The build routine must not resume or re-pick it (the
+> implemented.json placeholder was removed; the repo HANDOFF.md section 14
+> lists it under aborted builds). Removed on 2026-11-11 at the owner's
+> request: the Netlify site and teacher-catalog-kit.hintwise.org, schema
+> app_teacher_catalog_kit and its migration records, `deploy/target.yml`, the
+> CI job and the sign-in host. The code stays here only as a record; the
+> sections below describe it as it was.
 
 Rewritten at the end of every build day by the build routine
 (BUILD_ROUTINE.md). It is the only state the next day's session has, and the
@@ -152,3 +153,4 @@ and `| grep -c "Want something like this"` (the footer).
 
 - Day 1 (2026-11-11): picked and claimed the idea, plan, scaffold, milestone 1 built, reviewed (10 code findings fixed, no security findings), deployed and checked live; sign-in-link redeployed with the new host.
 - 2026-11-11: aborted by the owner after day 1; no further development.
+- 2026-11-11: taken down at the owner's request (site, DNS, schema, CI job, deploy target, sign-in host).
