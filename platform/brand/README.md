@@ -76,12 +76,11 @@ written with Pillow from the 16, 32 and 48 px PNGs.
   indigo, bold, 18px. The Sign in button and the links are deep indigo.
 - **The opt-out page** (`email-optout`, "Stop all email from HintWise"):
   the same logo or text wordmark, an indigo button.
-- **Hosting:** `brand-upload` (Supabase admin workflow) puts every PNG, SVG
-  and `favicon.ico` here in the public Storage bucket `brand`, with a
-  one-year cache, at
-  `https://auth.hintwise.org/storage/v1/object/public/brand/<file>`. A
-  changed image gets a new file name, so cached copies never need clearing.
-  The step refuses an SVG with a script, event handler or outside link,
-  since a public SVG opened directly runs on auth.hintwise.org.
+- **Hosting:** `brand-upload` (Supabase admin workflow) puts every PNG and
+  `favicon.ico` here in the public Storage bucket `brand`, with a one-day
+  cache, at `https://auth.hintwise.org/storage/v1/object/public/brand/<file>`.
+  A changed image under the same name takes up to a day to show everywhere.
+  The SVGs are not uploaded: a public SVG opened directly can run script on
+  auth.hintwise.org, so the bucket accepts PNG and ICO only.
 - **Next:** a small mark in the shared site footer (`scripts/site-footer.mjs`), which each app picks up on its next deploy.
 - **Later:** app favicons and social preview images.

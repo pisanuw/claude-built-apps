@@ -55,7 +55,7 @@ JWT (`verify_jwt = false`). JSON body:
 | HTTP | Body | When |
 |---|---|---|
 | 200 | `{ status: 'sent' }` | the email went out |
-| 200 | `{ status: 'suppressed', message }` | the address turned HintWise email off; nothing was sent. `message`: "This address asked HintWise not to send it email. Sign in with Google instead, or write to support@hintwise.org to turn email back on." Checked after the ladder and the challenge, just before the link would be made; logged `refused` |
+| 200 | `{ status: 'suppressed', message }` | the address turned HintWise email off; nothing was sent. `message`: "This address asked HintWise not to send it email. Sign in with Google instead, or write to support@hintwise.org from this address to turn email back on." Checked after the ladder and the challenge, just before the link would be made; logged `refused` |
 | 429 | `{ status: 'wait', retryAt }` | too early for this address or browser, or the IP network is over 100 requests an hour; `retryAt` is an ISO time |
 | 403 | `{ status: 'challenge', siteKey, failed? }` | a Turnstile check is needed; `failed: true` when the token did not pass |
 | 503 | `{ status: 'error', message: 'Email sign-in is paused; try Google' }` | a check is due but `TURNSTILE_SECRET` is unset |
@@ -214,7 +214,24 @@ project: a comma list, `*.` for a wildcard, never a hintwise.org name.
 | the same four for a hintwise.org page or an unknown host | refused with 403 "Use the HintWise sign-in-link service", logged `refused`, raises `bypass` (HintWise apps send these through sign-in-link) |
 | `invite`, `email_change`, `reauthentication` and every `*_notification`, for every host | sent through the ladder |
 | any other type | refused the same way |
-| any type the plan sends, for an address on the opt-out list | refused with 403 "This address asked HintWise not to send it email. Write to support@hintwise.org to turn email back on.", before the ladder; logged `refused` with detail `suppressed`; no bypass alert (an email change sends neither message when either address is on the list) |
+| `magiclink`, `signup`, `email`, `recovery` and every `*_notification` the plan sends, for an address on the opt-out list | answered as sent (`{}`) with nothing sent, before the ladder; logged `refused`, detail `suppressed, answered as sent`; no bypass alert. A refusal would tell anyone asking Auth for a recovery that the account exists and opted out (Auth answers an unknown address's recovery with 200 and sends nothing), and Auth only logs a failed notice |
+| `invite`, `email_change`, `reauthentication` for an address on the opt-out list | refused with 403 "This address asked HintWise not to send it email. Write to support@hintwise.org from this address to turn email back on.", before the ladder; logged `refused`, detail `suppressed`; no bypass alert. An email change sends neither message when either address is on the list |
+
+How Auth reads those answers (checked 11 Nov 2026):
+
+- Supabase's Send Email hook page
+  (https://supabase.com/docs/guides/auth/auth-hooks/send-email-hook):
+  "An empty response with a status code of 200 is taken as a successful
+  response."
+- Supabase Auth's source (`supabase/auth`, `internal/api`): `recover.go`
+  answers an unknown address with 200 and `{}` and sends nothing, and fails
+  a known address's request with the hook's error (`sendPasswordRecovery`
+  in `mail.go` returns it); `magic_link.go` does the same for magic links.
+  Every notice is sent after the change and a failure is only logged:
+  `user.go` "we don't want to fail the whole request if the email can't be
+  sent" (password changed), and the same in `verify.go` (email changed),
+  `identity.go` (identity linked, unlinked) and `mfa.go` (factor enrolled,
+  unenrolled).
 
 Every email the hook sends goes through `sign_in_begin`, keyed by the
 recipient's canonical mailbox, with the fixed `hook` IP key, no browser and
@@ -255,17 +272,21 @@ Every email the functions send (`email.ts renderEmail`) has:
   HintWise" (the recipient's opt-out link) "(sign-in links too)". Without
   `EMAIL_OPTOUT_SECRET` the last line names support instead.
 
-**The opt-out link.** `https://auth.hintwise.org/functions/v1/email-optout?t=<token>`,
-token `v1.<mailbox hash>.<signature>`:
+**The tokens.** Both are HMAC-SHA256 under `EMAIL_OPTOUT_SECRET`,
+base64url, checked with WebCrypto verify (constant time), canonical
+spelling only, over a text that names their purpose:
 
-- the mailbox hash is the sign-in log's key, HMAC-SHA256 of
-  `email:<canonical mailbox>` under `SIGN_IN_HASH_KEY`, so the URL has no
-  address and a `+tag` or Gmail dot variant is the same address;
-- the signature is HMAC-SHA256 under `EMAIL_OPTOUT_SECRET` of
-  `hintwise-email-optout:v1:all:<hash>`, base64url, checked with WebCrypto
-  verify (constant time), canonical spelling only;
-- tokens do not expire. Never rotate `EMAIL_OPTOUT_SECRET` or
-  `SIGN_IN_HASH_KEY`: every link already sent would stop working.
+| Token | Where | Signed text | Does |
+|---|---|---|---|
+| stop, `v1.<mailbox hash>.<sig>` | the footer link `https://auth.hintwise.org/functions/v1/email-optout?t=<token>`, the same in every email to the address | `hintwise-email-optout:stop:v1:all:<hash>` | stops email only; never expires |
+| undo, `u1.<mailbox hash>.<expiry>.<sig>` | only in the "Done" page's Undo form (a POST body, never a URL) | `hintwise-email-optout:undo:u1:all:<hash>:<expiry>` | turns email back on only, until `<expiry>` (Unix seconds), one hour after the stop |
+
+So anyone who sees one email can stop that address's email (as with any
+unsubscribe link), but nobody can turn it back on with that link. The
+owner of the address can press Undo for an hour; after that, only support
+turns email back on. The mailbox hash is the sign-in log's key, HMAC-SHA256
+of `email:<canonical mailbox>` under `SIGN_IN_HASH_KEY`, so the URL has no
+address and a `+tag` or Gmail dot variant is the same address.
 
 **The page** (`email-optout`, `verify_jwt = false`). It is served on the
 custom domain because Supabase rewrites a GET's `text/html` to `text/plain`
@@ -273,16 +294,35 @@ on `*.supabase.co`.
 
 | Request | Answer |
 |---|---|
-| `GET ?t=<token>` (or HEAD) | 200, "Stop all email from HintWise to this address?" (sign-in links included; Google sign-in still works) with a form that POSTs `t` and `action=stop`. Reads and changes nothing. A bad token: 400 "This link does not work" |
-| `POST t=<token>&action=stop` (form) | `email_optout_set`, idempotent; 200 "Done" with an Undo button |
-| `POST t=<token>&action=undo` (form) | `email_optout_clear`, idempotent; 200 "Email from HintWise is on again" with a Stop button |
+| `GET ?t=<stop token>` (or HEAD) | 200, "Stop all email from HintWise to this address?" (sign-in links included; Google sign-in still works) with a form that POSTs `t` and `action=stop`. Reads and changes nothing. A bad token (or an undo token): 400 "This link does not work" |
+| `POST t=<stop token>&action=stop` (form) | `email_optout_set`, idempotent; 200 "Done" with an Undo button carrying a fresh undo token, and "write to support@hintwise.org from this address" for later |
+| `POST t=<undo token>&action=undo` (form) | while the undo token is valid: `email_optout_clear`, idempotent; 200 "Email from HintWise is on again" with a Stop button (the stop token). Expired: 400 "This Undo button has expired", nothing changed |
+| a stop token with `action=undo`, an undo token with `action=stop` | 400 "This link does not work", nothing changed |
 | `POST application/json` `{ action: 'status' \| 'add' \| 'remove', email }` with the service-role key (`Authorization: Bearer`, or `apikey` for a `sb_secret_` key) | support: the function hashes the address and runs the RPC with the caller's key, so Postgres grants decide; answers with the 16-character hash prefix, never the address. `remove` clears every scope |
 | without `EMAIL_OPTOUT_SECRET` | 503 "This page is not ready yet" |
 
 Every page: no script, works without JavaScript, CSP `default-src 'none'`
 (plus `img-src` for the logo's origin), `form-action 'self'`, no framing,
-`no-referrer`, `no-store`, `noindex`. Only a token that verified is echoed
-into the page, escaped; the page never knows the address.
+`no-referrer`, `no-store`, `noindex`. Only a token that verified (or one
+made by the function) is echoed into the page, escaped; the page never
+knows the address.
+
+**Support** (`supabase-admin.mjs email-optout`, address in the workflow's
+masked `email` input; the log shows only the action, the time and the hash
+prefix):
+
+- `add` stops all email for the address. Run it on any request: it can
+  only stop email.
+- `remove` turns all of it back on. Run it **only** on a request sent from
+  that address that passes DMARC (check the `Authentication-Results`
+  header), or after a confirming reply from it. Anyone can claim to own an
+  address; only its mailbox can confirm it.
+- `status` shows whether the address is on the list.
+- On the first live run, check that the functions gateway passes a
+  `sb_secret_` service key through to the function in `Authorization:
+  Bearer` (or `apikey`) with `verify_jwt = false`: the code accepts both,
+  but this has not been seen live (the repo secret may be a legacy JWT,
+  which is known to work).
 
 **The list** is `platform.email_optouts` (`0003_email_optout.sql`): one row
 per mailbox hash and scope (`all` now; `app:<slug>` reserved for per-app
@@ -292,8 +332,43 @@ RLS on, no policies, service role only, RPCs `email_optout_check`,
 `email_optout_set`, `email_optout_clear`, `email_optout_status`.
 
 **Failures send nothing.** When `email_optout_check` fails (or 0003 is not
-applied yet), sign-in-link answers 500 and the hook refuses, so the
-migration goes before the deploys.
+applied yet), sign-in-link answers 500 and the hook refuses. So the
+migration goes before the deploys, and `deploy-function` refuses to deploy
+sign-in-link or auth-email-hook until `optout-ready` sees
+`email_optout_check` answer.
+
+**What an opted-out address cannot do.**
+
+- Get a sign-in link from sign-in-link: it answers `suppressed` (Google
+  sign-in still works).
+- Get any Auth email through the hook. Sign-in emails and notices are
+  answered as sent and dropped; invite, reauthentication and email change
+  are refused (403). So an opted-out user cannot change their account's
+  email address (in either direction: from or to an opted-out address)
+  until they turn email back on through support.
+
+**Where the opt-out does not hold (fail open).**
+
+- `email-hook off`: Auth then sends its own emails directly, without the
+  hook, so it ignores the opt-out list (sign-in-link still checks it).
+- Rotating `SIGN_IN_HASH_KEY` or `EMAIL_OPTOUT_SECRET`: the list is keyed by
+  the hash, so a new hash key silently drops every opt-out (and every
+  sign-in ladder), and a new opt-out secret breaks every stop link already
+  sent. Never rotate either without migrating the table (re-hashing needs
+  the addresses, which are not stored, so in practice: never).
+
+**Canonical mailbox: known gaps.** The canonicalisation drops `+tags`
+everywhere and Gmail's dots, nothing else. Other aliases of one mailbox
+count as different addresses, for the ladder and for the opt-out:
+
+- Yahoo's `-` disposable addresses (`name-keyword@yahoo.com`);
+- Fastmail's subdomain addressing (`anything@name.fastmail.com`);
+- iCloud's aliases and Hide My Email addresses (`@icloud.com`, `@me.com`,
+  `@mac.com`, `@privaterelay.appleid.com`);
+- any domain's own aliases and catch-alls.
+
+Opting out one of them leaves the others getting email; each has its own
+footer link.
 
 ## Function secrets
 

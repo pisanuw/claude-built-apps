@@ -309,26 +309,49 @@ The contract is `platform/src/signin/README.md`.
   `email-optout` function on `https://auth.hintwise.org/functions/v1/email-optout`
   (the custom domain: Supabase serves HTML from functions only there, see
   [its limits page](https://supabase.com/docs/guides/functions/limits)).
-  - The token is `v1.<mailbox hash>.<HMAC under EMAIL_OPTOUT_SECRET>`: no
-    address in the URL, no expiry.
+  - The footer's token, `v1.<mailbox hash>.<HMAC under EMAIL_OPTOUT_SECRET>`,
+    can only stop email and never expires; no address in the URL.
   - GET only asks (mail scanners open links); the confirm button POSTs, then
-    "Done" with Undo. No JavaScript needed.
+    "Done" with an Undo button. Undo carries its own token, signed for undo
+    only, that expires after an hour. No JavaScript needed.
   - The list, `platform.email_optouts`, holds the keyed hash of the
     canonical mailbox and a scope (`all`); level 1 (per app, `app:<slug>`)
     comes with the app-notify sender.
-  - sign-in-link answers `suppressed` instead of sending; auth-email-hook
-    refuses every type for the address, logged, without the bypass alert.
+  - sign-in-link answers `suppressed` instead of sending. auth-email-hook
+    sends nothing to the address: sign-in emails and notices are answered as
+    sent (so a recovery request does not reveal the opt-out, and a notice
+    never fails a change), invite, reauthentication and email change are
+    refused. So an opted-out user cannot change their account's email
+    address until email is back on.
   - Support: `email-optout status|add|remove` with the address in the
-    workflow's `email` input, masked in the log.
-- **Brand files.** `brand-upload` puts `platform/brand` in the public
-  Storage bucket `brand` (one-year cache), so the logo is
+    workflow's `email` input, masked in the log, which shows only the
+    action, the time and the hash prefix. `add` on any request. `remove`
+    only on a request sent from that address that passes DMARC, or after a
+    confirming reply from it. The suppressed messages say "write to
+    support@hintwise.org from this address".
+- **Brand files.** `brand-upload` puts the PNGs and `favicon.ico` of
+  `platform/brand` (no SVG: a public SVG can run script on
+  auth.hintwise.org) in the public Storage bucket `brand` with a one-day
+  cache, so a changed image takes up to a day to show. The logo is
   `https://auth.hintwise.org/storage/v1/object/public/brand/hintwise-wordmark-email@2x.png`.
+- **Where the opt-out does not hold (fail open).**
+  - `email-hook off`: Auth sends its own emails again, without the hook,
+    and ignores the list (sign-in-link still checks it).
+  - Rotating `SIGN_IN_HASH_KEY` or `EMAIL_OPTOUT_SECRET` silently drops
+    every opt-out (the list is keyed by the hash) and breaks every stop
+    link already sent. Never rotate them without migrating the table; the
+    addresses are not stored, so in practice never.
+  - Aliases the canonical mailbox does not fold (Yahoo `-` addresses,
+    Fastmail subdomains, iCloud aliases) are separate addresses.
+- **Failing closed.** Without 0003, sign-in-link and auth-email-hook send
+  no email at all, so `deploy-function` refuses to deploy them until
+  `optout-ready` sees `platform.email_optout_check` answer.
 
 Ship order, each a "Supabase admin" dispatch after the owner's yes:
 
 1. `apply-shared` (runs `0003_email_optout.sql`), then
    `check-schema platform`. First: without the table, both functions
-   send nothing.
+   send nothing (and the deploy guard refuses them).
 2. `brand-upload`: it prints `EMAIL_LOGO_URL=` once the logo is served.
 3. `set-sign-in-secrets`: generates `EMAIL_OPTOUT_SECRET` once and sets
    `EMAIL_LOGO_URL`.
