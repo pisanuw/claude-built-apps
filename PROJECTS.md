@@ -1209,3 +1209,40 @@ clearly labelled examples, not Royal Mail prices. The idea's nightly USITC
 job, Supabase and emails are replaced by this browser-only core.
 Live: [us-duty-price-sheet.hintwise.org](https://us-duty-price-sheet.hintwise.org).
 See its [README](./us-duty-price-sheet/README.md).
+
+### [`qualified-overtime-checker/`](./qualified-overtime-checker)
+
+Qualified Overtime Checker: for owners of small US employers with hourly
+staff (trades, restaurants, clinics, shops) and the bookkeepers who prepare
+their W-2s. From tax year 2026 the W-2 reports qualified overtime (the
+FLSA half-time premium) in Box 12 code TT, and payroll systems often get it
+wrong: one rate where an employee worked at two, overtime counted per pay
+period instead of per workweek, the whole overtime pay in the box, or a
+bonus left out. The first weekly build (seven build days, 10 to 11
+November 2026) and the first app on the shared platform. The browser
+rebuilds fixed 168-hour workweeks from a timesheet export (Toast time
+entries and QuickBooks Online time activities recognised by their columns,
+any other CSV mapped once and remembered per file; re-imports add without
+duplicates), computes the regular rate from all remuneration (weighted
+average across rates, shift differentials, tip-credit hours at the
+minimum wage, non-discretionary bonuses and commissions spread back over
+their earning weeks with days-weighted edges, tips, gifts and
+discretionary pay left out), and assigns each week's premium to the year
+of its pay date. With overtime lines in the file the figure is capped at
+what was actually paid and the shortfall is flagged. Each employee's
+figure is compared with the payroll's, and a difference comes with the
+likely cause (blended rate, pay-period overtime, full overtime pay, missed
+bonus, year-end week). Social Security numbers are dropped at the parser
+by header and by value, never stored or exported. Output: an employer
+summary PDF and a worksheet PDF per employee from a small built-in writer
+(Letter landscape, Helvetica, tables across pages), the W-2c list CSV of
+exactly the flagged employees, results and worksheet CSVs and a print
+view. Client files live in the browser, or, after Google or magic-link
+sign-in through the platform's Supabase, in schema
+`app_qualified_overtime_checker` with row level security per user, a
+compact stored form and size and count caps; a file can be moved back to
+the browser or deleted at any time. No LLM: every figure is arithmetic
+with a cited rule (29 CFR 778, IRS FS-2026-13). 236 vitest tests, 98.6%
+statement coverage, and a Playwright walkthrough.
+Live: [qualified-overtime-checker.hintwise.org](https://qualified-overtime-checker.hintwise.org).
+See its [README](./qualified-overtime-checker/README.md).
