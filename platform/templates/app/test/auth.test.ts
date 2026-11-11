@@ -26,6 +26,7 @@ import {
   signInLinkUrl,
   signInWithGoogle,
   signOut,
+  SUPPRESSED_MESSAGE,
   toLinkResult,
   TURNSTILE_SCRIPT,
   TURNSTILE_SITE_KEY,
@@ -168,6 +169,13 @@ describe('toLinkResult', () => {
   it('falls back to the public site key and keeps failed', () => {
     expect(toLinkResult(403, { status: 'challenge' })).toEqual({ status: 'challenge', siteKey: TURNSTILE_SITE_KEY });
     expect(toLinkResult(403, { status: 'challenge', siteKey: '', failed: true })).toEqual({ status: 'challenge', siteKey: '0x4AAAAAAF7YqIR2_9E_hu1x', failed: true });
+  });
+  it('reads suppressed with the service\'s message, or the standard one', () => {
+    const message = 'This address asked HintWise not to send it email. Sign in with Google instead, or write to support@hintwise.org from this address to turn email back on.';
+    expect(toLinkResult(200, { status: 'suppressed', message })).toEqual({ status: 'suppressed', message });
+    expect(toLinkResult(200, { status: 'suppressed' })).toEqual({ status: 'suppressed', message: SUPPRESSED_MESSAGE });
+    expect(toLinkResult(200, { status: 'suppressed', message: '' })).toEqual({ status: 'suppressed', message: SUPPRESSED_MESSAGE });
+    expect(SUPPRESSED_MESSAGE).toBe(message);
   });
   it('turns anything else into an error', () => {
     expect(toLinkResult(429, { status: 'wait' })).toEqual({ status: 'error', message: 'The sign-in service answered 429.' });
@@ -395,6 +403,15 @@ describe('mountSignIn', () => {
     submit('a@b.org');
     await flush();
     expect(statusText()).toBe('You can ask for another link at not-a-time.');
+  });
+  it('says why no link comes when the address turned HintWise email off, and keeps Google', async () => {
+    mount(async () => ({ status: 'suppressed', message: 'This address asked HintWise not to send it email.' }));
+    await flush();
+    submit('ann@example.com');
+    await flush();
+    expect(statusText()).toBe('This address asked HintWise not to send it email.');
+    expect(button('Continue with Google')).toBeTruthy();
+    expect(button('Email me a sign-in link').disabled).toBe(false);
   });
   it('shows the error when the link cannot be sent', async () => {
     mount(async () => ({ status: 'error', message: 'Enter a valid email address.' }));

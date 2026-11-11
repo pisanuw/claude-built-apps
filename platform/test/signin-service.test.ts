@@ -4,6 +4,7 @@ import type { AlertCounts } from '../src/signin/alerts.ts';
 import type { Db } from '../src/signin/db.ts';
 import { restDb } from '../src/signin/db.ts';
 import type { BeginResult, KeyStats } from '../src/signin/policy.ts';
+import { optOutToken, SUPPRESSED_MESSAGE } from '../src/signin/optout.ts';
 import { handleSignInLink, PAUSED, raiseAlerts, type Deps, type SignInEnv } from '../src/signin/service.ts';
 
 const NOW = new Date('2026-11-10T12:00:00.000Z');
@@ -32,6 +33,8 @@ interface Setup {
   resend?: () => Response;
   siteverify?: () => Response;
   failRpc?: string;
+  /** What email_optout_check answers (default false: email on). */
+  optedOut?: boolean;
 }
 
 function setup(o: Setup = {}) {
@@ -43,6 +46,7 @@ function setup(o: Setup = {}) {
       if (fn === 'sign_in_begin') return (typeof o.begin === 'function' ? o.begin() : (o.begin ?? fresh())) as T;
       if (fn === 'sign_in_finish') return (o.counts === undefined ? quiet() : o.counts) as T;
       if (fn === 'sign_in_claim_alert') return (o.claim ?? true) as T;
+      if (fn === 'email_optout_check') return (o.optedOut ?? false) as T;
       return 7 as T;
     }) as Db['rpc'],
   };
@@ -68,7 +72,9 @@ function setup(o: Setup = {}) {
   };
   const outcomes = () => rpc.filter(([fn]) => fn === 'sign_in_finish' || fn === 'sign_in_log').map(([, a]) => a.p_outcome);
   const emails = () => calls.filter(([u]) => u === 'https://api.resend.com/emails').map(([, i]) => JSON.parse(String(i.body)));
-  return { deps, rpc, calls, tasks, logs, outcomes, emails, settle: () => Promise.all(tasks) };
+  /** The arguments of the one sign_in_finish call. */
+  const finish = () => rpc.find(([fn]) => fn === 'sign_in_finish')![1];
+  return { deps, rpc, calls, tasks, logs, outcomes, emails, finish, settle: () => Promise.all(tasks) };
 }
 
 const body = { email: 'Ann+news@Example.com', redirectTo: 'https://pluck-lab.hintwise.org/app?x=1#top', app: 'pluck-lab', browserId: 'browser-0123456789' };
@@ -92,7 +98,10 @@ describe('handleSignInLink: sending', () => {
     expect(args).toEqual({ p_email_hash: hmac('email:ann@example.com'), p_ip_hash: hmac('ip:203.0.113.7'), p_browser_hash: hmac('browser:browser-0123456789'), p_app: 'pluck-lab', p_ip_limit: 100 });
     expect(JSON.stringify(s.rpc)).not.toContain('example.com');
     expect(JSON.stringify(s.rpc)).not.toContain('203.0.113.7');
-    expect(s.rpc[1]).toEqual(['sign_in_finish', { p_id: 41, p_outcome: 'sent', p_detail: 'resend re_9' }]);
+    // Checked against the opt-out list under the same hash, just before the link is made.
+    expect(s.rpc.slice(1).map(([f]) => f)).toEqual(['email_optout_check', 'sign_in_finish']);
+    expect(s.rpc[1][1]).toEqual({ p_email_hash: hmac('email:ann@example.com'), p_scopes: [] });
+    expect(s.finish()).toEqual({ p_id: 41, p_outcome: 'sent', p_detail: 'resend re_9' });
     const gen = s.calls.find(([u]) => u.includes('generate_link'))!;
     expect(JSON.parse(String(gen[1].body)).email).toBe('ann+news@example.com');
     const [mail] = s.emails();
@@ -108,13 +117,13 @@ describe('handleSignInLink: sending', () => {
     const s = setup({ generate: () => answers.shift() as Response });
     const res = await handleSignInLink(request(), s.deps);
     expect(await res.json()).toEqual({ status: 'sent' });
-    expect(s.rpc[1][1].p_detail).toContain('user created before the link');
+    expect(s.finish().p_detail).toContain('user created before the link');
   });
   it('makes the challenge due when the IP is unknown, and notes it', async () => {
     const s = setup();
     const res = await handleSignInLink(request({}, { 'x-forwarded-for': '' }), s.deps);
     expect(await res.json()).toEqual({ status: 'challenge', siteKey: '0x4AAAAAAF7YqIR2_9E_hu1x' });
-    expect(s.rpc[1][1].p_detail).toBe('ip unknown; challenge: ip-unknown');
+    expect(s.finish().p_detail).toBe('ip unknown; challenge: ip-unknown');
     // No hard per-IP limit on the shared 'unknown' key: one busy network must not throttle everyone.
     expect(s.rpc[0][1]).toMatchObject({ p_ip_hash: hmac('ip:unknown'), p_ip_limit: null });
     const proxy = setup();
@@ -151,7 +160,7 @@ describe('handleSignInLink: waiting', () => {
     expect(res.status).toBe(429);
     expect(await res.json()).toEqual({ status: 'wait', retryAt: '2026-11-10T12:02:00.000Z' });
     expect(s.outcomes()).toEqual(['wait']);
-    expect(s.rpc[1][1].p_detail).toBe('wait: email ladder at 2 sent');
+    expect(s.finish().p_detail).toBe('wait: email ladder at 2 sent');
     expect(s.calls).toHaveLength(0);
   });
 });
@@ -161,7 +170,7 @@ describe('handleSignInLink: challenge', () => {
   it('asks everyone for the challenge while the project is over its hourly brake', async () => {
     const s = setup({ begin: { ...fresh(), project: { sent_1h: 101 } } });
     expect(await (await handleSignInLink(request(), s.deps)).json()).toEqual({ status: 'challenge', siteKey: '0x4AAAAAAF7YqIR2_9E_hu1x' });
-    expect(s.rpc[1][1].p_detail).toBe('challenge: project-hour');
+    expect(s.finish().p_detail).toBe('challenge: project-hour');
   });
   it('asks for the challenge with the public site key', async () => {
     const s = setup({ begin: busy() });
@@ -169,7 +178,7 @@ describe('handleSignInLink: challenge', () => {
     expect(res.status).toBe(403);
     expect(await res.json()).toEqual({ status: 'challenge', siteKey: '0x4AAAAAAF7YqIR2_9E_hu1x' });
     expect(s.outcomes()).toEqual(['challenge']);
-    expect(s.rpc[1][1].p_detail).toBe('challenge: address-day');
+    expect(s.finish().p_detail).toBe('challenge: address-day');
   });
   it('lets TURNSTILE_SITE_KEY override the site key', async () => {
     const s = setup({ begin: busy(), env: { TURNSTILE_SITE_KEY: '1x00000000000000000000AA' } });
@@ -182,7 +191,7 @@ describe('handleSignInLink: challenge', () => {
     const verifies = s.calls.filter(([u]) => u.includes('siteverify'));
     expect(verifies).toHaveLength(1);
     expect(new URLSearchParams(String(verifies[0][1].body)).get('remoteip')).toBe('203.0.113.7');
-    expect(s.rpc[1][1].p_detail).toBe('challenge passed (address-day); resend re_9');
+    expect(s.finish().p_detail).toBe('challenge passed (address-day); resend re_9');
   });
   it('answers a failed check with the challenge again and logs challenge_failed', async () => {
     const s = setup({ begin: busy(), siteverify: () => json(200, { success: false, 'error-codes': ['invalid-input-response'] }) });
@@ -208,7 +217,7 @@ describe('handleSignInLink: challenge', () => {
     expect(await res.json()).toEqual({ status: 'error', message: 'Email sign-in is paused; try Google' });
     expect(PAUSED).toBe('Email sign-in is paused; try Google');
     expect(s.outcomes()).toEqual(['error']);
-    expect(s.rpc[1][1].p_detail).toBe('challenge due (ip-hour) but TURNSTILE_SECRET unset');
+    expect(s.finish().p_detail).toBe('challenge due (ip-hour) but TURNSTILE_SECRET unset');
     expect(s.emails()).toHaveLength(0);
     const free = setup({ env: { TURNSTILE_SECRET: '' } });
     expect(await (await handleSignInLink(request(), free.deps)).json()).toEqual({ status: 'sent' }); // no challenge due: sent
@@ -282,7 +291,7 @@ describe('handleSignInLink: refusals and failures', () => {
     const r1 = await handleSignInLink(request(), gen.deps);
     expect(r1.status).toBe(502);
     expect(gen.outcomes()).toEqual(['error']);
-    expect(gen.rpc[1][1].p_detail).toContain('generate_link: 500');
+    expect(gen.finish().p_detail).toContain('generate_link: 500');
     const mail = setup({ resend: () => json(403, { message: 'domain not verified' }) });
     const r2 = await handleSignInLink(request(), mail.deps);
     expect(r2.status).toBe(502);
@@ -294,7 +303,7 @@ describe('handleSignInLink: refusals and failures', () => {
     s.deps.fetch = (async () => { throw new Error('offline'); }) as typeof fetch;
     const res = await handleSignInLink(request(), s.deps);
     expect(res.status).toBe(502);
-    expect(s.rpc[1][1].p_detail).toContain('fetch offline');
+    expect(s.finish().p_detail).toContain('fetch offline');
   });
   it('answers even when sign_in_finish fails', async () => {
     const s = setup({ failRpc: 'sign_in_finish' });
@@ -325,6 +334,61 @@ describe('handleSignInLink: refusals and failures', () => {
     expect((await handleSignInLink(request(), s.deps)).status).toBe(500);
     expect(quietLog).toHaveBeenCalled();
     quietLog.mockRestore();
+  });
+});
+
+describe('handleSignInLink: footer, logo and opt-out', () => {
+  const LOGO = 'https://auth.hintwise.org/storage/v1/object/public/brand/hintwise-wordmark-email@2x.png';
+  it('answers suppressed (HTTP 200) for an address that turned email off, makes no link and sends nothing', async () => {
+    const s = setup({ optedOut: true });
+    const res = await handleSignInLink(request(), s.deps);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('access-control-allow-origin')).toBe(ORIGIN);
+    expect(await res.json()).toEqual({ status: 'suppressed', message: SUPPRESSED_MESSAGE });
+    expect(SUPPRESSED_MESSAGE).toBe('This address asked HintWise not to send it email. Sign in with Google instead, or write to support@hintwise.org from this address to turn email back on.');
+    expect(s.calls).toHaveLength(0);
+    expect(s.outcomes()).toEqual(['refused']);
+    expect(s.finish().p_detail).toBe('suppressed: this address turned HintWise email off');
+    expect(s.logs.join()).not.toContain('ann');
+  });
+  it('checks the list only after the ladder and the challenge', async () => {
+    const waiting = setup({ optedOut: true, begin: { ...fresh(), email: key({ sent: 2, last_sent_at: '2026-11-10T11:59:00Z' }) } });
+    expect((await (await handleSignInLink(request(), waiting.deps)).json()).status).toBe('wait');
+    expect(waiting.rpc.some(([fn]) => fn === 'email_optout_check')).toBe(false);
+    const challenged = setup({ optedOut: true, begin: { ...fresh(), project: { sent_1h: 101 } } });
+    expect((await (await handleSignInLink(request(), challenged.deps)).json()).status).toBe('challenge');
+    expect(challenged.rpc.some(([fn]) => fn === 'email_optout_check')).toBe(false);
+  });
+  it('sends nothing when the opt-out list cannot be read', async () => {
+    const s = setup({ failRpc: 'email_optout_check' });
+    const res = await handleSignInLink(request(), s.deps);
+    expect(res.status).toBe(500);
+    expect((await res.json()).status).toBe('error');
+    expect(s.calls).toHaveLength(0);
+    expect(s.outcomes()).toEqual(['error']);
+    expect(s.logs.join()).toContain('email_optout_check failed');
+  });
+  it('puts the opt-out link, the logo and Reply-To in the email', async () => {
+    const s = setup({ env: { EMAIL_OPTOUT_SECRET: 'optout-secret', EMAIL_LOGO_URL: LOGO } });
+    expect(await (await handleSignInLink(request(), s.deps)).json()).toEqual({ status: 'sent' });
+    const [mail] = s.emails();
+    expect(mail.reply_to).toBe('support@hintwise.org');
+    const token = await optOutToken('optout-secret', hmac('email:ann@example.com'));
+    expect(mail.text).toContain(`Stop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=${token}`);
+    expect(mail.text).toContain('You got this because someone asked to sign in to Pluck Lab with this address.');
+    expect(mail.html).toContain(`<img src="${LOGO}" width="100" height="28" alt="HintWise"`);
+    expect(mail.html).toContain(`href="https://auth.hintwise.org/functions/v1/email-optout?t=${token}"`);
+    expect(s.logs.join()).not.toContain('EMAIL_OPTOUT_SECRET');
+  });
+  it('names support and the text wordmark without the two settings, and logs the missing secret', async () => {
+    const s = setup();
+    await handleSignInLink(request(), s.deps);
+    const [mail] = s.emails();
+    expect(mail.text).toContain('To stop all email from HintWise (sign-in links too), write to support@hintwise.org.');
+    expect(mail.text).not.toContain('email-optout');
+    expect(mail.html).toContain('<p class="hw-brand"');
+    expect(mail.html).not.toContain('<img');
+    expect(s.logs.join()).toContain('EMAIL_OPTOUT_SECRET is unset');
   });
 });
 

@@ -67,6 +67,20 @@ written with Pillow from the 16, 32 and 48 px PNGs.
 
 ## Where it is used
 
+- **Emails** (`platform/src/signin/email.ts`): every email from
+  sign-in-link and auth-email-hook starts with
+  `hintwise-wordmark-email@2x.png` at `width="100" height="28"
+  alt="HintWise"`, on a small white panel so the indigo wordmark stays on
+  white in dark mail clients. Its URL is the function secret
+  `EMAIL_LOGO_URL`; without it the header is the text "HintWise" in deep
+  indigo, bold, 18px. The Sign in button and the links are deep indigo.
+- **The opt-out page** (`email-optout`, "Stop all email from HintWise"):
+  the same logo or text wordmark, an indigo button.
+- **Hosting:** `brand-upload` (Supabase admin workflow) puts every PNG and
+  `favicon.ico` here in the public Storage bucket `brand`, with a one-day
+  cache, at `https://auth.hintwise.org/storage/v1/object/public/brand/<file>`.
+  A changed image under the same name takes up to a day to show everywhere.
+  The SVGs are not uploaded: a public SVG opened directly can run script on
+  auth.hintwise.org, so the bucket accepts PNG and ICO only.
 - **Shared site footer** (`scripts/site-footer.mjs`, `LOGO_SVG`, 11 Nov): the icon at 28 px above the text; each app picks it up on its next deploy (no app redeployed for it).
-- **Next:** the email header, together with the footer and opt-out work.
 - **Later:** app favicons and social preview images.

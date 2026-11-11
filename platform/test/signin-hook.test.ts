@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { HOOK_ACCOUNT_TYPES, HOOK_SIGN_IN_TYPES, hookError, isAccountType, hookSecretBytes, hostAllowed, hostOf, parseHookPayload, parseHostList, planHook, sameText, TOLERANCE_SECONDS, verifyUrl, verifyWebhook, webhookSignature, type HookPayload } from '../src/signin/hook.ts';
+import { HOOK_ACCOUNT_TYPES, HOOK_SIGN_IN_TYPES, hookError, isAccountType, quietWhenSuppressed, hookSecretBytes, hostAllowed, hostOf, parseHookPayload, parseHostList, planHook, sameText, TOLERANCE_SECONDS, verifyUrl, verifyWebhook, webhookSignature, type HookPayload } from '../src/signin/hook.ts';
 
 const KEY = crypto.randomBytes(32);
 const SECRET = `v1,whsec_${KEY.toString('base64')}`;
@@ -149,6 +149,10 @@ describe('planHook', () => {
     expect(HOOK_ACCOUNT_TYPES).toEqual(['invite', 'email_change', 'reauthentication']);
     expect(isAccountType('mfa_factor_enrolled_notification')).toBe(true);
     expect(isAccountType('notification')).toBe(false);
+  });
+  it('answers an opted-out address quietly only for the sign-in emails and the notices', () => {
+    for (const t of ['magiclink', 'signup', 'email', 'recovery', 'password_changed_notification', 'mfa_factor_unenrolled_notification']) expect(quietWhenSuppressed(t), t).toBe(true);
+    for (const t of ['invite', 'email_change', 'reauthentication', 'notification', 'carrier_pigeon']) expect(quietWhenSuppressed(t), t).toBe(false);
   });
   it('names the app in account emails, but not Auth\'s own address or an unknown host', () => {
     const inv = plan(payload('invite', hw));

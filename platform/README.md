@@ -9,9 +9,10 @@ prints names and booleans only.
 | Piece | Where | Run by |
 |---|---|---|
 | Admin script | `supabase-admin.mjs` | the "Supabase admin" workflow (`.github/workflows/supabase-admin.yml`) |
-| Shared SQL | `supabase/shared/0001_platform.sql` (schema `platform`: profiles, llm_apps, llm_usage, migrations, llm_spend, llm_usage_report); `0002_sign_in.sql` (sign_in_requests, sign_in_alerts and their RPCs) | `apply-shared` |
+| Shared SQL | `supabase/shared/0001_platform.sql` (schema `platform`: profiles, llm_apps, llm_usage, migrations, llm_spend, llm_usage_report); `0002_sign_in.sql` (sign_in_requests, sign_in_alerts and their RPCs); `0003_email_optout.sql` (email_optouts and its RPCs) | `apply-shared` |
 | LLM gateway | `supabase/functions/llm-gateway/index.ts` (Deno entry) over `src/gateway/` (pure modules, tests in `test/`); `supabase/config.toml` for the CLI | `deploy-gateway`, `set-gateway-key` |
-| Sign-in links | `supabase/functions/sign-in-link/index.ts` and `supabase/functions/auth-email-hook/index.ts` (Deno entries) over `src/signin/` (pure modules, contract in `src/signin/README.md`) | `deploy-function sign-in-link`, `deploy-function auth-email-hook`, `set-sign-in-secrets`, `email-hook` |
+| Sign-in links and email | `supabase/functions/sign-in-link/index.ts`, `supabase/functions/auth-email-hook/index.ts` and `supabase/functions/email-optout/index.ts` (Deno entries) over `src/signin/` (pure modules, contract in `src/signin/README.md`) | `deploy-function sign-in-link`, `deploy-function auth-email-hook`, `deploy-function email-optout`, `set-sign-in-secrets`, `email-hook`, `email-optout` |
+| Brand files | `brand/` (logo, icons; `brand/README.md`) | `brand-upload` (public Storage bucket `brand`) |
 | Usage report | `llm-usage-report.mjs` over `src/report/format.mjs` | `.github/workflows/llm-usage-report.yml`, daily 9:10 Pacific |
 | App template | `templates/app/` | copied by the weekly build (its README says how) |
 | Public client values | `supabase.json` (`url`, `anonKey`), written from the `keys` command | every app's `target.yml` `env` |
@@ -37,9 +38,12 @@ Dispatch "Supabase admin" with `command`, optional `arg` and `flags`:
 | `deploy-function` | arg: function name | Supabase CLI: `supabase functions deploy <name>` from `platform/`; adds `--no-verify-jwt` when its `config.toml` section says `verify_jwt = false` |
 | `deploy-gateway` | | the same as `deploy-function llm-gateway` |
 | `set-gateway-key` | | Supabase CLI: `supabase secrets set ANTHROPIC_API_KEY=...` from the repo secret |
-| `set-sign-in-secrets` | | function secrets `RESEND_API`, `ADMIN_EMAIL`, `TURNSTILE_SECRET` (repo secret `TURNSTILE_SECRET` (or `TURNSTILE_SECRET_KEY`), required: the step exits 1 without it), `TURNSTILE_SITE_KEY` (repo variable or secret, else the committed public key), `HOOK_EXTERNAL_HOSTS` (from `external-hosts`); generates `SIGN_IN_HASH_KEY` and `SEND_EMAIL_HOOK_SECRET` only when the project has none; values through a private env file, never as arguments; prints booleans and the host names |
+| `set-sign-in-secrets` | | function secrets `RESEND_API`, `ADMIN_EMAIL`, `TURNSTILE_SECRET` (repo secret `TURNSTILE_SECRET` (or `TURNSTILE_SECRET_KEY`), required: the step exits 1 without it), `TURNSTILE_SITE_KEY` (repo variable or secret, else the committed public key), `HOOK_EXTERNAL_HOSTS` (from `external-hosts`); `EMAIL_LOGO_URL` (repo variable `EMAIL_LOGO_URL`, else the `brand` bucket's email logo, once it answers `image/png`); generates `SIGN_IN_HASH_KEY`, `SEND_EMAIL_HOOK_SECRET` and `EMAIL_OPTOUT_SECRET` only when the project has none; values through a private env file, never as arguments; prints booleans, the host names and the public logo URL |
 | `external-hosts` | | print `HOOK_EXTERNAL_HOSTS`: the auth redirect allow-list and site URL hosts, minus hintwise.org (names are not secret) |
-| `email-hook` | arg: `status`, `check`, `on`, `off`; flags `--dry-run`, `--allow-otp-apps`, `--accept-external-breakage` | Supabase Auth's Send Email hook. `on` (owner's yes first) checks the function, its secrets, that no app in this repo still calls `signInWithOtp`, `signUp` or `resend`, and that some external host keeps its email; then it sets a fresh `SEND_EMAIL_HOOK_SECRET` and points the hook at `auth-email-hook` with it. It affects every app on the project |
+| `email-hook` | arg: `status`, `check`, `on`, `off`; flags `--dry-run`, `--allow-otp-apps`, `--accept-external-breakage` | Supabase Auth's Send Email hook. `on` (owner's yes first) checks the function, its secrets, that no app in this repo still calls `signInWithOtp`, `signUp` or `resend`, and that some external host keeps its email; then it sets a fresh `SEND_EMAIL_HOOK_SECRET` and points the hook at `auth-email-hook` with it. It affects every app on the project. `check` also needs `email-optout` deployed and `EMAIL_OPTOUT_SECRET` set |
+| `brand-upload` | | create the public Storage bucket `brand` if missing (PNG and ICO only, no SVG, 256 KB a file; settings corrected when they differ), upload `platform/brand/*.png` and `favicon.ico` over any earlier copy with a one-day cache (a changed image shows within a day), check the email logo's public URL and print `EMAIL_LOGO_URL=...`; idempotent |
+| `email-optout` | arg: `status`, `add` or `remove`; input `email` | support for "Stop all email from HintWise": the address is masked in the log before any step runs (an arg other than these three stops the job) and hashed by the `email-optout` function; the log shows only the action, the time and the hash prefix. `add` stops all email: run it on any request. `remove` turns it all back on: run it only on a request sent from that address that passes DMARC, or after a confirming reply from it |
+| `optout-ready` | | exit 1 unless `platform.email_optout_check` answers; `deploy-function` runs it before deploying `sign-in-link` or `auth-email-hook`, which send no email without the opt-out list |
 
 First-time order (after the owner's key rotation): `apply-shared`,
 `expose-schema platform`, `configure-auth --dry-run` then `configure-auth`,
@@ -48,6 +52,10 @@ then a dry run of the "LLM usage report" workflow. Sign-in links:
 `apply-shared`, `check-schema platform`, `deploy-function sign-in-link`,
 `deploy-function auth-email-hook`, `external-hosts`, `set-sign-in-secrets`, and after the
 owner's yes `email-hook check`, `email-hook on --dry-run`, `email-hook on`.
+Email footer, logo and opt-out (`docs/platform.md`): `apply-shared`,
+`check-schema platform`, `brand-upload`, `set-sign-in-secrets`,
+`deploy-function email-optout`, `deploy-function sign-in-link`,
+`deploy-function auth-email-hook`, `email-hook check`.
 
 ## Deploy integration
 

@@ -6,8 +6,9 @@
  *
  * Flow: CORS and method; validate; hash the keys; sign_in_begin (counts,
  * and a 'pending' row under a per-address lock); decide; wait, challenge,
- * or create the link and email it; sign_in_finish with the outcome; alerts
- * in the background.
+ * or (once the address is known not to have turned HintWise email off)
+ * create the link and email it with the footer and its opt-out link;
+ * sign_in_finish with the outcome; alerts in the background.
  */
 import { jsonHeaders, preflight, type CorsOptions } from '../gateway/cors.ts';
 import { alertEmail, dueAlerts, type AlertCounts, type AlertKind } from './alerts.ts';
@@ -15,6 +16,7 @@ import { restDb, type Db } from './db.ts';
 import { appDisplayName, signInEmail } from './email.ts';
 import { clientIp, hashKeys, maskEmail, UNKNOWN_IP, type KeyHashes } from './keys.ts';
 import { createLinkToken, signInLink } from './link.ts';
+import { emailLook, isSuppressed, SUPPRESSED_MESSAGE } from './optout.ts';
 import { decide, decisionDetail, IP_HARD_LIMIT_PER_HOUR, type BeginResult, type Stats } from './policy.ts';
 import { sendEmail } from './resend.ts';
 import { TURNSTILE_SITE_KEY, verifyTurnstile } from './turnstile.ts';
@@ -35,6 +37,10 @@ export interface SignInEnv {
   ADMIN_EMAIL?: string;
   TURNSTILE_SECRET?: string;
   TURNSTILE_SITE_KEY?: string;
+  /** Signs the footer's opt-out links (optout.ts). Without it the footer names support instead of linking. */
+  EMAIL_OPTOUT_SECRET?: string;
+  /** The email's header logo (email.ts emailLogoUrl); without it the header is the text wordmark. */
+  EMAIL_LOGO_URL?: string;
 }
 
 /** Without these the function cannot work; the others are optional. */
@@ -57,6 +63,7 @@ export type SignInAnswer =
   | { status: 'sent' }
   | { status: 'wait'; retryAt: string }
   | { status: 'challenge'; siteKey: string; failed?: boolean }
+  | { status: 'suppressed'; message: string }
   | { status: 'error'; message: string };
 
 const SORRY = 'Something went wrong on our side. Try again in a minute.';
@@ -219,6 +226,23 @@ async function handlePost(req: Request, deps: Deps, reply: (status: number, body
     }
   }
 
+  // Checked only now, when the link would otherwise go out: finding out
+  // whether an address turned email off costs a prober what a sign-in link
+  // costs (ladder, challenge, per-IP limits). Refused rows do not count
+  // toward the address's ladder. A database error sends nothing.
+  let suppressed: boolean;
+  try {
+    suppressed = await isSuppressed(db, hashes.email_hash);
+  } catch (e) {
+    log(`email_optout_check failed: ${errorText(e)}`);
+    await finish('error', `email_optout_check: ${errorText(e)}`.slice(0, 400));
+    return reply(500, { status: 'error', message: SORRY });
+  }
+  if (suppressed) {
+    await finish('refused', 'suppressed: this address turned HintWise email off');
+    return reply(200, { status: 'suppressed', message: SUPPRESSED_MESSAGE });
+  }
+
   let link;
   try {
     // Auth keeps addresses lower-cased; the email itself goes to the address as typed.
@@ -232,7 +256,9 @@ async function handlePost(req: Request, deps: Deps, reply: (status: number, body
   }
   if (link.createdUser) notes.push('user created before the link');
 
-  const email = signInEmail(r.email, signInLink(r.redirectTo, link.hashedToken, maskEmail(r.email)), appDisplayName(r.app, r.redirectTo));
+  if (!env.EMAIL_OPTOUT_SECRET) log('EMAIL_OPTOUT_SECRET is unset: the footer names support instead of an opt-out link');
+  const look = await emailLook(env, hashes.email_hash);
+  const email = signInEmail(r.email, signInLink(r.redirectTo, link.hashedToken, maskEmail(r.email)), appDisplayName(r.app, r.redirectTo), undefined, look);
   const sent = await sendEmail(deps.fetch, resendKey, email);
   if (!sent.ok) {
     await finish('error', sent.message);

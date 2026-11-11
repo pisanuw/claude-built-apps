@@ -11,7 +11,7 @@
  * this file only passes Deno's environment, fetch and waitUntil.
  *
  * Request:  POST JSON { email, redirectTo, app, browserId, turnstileToken? }
- * Response: 200 {status:'sent'} | 429 {status:'wait', retryAt}
+ * Response: 200 {status:'sent'} | 200 {status:'suppressed', message} | 429 {status:'wait', retryAt}
  *           | 403 {status:'challenge', siteKey, failed?} | 4xx/5xx {status:'error', message}
  */
 import { handleSignInLink, type SignInEnv } from '../../../src/signin/service.ts';
@@ -24,6 +24,8 @@ const NAMES: Array<keyof SignInEnv> = [
   'ADMIN_EMAIL',
   'TURNSTILE_SECRET',
   'TURNSTILE_SITE_KEY',
+  'EMAIL_OPTOUT_SECRET',
+  'EMAIL_LOGO_URL',
 ];
 const env: SignInEnv = Object.fromEntries(NAMES.map((n) => [n, Deno.env.get(n) ?? '']));
 

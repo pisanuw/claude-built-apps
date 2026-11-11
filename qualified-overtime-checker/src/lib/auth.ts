@@ -52,7 +52,12 @@ export type SignInLinkResult =
   | { status: 'sent' }
   | { status: 'wait'; retryAt: string }
   | { status: 'challenge'; siteKey: string; failed?: boolean }
+  /** The address asked HintWise for no email (its "Stop all email" link): no link is sent; Google still works. */
+  | { status: 'suppressed'; message: string }
   | { status: 'error'; message: string };
+
+/** What the panel says when the function answers suppressed without a message of its own. */
+export const SUPPRESSED_MESSAGE = 'This address asked HintWise not to send it email. Sign in with Google instead, or write to support@hintwise.org from this address to turn email back on.';
 
 type KeyStore = Pick<Storage, 'getItem' | 'setItem'>;
 
@@ -109,6 +114,7 @@ export function toLinkResult(httpStatus: number, data: unknown): SignInLinkResul
     const siteKey = typeof d.siteKey === 'string' && d.siteKey ? d.siteKey : TURNSTILE_SITE_KEY;
     return d.failed === true ? { status: 'challenge', siteKey, failed: true } : { status: 'challenge', siteKey };
   }
+  if (d.status === 'suppressed') return { status: 'suppressed', message: typeof d.message === 'string' && d.message ? d.message : SUPPRESSED_MESSAGE };
   const message = typeof d.message === 'string' && d.message ? d.message : `The sign-in service answered ${httpStatus}.`;
   return { status: 'error', message };
 }
@@ -451,6 +457,10 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
     } else if (result.status === 'wait') {
       dropWidget();
       say(`You can ask for another link at ${formatTime(result.retryAt)}.`);
+    } else if (result.status === 'suppressed') {
+      // No link will come for this address: say why, as the service words it.
+      dropWidget();
+      say(result.message);
     } else if (result.status === 'challenge') {
       failedChecks = result.failed ? failedChecks + 1 : 0;
       if (failedChecks >= MAX_FAILED_CHECKS) {

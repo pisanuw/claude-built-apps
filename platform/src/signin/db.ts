@@ -18,7 +18,8 @@ export function restDb(fetchFn: typeof fetch, url: string, serviceKey: string, s
         method: 'POST',
         headers: {
           apikey: serviceKey,
-          authorization: `Bearer ${serviceKey}`,
+          // A new sb_secret_ key is not a JWT: it goes in apikey only, and the gateway turns it into one.
+          ...(serviceKey.startsWith('sb_') ? {} : { authorization: `Bearer ${serviceKey}` }),
           'content-type': 'application/json',
           'content-profile': schema,
           accept: 'application/json',

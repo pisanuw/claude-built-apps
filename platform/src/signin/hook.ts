@@ -31,8 +31,10 @@ import {
   recoveryEmail,
   signInEmail,
   signupEmail,
+  type EmailLook,
 } from './email.ts';
 import type { EmailMessage } from './resend.ts';
+import { sameText } from './util.ts';
 
 /** Seconds a signed hook call stays valid either side of now (Standard Webhooks' usual five minutes). */
 export const TOLERANCE_SECONDS = 5 * 60;
@@ -43,6 +45,18 @@ export const HOOK_ACCOUNT_TYPES: readonly string[] = ['invite', 'email_change', 
 
 /** True for a type the hook sends for every host. */
 export const isAccountType = (type: string): boolean => HOOK_ACCOUNT_TYPES.includes(type) || /^[a-z_]+_notification$/.test(type);
+
+/**
+ * True for a type the hook answers as sent (200 {}) while sending nothing when
+ * the recipient turned HintWise email off: the sign-in emails (magic link,
+ * sign-up, code, recovery) and every *_notification. A refusal there would
+ * tell anyone who asks Auth for a recovery or a magic link that the address
+ * has an account and opted out (Auth answers an unknown address's recovery
+ * with 200 and nothing sent), and Auth only logs a failed notice anyway.
+ * Invite, email change and reauthentication are refused (403) instead: the
+ * person or admin who asked must learn that nothing went.
+ */
+export const quietWhenSuppressed = (type: string): boolean => HOOK_SIGN_IN_TYPES.includes(type) || /^[a-z_]+_notification$/.test(type);
 export const REFUSAL_MESSAGE = 'Use the HintWise sign-in-link service';
 const HOST = /^(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)+$/;
 
@@ -85,13 +99,7 @@ export function hookSecretBytes(secret: string | null | undefined): Uint8Array<A
 
 const toBase64 = (buf: ArrayBuffer): string => btoa(String.fromCharCode(...new Uint8Array(buf)));
 
-/** Constant-time comparison of two strings. */
-export function sameText(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i += 1) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
+export { sameText };
 
 /** The base64 HMAC-SHA256 signature of `${id}.${timestamp}.${body}`. */
 export async function webhookSignature(key: Uint8Array<ArrayBuffer>, id: string, timestamp: string, body: string): Promise<string> {
@@ -183,9 +191,11 @@ export type HookPlan =
 
 /**
  * What the hook does with one payload. `authBase` is the project URL
- * (SUPABASE_URL); `externalHosts` the parsed HOOK_EXTERNAL_HOSTS.
+ * (SUPABASE_URL); `externalHosts` the parsed HOOK_EXTERNAL_HOSTS; `look`
+ * each recipient's look: the footer's opt-out link (null: the footer names
+ * support instead) and the header logo.
  */
-export function planHook(p: HookPayload, authBase: string, externalHosts: readonly string[]): HookPlan {
+export function planHook(p: HookPayload, authBase: string, externalHosts: readonly string[], look: (to: string) => EmailLook = () => ({})): HookPlan {
   const d = p.email_data;
   const type = d.email_action_type;
   const to = p.user.email;
@@ -195,31 +205,33 @@ export function planHook(p: HookPayload, authBase: string, externalHosts: readon
   const redirect = d.redirect_to || undefined;
   const link = (hash: string) => verifyUrl(authBase, hash, type, redirect);
 
+  const mine = look(to);
   if (HOOK_SIGN_IN_TYPES.includes(type)) {
     if (!host || !hostAllowed(host, externalHosts)) return refuse('host');
-    if (type === 'email') return d.token ? send(codeEmail(to, d.token, host)) : refuse('no token');
+    if (type === 'email') return d.token ? send(codeEmail(to, d.token, host, mine)) : refuse('no token');
     if (!d.token_hash) return refuse('no token_hash');
-    if (type === 'magiclink') return send(signInEmail(to, link(d.token_hash), null, host));
-    if (type === 'signup') return send(signupEmail(to, link(d.token_hash), host));
-    return send(recoveryEmail(to, link(d.token_hash)));
+    if (type === 'magiclink') return send(signInEmail(to, link(d.token_hash), null, host, mine));
+    if (type === 'signup') return send(signupEmail(to, link(d.token_hash), host, mine));
+    return send(recoveryEmail(to, link(d.token_hash), host, mine));
   }
   if (!isAccountType(type)) return refuse('type');
   // Name the site only when it is an app's, not Auth's own address.
   const site = host && (hostAllowed(host, externalHosts) || host.endsWith('.hintwise.org')) && host !== 'auth.hintwise.org' ? host : null;
-  if (type === 'reauthentication') return d.token ? send(reauthenticationEmail(to, d.token)) : refuse('no token');
-  if (type === 'invite') return d.token_hash ? send(inviteEmail(to, link(d.token_hash), site)) : refuse('no token_hash');
+  if (type === 'reauthentication') return d.token ? send(reauthenticationEmail(to, d.token, site, mine)) : refuse('no token');
+  if (type === 'invite') return d.token_hash ? send(inviteEmail(to, link(d.token_hash), site, mine)) : refuse('no token_hash');
   if (type === 'email_change') {
     // Supabase's names are reversed for backward compatibility:
     // token_hash_new goes to the current address, token_hash to the new one.
     const newEmail = p.user.new_email;
     if (d.token_hash_new && d.token_hash && newEmail) {
-      return send(emailChangeCurrentEmail(to, newEmail, link(d.token_hash_new), site), emailChangeNewEmail(newEmail, link(d.token_hash), site));
+      return send(emailChangeCurrentEmail(to, newEmail, link(d.token_hash_new), site, mine), emailChangeNewEmail(newEmail, link(d.token_hash), site, look(newEmail)));
     }
     // Secure email change off: one pair, sent to the new address.
     const only = d.token_hash || d.token_hash_new;
-    return only ? send(emailChangeNewEmail(newEmail || to, link(only), site)) : refuse('no token_hash');
+    const target = newEmail || to;
+    return only ? send(emailChangeNewEmail(target, link(only), site, look(target))) : refuse('no token_hash');
   }
-  return send(noticeEmail(to, type, site));
+  return send(noticeEmail(to, type, site, mine));
 }
 
 /** The JSON body Auth reads as a hook error: it answers the app with this status and message. */

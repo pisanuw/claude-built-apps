@@ -7,20 +7,31 @@
  * HOOK_EXTERNAL_HOSTS, the account emails for every host) goes through the
  * same per-address ladder as sign-in-link: sign_in_begin under each
  * recipient's canonical mailbox, the fixed 'hook' IP key and no browser,
- * with no per-IP limit. A due wait for any recipient refuses it. Everything
- * else is refused, logged as 'refused' and raises the bypass alert.
+ * with no per-IP limit. A recipient who turned HintWise email off
+ * (optout.ts) stops it first, whatever the type, logged as 'refused' with
+ * detail 'suppressed' and no bypass alert: the sign-in emails and the
+ * notices are answered as sent (200 {}) with nothing sent (hook.ts
+ * quietWhenSuppressed), invite, email change and reauthentication are
+ * refused with 403. Then a due wait for any recipient refuses it. Everything else the plan refuses is logged as 'refused' and
+ * raises the bypass alert.
+ *
+ * Each message carries the header (logo or wordmark), Reply-To support and
+ * the footer with its recipient's opt-out link.
  *
  * Answers, all JSON:
- *   200 {}                                    the email went out
+ *   200 {}                                    the email went out (or, for an opted-out
+ *                                             address, a sign-in email or notice was dropped)
  *   200 { error: { http_code, message } }     Auth answers the app with that status and message
- *                                             (403 refused, 429 wait)
+ *                                             (403 refused or suppressed, 429 wait)
  *   401 { error: ... }                        bad or missing signature (Auth reports a 500)
  *   413 { error: ... }                        a body far larger than Auth sends
  */
 import { bypassAlertEmail, type AlertCounts } from './alerts.ts';
 import { restDb, type Db } from './db.ts';
-import { hookError, parseHookPayload, parseHostList, planHook, REFUSAL_MESSAGE, verifyWebhook } from './hook.ts';
+import { hookError, parseHookPayload, parseHostList, planHook, quietWhenSuppressed, REFUSAL_MESSAGE, verifyWebhook } from './hook.ts';
 import { hashKeys, HOOK_IP, type KeyHashes } from './keys.ts';
+import type { EmailLook } from './email.ts';
+import { emailLook, HOOK_SUPPRESSED_MESSAGE, isSuppressed } from './optout.ts';
 import { ladderOnly, type BeginResult, type KeyStats } from './policy.ts';
 import { sendEmail } from './resend.ts';
 import { raiseAlerts, type Outcome } from './service.ts';
@@ -36,6 +47,10 @@ export interface HookEnv {
   ADMIN_EMAIL?: string;
   /** Comma list of the hosts of apps outside HintWise on this project (set-sign-in-secrets computes it). */
   HOOK_EXTERNAL_HOSTS?: string;
+  /** Signs the footer's opt-out links; without it the footer names support instead. */
+  EMAIL_OPTOUT_SECRET?: string;
+  /** The emails' header logo (email.ts emailLogoUrl); without it the header is the text wordmark. */
+  EMAIL_LOGO_URL?: string;
 }
 
 export interface HookDeps {
@@ -87,8 +102,19 @@ async function handleHookPost(req: Request, deps: HookDeps): Promise<Response> {
     return reply(200, hookError(500, 'Email is not set up yet. Try again later.'));
   }
   const db = deps.db ?? restDb(deps.fetch, env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
-  const plan = planHook(payload, env.SUPABASE_URL, parseHostList(env.HOOK_EXTERNAL_HOSTS));
-  const hashes = await hashKeys(env.SIGN_IN_HASH_KEY, { email: plan.email, ip: HOOK_IP });
+  const hashKey = env.SIGN_IN_HASH_KEY;
+  // The keys and looks (opt-out link, logo) of the payload's addresses (an email change has two).
+  const hashOf = new Map<string, KeyHashes>();
+  const lookOf = new Map<string, EmailLook>();
+  if (!env.EMAIL_OPTOUT_SECRET) log('auth-email-hook: EMAIL_OPTOUT_SECRET is unset: the footer names support instead of an opt-out link');
+  for (const address of [payload.user.email, payload.user.new_email]) {
+    if (!address || hashOf.has(address)) continue;
+    const h = await hashKeys(hashKey, { email: address, ip: HOOK_IP });
+    hashOf.set(address, h);
+    lookOf.set(address, await emailLook(env, h.email_hash));
+  }
+  const plan = planHook(payload, env.SUPABASE_URL, parseHostList(env.HOOK_EXTERNAL_HOSTS), (to) => lookOf.get(to) ?? {});
+  const hashes = hashOf.get(plan.email) as KeyHashes;
   const resend = env.RESEND_API;
 
   if (plan.action === 'refuse') {
@@ -122,14 +148,13 @@ async function handleHookPost(req: Request, deps: HookDeps): Promise<Response> {
   }
 
   // Allowed: each recipient through the same per-address ladder as sign-in-link.
-  const hashKey = env.SIGN_IN_HASH_KEY;
   const what = `hook: ${plan.actionType} via ${plan.host ?? '(no host)'}`;
   // One ladder step per mailbox: an email change between two +tags of one mailbox is one step.
   const steps: Array<{ to: string; hashes: KeyHashes; id: number; email: KeyStats }> = [];
   const stepOf: number[] = [];
   for (const message of plan.messages) {
     const to = message.to[0];
-    const h = to === plan.email ? hashes : await hashKeys(hashKey, { email: to, ip: HOOK_IP });
+    const h = hashOf.get(to) ?? (await hashKeys(hashKey, { email: to, ip: HOOK_IP }));
     const same = steps.findIndex((st) => st.hashes.email_hash === h.email_hash);
     if (same >= 0) {
       stepOf.push(same);
@@ -165,6 +190,25 @@ async function handleHookPost(req: Request, deps: HookDeps): Promise<Response> {
     }
   };
 
+  // An address that turned HintWise email off gets nothing, whatever the type
+  // and whatever its ladder says (an email change needs both messages, so
+  // neither goes). Logged as refused, which no ladder counts; no bypass alert,
+  // and the usual alerts at most once a kind an hour. A database error sends
+  // nothing.
+  let off: boolean[];
+  try {
+    off = await Promise.all(steps.map((st) => isSuppressed(db, st.hashes.email_hash)));
+  } catch (e) {
+    log(`auth-email-hook: email_optout_check failed: ${errorText(e)}`);
+    await Promise.all(steps.map((st) => finish(st, 'error', `${what}; email_optout_check: ${errorText(e)}`.slice(0, 400))));
+    return reply(200, hookError(500, 'The email could not be sent. Try again in a minute.'));
+  }
+  if (off.some(Boolean)) {
+    const quiet = quietWhenSuppressed(plan.actionType);
+    log(`auth-email-hook: ${plan.actionType} not sent: a recipient turned HintWise email off${quiet ? ' (answered as sent)' : ''}`);
+    await Promise.all(steps.map((st, i) => finish(st, 'refused', `${what}; suppressed${off[i] ? '' : ' (the other address)'}${quiet ? ', answered as sent' : ''}`)));
+    return quiet ? reply(200, {}) : reply(200, hookError(403, HOOK_SUPPRESSED_MESSAGE));
+  }
   const waits = steps.map((st) => ladderOnly(st.email, now()));
   const wait = waits.find((d) => d.action === 'wait');
   if (wait && wait.action === 'wait') {

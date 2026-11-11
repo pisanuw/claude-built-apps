@@ -5,6 +5,8 @@ export const RESEND_URL = 'https://api.resend.com/emails';
 export interface EmailMessage {
   from: string;
   to: string[];
+  /** Resend's reply_to: where a reply goes (support@hintwise.org on every email). */
+  reply_to?: string;
   subject: string;
   text: string;
   html: string;

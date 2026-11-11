@@ -3,6 +3,14 @@
 /** An error's message, cut to 300 characters, for logs and detail columns. */
 export const errorText = (e: unknown): string => String((e as Error)?.message ?? e).slice(0, 300);
 
+/** Constant-time comparison of two strings (signatures, tokens). */
+export function sameText(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 /** A count from SQL (PostgREST may send numbers as strings); anything else is 0. */
 export const num = (v: unknown): number => {
   const x = typeof v === 'string' ? Number(v) : v;

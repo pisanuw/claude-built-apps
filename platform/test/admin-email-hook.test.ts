@@ -40,17 +40,22 @@ describe('email-hook', () => {
     expect(() => m.emailHookPatch('maybe')).toThrow(/unknown action/);
   });
   it('lists what stops the hook from being switched on', () => {
-    const fns = [{ slug: 'llm-gateway', status: 'ACTIVE' }, { slug: 'auth-email-hook', status: 'ACTIVE' }];
-    const secrets = [{ name: 'SEND_EMAIL_HOOK_SECRET' }, { name: 'RESEND_API' }, { name: 'SIGN_IN_HASH_KEY' }, { name: 'HOOK_EXTERNAL_HOSTS' }];
+    const optout = { slug: 'email-optout', status: 'ACTIVE' };
+    const fns = [{ slug: 'llm-gateway', status: 'ACTIVE' }, { slug: 'auth-email-hook', status: 'ACTIVE' }, optout];
+    const secrets = [{ name: 'SEND_EMAIL_HOOK_SECRET' }, { name: 'RESEND_API' }, { name: 'SIGN_IN_HASH_KEY' }, { name: 'HOOK_EXTERNAL_HOSTS' }, { name: 'EMAIL_OPTOUT_SECRET' }];
     expect(m.emailHookProblems(fns, secrets)).toEqual([]);
-    expect(m.emailHookProblems([], secrets)).toEqual(['the auth-email-hook function is not deployed (deploy-function auth-email-hook)']);
-    expect(m.emailHookProblems([{ slug: 'auth-email-hook', status: 'REMOVED' }], secrets)).toEqual(['the auth-email-hook function is REMOVED']);
+    expect(m.emailHookProblems([optout], secrets)).toEqual(['the auth-email-hook function is not deployed (deploy-function auth-email-hook)']);
+    expect(m.emailHookProblems([{ slug: 'auth-email-hook', status: 'REMOVED' }, optout], secrets)).toEqual(['the auth-email-hook function is REMOVED']);
+    expect(m.emailHookProblems(fns.slice(0, 2), secrets)).toEqual(["the email-optout function is not deployed (deploy-function email-optout): the footer's opt-out links would not work"]);
     expect(m.emailHookProblems(fns, [{ name: 'RESEND_API' }])).toEqual([
       'function secret SEND_EMAIL_HOOK_SECRET is not set (set-sign-in-secrets)',
       'function secret SIGN_IN_HASH_KEY is not set (set-sign-in-secrets)',
       'function secret HOOK_EXTERNAL_HOSTS is not set (set-sign-in-secrets)',
+      'function secret EMAIL_OPTOUT_SECRET is not set (set-sign-in-secrets)',
     ]);
-    expect(m.emailHookProblems(null, null)).toHaveLength(1 + m.EMAIL_HOOK_SECRETS.length);
+    expect(m.EMAIL_HOOK_SECRETS).toContain('EMAIL_OPTOUT_SECRET');
+    expect(m.EMAIL_HOOK_SECRETS).not.toContain('EMAIL_LOGO_URL');
+    expect(m.emailHookProblems(null, null)).toHaveLength(2 + m.EMAIL_HOOK_SECRETS.length);
     expect(m.emailHookProblems(fns, secrets, ['qualified-overtime-checker/src/lib/auth.ts (signInWithOtp)'])).toEqual([
       "qualified-overtime-checker/src/lib/auth.ts (signInWithOtp) sends Auth email directly: that email stops while the hook is on (move it to the template's sendMagicLink, or pass --allow-otp-apps)",
     ]);
@@ -75,6 +80,7 @@ describe('email-hook', () => {
       'Sent through the per-address ladder: magiclink, signup, email, recovery for how-of-happiness.netlify.app, *.wcv.example.',
       'Sent through the per-address ladder: invite, email_change, reauthentication and every *_notification, for every host.',
       'Refused: any other type.',
+      'Refused, every type: an address on the opt-out list (platform.email_optouts), logged as refused (suppressed), no bypass alert.',
     ]);
     expect(m.hookPolicyLines([])[1]).toBe('Sent through the per-address ladder: magiclink, signup, email, recovery for (none).');
   });
