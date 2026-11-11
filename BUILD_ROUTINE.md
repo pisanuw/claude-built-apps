@@ -292,7 +292,14 @@ you can.
    password-protected notes view) and a `publicNotes` for visitors: two to
    four plain sentences on what it does and who it is for, then one honest
    limitation. publicNotes never mentions how long the build took, the tech
-   stack, test counts or coverage. Update CHANGES.md in both repos. Commit and
+   stack, test counts or coverage. Add the app to daily-project-ideas
+   `studio.json` "apps" (title, `audiences` such as `small-business`, a
+   one-line `blurb` for its users); without it the Studio guesses the
+   audience from the idea category. Make its Studio image: from
+   daily-project-ideas run `node scripts/studio_media.js <claude-built-apps
+   dir> <slug>` (a frame of `<slug>/demo.gif`, else a screenshot of the live
+   site), look at `web/media/<slug>.jpg`, and commit it; without it the
+   Studio card has no picture. Update CHANGES.md in both repos. Commit and
    push.
 4. PORTFOLIO. In pisanorg/yusuf/aiprojects.md, insert a new section at the
    top of the matching group, in the existing format and voice: H3 title
