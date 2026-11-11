@@ -505,3 +505,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-11 [decision] teacher-catalog-kit aborted by the owner after day 1: no further development; placeholder removed; live site and schema kept pending a decision.
 
 2026-11-11 [code] teacher-catalog-kit taken down (owner): Netlify site, hintwise.org CNAME, schema and migration records, CI job, deploy target and sign-in host removed; folder kept as the abort record.
+
+2026-11-11 [decision] app-notify stays transactional only (owner, option 1): no postal address in email footers; a PO box only if promotional email is ever sent.

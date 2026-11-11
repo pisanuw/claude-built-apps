@@ -304,7 +304,11 @@ The contract is `platform/src/signin/README.md`.
   (per type), "Questions or trouble signing in? support@hintwise.org (or
   just reply).", "HintWise builds tools for small businesses, startups and
   educators. More apps: studio.hintwise.org", and "Stop all email from
-  HintWise (sign-in links too)". No postal address (owner).
+  HintWise (sign-in links too)". No postal address (owner): every
+  HintWise email is transactional, app-notify included (only what the
+  person opted into about the app they use, never promotion as its
+  purpose). Promotional email would first need a PO box in the footer
+  (CAN-SPAM).
 - **Opt-out, level 2 (global), built now.** The footer link goes to the
   `email-optout` function on `https://auth.hintwise.org/functions/v1/email-optout`
   (the custom domain: Supabase serves HTML from functions only there, see

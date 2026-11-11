@@ -96,21 +96,20 @@ Since 9 Nov the build routine builds one substantial project a week on a shared 
 3. **app-notify sender** (approved 10 Nov "1-3 yes", after account deletion):
    - a daily Edge Function that reads each registered app's releases feed (StepWise `releases.json`, stable ids) and its opt-in rows (StepWise grants service_role select on app_stepwise.preferences and update of notify_new_pages);
    - it sends from `<slug>@hintwise.org` with a one-click unsubscribe (List-Unsubscribe) and the per-app level of the opt-out, and records sends.
-   - **It needs a postal address in the footer before its first send** (CAN-SPAM; owner said omit for now).
+   - **Transactional only, no postal address** (owner, 11 Nov, option 1): it sends only what the person opted into about the app they use (that app's new pages or releases, their own activity). No promotion of other apps or offers as the email's purpose; the footer's "More apps" line stays incidental. If promotional email is ever wanted, a PO box or virtual mailbox goes in the footer first (CAN-SPAM).
    - StepWise's side now needs a new StepWise session, which the owner starts by hand.
 4. **Logo rollout:** a small mark in the shared site footer (scripts/site-footer.mjs). It reaches each app on its next deploy; don't redeploy all (each Netlify deploy costs credits). Favicons and social images later.
 5. **Watch the build routine's next run:** 12 Nov 11:49 CET is day 1 of a new project. It must use the platform template's sign-in (sign-in-link, the branded button), because direct signInWithOtp mail is refused while the hook is on.
 
 ## 6. Waiting on the owner
 
-1. **Ship the email footer, logo header and opt-out** (asked 11 Nov 11:43 Lisbon; recommended yes; reply "yes ship"). It deploys to production and changes the shared database, so it waits for an explicit yes.
-2. **Start account deletion after the ship** (asked 11:36; recommended yes; not urgent until the ship is done).
-3. **Postal address or PO box** for opt-in app emails: only before app-notify's first send.
-4. Older, not confirmed since 8 Nov:
+(Email ship and account deletion: both answered and shipped 11 Nov.)
+
+1. Older, not confirmed since 8 Nov:
    - test Google sign-in on MeetMe, Chess TD and Digital Yusuf;
    - re-run `python3 scripts/pisan_labs_setup.py` locally so pisan-labs repo homepages show hintwise.org;
    - post launch drafts 1–7 (docs/launch-drafts.md), one at a time, days apart.
-5. Qualified Overtime Checker follow-ups: qualified-overtime-checker/HANDOFF.md "Owner actions" and "Remaining"; its pisan-labs mirror comes from the halflife job or `scripts/pisan_labs_setup.py` then the Mirror workflow.
+2. Qualified Overtime Checker follow-ups: qualified-overtime-checker/HANDOFF.md "Owner actions" and "Remaining"; its pisan-labs mirror comes from the halflife job or `scripts/pisan_labs_setup.py` then the Mirror workflow.
 
 ## 7. Dated tasks
 
@@ -134,7 +133,7 @@ Since 9 Nov the build routine builds one substantial project a week on a shared 
 - **Email footer and opt-out** (owner, 11 Nov):
   - a short footer on every HintWise email, with support@hintwise.org, which reaches the owner through Cloudflare catch-all routing;
   - two levels of opt-out: per app later with app-notify, and "Stop all email from HintWise" now, which includes sign-in links;
-  - no postal address until app-notify;
+  - no postal address: app-notify stays transactional only (owner, 11 Nov); a PO box is needed only if promotional email is ever sent;
   - logo hosted in a public Supabase bucket on auth.hintwise.org.
 - **Logo** (owner, 11 Nov): A1 in deep indigo #312E81 with coral sparks, sparks on tiny icons too (platform/brand/).
 - The JWT secret exposure of 9 Nov: the owner accepts the risk; **do not raise rotation again**.
