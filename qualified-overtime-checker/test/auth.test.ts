@@ -171,7 +171,7 @@ describe('toLinkResult', () => {
     expect(toLinkResult(403, { status: 'challenge', siteKey: '', failed: true })).toEqual({ status: 'challenge', siteKey: '0x4AAAAAAF7YqIR2_9E_hu1x', failed: true });
   });
   it('reads suppressed with the service\'s message, or the standard one', () => {
-    const message = 'This address asked HintWise not to send it email. Sign in with Google instead, or write to support@hintwise.org to turn email back on.';
+    const message = 'This address asked HintWise not to send it email. Sign in with Google instead, or write to support@hintwise.org from this address to turn email back on.';
     expect(toLinkResult(200, { status: 'suppressed', message })).toEqual({ status: 'suppressed', message });
     expect(toLinkResult(200, { status: 'suppressed' })).toEqual({ status: 'suppressed', message: SUPPRESSED_MESSAGE });
     expect(toLinkResult(200, { status: 'suppressed', message: '' })).toEqual({ status: 'suppressed', message: SUPPRESSED_MESSAGE });
