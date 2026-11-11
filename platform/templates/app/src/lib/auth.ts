@@ -479,6 +479,8 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
     if ((user?.id ?? null) !== shownUserId) {
       // Another account (or none): old messages and a pending switch no longer apply.
       if (shownUserId !== null || user) notice = '';
+      // Keep an offer made before the first signed-in view (onAuth's first render shows it).
+      if (shownUserId !== null) pendingSwitch = null;
       shownUserId = user?.id ?? null;
     }
     if (user) {

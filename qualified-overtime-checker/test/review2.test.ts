@@ -90,7 +90,7 @@ describe('day-2 review fixes', () => {
     expect(await account.list()).toHaveLength(1);
     await a.as('u2');
     expect(root.textContent).not.toContain('Pat');
-    expect(status()).toBe('Signed out. Files in your account show again when you sign in.');
+    expect(status()).toBe('Switched accounts. This account\u2019s files are listed above.');
   });
 
   it('a save in flight cannot bring a deleted file back', async () => {
@@ -189,5 +189,39 @@ describe('security review fixes', () => {
     await a.as(null);
     expect(status()).toBe('Signed out. Files in your account show again when you sign in.');
     expect(await browser.list()).toHaveLength(0);
+  });
+});
+
+describe('account switch races', () => {
+  it('a save queued under one account does not land in the next', async () => {
+    const accountA = new MemoryFileStore('account');
+    let current = accountA;
+    let cb: (u: { id: string; email: string | null } | null) => void = () => {};
+    const hooks: AuthHooks = { mount: () => {}, onUser: (c) => (cb = c), accountStore: () => current };
+    await mount({ hooks, confirm: () => false });
+    cb({ id: 'a', email: 'a@x.org' });
+    await settle();
+    await importCsv();
+    expect(await accountA.list()).toHaveLength(1);
+    let release: () => void = () => {};
+    const realPut = accountA.put.bind(accountA);
+    accountA.put = async (f) => {
+      await new Promise<void>((r) => (release = r));
+      return realPut(f);
+    };
+    const name = root.querySelector('#emp-name') as HTMLInputElement;
+    name.value = 'First edit';
+    name.dispatchEvent(new Event('change'));
+    await tick();
+    name.value = 'Second edit';
+    name.dispatchEvent(new Event('change'));
+    await tick();
+    const accountB = new MemoryFileStore('account');
+    current = accountB;
+    cb({ id: 'b', email: 'b@x.org' });
+    release();
+    await settle();
+    expect(await accountB.list()).toHaveLength(0);
+    expect(status()).toBe('Switched accounts. This account\u2019s files are listed above.');
   });
 });

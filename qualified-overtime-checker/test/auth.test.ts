@@ -577,6 +577,18 @@ describe('mountSignIn', () => {
     expect(f.auth.verifyOtp).toHaveBeenCalledWith({ token_hash: 'h', type: 'email' });
     expect(root.querySelector('.hw-signin-note')).toBeNull();
   });
+  it('drops a switch offer when another tab changes the account', async () => {
+    const f = fakeAuth(session);
+    const w = { location: { href: 'https://x.hintwise.org/?token_hash=h&type=email&email_hint=b***@example.org' }, history: { state: null, replaceState: vi.fn() } };
+    mountSignIn(root, { client: f.client, redirectTo: 'https://x/', window: w });
+    await flush();
+    await flush();
+    expect(button('Switch to b***@example.org?')).toBeTruthy();
+    f.emit({ access_token: 't2', user: { id: 'u3', email: 'cy@example.com' } as User } as Session);
+    await flush();
+    expect(root.querySelector('.hw-signin-user')!.textContent).toBe('Signed in as cy@example.com');
+    expect(root.querySelector('.hw-signin-switch')).toBeNull();
+  });
   it('shows the offer once the signed-in view is drawn, even if the check finishes first', async () => {
     const f = fakeAuth(session);
     let release: () => void = () => undefined;

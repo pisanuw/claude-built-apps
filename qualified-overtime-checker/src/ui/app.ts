@@ -79,6 +79,9 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     return run;
   }
   let dirty = false;
+  // Bumped when the signed-in account changes: a save or an open that started
+  // under the previous account must not finish under the next one.
+  let accountGen = 0;
 
   /**
    * Writes the open file now (if it is worth keeping and changed) and
@@ -91,11 +94,14 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     }
     if (!dirty || !worthSaving(file)) return true;
     const snapshot = file;
+    const where = location;
+    const gen = accountGen;
     const ok = await enqueue(async () => {
+      if (where === 'account' && gen !== accountGen) return true; // that account has gone; its copy was offered at the switch
       try {
-        await files.store(location).put(snapshot);
+        await files.store(where).put(snapshot);
         if (file === snapshot) dirty = false;
-        saveText = location === 'account' ? 'Saved to your account.' : 'Saved in this browser.';
+        saveText = where === 'account' ? 'Saved to your account.' : 'Saved in this browser.';
         saveError = false;
         return true;
       } catch (e) {
@@ -176,7 +182,9 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
   async function openFile(s: FileSummary): Promise<boolean> {
     if (!(await settle())) return false;
     try {
+      const gen = accountGen;
       const next = await files.store(s.location).get(s.id);
+      if (s.location === 'account' && gen !== accountGen) return false; // the account changed while it loaded
       if (!next) {
         say(`${s.name || 'That file'} is no longer there.`);
         await renderFiles();
@@ -732,11 +740,12 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       const switched = was !== null && (u === null || u.id !== was.id);
       files.setAccount(u ? auth.accountStore() : null);
       renderPrivacy();
+      if (switched) accountGen++;
       if (switched && location === 'account') {
         // The open file belongs to the account that just left: never show it to
         // the next user. Unsaved changes are kept as a copy in this browser.
         // Ask first: on a shared computer the next person would see the copy.
-        const unsaved = dirty && worthSaving(file) && ask('You are signed out, and the last changes to this file were not saved to your account. Keep a copy of the file in this browser? Anyone using this browser could open it.') ? { ...file, id: makeId() } : null;
+        const unsaved = dirty && worthSaving(file) && ask(`You ${u ? 'switched accounts' : 'signed out'}, and the last changes to this file were not saved to the previous account. Keep a copy of the file in this browser? Anyone using this browser could open it.`) ? { ...file, id: makeId() } : null;
         if (timer) clearTimeout(timer);
         timer = null;
         dirty = false;
@@ -744,8 +753,10 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
           if (unsaved) await enqueue(() => files.store('browser').put(unsaved)).catch(() => undefined);
           await newFile(false, true);
           say(unsaved
-            ? 'Signed out. Your last unsaved changes were kept as a copy in this browser; files in your account show again when you sign in.'
-            : 'Signed out. Files in your account show again when you sign in.');
+            ? `${u ? 'Switched accounts' : 'Signed out'}. Your last unsaved changes were kept as a copy in this browser; ${u ? 'this account\u2019s files are listed above' : 'files in your account show again when you sign in'}.`
+            : u
+              ? 'Switched accounts. This account\u2019s files are listed above.'
+              : 'Signed out. Files in your account show again when you sign in.');
         })();
         return;
       }
