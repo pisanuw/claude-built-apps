@@ -73,7 +73,7 @@ describe('the sign-in email', () => {
     expect(m.html).toContain('&lt;b&gt;hi&lt;/b&gt;');
     expect(m.html).toContain('&lt;1&gt;');
     expect(m.html).toContain('bye &amp; go');
-    expect(m.text).toBe('<b>hi</b>\n\n<1>\n\nbye & go\n\nHintWise\n');
+    expect(m.text).toBe('<b>hi</b>\n\n<1>\n\nbye & go\n');
     expect(m.html).not.toContain('<hr');
   });
 });
@@ -195,6 +195,16 @@ describe('the footer', () => {
     expect(h).toContain('href="https://auth.hintwise.org/x?t=a&amp;b=&quot;c&quot;"');
     const m = signupEmail('ann@example.com', 'https://x/', '<script>.example', look);
     expect(m.html).not.toContain('<script>');
+  });
+  it('ends the body without a "HintWise" sign-off: the header names it', () => {
+    const m = signInEmail('ann@example.com', 'https://pluck-lab.hintwise.org/', 'Pluck Lab', undefined, look);
+    expect(m.text.split('\n----\n')[0]).toMatch(/ignore this email\.\n*$/);
+    expect(m.text).not.toMatch(/\n\nHintWise\n/);
+    expect(m.html).not.toContain('<p>HintWise</p>');
+    expect(m.html.match(/>HintWise</g)).toBeNull();
+    expect(m.html).toContain('alt="HintWise"');
+    const plain = signInEmail('ann@example.com', 'https://pluck-lab.hintwise.org/', 'Pluck Lab');
+    expect(plain.html.match(/>HintWise</g)).toHaveLength(1);
   });
   it('sets no colour on body text, and keeps the owner\'s alerts without a footer', () => {
     const m = signInEmail('ann@example.com', 'https://pluck-lab.hintwise.org/', 'Pluck Lab', undefined, look);

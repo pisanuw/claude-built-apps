@@ -166,8 +166,9 @@ export function renderEmail(p: EmailParts, from = SIGN_IN_FROM, look: EmailLook 
     text.push(p.code);
     html.push(`<p style="font-size:24px;letter-spacing:4px;font-weight:600">${escapeHtml(p.code)}</p>`);
   }
-  text.push(...p.outro, 'HintWise');
-  html.push(...p.outro.map((s) => `<p>${escapeHtml(s)}</p>`), '<p>HintWise</p>');
+  // No "HintWise" sign-off: the header carries the logo or the wordmark, and the From name says it.
+  text.push(...p.outro);
+  html.push(...p.outro.map((s) => `<p>${escapeHtml(s)}</p>`));
   let body = text.join('\n\n');
   if (p.why) {
     body += `\n\n----\n${footerText(p.why, look.optOutUrl).join('\n')}`;
