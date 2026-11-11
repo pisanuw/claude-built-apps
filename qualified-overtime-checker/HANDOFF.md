@@ -46,9 +46,9 @@ provisional; three tied at 19 (this one 2026-11-07, Delivery Canary
     finished on page load). Sign-out of this app only; PKCE.
 - Verified live 2026-11-11: 200 with the footer; Google button in the header;
   sample gives "6 of 8 employees"; no console errors.
-- Not verified live: a signed-in save after migration 0002 (the upsert now
-  uses on_conflict user_id,id) and an email link through the new service.
-  Owner action 1.
+- Verified by the owner 2026-11-11: a signed-in save after migration 0002
+  (the upsert uses on_conflict user_id,id) and an email link through the
+  sign-in-link service.
 - Pushed, not deployed: the bonus help text now names "Earned from / Earned
   to" columns (ships with the next deploy).
 
@@ -124,14 +124,10 @@ None open. Answered 2026-11-10: saved files allowed (as recommended); free.
 
 ## Owner actions
 
-1. Two-minute check after the day-3 deploy (migration 0002 changed the
-   table's key and the sign-in moved): open
-   https://qualified-overtime-checker.hintwise.org, sign in with "Continue
-   with Google" at the top right, click "Try the sample employer", wait for
-   "Saved to your account.", reload, then Delete it. Optional: sign out,
-   "Use email instead", ask for a link and open it in the same browser.
-2. The email hook (refusing direct signInWithOtp mail) can be switched on
-   for this app now: it no longer calls signInWithOtp.
+1. Done 2026-11-11 (owner): signed-in save after migration 0002 works
+   (sample saved, survived a reload, deleted), and an email link from the
+   sign-in-link service arrived and signed in.
+2. Done 2026-11-11 09:00 UTC: the Send Email hook is on (owner's yes).
 
 ## Next
 
