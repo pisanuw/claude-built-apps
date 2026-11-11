@@ -127,7 +127,7 @@ None open. Answered 2026-11-10: saved files allowed (as recommended); free.
 1. Done 2026-11-11 (owner): signed-in save after migration 0002 works
    (sample saved, survived a reload, deleted), and an email link from the
    sign-in-link service arrived and signed in.
-2. Done 2026-11-11 09:00 UTC: the Send Email hook is on (owner's yes).
+2. Done 2026-11-11 08:56 UTC: the Send Email hook is on (owner's yes).
 
 ## Next
 
