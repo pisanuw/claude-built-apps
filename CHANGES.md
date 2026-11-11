@@ -471,3 +471,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-11 [note] Owner: Qualified Overtime Checker signed-in save works after migration 0002 (sample saved, survived reload, deleted). Its owner action 1 is done.
 
 2026-11-11 [code] qualified-overtime-checker day 4: milestone 4 live: Toast time entries recognised from its published columns, QuickBooks Online time activities as an inferred layout, hourly rates typed per employee for hours-only files, column choices saved per layout, add a second export without duplicates (Toast by GUID), weekly totals checked by week, pay-period totals refused; EasyACCT not supported (no dated hours found); code review 10 findings fixed.
+
+2026-11-11 [code] qualified-overtime-checker day 5: milestone 5 live: employer summary PDF, worksheet PDFs (total equals the results figure), W-2c list CSV, print view; a small Letter-landscape PDF writer with tables across pages; code review 11 findings fixed.

@@ -1,4 +1,4 @@
-# Qualified Overtime Checker: handoff (day 4 of 7, 2026-11-11)
+# Qualified Overtime Checker: handoff (day 5 of 7, 2026-11-11)
 
 Rewritten at the end of every build day by the build routine
 (BUILD_ROUTINE.md). It is the only state the next day's session has, and the
@@ -29,20 +29,16 @@ provisional; three tied at 19 (this one 2026-11-07, Delivery Canary
 ## What is live
 
 - https://qualified-overtime-checker.hintwise.org (deploy 2026-11-11 about
-  10:40 UTC, commit af17b38): milestones 1 to 4 and sign-in in the header.
+  10:05 UTC, commit 4c181f7): milestones 1 to 5 and sign-in in the header.
   - Checker, client files (browser or account), bonuses, differentials,
-    tip credit, paid cap (milestones 1-3; see PLAN.md "Method").
-  - Milestone 4: Toast time entries recognised (columns from Toast's field
-    reference: Regular/Overtime Hours, Wage, Overtime Pay, GUID); QuickBooks
-    Online time activities recognised as an inferred layout (name rows,
-    hours:minutes, billing rate and amount ignored); hourly pay rates typed
-    per employee for hours-only files; column choices saved per layout in the
-    file; "add to the hours already here" without duplicates (Toast by GUID);
-    weekly totals checked by week and marked; pay-period totals refused.
-- Verified live 2026-11-11: 200 with the footer; the Toast fixture imports
-  (Ann $90.73, Rosa $6.39 as worked by hand); no console errors.
-- Pushed, not deployed: import report says rows used (lines) separately;
-  clearer overtime sentence; the bonus help naming Earned from/to columns.
+    tip credit, paid cap; Toast and QuickBooks exports, typed rates, saved
+    columns, add without duplicates, weekly and pay-period totals.
+  - Milestone 5: employer summary PDF (figures, what to correct and why,
+    method), worksheet PDF per employee or all at once (total = the results
+    figure), W-2c list CSV of exactly the flagged employees (difference
+    reported - correct, as in the app), print view.
+- Verified live 2026-11-11: 200 with the footer; the sample's summary PDF
+  downloads and opens (1 page); the W-2c list downloads; no console errors.
 
 ## Milestones (docs/PLAN.md)
 
@@ -52,8 +48,8 @@ provisional; three tied at 19 (this one 2026-11-07, Delivery Canary
 | 2 | Saved client files | done | 2 | reviewed (high) and security-reviewed; owner confirmed signed-in save 10 Nov |
 | 3 | The hard cases | done | 3 | reviewed (high), 10 findings fixed; security review of the sign-in move: nothing serious, 3 low fixed |
 | 4 | Real exports | done | 4 | Toast (confirmed) and QuickBooks (inferred) presets, typed rates, saved mappings, add without duplicates, weekly totals; EasyACCT not supported (no dated hours); reviewed (high), 10 findings fixed |
-| 5 | Worksheet and W-2c list | next | | PDFs, W-2c CSV, print |
-| 6 | Polish | | | |
+| 5 | Worksheet and W-2c list | done | 5 | own PDF writer (Letter landscape, Helvetica, tables across pages); checked with pdfinfo/pdftotext/pdftoppm; reviewed (high), 11 findings fixed | PDFs, W-2c CSV, print |
+| 6 | Polish | next | | |
 | 7 | Finish | | | |
 
 ## How to run and verify
@@ -64,9 +60,10 @@ npm run dev          # http://localhost:5173
 PW_CHROMIUM=/opt/pw-browsers/chromium npm run e2e   # cloud session: the bundled Playwright browser is missing
 ```
 
-Tests: 216 vitest (core, compare, hard cases, presets with Toast and
-QuickBooks fixtures, layouts, review regressions, codec and stores, jsdom
-UI), coverage 99.3% statements, 94.8% branches; 3 Playwright tests.
+Tests: 231 vitest (core, compare, hard cases, presets with Toast and
+QuickBooks fixtures, layouts, reports and PDF structure, review regressions,
+codec and stores, jsdom UI), coverage 99.4% statements, 94.6% branches;
+3 Playwright tests.
 
 ## Platform use
 
@@ -123,13 +120,14 @@ None open. Answered 2026-11-10: saved files allowed (as recommended); free.
 
 ## Next
 
-Milestone 5, "Worksheet and W-2c list" (docs/PLAN.md): a per-employee
-worksheet PDF (each workweek: hours, straight-time pay, regular rate,
-overtime hours, premium, bonus shares), an employer summary PDF, the W-2c
-list CSV (employee, TT reported, TT correct, difference; only flagged
-employees), and a print view. Check PDFs with pdfinfo and pdftoppm; totals
-must equal the results table. donation-receipts has a small PDF writer to
-reuse (Helvetica/WinAnsi).
+Milestone 6, polish (BUILD_ROUTINE.md Step 3.5): README written for the
+business owner; phone layout (the weeks table still scrolls sideways);
+keyboard and screen-reader pass; run https://accessibility-lens.hintwise.org
+on the live page and fix serious issues; check the Google button against the
+branding rules; empty and error states; extend the Playwright walkthrough
+(PDF download, rates, add mode); the security-review skill on the whole app;
+a demo screenshot or GIF for the catalog; draft publicNotes. Re-read IRS
+FS-2026-13 wording if it can be fetched (PLAN.md risk).
 
 ## Remaining and known issues
 
@@ -159,6 +157,7 @@ reuse (Helvetica/WinAnsi).
 ## Log
 
 - Day 1 (2026-11-10): picked, claimed, planned; milestone 1 built, reviewed, fixed and deployed.
+- Day 5 (2026-11-11): milestone 5 (summary and worksheet PDFs with a new small PDF writer, W-2c list, print view); code review (high) 11 findings fixed (W-2c sign, rate-needed worksheet, other-year weeks, UTF-16 title, long rows, transliteration, local date, totals, SSN-shaped IDs); deployed and checked live.
 - Day 4 (2026-11-11): milestone 4 (Toast and QuickBooks layouts, typed rates, saved columns, add without duplicates, weekly and pay-period totals); vendor columns researched (Toast confirmed, QuickBooks inferred, EasyACCT not found); code review (high) 10 findings fixed; deployed.
 - Day 3 (2026-11-11): sign-in moved to the header with the template's branded button and the sign-in-link service; milestone 3 (bonuses, differentials, tip credit, not-wages, paid cap) built; code review (high) 10 findings and security review 3 low findings fixed; deployed with migration 0002.
 - Day 2 security review (security-review, by a subagent; the skill itself failed on the missing origin/HEAD ref, so the diff was reviewed by hand): nothing serious; three low items fixed (owner-scoped primary key, ask before a sign-out copy, SSN header and value gaps).
