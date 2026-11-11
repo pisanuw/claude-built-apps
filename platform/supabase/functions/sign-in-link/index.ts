@@ -25,6 +25,7 @@ const NAMES: Array<keyof SignInEnv> = [
   'TURNSTILE_SECRET',
   'TURNSTILE_SITE_KEY',
   'EMAIL_OPTOUT_SECRET',
+  'EMAIL_LOGO_URL',
 ];
 const env: SignInEnv = Object.fromEntries(NAMES.map((n) => [n, Deno.env.get(n) ?? '']));
 

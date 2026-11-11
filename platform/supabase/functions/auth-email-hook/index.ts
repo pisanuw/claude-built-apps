@@ -16,7 +16,7 @@
  */
 import { handleEmailHook, type HookEnv } from '../../../src/signin/hook-service.ts';
 
-const NAMES: Array<keyof HookEnv> = ['SEND_EMAIL_HOOK_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SIGN_IN_HASH_KEY', 'RESEND_API', 'ADMIN_EMAIL', 'HOOK_EXTERNAL_HOSTS', 'EMAIL_OPTOUT_SECRET'];
+const NAMES: Array<keyof HookEnv> = ['SEND_EMAIL_HOOK_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SIGN_IN_HASH_KEY', 'RESEND_API', 'ADMIN_EMAIL', 'HOOK_EXTERNAL_HOSTS', 'EMAIL_OPTOUT_SECRET', 'EMAIL_LOGO_URL'];
 const env: HookEnv = Object.fromEntries(NAMES.map((n) => [n, Deno.env.get(n) ?? '']));
 
 const runtime = (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime;

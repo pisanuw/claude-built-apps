@@ -4,6 +4,7 @@ import type { AlertCounts } from '../src/signin/alerts.ts';
 import type { Db } from '../src/signin/db.ts';
 import { restDb } from '../src/signin/db.ts';
 import type { BeginResult, KeyStats } from '../src/signin/policy.ts';
+import { optOutToken, SUPPRESSED_MESSAGE } from '../src/signin/optout.ts';
 import { handleSignInLink, PAUSED, raiseAlerts, type Deps, type SignInEnv } from '../src/signin/service.ts';
 
 const NOW = new Date('2026-11-10T12:00:00.000Z');
@@ -333,6 +334,61 @@ describe('handleSignInLink: refusals and failures', () => {
     expect((await handleSignInLink(request(), s.deps)).status).toBe(500);
     expect(quietLog).toHaveBeenCalled();
     quietLog.mockRestore();
+  });
+});
+
+describe('handleSignInLink: footer, logo and opt-out', () => {
+  const LOGO = 'https://auth.hintwise.org/storage/v1/object/public/brand/hintwise-wordmark-email@2x.png';
+  it('answers suppressed (HTTP 200) for an address that turned email off, makes no link and sends nothing', async () => {
+    const s = setup({ optedOut: true });
+    const res = await handleSignInLink(request(), s.deps);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('access-control-allow-origin')).toBe(ORIGIN);
+    expect(await res.json()).toEqual({ status: 'suppressed', message: SUPPRESSED_MESSAGE });
+    expect(SUPPRESSED_MESSAGE).toBe('This address asked HintWise not to send it email. Sign in with Google instead, or write to support@hintwise.org to turn email back on.');
+    expect(s.calls).toHaveLength(0);
+    expect(s.outcomes()).toEqual(['refused']);
+    expect(s.finish().p_detail).toBe('suppressed: this address turned HintWise email off');
+    expect(s.logs.join()).not.toContain('ann');
+  });
+  it('checks the list only after the ladder and the challenge', async () => {
+    const waiting = setup({ optedOut: true, begin: { ...fresh(), email: key({ sent: 2, last_sent_at: '2026-11-10T11:59:00Z' }) } });
+    expect((await (await handleSignInLink(request(), waiting.deps)).json()).status).toBe('wait');
+    expect(waiting.rpc.some(([fn]) => fn === 'email_optout_check')).toBe(false);
+    const challenged = setup({ optedOut: true, begin: { ...fresh(), project: { sent_1h: 101 } } });
+    expect((await (await handleSignInLink(request(), challenged.deps)).json()).status).toBe('challenge');
+    expect(challenged.rpc.some(([fn]) => fn === 'email_optout_check')).toBe(false);
+  });
+  it('sends nothing when the opt-out list cannot be read', async () => {
+    const s = setup({ failRpc: 'email_optout_check' });
+    const res = await handleSignInLink(request(), s.deps);
+    expect(res.status).toBe(500);
+    expect((await res.json()).status).toBe('error');
+    expect(s.calls).toHaveLength(0);
+    expect(s.outcomes()).toEqual(['error']);
+    expect(s.logs.join()).toContain('email_optout_check failed');
+  });
+  it('puts the opt-out link, the logo and Reply-To in the email', async () => {
+    const s = setup({ env: { EMAIL_OPTOUT_SECRET: 'optout-secret', EMAIL_LOGO_URL: LOGO } });
+    expect(await (await handleSignInLink(request(), s.deps)).json()).toEqual({ status: 'sent' });
+    const [mail] = s.emails();
+    expect(mail.reply_to).toBe('support@hintwise.org');
+    const token = await optOutToken('optout-secret', hmac('email:ann@example.com'));
+    expect(mail.text).toContain(`Stop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=${token}`);
+    expect(mail.text).toContain('You got this because someone asked to sign in to Pluck Lab with this address.');
+    expect(mail.html).toContain(`<img src="${LOGO}" width="100" height="28" alt="HintWise"`);
+    expect(mail.html).toContain(`href="https://auth.hintwise.org/functions/v1/email-optout?t=${token}"`);
+    expect(s.logs.join()).not.toContain('EMAIL_OPTOUT_SECRET');
+  });
+  it('names support and the text wordmark without the two settings, and logs the missing secret', async () => {
+    const s = setup();
+    await handleSignInLink(request(), s.deps);
+    const [mail] = s.emails();
+    expect(mail.text).toContain('To stop all email from HintWise (sign-in links too), write to support@hintwise.org.');
+    expect(mail.text).not.toContain('email-optout');
+    expect(mail.html).toContain('<p class="hw-brand"');
+    expect(mail.html).not.toContain('<img');
+    expect(s.logs.join()).toContain('EMAIL_OPTOUT_SECRET is unset');
   });
 });
 

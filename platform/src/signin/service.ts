@@ -16,7 +16,7 @@ import { restDb, type Db } from './db.ts';
 import { appDisplayName, signInEmail } from './email.ts';
 import { clientIp, hashKeys, maskEmail, UNKNOWN_IP, type KeyHashes } from './keys.ts';
 import { createLinkToken, signInLink } from './link.ts';
-import { isSuppressed, optOutUrl, SUPPRESSED_MESSAGE } from './optout.ts';
+import { emailLook, isSuppressed, SUPPRESSED_MESSAGE } from './optout.ts';
 import { decide, decisionDetail, IP_HARD_LIMIT_PER_HOUR, type BeginResult, type Stats } from './policy.ts';
 import { sendEmail } from './resend.ts';
 import { TURNSTILE_SITE_KEY, verifyTurnstile } from './turnstile.ts';
@@ -39,6 +39,8 @@ export interface SignInEnv {
   TURNSTILE_SITE_KEY?: string;
   /** Signs the footer's opt-out links (optout.ts). Without it the footer names support instead of linking. */
   EMAIL_OPTOUT_SECRET?: string;
+  /** The email's header logo (email.ts emailLogoUrl); without it the header is the text wordmark. */
+  EMAIL_LOGO_URL?: string;
 }
 
 /** Without these the function cannot work; the others are optional. */
@@ -255,8 +257,8 @@ async function handlePost(req: Request, deps: Deps, reply: (status: number, body
   if (link.createdUser) notes.push('user created before the link');
 
   if (!env.EMAIL_OPTOUT_SECRET) log('EMAIL_OPTOUT_SECRET is unset: the footer names support instead of an opt-out link');
-  const optOut = await optOutUrl(env.EMAIL_OPTOUT_SECRET, hashes.email_hash);
-  const email = signInEmail(r.email, signInLink(r.redirectTo, link.hashedToken, maskEmail(r.email)), appDisplayName(r.app, r.redirectTo), undefined, optOut);
+  const look = await emailLook(env, hashes.email_hash);
+  const email = signInEmail(r.email, signInLink(r.redirectTo, link.hashedToken, maskEmail(r.email)), appDisplayName(r.app, r.redirectTo), undefined, look);
   const sent = await sendEmail(deps.fetch, resendKey, email);
   if (!sent.ok) {
     await finish('error', sent.message);

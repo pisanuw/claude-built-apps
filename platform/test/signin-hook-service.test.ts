@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AlertCounts } from '../src/signin/alerts.ts';
 import type { Db } from '../src/signin/db.ts';
 import { handleEmailHook, HOOK_WAIT_MESSAGE, type HookDeps, type HookEnv } from '../src/signin/hook-service.ts';
+import { HOOK_SUPPRESSED_MESSAGE } from '../src/signin/optout.ts';
 import type { BeginResult, KeyStats } from '../src/signin/policy.ts';
 
 const KEY = crypto.randomBytes(32);
@@ -46,6 +47,8 @@ interface Setup {
   /** A begin answer per call (undefined: the default). */
   beginFor?: () => BeginResult | undefined;
   counts?: AlertCounts | null;
+  /** Which mailbox hashes turned HintWise email off. */
+  suppressed?: (hash: unknown) => boolean;
 }
 
 function setup(o: Setup = {}) {
@@ -57,6 +60,7 @@ function setup(o: Setup = {}) {
       if (fn === 'sign_in_claim_alert') return (o.claim ?? true) as T;
       if (fn === 'sign_in_begin') return (o.beginFor?.() ?? o.begin ?? { id: 9, email: key(), browser: key(), ip: { requests_1h: 0 } }) as T;
       if (fn === 'sign_in_finish') return (o.counts === undefined ? quiet() : o.counts) as T;
+      if (fn === 'email_optout_check') return (o.suppressed?.(args.p_email_hash) ?? false) as T;
       return 1 as T;
     }) as Db['rpc'],
   };
@@ -109,7 +113,8 @@ describe('handleEmailHook: emails it lets through', () => {
     const res = await handleEmailHook(signed('magiclink'), s.deps);
     expect(await res.json()).toEqual({ error: { http_code: 429, message: HOOK_WAIT_MESSAGE } });
     expect(s.sent).toHaveLength(0);
-    expect(s.rpc[1][1]).toMatchObject({ p_outcome: 'wait', p_detail: 'hook: magiclink via how-of-happiness.netlify.app; wait until 2026-11-10T12:02:00.000Z' });
+    expect(s.rpc[1][0]).toBe('email_optout_check');
+    expect(s.rpc[2][1]).toMatchObject({ p_outcome: 'wait', p_detail: 'hook: magiclink via how-of-happiness.netlify.app; wait until 2026-11-10T12:02:00.000Z' });
   });
   it('raises due alerts for what it sends, without IP rules', async () => {
     const s = setup({ counts: { ...quiet(), email_requests_1h: 6, ip_addresses_1h: 50 } });
@@ -282,5 +287,68 @@ describe('handleEmailHook: refusals', () => {
     const res = await handleEmailHook(signed('recovery'), { env: ENV, fetch: setup().deps.fetch });
     expect(res.status).toBe(401); // the signed timestamp is from NOW, far from the real clock
     warn.mockRestore();
+  });
+});
+
+describe('handleEmailHook: footer, logo and opt-out', () => {
+  const HW = 'https://pluck-lab.hintwise.org/settings';
+  const LOGO = 'https://auth.hintwise.org/storage/v1/object/public/brand/hintwise-wordmark-email@2x.png';
+  const ann = hmac('email:ann@example.com');
+  it('gives each message its recipient\'s opt-out link, the logo and Reply-To', async () => {
+    const s = setup({ env: { EMAIL_OPTOUT_SECRET: 'optout-secret', EMAIL_LOGO_URL: LOGO } });
+    const req = signed('email_change', { redirect_to: HW, token_hash: 'a', token_hash_new: 'b' }, { email: 'ann@example.com', newEmail: 'new@example.com' });
+    expect(await (await handleEmailHook(req, s.deps)).json()).toEqual({});
+    expect(s.sent).toHaveLength(2);
+    expect(String(s.sent[0].text)).toContain(`Stop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.${ann}.`);
+    expect(String(s.sent[1].text)).toContain(`?t=v1.${hmac('email:new@example.com')}.`);
+    for (const m of s.sent) {
+      expect(m.reply_to).toBe('support@hintwise.org');
+      expect(String(m.html)).toContain(`<img src="${LOGO}" width="100" height="28" alt="HintWise"`);
+    }
+    expect(String(s.sent[0].text)).toContain('someone asked to move the account with this address on pluck-lab.hintwise.org to another address');
+    expect(s.logs.join()).not.toContain('EMAIL_OPTOUT_SECRET is unset');
+  });
+  it('names support instead of a link, and logs it, without EMAIL_OPTOUT_SECRET', async () => {
+    const s = setup();
+    expect(await (await handleEmailHook(signed('magiclink'), s.deps)).json()).toEqual({});
+    expect(String(s.sent[0].text)).toContain('To stop all email from HintWise (sign-in links too), write to support@hintwise.org.');
+    expect(String(s.sent[0].html)).toContain('<p class="hw-brand"');
+    expect(s.logs.join()).toContain('EMAIL_OPTOUT_SECRET is unset');
+  });
+  it('refuses every type for an address that turned email off, logged as refused, with no bypass alert', async () => {
+    for (const [type, redirect] of [['magiclink', EXT], ['signup', EXT], ['email', EXT], ['recovery', EXT], ['invite', HW], ['reauthentication', HW], ['password_changed_notification', HW]]) {
+      const s = setup({ suppressed: (h) => h === ann });
+      const res = await handleEmailHook(signed(type, { redirect_to: redirect }, { email: 'ann@example.com' }), s.deps);
+      expect(await res.json(), type).toEqual({ error: { http_code: 403, message: HOOK_SUPPRESSED_MESSAGE } });
+      expect(s.sent).toHaveLength(0);
+      const fin = s.rpc.filter(([fn]) => fn === 'sign_in_finish').map(([, a]) => a);
+      expect(fin).toHaveLength(1);
+      expect(fin[0]).toMatchObject({ p_outcome: 'refused' });
+      expect(String(fin[0].p_detail)).toMatch(/; suppressed$/);
+      await s.settle();
+      expect(s.rpc.some(([fn, a]) => fn === 'sign_in_claim_alert' && a.p_kind === 'bypass')).toBe(false);
+      expect(s.logs.join()).not.toContain('ann');
+    }
+  });
+  it('answers suppressed before the ladder', async () => {
+    const s = setup({ suppressed: () => true, begin: { id: 9, email: key({ sent: 2, last_sent_at: '2026-11-10T11:59:00Z' }), browser: key(), ip: { requests_1h: 0 } } });
+    expect((await (await handleEmailHook(signed('magiclink'), s.deps)).json()).error.http_code).toBe(403);
+  });
+  it('sends neither email-change message when one address turned email off', async () => {
+    const s = setup({ suppressed: (h) => h === hmac('email:new@example.com') });
+    const req = signed('email_change', { redirect_to: HW, token_hash: 'a', token_hash_new: 'b' }, { email: 'ann@example.com', newEmail: 'new@example.com' });
+    expect((await (await handleEmailHook(req, s.deps)).json()).error.http_code).toBe(403);
+    expect(s.sent).toHaveLength(0);
+    expect(s.rpc.filter(([fn]) => fn === 'sign_in_finish').map(([, a]) => a.p_detail)).toEqual([
+      'hook: email_change via pluck-lab.hintwise.org; suppressed (the other address)',
+      'hook: email_change via pluck-lab.hintwise.org; suppressed',
+    ]);
+  });
+  it('sends nothing when the opt-out list cannot be read', async () => {
+    const s = setup({ failRpc: 'email_optout_check' });
+    expect(await (await handleEmailHook(signed('magiclink'), s.deps)).json()).toEqual({ error: { http_code: 500, message: 'The email could not be sent. Try again in a minute.' } });
+    expect(s.sent).toHaveLength(0);
+    expect(s.rpc.filter(([fn]) => fn === 'sign_in_finish').map(([, a]) => a.p_outcome)).toEqual(['error']);
+    expect(s.logs.join()).toContain('email_optout_check failed');
   });
 });

@@ -31,6 +31,7 @@ import {
   recoveryEmail,
   signInEmail,
   signupEmail,
+  type EmailLook,
 } from './email.ts';
 import type { EmailMessage } from './resend.ts';
 import { sameText } from './util.ts';
@@ -178,11 +179,11 @@ export type HookPlan =
 
 /**
  * What the hook does with one payload. `authBase` is the project URL
- * (SUPABASE_URL); `externalHosts` the parsed HOOK_EXTERNAL_HOSTS; `optOut`
- * the footer's opt-out link for a recipient address (null: the footer names
- * support instead).
+ * (SUPABASE_URL); `externalHosts` the parsed HOOK_EXTERNAL_HOSTS; `look`
+ * each recipient's look: the footer's opt-out link (null: the footer names
+ * support instead) and the header logo.
  */
-export function planHook(p: HookPayload, authBase: string, externalHosts: readonly string[], optOut: (to: string) => string | null = () => null): HookPlan {
+export function planHook(p: HookPayload, authBase: string, externalHosts: readonly string[], look: (to: string) => EmailLook = () => ({})): HookPlan {
   const d = p.email_data;
   const type = d.email_action_type;
   const to = p.user.email;
@@ -192,7 +193,7 @@ export function planHook(p: HookPayload, authBase: string, externalHosts: readon
   const redirect = d.redirect_to || undefined;
   const link = (hash: string) => verifyUrl(authBase, hash, type, redirect);
 
-  const mine = optOut(to);
+  const mine = look(to);
   if (HOOK_SIGN_IN_TYPES.includes(type)) {
     if (!host || !hostAllowed(host, externalHosts)) return refuse('host');
     if (type === 'email') return d.token ? send(codeEmail(to, d.token, host, mine)) : refuse('no token');
@@ -211,12 +212,12 @@ export function planHook(p: HookPayload, authBase: string, externalHosts: readon
     // token_hash_new goes to the current address, token_hash to the new one.
     const newEmail = p.user.new_email;
     if (d.token_hash_new && d.token_hash && newEmail) {
-      return send(emailChangeCurrentEmail(to, newEmail, link(d.token_hash_new), site, mine), emailChangeNewEmail(newEmail, link(d.token_hash), site, optOut(newEmail)));
+      return send(emailChangeCurrentEmail(to, newEmail, link(d.token_hash_new), site, mine), emailChangeNewEmail(newEmail, link(d.token_hash), site, look(newEmail)));
     }
     // Secure email change off: one pair, sent to the new address.
     const only = d.token_hash || d.token_hash_new;
     const target = newEmail || to;
-    return only ? send(emailChangeNewEmail(target, link(only), site, optOut(target))) : refuse('no token_hash');
+    return only ? send(emailChangeNewEmail(target, link(only), site, look(target))) : refuse('no token_hash');
   }
   return send(noticeEmail(to, type, site, mine));
 }
