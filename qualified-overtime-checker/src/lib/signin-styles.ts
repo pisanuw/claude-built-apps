@@ -76,6 +76,12 @@ export const SIGN_IN_CSS = `
   height: 20px;
   margin-right: 10px;
 }
+.hw-signin-google-logo > span {
+  display: block;
+}
+.hw-signin-google-logo .hw-g-dark {
+  display: none;
+}
 .hw-signin-google-logo svg {
   display: block;
   width: 20px;

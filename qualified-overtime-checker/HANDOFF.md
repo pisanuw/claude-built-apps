@@ -1,4 +1,4 @@
-# Qualified Overtime Checker: handoff (day 6 of 7, 2026-11-11)
+# Qualified Overtime Checker: handoff (day 7 of 7, finished, 2026-11-11)
 
 Rewritten at the end of every build day by the build routine
 (BUILD_ROUTINE.md). It is the only state the next day's session has, and the
@@ -6,12 +6,15 @@ document the owner pastes into any other session to continue the work.
 
 ## Resume prompt
 
-> Continue building `qualified-overtime-checker` in pisanuw/claude-built-apps
-> (branch main; run `git config core.hooksPath .git-hooks`). Read
-> `qualified-overtime-checker/HANDOFF.md`, `qualified-overtime-checker/docs/PLAN.md`,
-> `docs/platform.md` and the repo CLAUDE.md, then work the next milestone as
-> BUILD_ROUTINE.md Step 3 describes: implement with tests, review, push to
-> main, update this handoff.
+> Continue `qualified-overtime-checker` in pisanuw/claude-built-apps (branch
+> main; run `git config core.hooksPath .git-hooks`). It is finished and marked
+> implemented; this is follow-up work. Read
+> `qualified-overtime-checker/HANDOFF.md` (start at "Remaining"),
+> `qualified-overtime-checker/docs/PLAN.md`, `docs/platform.md` and the repo
+> CLAUDE.md. Take an item from "Remaining", implement it with tests, review,
+> push to main (deploy by touching `deploy/target.yml`, at most once a day),
+> and update this handoff. For more build days through the routine, the owner
+> sends `continue qualified-overtime-checker`.
 
 ## Goal and customer
 
@@ -28,22 +31,23 @@ provisional; three tied at 19 (this one 2026-11-07, Delivery Canary
 
 ## What is live
 
-- https://qualified-overtime-checker.hintwise.org (deploy 2026-11-11 about
-  10:06 UTC, commit 8385a4b, with migration 0003): milestones 1 to 6 and
-  sign-in in the header.
+- https://qualified-overtime-checker.hintwise.org (final deploy 2026-11-11
+  about 11:13 UTC, commit b46ccf1, with migration 0004): all seven milestones.
   - Checker, client files (browser or account), bonuses, differentials,
     tip credit, paid cap; Toast and QuickBooks exports, typed rates, saved
     columns, add without duplicates, weekly and pay-period totals.
-  - Milestone 5: employer summary PDF (figures, what to correct and why,
-    method), worksheet PDF per employee or all at once (total = the results
-    figure), W-2c list CSV of exactly the flagged employees (difference
-    reported - correct, as in the app), print view.
-  - Milestone 6: README for the owner with a screenshot; weeks as cards on a
-    phone; focusable labelled scroll regions, focus to the results after the
-    sample; dark Google button; storage-blocked notice; FS-2026-13 cited in
-    the method; security fixes (cell cap, one-pass wrap, stale import
-    discarded, 50 MB upload cap, storage caps in migration 0003).
-- Verified live 2026-11-11: Deploy run 43000677297 green (0003 applied, schema security check passed); 200 with the footer; at 390px the sample loads with focus on the results and no sideways scroll; the summary PDF downloads; no console errors.
+  - Employer summary PDF, worksheet PDFs, W-2c list CSV, results and
+    worksheet CSVs, print view; README for the owner with a screenshot.
+  - Day 7: final whole-app review fixes (see Log) and dev tooling on vitest 4.
+- Catalog: root README "Tools for small businesses" row, PROJECTS.md
+  write-up, implemented.json entry with publicNotes, aiprojects.md section
+  (pisanorg/yusuf), pisan-labs mirror files (LICENSE, .github/workflows/ci.yml,
+  `.github/mirrors.txt`, `scripts/pisan-labs-repos.csv`).
+- Verified live 2026-11-11: Deploy run 43010071826 green (0004 applied, 3
+  skipped; schema security check passed, a signed-in stranger sees 0 rows);
+  200 with the footer; at 390px the sample loads with results and no
+  sideways scroll; the worksheet CSV carries the "On the 2026 W-2" column;
+  no console errors. CI green on the catalog push (run 43007599804).
 
 ## Milestones (docs/PLAN.md)
 
@@ -55,7 +59,7 @@ provisional; three tied at 19 (this one 2026-11-07, Delivery Canary
 | 4 | Real exports | done | 4 | Toast (confirmed) and QuickBooks (inferred) presets, typed rates, saved mappings, add without duplicates, weekly totals; EasyACCT not supported (no dated hours); reviewed (high), 10 findings fixed |
 | 5 | Worksheet and W-2c list | done | 5 | own PDF writer (Letter landscape, Helvetica, tables across pages); checked with pdfinfo/pdftotext/pdftoppm; reviewed (high), 11 findings fixed | PDFs, W-2c CSV, print |
 | 6 | Polish | done | 6 | accessibility-lens 93, no serious; axe serious (scrollable region) fixed; security review: nothing serious, 3 of 5 low fixed |
-| 7 | Finish | next | | |
+| 7 | Finish | done | 7 | whole-app review (high): 11 findings fixed; second review of the fixes (code and security): 8 more fixed, security nothing; catalog, mirror, implemented, portfolio |
 
 ## How to run and verify
 
@@ -65,10 +69,10 @@ npm run dev          # http://localhost:5173
 PW_CHROMIUM=/opt/pw-browsers/chromium npm run e2e   # cloud session: the bundled Playwright browser is missing
 ```
 
-Tests: 236 vitest (core, compare, hard cases, presets with Toast and
+Tests: 252 vitest (core, compare, hard cases, presets with Toast and
 QuickBooks fixtures, layouts, reports and PDF structure, review regressions,
-codec and stores, jsdom UI, security regressions), coverage 99.4%
-statements, 94.7% branches; 4 Playwright tests (sample, Toast, saved file,
+codec and stores, jsdom UI, security and day-7 review regressions),
+coverage 98.6% statements, 93.5% branches; 4 Playwright tests (sample, Toast, saved file,
 QuickBooks with typed rates, PDF downloads and add mode).
 
 ## Platform use
@@ -80,8 +84,10 @@ QuickBooks with typed rates, PDF downloads and add mode).
   `supabase/migrations/0001_init.sql` applied by the Deploy workflow on
   2026-11-10 12:41 UTC; 0002 (owner key) and 0003 (data under 10 MB per row,
   500 files per account, by a before-insert trigger that leaves out the row
-  being upserted) applied by later deploys. Never edit an applied migration;
-  add 0004_*.sql.
+  being upserted) applied by later deploys. 0004 (name up to 200
+  characters, summary under 4 KB, NOT VALID so old rows are not rechecked;
+  the store cuts names to 200 on save) applied by the final deploy. Never
+  edit an applied migration; add 0005_*.sql.
 - Exposed through PostgREST, but only after `expose-schema --reapply`
   (13:03 UTC): the stored db_schema had the schema, yet the API kept the old
   list for 25 minutes. Fixed for later apps: expose-schema now waits for the
@@ -111,7 +117,11 @@ QuickBooks with typed rates, PDF downloads and add mode).
 - 2026-11-10: fixed the platform template's copy command (it turned `APP_SLUG` into `APP_my-app`); now a portable perl one-liner.
 
 - 2026-11-11: imported cells are cut at 200 characters (MAX_CELL); CSVs over 50 MB are refused; an import that finishes after another file opened (or the account changed) is discarded.
-- 2026-11-11: dev-only audit issues (vitest 2, vite 6 dev server, esbuild) left for day 7: none ship in the bundle, and a vitest major upgrade is its own change.
+- 2026-11-11 (day 7): dev tooling on vitest 4 and coverage-v8 4 (critical tinypool and vite 5 dev-server advisories gone); 7 moderate advisories remain in typescript-eslint's minimatch (already its newest release; lint only). The lockfile had to be regenerated with npm 11: npm 10.9 fails with "Cannot read properties of null (reading 'edgesOut')"; `npm ci` with npm 10 works on the result.
+- 2026-11-11 (day 7): the worksheet CSV lists the same weeks as the worksheet PDF, with an "On the <year> W-2" column that adds up to each figure (it used to list every week of every year with the week's whole premium).
+- 2026-11-11 (day 7): both totals on the results leave out employees waiting for a pay rate, as the PDF does.
+- 2026-11-11 (day 7): an import whose stored form would be too big to save is refused up front: 3.5 million JSON characters for an account file (the database's 10 MB cap is on jsonb, about 2.7 times the text, measured by the reviewer) and 4 million for a browser file.
+- 2026-11-11 (day 7): Google's dark-theme G (from signin-assets.zip, unmodified) is bundled next to the light one; CSS shows it on a dark page.
 - 2026-11-11: security headers (CSP, frame-ancestors) are a platform change for every app, not this app's; listed for the owner.
 
 ## Tried and rejected
@@ -126,6 +136,19 @@ None open. Answered 2026-11-10: saved files allowed (as recommended); free.
 
 ## Owner actions
 
+Finish actions (BUILD_ROUTINE Step 5):
+
+- a. DNS: nothing; the app serves on hintwise.org.
+- b. pisan-labs repo: nothing if the halflife job (04:13) runs; it creates
+  pisan-labs/qualified-overtime-checker and mirrors it. Manual fallback on
+  the Mac: `git pull && python3 scripts/pisan_labs_setup.py && gh workflow run mirror.yml --repo pisanuw/claude-built-apps --ref main`.
+- c. Netlify web analytics:
+  https://app.netlify.com/projects/qualified-overtime-checker/analytics-and-metrics/analytics
+- d. Gateway: nothing (no LLM).
+
+Done earlier:
+
+
 1. Done 2026-11-11 (owner): signed-in save after migration 0002 works
    (sample saved, survived a reload, deleted), and an email link from the
    sign-in-link service arrived and signed in.
@@ -133,27 +156,14 @@ None open. Answered 2026-11-10: saved files allowed (as recommended); free.
 
 ## Next
 
-Day 7, finish (BUILD_ROUTINE.md Step 5): final review of the whole app, the
-catalog entry (root README row, PROJECTS.md write-up, implemented.json from
-placeholder to done with the publicNotes below), demo screenshot
-`docs/screenshot.png` for the catalog, the dev-dependency upgrade (vitest 3
-and coverage-v8, `npm audit fix`) if it stays green, and the owner's
-summary.
-
-Draft publicNotes (for implemented.json at finish):
-
-> From 2026, every W-2 shows the extra half of overtime pay in Box 12 code
-> TT, and payroll software often gets it wrong. This checker is for small
-> businesses with hourly staff and their bookkeepers: upload a timesheet
-> export and your payroll's figures, and it rebuilds each workweek, works
-> out the right amount per employee, and lists who needs a correction, by
-> how much and why, with a worksheet PDF to keep. It reads exports rather
-> than connecting to payroll, and does not cover hospitals' 8-and-80 or
-> public-safety overtime systems.
+Finished on day 7. Follow-up work, if any, comes from "Remaining" below,
+through `continue qualified-overtime-checker` or any session.
 
 ## Remaining and known issues
 
-- Milestone 7.
+- Owner actions b and c above (pisan-labs repo, Netlify analytics).
+- QuickBooks Online columns are inferred from documentation; confirm against a real export.
+- Review leftovers (low): the size check runs at import, not when a file is moved from the browser to the account (a 3.5 to 4 million character browser file would fail to move with a clear error).
 - Toast shifts that run past midnight count in the week of their In Date (no Out Date check yet).
 - Duplicate detection without an entry id treats rows identical in every field as the same row.
 - The extra overtime a bonus causes is assumed paid with the bonus (no cap on bonus shares); the method text says so.
@@ -162,7 +172,7 @@ Draft publicNotes (for implemented.json at finish):
 - Self-service account deletion is not offered; README says to email builder@hintwise.org (platform milestone).
 - supabase-js 2.119 asks for Node 22; the Deploy workflow builds on Node 20 (warning only, build fine).
 - FS-2026-13 re-read on day 6 (6 August 2026 version); the method matches Q3, Q10, Q12 and Q16. Bonus figures still rest on hand-worked examples.
-- Security review leftovers: dev-only npm audit issues (day 7); no CSP or frame-ancestors on any app (platform).
+- Security review leftovers: 7 moderate dev-only advisories (typescript-eslint's minimatch); no CSP or frame-ancestors on any app (platform).
 - Review leftovers judged minor: none open.
 
 ## Key files
@@ -178,6 +188,7 @@ Draft publicNotes (for implemented.json at finish):
 
 ## Log
 
+- Day 7 (2026-11-11): finish. Dev tooling on vitest 4; whole-app review (high) found 11 issues, all fixed (typed rates and figures orphaned when an employee gains an ID, worksheet CSV year column, reported total, too-big imports, name and summary caps in migration 0004, import races, add-mode report, unclosed quotes, dark Google G, sign-in wording without sign-in); a second review of the fixes found 8 more, fixed, and a security pass found nothing; catalog, mirror files, implemented.json, aiprojects.md; deployed.
 - Day 1 (2026-11-10): picked, claimed, planned; milestone 1 built, reviewed, fixed and deployed.
 - Day 6 (2026-11-11): milestone 6, polish (README for the owner, screenshot, phone weeks cards, keyboard and screen-reader fixes, dark Google button, storage-blocked notice, FS-2026-13 citations); accessibility-lens 93 with no serious issues; security review (whole app) nothing serious, fixes for long cells, stale imports, upload size and storage caps (migration 0003); deployed.
 - Day 5 (2026-11-11): milestone 5 (summary and worksheet PDFs with a new small PDF writer, W-2c list, print view); code review (high) 11 findings fixed (W-2c sign, rate-needed worksheet, other-year weeks, UTF-16 title, long rows, transliteration, local date, totals, SSN-shaped IDs); deployed and checked live.

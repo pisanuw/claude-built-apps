@@ -119,6 +119,13 @@ describe('stores', () => {
     await expect(l.put(sampleFile())).rejects.toThrow(/no room left/);
   });
 
+  it('supabase store cuts a name the database would refuse', async () => {
+    const db = fakeDb();
+    const f = sampleFile('5b0e6c6a-0000-4000-8000-000000000002');
+    await new SupabaseFileStore(db.client).put({ ...f, settings: { ...f.settings, name: 'n'.repeat(300) } });
+    expect((db.rows.get(f.id)!.name as string).length).toBe(200);
+  });
+
   it('supabase store saves rows without user_id and reads them back', async () => {
     const db = fakeDb();
     const s = new SupabaseFileStore(db.client);

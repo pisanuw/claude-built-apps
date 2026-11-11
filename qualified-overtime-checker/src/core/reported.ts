@@ -4,7 +4,7 @@
  * name or ID and the Box 12 code TT amount.
  */
 import { parseCsv } from './csv';
-import { normHeader, parseMoney, ssnColumns } from './importer';
+import { employeeKey, normHeader, parseMoney, ssnColumns } from './importer';
 import type { Employee } from './types';
 
 export interface ReportedImport {
@@ -16,6 +16,8 @@ export interface ReportedImport {
   unreadable: number[];
   /** Rows for another Box 12 code, skipped. */
   otherCodes: number;
+  /** Line of a quote never closed: the rows after it were lost. */
+  unclosedQuote?: number;
 }
 
 const AMOUNT_STRICT = /\b(amount|value|tt amount|qualified overtime|overtime comp|qoc)\b/;
@@ -31,7 +33,7 @@ function normName(s: string): string {
 export function importReported(text: string, employees: Employee[]): ReportedImport {
   const table = parseCsv(text);
   const [head, ...body] = table.rows;
-  const out: ReportedImport = { values: {}, unmatched: [], unreadable: [], otherCodes: 0 };
+  const out: ReportedImport = { values: {}, unmatched: [], unreadable: [], otherCodes: 0, ...(table.unclosedQuote ? { unclosedQuote: table.unclosedQuote } : {}) };
   if (!head) return out;
   const skip = new Set(ssnColumns(table));
   const norm = head.cells.map(normHeader);
@@ -73,4 +75,28 @@ export function importReported(text: string, employees: Employee[]): ReportedImp
 export function keepKnown(values: Record<string, number>, employees: Employee[]): Record<string, number> {
   const keys = new Set(employees.map((e) => e.key));
   return Object.fromEntries(Object.entries(values).filter(([k]) => keys.has(k)));
+}
+
+/**
+ * Moves figures kept under a name (an export without IDs) to the employee of
+ * that name who now has an ID, when there is exactly one, so a later export
+ * with IDs does not orphan rates or figures typed in earlier.
+ */
+export function followIds(values: Record<string, number>, employees: Employee[]): Record<string, number> {
+  const keys = new Set(employees.map((e) => e.key));
+  const byName = new Map<string, string[]>();
+  for (const e of employees) {
+    if (!e.id) continue;
+    const n = employeeKey('', e.name);
+    byName.set(n, [...(byName.get(n) ?? []), e.key]);
+  }
+  const out: Record<string, number> = { ...values };
+  for (const [k, v] of Object.entries(values)) {
+    if (keys.has(k) || !k.startsWith('name:')) continue;
+    const to = byName.get(k);
+    if (to?.length !== 1 || to[0] in out) continue;
+    out[to[0]] = v;
+    delete out[k];
+  }
+  return out;
 }

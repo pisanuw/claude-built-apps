@@ -6,12 +6,12 @@
  * results table's figure is made, so the two always agree.
  */
 import { round2 } from './engine';
-import { inYear, needsCorrection, type EmployeeCheck } from './compare';
+import { inYear, needsCorrection, worksheetWeeks, type EmployeeCheck } from './compare';
 import { toCsv } from './csv';
 import { formatDay, WEEKDAYS } from './dates';
 import { STATUS_TEXT } from './export';
 import { MARGIN, PAGE_W, PdfWriter, type Column, type TableRow } from './pdf';
-import type { EmployerSettings, WeekResult } from './types';
+import type { EmployerSettings } from './types';
 
 const money = (x: number) => `${x < 0 ? '-' : ''}$${Math.abs(x).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const hrs = (x: number) => Number(x.toFixed(2)).toString();
@@ -26,10 +26,7 @@ export const METHOD = [
   'Box 12 code TT shows the full qualified amount; the employee\u2019s $12,500 deduction limit applies on their own return (FS-2026-13, Q10). Source for the formula: FS-2026-13, Q12 and Q16 (6 August 2026).',
 ];
 
-/** The weeks a worksheet lists: those that add to the year's figure, or have overtime or a note in the year. */
-export function worksheetWeeks(c: EmployeeCheck, taxYear: number): WeekResult[] {
-  return c.weeks.filter((w) => inYear(w, taxYear) !== 0 || (w.taxYear === taxYear && (w.overtimeHours > 0 || w.notes.length > 0)));
-}
+export { worksheetWeeks } from './compare';
 
 /** The local calendar date, ISO (a document prepared at 6 pm on 31 December is dated 31 December). */
 export function localDay(d: Date): string {

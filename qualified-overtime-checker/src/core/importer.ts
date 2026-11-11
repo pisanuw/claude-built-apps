@@ -291,6 +291,11 @@ export interface ImportReport {
   layout: { name: string; confirmed: boolean; note: string } | null;
   /** Rows whose pay date could not be read (the line is kept without one). */
   badPayDates: number;
+  /** Line of a quote never closed in the file: the rows after it were lost. */
+  unclosedQuote?: number;
+  /** After "add": how many exports the file holds, and the name of the last one (these counts are its). */
+  exports?: number;
+  lastExport?: string;
 }
 
 export interface ImportResult {
@@ -499,6 +504,7 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
         return l ? { name: l.name, confirmed: l.confirmed, note: l.note } : null;
       })(),
       badPayDates,
+      ...(table.unclosedQuote ? { unclosedQuote: table.unclosedQuote } : {}),
     },
   };
 }
