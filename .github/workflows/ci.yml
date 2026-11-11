@@ -1935,36 +1935,6 @@ jobs:
       - name: Build
         run: npm run build
 
-  teacher-catalog-kit:
-    name: teacher-catalog-kit
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: teacher-catalog-kit
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: teacher-catalog-kit/package-lock.json
-
-      - name: Install
-        run: npm ci
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Test with coverage
-        run: npm run coverage
-
-      - name: Build
-        run: npm run build
-
   platform:
     name: platform
     runs-on: ubuntu-latest
@@ -2003,4 +1973,4 @@ jobs:
           node-version: '20'
 
       - name: Test
-        run: node --test scripts/site-footer.test.mjs scripts/domains.test.mjs accessibility-lens/deploy/cloudflare-dns.test.mjs accessibility-lens/deploy/redirect-rule.test.mjs accessibility-lens/deploy/migrate-domains.test.mjs
+        run: node --test scripts/site-footer.test.mjs scripts/domains.test.mjs accessibility-lens/deploy/cloudflare-dns.test.mjs accessibility-lens/deploy/redirect-rule.test.mjs accessibility-lens/deploy/migrate-domains.test.mjs accessibility-lens/deploy/retire-netlify-site.test.mjs

@@ -312,6 +312,26 @@ async function exposeSchema(schema) {
 }
 
 /**
+ * Takes an app schema off the Data API's list, the first step of retiring an
+ * app (then drop it with `sql`: PostgREST must not be left listing a schema
+ * that no longer exists). Only app_* schemas; the rest of the list is sent
+ * back unchanged.
+ */
+async function unexposeSchema(schema) {
+  if (!schema || !/^app_[a-z0-9_]+$/.test(schema)) fail('unexpose-schema: give an app schema, e.g. unexpose-schema app_my_app');
+  const pg = await api(`/v1/projects/${ref}/postgrest`);
+  const before = String(pg.db_schema || '');
+  const list = before.split(',').map((s) => s.trim()).filter(Boolean);
+  console.log(`db_schema before: ${before}`);
+  if (!list.includes(schema)) { console.log(`${schema} is not exposed; nothing to do.`); return; }
+  const after = list.filter((s) => s !== schema).join(',');
+  await api(`/v1/projects/${ref}/postgrest`, { method: 'PATCH', body: JSON.stringify({ db_schema: after }) });
+  const check = await api(`/v1/projects/${ref}/postgrest`);
+  console.log(`db_schema after:  ${check.db_schema}`);
+  if (String(check.db_schema || '').split(',').map((s) => s.trim()).includes(schema)) fail(`${schema} is still exposed`);
+}
+
+/**
  * Waits until the Data API serves `schema` (any answer but PGRST106, "Invalid
  * schema"). On 10 Nov the stored list had the new schema but PostgREST kept
  * the old one for 25 minutes, until the same list was sent again; so after
@@ -1214,6 +1234,7 @@ const commands = {
   'apply-shared': () => applyShared(),
   migrate: () => migrate(arg),
   'expose-schema': () => exposeSchema(arg),
+  'unexpose-schema': () => unexposeSchema(arg),
   'check-schema': () => checkSchema(arg),
   'configure-auth': () => configureAuth(),
   keys: () => keys(),

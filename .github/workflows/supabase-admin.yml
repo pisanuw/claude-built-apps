@@ -27,6 +27,7 @@
 #   optout-ready             exit 1 unless platform.email_optout_check answers (deploy-function runs it
 #                            first for sign-in-link and auth-email-hook)
 # Shell commands (Supabase CLI, project dir platform/):
+#   unexpose-schema <arg: app_schema>  take an app schema off the Data API list (retiring an app; then drop it with sql)
 #   deploy-function <arg: name>  deploy platform/supabase/functions/<name> (verify_jwt from supabase/config.toml)
 #   deploy-gateway           the same as deploy-function llm-gateway
 #   set-gateway-key          set the ANTHROPIC_API_KEY function secret from the repo secret
@@ -43,12 +44,12 @@ on:
   workflow_dispatch:
     inputs:
       command:
-        description: 'inspect | sql | apply-shared | migrate | expose-schema | check-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | external-hosts | brand-upload | email-optout | optout-ready | account-deletion-test | deploy-function | deploy-gateway | set-gateway-key | set-sign-in-secrets | email-hook'
+        description: 'inspect | sql | apply-shared | migrate | expose-schema | unexpose-schema | check-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | external-hosts | brand-upload | email-optout | optout-ready | account-deletion-test | deploy-function | deploy-gateway | set-gateway-key | set-sign-in-secrets | email-hook'
         required: true
         default: 'inspect'
         type: string
       arg:
-        description: 'sql: file path; migrate: app slug; expose-schema, check-schema: schema; usage: days; check-google: return URL; domain-setup: host; deploy-function: function name; email-hook: status, check, on or off; email-optout: status, add or remove'
+        description: 'sql: file path; migrate: app slug; expose-schema, unexpose-schema, check-schema: schema; usage: days; check-google: return URL; domain-setup: host; deploy-function: function name; email-hook: status, check, on or off; email-optout: status, add or remove'
         required: false
         default: ''
         type: string

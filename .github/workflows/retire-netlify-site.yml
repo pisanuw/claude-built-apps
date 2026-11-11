@@ -1,0 +1,40 @@
+# Manual, destructive: retire one app's Netlify hosting. Deletes the Netlify
+# site, then the Cloudflare CNAME <site>.hintwise.org (and <site>.pisan.me)
+# only where it points at <site>.netlify.app. Refuses while
+# <site>/deploy/target.yml exists, and unless `confirm` repeats the site name.
+# Does not touch the app's folder, its Supabase schema (Supabase admin
+# `unexpose-schema` then `sql`) or any other site.
+name: Retire Netlify site
+
+on:
+  workflow_dispatch:
+    inputs:
+      site:
+        description: 'Netlify site name to delete, e.g. old-app'
+        required: true
+        type: string
+      confirm:
+        description: 'Type the site name again'
+        required: true
+        type: string
+
+concurrency:
+  group: hintwise-dns
+  cancel-in-progress: false
+
+jobs:
+  retire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Retire
+        run: node accessibility-lens/deploy/retire-netlify-site.mjs "$SITE" "$CONFIRM"
+        env:
+          SITE: ${{ inputs.site }}
+          CONFIRM: ${{ inputs.confirm }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
