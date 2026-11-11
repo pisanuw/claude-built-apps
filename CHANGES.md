@@ -487,3 +487,11 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-11 [code] Email footer, logo header and opt-out shipped (owner yes 14:26): 0003 applied, brand bucket, secrets (EMAIL_OPTOUT_SECRET new), email-optout, sign-in-link, auth-email-hook deployed; hook check green.
 
 2026-11-11 [note] Email ship live test passed: owner checked the email, Stop and Undo; email-optout status shows "email on", log has only the hash prefix.
+
+2026-11-11 [code] PasteMD footer was unstyled: its CSP blocked the footer style. Fixed there by hash; site-footer.mjs exports FOOTER_STYLE_CSP for any strict-CSP app.
+
+2026-11-11 [decision] Account deletion: option 1 by default (15:08, no answer): delete HintWise data; delete the sign-in only if no other app on the project uses it. Built on feat/account-deletion, reviewed; go-live waits for a yes.
+
+2026-11-11 [code] teacher-catalog-kit day 1: idea 2026-11-10 #1 claimed; milestone 1 live: TPT Exclusive/Basic rule check per resource, browser or account catalog (RLS); 10 review fixes.
+
+2026-11-11 [code] HintWise icon as favicon for the 7 apps that had none (owner default 15:32); 5 here on main, shortcut-sprint on branch feat/shortcut-sprint-favicon, paste-md in its repo. Ships on each next deploy.

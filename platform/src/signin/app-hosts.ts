@@ -57,6 +57,7 @@ export const DEPLOYED_APP_LABELS: readonly string[] = [
   'study-buddy-matchmaker',
   'summit-navigator',
   'tamerlane-board',
+  'teacher-catalog-kit',
   'tetromino-arcade',
   'tiny-brains-league',
   'type-witness',
