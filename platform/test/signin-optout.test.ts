@@ -350,10 +350,15 @@ describe('email-optout: support commands', () => {
       calls.push([String(u), init ?? {}]);
       return new Response('[]', { status: 200 });
     });
-    const res = await handleOptOut(supportReq({ action: 'status', email: 'ann@example.com' }, 'sb_secret_abc'), { env: ENV, fetch: fetchFn as unknown as typeof fetch });
+    const res = await handleOptOut(supportReq({ action: 'status', email: 'ann@example.com' }, SERVICE), { env: ENV, fetch: fetchFn as unknown as typeof fetch });
     expect(res.status).toBe(200);
     expect(calls[0][0]).toBe('https://ref.supabase.co/rest/v1/rpc/email_optout_status');
-    expect((calls[0][1].headers as Record<string, string>).authorization).toBe('Bearer sb_secret_abc');
+    expect(calls[0][1].headers).toMatchObject({ apikey: SERVICE, authorization: `Bearer ${SERVICE}` });
+    // A new secret key (not a JWT) may come in apikey, and goes on in apikey only.
+    const viaApikey = new Request(URL_BASE, { method: 'POST', headers: { 'content-type': 'application/json', apikey: 'sb_secret_abc' }, body: JSON.stringify({ action: 'status', email: 'ann@example.com' }) });
+    expect((await handleOptOut(viaApikey, { env: ENV, fetch: fetchFn as unknown as typeof fetch })).status).toBe(200);
+    expect(calls[1][1].headers).toMatchObject({ apikey: 'sb_secret_abc' });
+    expect(calls[1][1].headers).not.toHaveProperty('authorization');
   });
   it('tells a service-role key from others without verifying it (PostgREST does)', () => {
     expect(mayBeServiceKey(jwt('service_role'))).toBe(true);

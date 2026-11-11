@@ -64,7 +64,24 @@
  *                           hook at the function with SEND_EMAIL_HOOK_SECRET
  *                           from the env (the workflow generates it and sets
  *                           the same value as the function secret first); off
- *                           switches it off. Owner's yes before on.
+ *                           switches it off. Owner's yes before on. check
+ *                           also needs the email-optout function and the
+ *                           EMAIL_OPTOUT_SECRET function secret
+ *   brand-upload            create the public Storage bucket `brand` if it
+ *                           is missing (public read, PNG/SVG/ICO only, 256 KB
+ *                           a file; settings corrected if they differ), upload
+ *                           platform/brand/*.png, *.svg and favicon.ico over
+ *                           any earlier copy (content type, one-year cache),
+ *                           check the email logo's public URL and print it as
+ *                           EMAIL_LOGO_URL=...; idempotent. Needs
+ *                           SUPABASE_SERVICE_ROLE_KEY
+ *   email-optout status|add|remove [email]
+ *                           support for the email opt-out: the address comes
+ *                           from OPTOUT_EMAIL (the workflow's masked "email"
+ *                           input), is hashed by the email-optout function,
+ *                           and is printed only masked (a***@example.com).
+ *                           remove turns all HintWise email back on. Needs
+ *                           SUPABASE_SERVICE_ROLE_KEY
  *
  * Edge functions are deployed, and their secrets set, by shell steps of the
  * same workflow (deploy-function, deploy-gateway, set-gateway-key,
@@ -92,7 +109,7 @@ const argv = process.argv.slice(2);
 const flags = new Set(argv.filter((a) => a.startsWith('--')));
 /** The value of a --name=value flag, or undefined. */
 const flagValue = (name) => [...flags].find((f) => f.startsWith(`${name}=`))?.slice(name.length + 1);
-const [cmd, arg] = argv.filter((a) => !a.startsWith('--'));
+const [cmd, arg, arg2] = argv.filter((a) => !a.startsWith('--'));
 
 function fail(msg) { console.log(`::error::${msg}`); process.exit(1); }
 
@@ -735,8 +752,13 @@ async function checkGoogle(returnTo) {
 
 // ---- Send Email hook (auth-email-hook) -------------------------------------
 
-/** The function secrets auth-email-hook needs before Auth may hand it every email. */
-export const EMAIL_HOOK_SECRETS = ['SEND_EMAIL_HOOK_SECRET', 'RESEND_API', 'SIGN_IN_HASH_KEY', 'HOOK_EXTERNAL_HOSTS'];
+/**
+ * The function secrets auth-email-hook needs before Auth may hand it every
+ * email. EMAIL_OPTOUT_SECRET signs the footer's opt-out links (without it the
+ * footer only names support). EMAIL_LOGO_URL is optional (the text wordmark
+ * stands in) and only reported.
+ */
+export const EMAIL_HOOK_SECRETS = ['SEND_EMAIL_HOOK_SECRET', 'RESEND_API', 'SIGN_IN_HASH_KEY', 'HOOK_EXTERNAL_HOSTS', 'EMAIL_OPTOUT_SECRET'];
 
 /** The same lists as platform/src/signin/hook.ts (a test keeps them equal). */
 export const HOOK_SIGN_IN_TYPES = ['magiclink', 'signup', 'email', 'recovery'];
@@ -750,6 +772,7 @@ export function hookPolicyLines(hosts) {
     `Sent through the per-address ladder: ${HOOK_SIGN_IN_TYPES.join(', ')} for ${ext}.`,
     `Sent through the per-address ladder: ${HOOK_ACCOUNT_TYPES.join(', ')} and every *_notification, for every host.`,
     'Refused: any other type.',
+    'Refused, every type: an address on the opt-out list (platform.email_optouts), logged as refused (suppressed), no bypass alert.',
   ];
 }
 
@@ -820,9 +843,11 @@ function appSources(root) {
 export function emailHookProblems(functions, secrets, otpFiles = []) {
   const problems = [];
   for (const f of otpFiles) problems.push(`${f} sends Auth email directly: that email stops while the hook is on (move it to the template's sendMagicLink, or pass --allow-otp-apps)`);
-  const fn = (Array.isArray(functions) ? functions : []).find((f) => f?.slug === 'auth-email-hook');
-  if (!fn) problems.push('the auth-email-hook function is not deployed (deploy-function auth-email-hook)');
-  else if (fn.status && fn.status !== 'ACTIVE') problems.push(`the auth-email-hook function is ${fn.status}`);
+  for (const [slug, why] of [['auth-email-hook', ''], ['email-optout', ": the footer's opt-out links would not work"]]) {
+    const fn = (Array.isArray(functions) ? functions : []).find((f) => f?.slug === slug);
+    if (!fn) problems.push(`the ${slug} function is not deployed (deploy-function ${slug})${why}`);
+    else if (fn.status && fn.status !== 'ACTIVE') problems.push(`the ${slug} function is ${fn.status}`);
+  }
   const names = new Set((Array.isArray(secrets) ? secrets : []).map((s) => s?.name));
   for (const n of EMAIL_HOOK_SECRETS) if (!names.has(n)) problems.push(`function secret ${n} is not set (set-sign-in-secrets)`);
   return problems;
@@ -854,10 +879,13 @@ async function emailHook(action = 'status') {
   if (action === 'status') return;
   if (action === 'check' || action === 'on') {
     const otp = flags.has('--allow-otp-apps') ? [] : otpCallers(appSources(ROOT));
-    const problems = emailHookProblems(await api(`/v1/projects/${ref}/functions`), await api(`/v1/projects/${ref}/secrets`), otp);
+    const secrets = await api(`/v1/projects/${ref}/secrets`);
+    const secretNames = (Array.isArray(secrets) ? secrets : []).map((x) => x?.name);
+    const problems = emailHookProblems(await api(`/v1/projects/${ref}/functions`), secrets, otp);
     for (const p of problems) console.log(`::error::${p}`);
     if (problems.length) fail('the Send Email hook cannot be switched on yet');
-    console.log('auth-email-hook is deployed, its secrets are set, and no app in this repo sends Auth email directly.');
+    console.log('auth-email-hook and email-optout are deployed, the secrets are set, and no app in this repo sends Auth email directly.');
+    console.log(`EMAIL_LOGO_URL set: ${secretNames.includes('EMAIL_LOGO_URL')} (false: the emails show the text wordmark)`);
     const hosts = externalHosts(current);
     console.log(`HOOK_EXTERNAL_HOSTS (set by set-sign-in-secrets from this list): ${hosts.join(', ') || '(none)'}`);
     console.log('What the hook does:');
@@ -875,6 +903,192 @@ async function emailHook(action = 'status') {
   await api(`/v1/projects/${ref}/config/auth`, { method: 'PATCH', body: JSON.stringify(patch) });
   const after = await api(`/v1/projects/${ref}/config/auth`);
   console.log(`After: enabled ${after.hook_send_email_enabled === true}; uri ${after.hook_send_email_uri || '(none)'}; secret ${after.hook_send_email_secrets ? '(set)' : '(unset)'}`);
+}
+
+// ---- Brand files (platform/brand) in public Storage -------------------------
+
+export const BRAND_BUCKET = 'brand';
+/** The file the emails' header shows (EMAIL_LOGO_URL). */
+export const EMAIL_LOGO_FILE = 'hintwise-wordmark-email@2x.png';
+/** One year. A changed image gets a new file name (and EMAIL_LOGO_URL a new value), so caches never need clearing. */
+export const BRAND_CACHE_SECONDS = 31536000;
+/** The largest brand file is about 12 KB. */
+export const BRAND_SIZE_LIMIT = 256 * 1024;
+export const BRAND_TYPES = { '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
+
+/** Pure: the bucket's settings: public read, these image types only, small files. */
+export function brandBucketConfig() {
+  return { public: true, file_size_limit: BRAND_SIZE_LIMIT, allowed_mime_types: [...new Set(Object.values(BRAND_TYPES))].sort() };
+}
+
+/** Pure: the files brand-upload sends, from a directory listing: *.png, *.svg and favicon.ico, sorted, with their content types. */
+export function brandFiles(names) {
+  return (Array.isArray(names) ? names : [])
+    .filter((n) => typeof n === 'string' && /^[A-Za-z0-9@._-]+$/.test(n) && (/\.(png|svg)$/.test(n) || n === 'favicon.ico'))
+    .sort()
+    .map((name) => ({ name, contentType: BRAND_TYPES[path.extname(name)] }));
+}
+
+/** Pure: what to do with the bucket: create it, update the settings that differ, or nothing. */
+export function brandBucketPlan(existing) {
+  const want = brandBucketConfig();
+  if (!existing) return { action: 'create', body: { id: BRAND_BUCKET, name: BRAND_BUCKET, ...want } };
+  const differs = [];
+  if (existing.public !== true) differs.push('public');
+  if (Number(existing.file_size_limit) !== want.file_size_limit) differs.push('file_size_limit');
+  const types = [...(Array.isArray(existing.allowed_mime_types) ? existing.allowed_mime_types : [])].sort();
+  if (JSON.stringify(types) !== JSON.stringify(want.allowed_mime_types)) differs.push('allowed_mime_types');
+  return differs.length ? { action: 'update', differs, body: { id: BRAND_BUCKET, name: BRAND_BUCKET, ...want } } : { action: 'none' };
+}
+
+/**
+ * Pure: why an SVG must not be served from the project's own domain, or [].
+ * A public SVG opened directly runs its scripts on auth.hintwise.org, so it
+ * may hold no script, event handler, javascript: URL, foreignObject, entity
+ * or link to anything outside itself.
+ */
+export function svgProblems(text) {
+  const t = String(text ?? '');
+  const problems = [];
+  if (!/^\s*(<\?xml[^>]*>\s*)?<svg[\s>]/i.test(t)) problems.push('does not start with <svg');
+  if (/<script/i.test(t)) problems.push('has a <script>');
+  if (/\son[a-z]+\s*=/i.test(t)) problems.push('has an event handler attribute');
+  if (/javascript:/i.test(t)) problems.push('has a javascript: URL');
+  if (/<foreignObject/i.test(t)) problems.push('has a <foreignObject>');
+  if (/<!(DOCTYPE|ENTITY)/i.test(t)) problems.push('has a DOCTYPE or ENTITY');
+  if (/\b(xlink:)?href\s*=\s*["']\s*(?!#)/i.test(t)) problems.push('links outside itself');
+  return problems;
+}
+
+/** Pure: a brand file's public URL on `base` (the custom domain from platform/supabase.json). */
+export const brandPublicUrl = (base, name) => `${String(base).replace(/\/+$/, '')}/storage/v1/object/public/${BRAND_BUCKET}/${name}`;
+
+/**
+ * Pure: the headers for the Storage and function APIs with the service-role
+ * key: a legacy JWT goes in apikey and Authorization; a new sb_secret_ key
+ * only in apikey (it is not a JWT).
+ */
+export function serviceHeaders(key) {
+  return String(key).startsWith('sb_') ? { apikey: key } : { apikey: key, authorization: `Bearer ${key}` };
+}
+
+/** Pure: the upload headers: type, a long cache, and overwrite (so a rerun replaces the file). */
+export function brandUploadHeaders(key, contentType) {
+  return { ...serviceHeaders(key), 'content-type': contentType, 'cache-control': `max-age=${BRAND_CACHE_SECONDS}`, 'x-upsert': 'true' };
+}
+
+/** Pure: the public base address from platform/supabase.json, else the project address. */
+export function publicBase(json, fallback) {
+  const u = json && typeof json.url === 'string' ? json.url : '';
+  return /^https:\/\/[a-z0-9.-]+$/i.test(u) ? u : fallback;
+}
+
+/**
+ * Creates the public bucket `brand` when it is missing (or corrects its
+ * settings), uploads platform/brand/*.png, *.svg and favicon.ico over any
+ * earlier copy, and checks the email logo's public URL. Idempotent.
+ */
+async function brandUpload() {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) fail('brand-upload needs SUPABASE_SERVICE_ROLE_KEY (the workflow passes the repo secret)');
+  const base = (url || `https://${ref}.supabase.co`).replace(/\/+$/, '');
+  const dir = path.join(ROOT, 'platform', 'brand');
+  const files = brandFiles(fs.readdirSync(dir));
+  if (!files.length) fail('brand-upload: no brand files in platform/brand');
+  for (const f of files) {
+    f.bytes = fs.readFileSync(path.join(dir, f.name));
+    if (f.bytes.length > BRAND_SIZE_LIMIT) fail(`brand-upload: ${f.name} is ${f.bytes.length} bytes, over the bucket's ${BRAND_SIZE_LIMIT}`);
+    const bad = f.contentType === 'image/svg+xml' ? svgProblems(f.bytes.toString('utf8')) : [];
+    if (bad.length) fail(`brand-upload: ${f.name} ${bad.join(', ')}; not uploaded`);
+  }
+  const storage = async (route, init = {}) => {
+    const res = await fetch(`${base}/storage/v1${route}`, { ...init, headers: { ...serviceHeaders(key), ...(init.headers || {}) } });
+    return { status: res.status, ok: res.ok, text: await res.text() };
+  };
+  const got = await storage(`/bucket/${BRAND_BUCKET}`);
+  let existing = null;
+  if (got.ok) existing = JSON.parse(got.text);
+  else if (!/not.?found/i.test(got.text)) fail(`brand-upload: reading bucket ${BRAND_BUCKET}: HTTP ${got.status} ${got.text.slice(0, 200)}`);
+  const plan = brandBucketPlan(existing);
+  if (plan.action !== 'none') {
+    const res = plan.action === 'create'
+      ? await storage('/bucket', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(plan.body) })
+      : await storage(`/bucket/${BRAND_BUCKET}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(plan.body) });
+    if (!res.ok) fail(`brand-upload: ${plan.action} bucket ${BRAND_BUCKET}: HTTP ${res.status} ${res.text.slice(0, 200)}`);
+  }
+  const cfg = brandBucketConfig();
+  const done = plan.action === 'none' ? 'already there' : plan.action === 'create' ? 'created' : `updated (${plan.differs.join(', ')})`;
+  console.log(`Bucket ${BRAND_BUCKET}: ${done}; public ${cfg.public}, up to ${cfg.file_size_limit} bytes, ${cfg.allowed_mime_types.join(', ')}`);
+  for (const f of files) {
+    const res = await storage(`/object/${BRAND_BUCKET}/${f.name}`, { method: 'POST', headers: brandUploadHeaders(key, f.contentType), body: f.bytes });
+    if (!res.ok) fail(`brand-upload: ${f.name}: HTTP ${res.status} ${res.text.slice(0, 200)}`);
+    console.log(`  ${f.name}: ${f.contentType}, ${f.bytes.length} bytes, uploaded`);
+  }
+  let pub = {};
+  try { pub = JSON.parse(fs.readFileSync(path.join(ROOT, 'platform', 'supabase.json'), 'utf8')); } catch { /* none */ }
+  const logo = brandPublicUrl(publicBase(pub, base), EMAIL_LOGO_FILE);
+  const check = await fetch(logo);
+  const type = check.headers.get('content-type') || '';
+  console.log(`Public check: ${logo} -> HTTP ${check.status}, ${type || '(no type)'}, cache-control ${check.headers.get('cache-control') || '(none)'}`);
+  if (!check.ok || !type.startsWith('image/png')) fail('brand-upload: the email logo is not served as image/png at its public URL');
+  console.log(`EMAIL_LOGO_URL=${logo}`);
+}
+
+// ---- Email opt-out support (the email-optout function) ---------------------
+
+export const OPTOUT_ACTIONS = ['status', 'add', 'remove'];
+
+/** Pure: "a***@example.com", the mask sign-in links use. The full address is never printed. */
+export function maskAddress(email) {
+  const e = String(email ?? '').trim().toLowerCase();
+  const at = e.lastIndexOf('@');
+  return at < 1 ? '***' : `${e[0]}***@${e.slice(at + 1)}`;
+}
+
+/** Pure: the support request: POST <project>/functions/v1/email-optout with the service-role key and { action, email }. */
+export function optOutSupportRequest(base, key, action, email) {
+  return {
+    url: `${String(base).replace(/\/+$/, '')}/functions/v1/email-optout`,
+    init: { method: 'POST', headers: { apikey: key, authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body: JSON.stringify({ action, email }) },
+  };
+}
+
+/** Pure: the lines to print for the function's answer: the masked address and the short hash, with any copy of the address masked. */
+export function optOutSummary(action, email, status, answer) {
+  const who = maskAddress(email);
+  const lines = [];
+  if (!answer || answer.ok !== true) {
+    lines.push(`email-optout ${action} for ${who} failed: HTTP ${status}${answer?.error ? ` ${String(answer.error).slice(0, 200)}` : ''}`);
+  } else if (action === 'status') {
+    lines.push(`${who} (hash ${answer.hash}): ${answer.optedOut ? 'gets no HintWise email' : 'gets HintWise email'}`);
+    for (const e of answer.entries || []) lines.push(`  scope ${e.scope}, via ${e.via}, since ${e.since}`);
+  } else if (action === 'add') {
+    lines.push(`${who} (hash ${answer.hash}): on the opt-out list; HintWise sends it no email, sign-in links included`);
+  } else {
+    lines.push(`${who} (hash ${answer.hash}): ${answer.removed ? `taken off the opt-out list (${answer.removed} row(s)); email is on again` : 'was not on the opt-out list; nothing changed'}`);
+  }
+  const raw = String(email ?? '').trim();
+  return raw ? lines.map((l) => l.split(raw).join(who).split(raw.toLowerCase()).join(who)) : lines;
+}
+
+/** Support: status, add or remove for one address (env OPTOUT_EMAIL, or the second argument when run by hand). */
+async function emailOptout(action) {
+  if (!OPTOUT_ACTIONS.includes(action)) fail('email-optout: give status, add or remove');
+  const email = String(process.env.OPTOUT_EMAIL || arg2 || '').trim();
+  if (!email || !email.includes('@')) fail('email-optout: give the address (the workflow input "email")');
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) fail('email-optout needs SUPABASE_SERVICE_ROLE_KEY (the workflow passes the repo secret)');
+  const req = optOutSupportRequest(url || `https://${ref}.supabase.co`, key, action, email);
+  let status = 0;
+  let answer = null;
+  try {
+    const res = await fetch(req.url, req.init);
+    status = res.status;
+    answer = JSON.parse(await res.text());
+  } catch { /* reported below */ }
+  const lines = optOutSummary(action, email, status, answer);
+  for (const line of lines) console.log(line);
+  if (answer?.ok !== true) process.exit(1);
 }
 
 // ---- main -----------------------------------------------------------------
@@ -898,6 +1112,8 @@ const commands = {
     if (arg && !['status', 'check', 'on', 'off'].includes(arg)) fail('email-hook: give status, check, on or off');
     return emailHook(arg || 'status');
   },
+  'brand-upload': () => brandUpload(),
+  'email-optout': () => emailOptout(arg),
 };
 
 // SUPABASE_ADMIN_NO_RUN=1 lets tests import the pure helpers without running.

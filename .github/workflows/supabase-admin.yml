@@ -16,13 +16,19 @@
 #   domain-activate          flag --callbacks-ready: switch Auth to the custom domain
 #   check-google [arg: return URL]  test the Google sign-in request without logging in; flag --base=URL for a custom auth domain
 #   external-hosts           print HOOK_EXTERNAL_HOSTS (auth allow-list and site URL hosts minus hintwise.org)
+#   brand-upload             create the public Storage bucket "brand" if missing and upload platform/brand
+#                            (PNG, SVG, favicon.ico; one-year cache); prints EMAIL_LOGO_URL; idempotent
+#   email-optout <arg: status | add | remove>  support for "Stop all email from HintWise": the address
+#                            goes in the "email" input, is masked in the log before any step can show it,
+#                            and is printed only as a***@domain; remove turns all its email back on
 # Shell commands (Supabase CLI, project dir platform/):
 #   deploy-function <arg: name>  deploy platform/supabase/functions/<name> (verify_jwt from supabase/config.toml)
 #   deploy-gateway           the same as deploy-function llm-gateway
 #   set-gateway-key          set the ANTHROPIC_API_KEY function secret from the repo secret
-#   set-sign-in-secrets      set the sign-in-link and auth-email-hook function secrets (RESEND_API,
-#                            ADMIN_EMAIL, TURNSTILE_SECRET, TURNSTILE_SITE_KEY, HOOK_EXTERNAL_HOSTS)
-#                            and generate SIGN_IN_HASH_KEY and SEND_EMAIL_HOOK_SECRET once
+#   set-sign-in-secrets      set the sign-in-link, auth-email-hook and email-optout function secrets
+#                            (RESEND_API, ADMIN_EMAIL, TURNSTILE_SECRET, TURNSTILE_SITE_KEY,
+#                            HOOK_EXTERNAL_HOSTS, EMAIL_LOGO_URL once the logo is served) and generate
+#                            SIGN_IN_HASH_KEY, SEND_EMAIL_HOOK_SECRET and EMAIL_OPTOUT_SECRET once
 #   email-hook <arg: status | check | on | off>  Supabase Auth's Send Email hook; "on" (owner's yes
 #                            first) sets a fresh SEND_EMAIL_HOOK_SECRET in the function and in Auth;
 #                            flag "--dry-run" with on
@@ -32,12 +38,17 @@ on:
   workflow_dispatch:
     inputs:
       command:
-        description: 'inspect | sql | apply-shared | migrate | expose-schema | check-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | external-hosts | deploy-function | deploy-gateway | set-gateway-key | set-sign-in-secrets | email-hook'
+        description: 'inspect | sql | apply-shared | migrate | expose-schema | check-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | external-hosts | brand-upload | email-optout | deploy-function | deploy-gateway | set-gateway-key | set-sign-in-secrets | email-hook'
         required: true
         default: 'inspect'
         type: string
       arg:
-        description: 'sql: file path; migrate: app slug; expose-schema, check-schema: schema; usage: days; check-google: return URL; domain-setup: host; deploy-function: function name; email-hook: status, check, on or off'
+        description: 'sql: file path; migrate: app slug; expose-schema, check-schema: schema; usage: days; check-google: return URL; domain-setup: host; deploy-function: function name; email-hook: status, check, on or off; email-optout: status, add or remove'
+        required: false
+        default: ''
+        type: string
+      email:
+        description: 'email-optout only: the address (masked in the log, printed as a***@domain)'
         required: false
         default: ''
         type: string
@@ -64,7 +75,7 @@ jobs:
           node-version: '22'
 
       - name: Run
-        if: inputs.command != 'deploy-function' && inputs.command != 'deploy-gateway' && inputs.command != 'set-gateway-key' && inputs.command != 'set-sign-in-secrets' && inputs.command != 'email-hook'
+        if: inputs.command != 'deploy-function' && inputs.command != 'deploy-gateway' && inputs.command != 'set-gateway-key' && inputs.command != 'set-sign-in-secrets' && inputs.command != 'email-hook' && inputs.command != 'email-optout'
         run: node platform/supabase-admin.mjs "$CMD" $ARG $FLAGS
         env:
           CMD: ${{ inputs.command }}
@@ -77,6 +88,34 @@ jobs:
           HINTWISE_AUTH_GOOGLE_SECRET: ${{ secrets.HINTWISE_AUTH_GOOGLE_SECRET }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          # Only brand-upload talks to Storage with the service-role key.
+          SUPABASE_SERVICE_ROLE_KEY: ${{ inputs.command == 'brand-upload' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
+
+      - name: Mask the address
+        if: inputs.command == 'email-optout'
+        # Before any step can show it (a step's env is printed in the log, and
+        # this repo's logs are public): the address is read from the event
+        # file, not from an expression in the script, and masked for the rest
+        # of the job, as typed and lower-cased.
+        run: |
+          EMAIL=$(jq -r '.inputs.email // ""' "$GITHUB_EVENT_PATH")
+          [ -n "$EMAIL" ] || { echo "::error::email-optout needs the email input"; exit 1; }
+          echo "::add-mask::$EMAIL"
+          LOWER=$(printf '%s' "$EMAIL" | tr '[:upper:]' '[:lower:]')
+          [ "$LOWER" = "$EMAIL" ] || echo "::add-mask::$LOWER"
+
+      - name: Email opt-out (support)
+        if: inputs.command == 'email-optout'
+        # The email-optout function hashes the address (only the functions
+        # hold SIGN_IN_HASH_KEY) and answers with the short hash; the script
+        # prints the address masked (a***@domain).
+        run: node platform/supabase-admin.mjs email-optout "$ARG"
+        env:
+          ARG: ${{ inputs.arg }}
+          OPTOUT_EMAIL: ${{ inputs.email }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Commit platform/supabase.json
         # GitHub masks the anon key in the log, so keys --write commits the
@@ -162,12 +201,17 @@ jobs:
         # secret TURNSTILE_SITE_KEY, else turnstileSiteKey in
         # platform/supabase.json (read with jq); HOOK_EXTERNAL_HOSTS from the
         # auth config (external-hosts: the redirect allow-list and site URL
-        # hosts minus hintwise.org; host names, printed). SIGN_IN_HASH_KEY and
-        # SEND_EMAIL_HOOK_SECRET are generated only when the project does not
-        # have them yet (a new hash key would cut every address off its
-        # history); the names come from the Management API, which lists names
-        # and digests, not values. Values reach the CLI through a private env
-        # file, never as arguments, and the log shows booleans only.
+        # hosts minus hintwise.org; host names, printed). EMAIL_LOGO_URL from
+        # the repo variable EMAIL_LOGO_URL, else the brand bucket's email logo
+        # on the custom domain, and only once that URL answers image/png (run
+        # brand-upload first; until then the emails show the text wordmark).
+        # SIGN_IN_HASH_KEY, SEND_EMAIL_HOOK_SECRET and EMAIL_OPTOUT_SECRET are
+        # generated only when the project does not have them yet (a new hash
+        # key would cut every address off its history and its opt-out; a new
+        # opt-out secret would break every opt-out link already sent); the
+        # names come from the Management API, which lists names and digests,
+        # not values. Values reach the CLI through a private env file, never
+        # as arguments, and the log shows booleans and the public logo URL only.
         working-directory: platform
         run: |
           set -euo pipefail
@@ -204,6 +248,17 @@ jobs:
           if ! has SEND_EMAIL_HOOK_SECRET; then
             V="v1,whsec_$(openssl rand -base64 32)"; echo "::add-mask::$V"; put SEND_EMAIL_HOOK_SECRET "$V"; HOOK_NEW=true
           fi
+          OPTOUT_NEW=false
+          if ! has EMAIL_OPTOUT_SECRET; then
+            V=$(openssl rand -hex 32); echo "::add-mask::$V"; put EMAIL_OPTOUT_SECRET "$V"; OPTOUT_NEW=true
+          fi
+          PUB=$(jq -r '.url // empty' supabase.json)
+          LOGO="${EMAIL_LOGO_URL_REPO:-$PUB/storage/v1/object/public/brand/hintwise-wordmark-email@2x.png}"
+          LOGO_TYPE=$(curl -fsSL -o /dev/null -w '%{content_type}' "$LOGO" || true)
+          LOGO_SET=false
+          if printf '%s' "$LOGO" | grep -Eq '^https://([a-z0-9-]+\.)*hintwise\.org/[A-Za-z0-9@._/-]+$'; then
+            case "$LOGO_TYPE" in image/png*) put EMAIL_LOGO_URL "$LOGO"; LOGO_SET=true;; esac
+          fi
           supabase secrets set --remote="$REF" --yes --env-file "$ENVF" >/dev/null \
             || supabase secrets set --project-ref "$REF" --yes --env-file "$ENVF" >/dev/null
           present() { if [ -n "$1" ]; then echo true; else echo false; fi; }
@@ -215,6 +270,8 @@ jobs:
           echo "  HOOK_EXTERNAL_HOSTS: $HOSTS"
           echo "  SIGN_IN_HASH_KEY generated now: $HASH_NEW (false: kept the one already set)"
           echo "  SEND_EMAIL_HOOK_SECRET generated now: $HOOK_NEW (false: kept the one already set)"
+          echo "  EMAIL_OPTOUT_SECRET generated now: $OPTOUT_NEW (false: kept the one already set)"
+          if [ "$LOGO_SET" = true ]; then echo "  EMAIL_LOGO_URL: $LOGO"; else echo "  EMAIL_LOGO_URL: not set now ($LOGO answers '${LOGO_TYPE:-nothing}', not image/png on hintwise.org; run brand-upload first)"; fi
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -223,6 +280,7 @@ jobs:
           # The owner stored it as TURNSTILE_SECRET (10 Nov); TURNSTILE_SECRET_KEY also works.
           TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET || secrets.TURNSTILE_SECRET_KEY }}
           TURNSTILE_SITE_KEY_REPO: ${{ vars.TURNSTILE_SITE_KEY || secrets.TURNSTILE_SITE_KEY }}
+          EMAIL_LOGO_URL_REPO: ${{ vars.EMAIL_LOGO_URL }}
 
       - name: Switch the Send Email hook
         if: inputs.command == 'email-hook'

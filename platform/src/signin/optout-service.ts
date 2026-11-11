@@ -243,7 +243,8 @@ const entriesOf = (rows: unknown): OptOutEntry[] => (Array.isArray(rows) ? (rows
 async function support(req: Request, deps: OptOutDeps, log: (m: string) => void): Promise<Response> {
   const env = deps.env;
   const auth = req.headers.get('authorization') ?? '';
-  const key = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  // Bearer, or apikey for a new sb_secret_ key the gateway leaves there.
+  const key = auth.startsWith('Bearer ') ? auth.slice(7).trim() : (req.headers.get('apikey') ?? '').trim();
   if (!key) return json(401, { ok: false, error: 'Send Authorization: Bearer <service-role key>.' } satisfies SupportAnswer);
   if (!mayBeServiceKey(key)) return json(403, { ok: false, error: 'Only the service-role key may do this.' } satisfies SupportAnswer);
   if (!env.SUPABASE_URL || !env.SIGN_IN_HASH_KEY) {

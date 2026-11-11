@@ -1,13 +1,17 @@
 -- Email opt-out: "Stop all email from HintWise" (docs/platform.md, "Email
--- footer and opt-out"; contract in platform/src/signin/README.md).
+-- footer, logo and opt-out"; contract in platform/src/signin/README.md).
 --
 -- Applied by `node platform/supabase-admin.mjs apply-shared` after
--- 0002_sign_in.sql. Idempotent: create if not exists, create or replace,
+-- 0002_sign_in.sql, and before sign-in-link and auth-email-hook are
+-- deployed with the opt-out check (without these functions they send
+-- nothing). Idempotent: create if not exists, create or replace,
 -- revoke/grant. Same rules as 0002: only the service role (the
 -- sign-in-link, auth-email-hook and email-optout edge functions) touches
 -- this table; RLS is on with no policies; anon and authenticated have no
 -- table access and cannot execute the functions. The functions are security
--- invoker (the default), pin search_path to '' and name every object with
+-- invoker (the default, as in 0002): they run with the service role's own
+-- rights, so a role without table access gets nothing from them even if it
+-- could call them. Each pins search_path to '' and names every object with
 -- its schema.
 --
 -- One row per address and scope that asked for no email. The address is
