@@ -176,6 +176,9 @@ button.danger { color: var(--bad); }
 /* Google's dark-theme button on a dark page (branding guidelines: fill #131314, stroke #8E918F, text #E3E3E3). */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) .hw-signin-button { background: #131314; border-color: #8e918f; color: #e3e3e3; }
+  /* Google's dark asset, not the light G's white square. */
+  :root:not([data-theme='light']) .hw-signin-google-logo .hw-g-light { display: none; }
+  :root:not([data-theme='light']) .hw-signin-google-logo .hw-g-dark { display: block; }
   :root:not([data-theme='light']) .hw-signin input[type='email'] { background: #131314; color: #e3e3e3; border-color: #8e918f; }
 }
 .scroll:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }

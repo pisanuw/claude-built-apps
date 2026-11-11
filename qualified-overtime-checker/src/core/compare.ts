@@ -69,6 +69,11 @@ export function inYear(w: WeekResult, taxYear: number): number {
   return round2((w.taxYear === taxYear ? w.basePremium : 0) + w.bonusParts.filter((p) => p.taxYear === taxYear).reduce((a, p) => a + p.premium, 0));
 }
 
+/** The weeks a worksheet lists: those that add to the year's figure, or have overtime or a note in the year. */
+export function worksheetWeeks(c: { weeks: WeekResult[] }, taxYear: number): WeekResult[] {
+  return c.weeks.filter((w) => inYear(w, taxYear) !== 0 || (w.taxYear === taxYear && (w.overtimeHours > 0 || w.notes.length > 0)));
+}
+
 /** Premium added by bonuses paid in the tax year. */
 function bonusPremiumIn(weeks: WeekResult[], taxYear: number): number {
   return sum(weeks.flatMap((w) => w.bonusParts.filter((p) => p.taxYear === taxYear).map((p) => p.premium)));
@@ -186,8 +191,9 @@ export function summarize(checks: EmployeeCheck[]): Summary {
     needCorrection: checks.filter((c) => needsCorrection(c.status)).length,
     notEntered: checks.filter((c) => c.status === 'not-entered').length,
     rateNeeded: checks.filter((c) => c.status === 'rate-needed').length,
-    // Employees still waiting for a pay rate have no figure yet.
+    // Employees still waiting for a pay rate have no figure yet; both totals
+    // leave them out, as the summary PDF does.
     totalCorrect: sum(checks.filter((c) => c.status !== 'rate-needed').map((c) => c.correct)),
-    totalReported: sum(checks.map((c) => c.reported ?? 0)),
+    totalReported: sum(checks.filter((c) => c.status !== 'rate-needed').map((c) => c.reported ?? 0)),
   };
 }

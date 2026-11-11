@@ -12,10 +12,10 @@ import { employeesOf } from '../core/engine';
 import { resultsCsv, STATUS_TEXT, worksheetCsv } from '../core/export';
 import { summaryPdf, w2cListCsv, worksheetPdf } from '../core/reports';
 import { FIELD_LABELS, FIELDS, guessMapping, importRows, mappingProblems, parseMoney, ssnColumns, type Mapping } from '../core/importer';
-import { importReported, keepKnown } from '../core/reported';
+import { followIds, importReported, keepKnown } from '../core/reported';
 import { headerSignature, mergeLines, periodTotals } from '../core/layout';
 import { buildSample, sampleCsv } from '../core/sample';
-import { worthSaving, type FileLocation, type FileSummary } from '../core/codec';
+import { encodeFile, worthSaving, type FileLocation, type FileSummary } from '../core/codec';
 import type { BonusAllocation, BonusPeriod, WeekResult } from '../core/types';
 import type { Files, FileStore } from '../store/stores';
 import { downloadText, fileSlug, fill, h, readFileText, hours, money, signedMoney, uuid } from './dom';
@@ -63,6 +63,10 @@ interface PendingImport {
 }
 
 /** Largest CSV read (a year of time entries for a small employer is a few MB). */
+/** Longest employer name kept (the database refuses longer). */
+export const MAX_NAME = 120;
+/** Largest stored file (encoded JSON characters): the database refuses 10 MB, localStorage holds about 5 MB in all. */
+export const MAX_STORED: Record<FileLocation, number> = { account: 9_000_000, browser: 4_000_000 };
 const MAX_UPLOAD = 50 * 1024 * 1024;
 
 export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> {
@@ -188,7 +192,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
   function renderPrivacy() {
     const where = user
       ? 'Files you save to your account are kept in HintWise\u2019s database (United States) where only you can read them; files kept in this browser never leave it.'
-      : 'Your files are kept in this browser only. Sign in to keep them in your account instead.';
+      : `Your files are kept in this browser only.${deps.auth ? ' Sign in to keep them in your account instead.' : ''}`;
     fill(privacy, h('strong', { text: `${where} ` }), 'Social Security numbers are never read or kept: a column that holds them is dropped first. This is a worksheet, not tax advice.');
   }
 
@@ -319,7 +323,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       heading,
       deps.auth && !user ? h('p', { class: 'help', text: 'Sign in at the top of the page to keep files in your account and open them on any computer.' }) : null,
       error ? h('p', { class: 'warn', text: error }) : null,
-      deps.storageBlocked && !user ? h('p', { class: 'warn', text: 'This browser does not let the page save anything (private browsing or site data turned off), so files last only while this tab is open. Sign in to keep them, or download the CSV and PDF files before closing.' }) : null,
+      deps.storageBlocked && !user ? h('p', { class: 'warn', text: `This browser does not let the page save anything (private browsing or site data turned off), so files last only while this tab is open. ${deps.auth ? 'Sign in to keep them, or download' : 'Download'} the CSV and PDF files before closing.` }) : null,
       list.length
         ? h('div', { class: 'scroll', tabindex: 0, role: 'region', 'aria-label': 'Your client files' },
             h('table', { class: 'files' },
@@ -334,11 +338,11 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
 
   // ---- Employer ---------------------------------------------------------
   function renderEmployer() {
-    const name = h('input', { id: 'emp-name', type: 'text', value: file.settings.name, autocomplete: 'organization' });
+    const name = h('input', { id: 'emp-name', type: 'text', value: file.settings.name, autocomplete: 'organization', maxlength: MAX_NAME });
     const year = h('select', { id: 'tax-year' }, ...TAX_YEARS.map((y) => h('option', { value: y, selected: y === file.settings.taxYear, text: String(y) })));
     const start = h('select', { id: 'week-start', 'aria-describedby': 'week-start-help' }, ...WEEKDAYS.map((d, i) => h('option', { value: i, selected: i === file.settings.workweekStart, text: d })));
     name.addEventListener('change', async () => {
-      file = { ...file, settings: { ...file.settings, name: name.value.trim() } };
+      file = { ...file, settings: { ...file.settings, name: name.value.trim().slice(0, MAX_NAME) } };
       await save();
       renderResults();
     });
@@ -415,7 +419,12 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
   }
 
   // ---- Hours ------------------------------------------------------------
-  async function readFile(f: Blob & { name: string }, then: (name: string, text: string) => void | Promise<void>) {
+  // Each read of a kind (hours, figures) gets a number; only the newest one is used.
+  const readSeq = { hours: 0, figures: 0 };
+  // Bumped when the open file's contents are replaced under the same id (the sample on a blank file).
+  let fileEpoch = 0;
+
+  async function readFile(f: Blob & { name: string }, then: (name: string, text: string) => void | Promise<void>, kind: 'hours' | 'figures' = 'hours') {
     if (f.size > MAX_UPLOAD) {
       say(`${f.name} is over 50 MB. Export a shorter date range (one tax year) and try again.`);
       return;
@@ -424,6 +433,8 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     // is opened (or the account changes) while it reads, it is not put there.
     const forFile = file.id;
     const gen = accountGen;
+    const epoch = fileEpoch;
+    const seq = ++readSeq[kind];
     let text: string;
     try {
       text = await readFileText(f);
@@ -431,8 +442,12 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       say(`${f.name} could not be read. Save it as CSV and try again.`);
       return;
     }
-    if (file.id !== forFile || accountGen !== gen) {
+    if (file.id !== forFile || accountGen !== gen || fileEpoch !== epoch) {
       say(`${f.name} was not imported: another client file was opened while it was being read.`);
+      return;
+    }
+    if (seq !== readSeq[kind]) {
+      say(`${f.name} was not imported: a newer file was chosen while it was being read.`);
       return;
     }
     await then(f.name, text);
@@ -476,10 +491,23 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     const adding = importMode === 'add' && file.lines.length > 0;
     const merged = adding ? mergeLines(file.lines, incoming) : { lines: incoming, added: incoming.length, duplicates: 0 };
     const lines = merged.lines;
+    // A file too big to save would fail at every save: refuse it here instead.
+    const size = JSON.stringify(encodeFile({ ...file, lines })).length;
+    if (size > MAX_STORED[location]) {
+      say(`${pending.name} gives a client file of ${(size / 1e6).toFixed(1)} MB, more than ${location === 'account' ? 'an account file' : 'this browser'} can keep (${MAX_STORED[location] / 1e6} MB). Export one tax year, or fewer employees at a time, and try again.`);
+      renderHours();
+      return;
+    }
     const employees = employeesOf(lines);
     const sig = headerSignature(pending.table.rows[0].cells);
     const source = adding && file.source ? `${file.source} + ${pending.name}` : pending.name;
     file = { ...file, lines, report, mapping: pending.mapping, mappings: { ...(file.mappings ?? {}), [sig]: pending.mapping }, source };
+    // An employee known by name who now has an ID keeps their typed rate and figures.
+    file = {
+      ...file,
+      reported: Object.fromEntries(Object.entries(file.reported).map(([y, v]) => [y, followIds(v, employees)])),
+      ...(file.rates ? { rates: followIds(file.rates, employees) } : {}),
+    };
     if (!adding) {
       file = withReported(file, keepKnown(reportedFor(file), employees));
       // Typed pay rates stay only for employees still in the file.
@@ -503,6 +531,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     importMode = 'replace';
     const id = worthSaving(file) ? makeId() : file.id;
     if (id !== file.id) location = files.signedIn ? 'account' : 'browser';
+    fileEpoch++;
     open.clear();
     file = withReported({ ...newClientFile(id, s.settings, now()), lines: s.lines, source: 'sample-timesheet.csv' }, s.reported);
     dirty = true;
@@ -548,9 +577,15 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     const r = file.report;
     if (!r) return null;
     const skipped = r.skipped.length;
+    // After "add", the counts are the last export's; the file's totals follow.
+    const parts = (file.source ?? 'Import').split(' + ');
+    const last = parts[parts.length - 1];
     return h('div', { class: 'report' },
+      parts.length > 1
+        ? h('p', { text: `In this file: ${file.lines.length} lines for ${employeesOf(file.lines).length} employees, from ${parts.length} exports (${file.source}).` })
+        : null,
       h('p', {},
-        h('strong', { text: `${file.source ?? 'Import'}: ` }),
+        h('strong', { text: `${parts.length > 1 ? `Last added, ${last}` : last}: ` }),
         `${r.rowsUsed ?? r.linesUsed} of ${r.rowsRead} rows used${r.linesUsed !== (r.rowsUsed ?? r.linesUsed) ? ` (${r.linesUsed} lines)` : ''}, ${r.employees} employees`,
         r.firstDate && r.lastDate ? `, ${formatDay(r.firstDate)} to ${formatDay(r.lastDate)}.` : '.'),
       r.droppedColumns.length ? h('p', { class: 'ok', text: `Dropped as Social Security numbers, never read or kept: ${r.droppedColumns.join(', ')}.` }) : null,
@@ -562,6 +597,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       r.layout ? h('p', { class: r.layout.confirmed ? 'ok' : 'warn', text: `Recognised: ${r.layout.name} export. ${r.layout.note}` }) : null,
       r.notWagesLines ? h('p', { text: `${r.notWagesLines} lines are tips, gifts, discretionary bonuses or expenses: not part of the regular rate, left out.` }) : null,
       r.badPayDates ? h('p', { class: 'warn', text: `${r.badPayDates} pay dates could not be read; those lines take their year from the workweek.` }) : null,
+      r.unclosedQuote ? h('p', { class: 'warn', text: `Line ${r.unclosedQuote} opens a quote (") that is never closed, so the rows after it could not be read. Fix that line in the file, or export it again, and import it again.` }) : null,
       skipped
         ? h('details', {},
             h('summary', { text: `${skipped} rows not used` }),
@@ -642,7 +678,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     const input = h('input', { id: 'reported-file', type: 'file', accept: '.csv,.txt,text/csv' });
     input.addEventListener('change', async () => {
       const f = input.files?.[0];
-      if (f) await readFile(f, (name, text) => importFigures(name, text, employees));
+      if (f) await readFile(f, (name, text) => importFigures(name, text, employeesOf(file.lines)), 'figures');
     });
     const rateFor = new Set(file.lines.filter(needsRate).map((l) => l.employeeKey));
     const showRates = rateFor.size > 0;

@@ -1,6 +1,6 @@
 /** CSV downloads: the results table and the week-by-week worksheet. */
 import { toCsv } from './csv';
-import type { EmployeeCheck, Status } from './compare';
+import { inYear, worksheetWeeks, type EmployeeCheck, type Status } from './compare';
 import type { EmployerSettings } from './types';
 
 export const STATUS_TEXT: Record<Status, string> = {
@@ -27,15 +27,21 @@ export function resultsCsv(checks: EmployeeCheck[], settings: EmployerSettings):
 }
 
 export function worksheetCsv(checks: EmployeeCheck[], settings: EmployerSettings): string {
+  const year = settings.taxYear;
+  // The same weeks as the worksheet PDF. "On the W-2" is each week's part of
+  // this year's figure (its own premium if paid this year, plus bonus shares
+  // paid this year), so the column adds up to the results' figure.
   const rows: (string | number)[][] = [
-    [`Week-by-week worksheet, ${settings.name || 'employer'}, tax year ${settings.taxYear}. Premium = overtime hours x half the regular rate.`],
-    ['Employee ID', 'Employee', 'Week start', 'Week end', 'Hours worked', 'Straight-time pay', 'Regular rate', 'Overtime hours', 'Premium before bonuses', 'Bonus shares', 'Premium from bonuses', 'Qualified premium', 'Pay date', 'W-2 year', 'Notes'],
+    [`Week-by-week worksheet, ${settings.name || 'employer'}, tax year ${year}. Premium = overtime hours x half the regular rate. The "On the ${year} W-2" column adds up to each employee's figure.`],
+    ['Employee ID', 'Employee', 'Week start', 'Week end', 'Hours worked', 'Straight-time pay', 'Regular rate', 'Overtime hours', 'Premium before bonuses', 'Bonus shares', 'Premium from bonuses', 'Week premium, all years', `On the ${year} W-2`, 'Pay date', 'Week paid in', 'Notes'],
   ];
   for (const c of checks) {
-    for (const w of c.weeks) {
+    const rateNeeded = c.status === 'rate-needed';
+    for (const w of worksheetWeeks(c, year)) {
       const shares = w.bonusParts.reduce((t, p) => t + p.amount, 0);
       const fromBonus = w.bonusParts.reduce((t, p) => t + p.premium, 0);
-      rows.push([c.employee.id, c.employee.name, w.start, w.end, hours(w.hours), money(w.straightPay), w.regularRate.toFixed(4), hours(w.overtimeHours), money(w.basePremium), money(shares), money(fromBonus), money(w.premium), w.payDate ?? '', w.taxYear, w.notes.join(' ')]);
+      const notes = rateNeeded ? ['Pay rate needed: no figure yet.', ...w.notes] : w.notes;
+      rows.push([c.employee.id, c.employee.name, w.start, w.end, hours(w.hours), money(w.straightPay), w.regularRate.toFixed(4), hours(w.overtimeHours), money(w.basePremium), money(shares), money(fromBonus), money(w.premium), rateNeeded ? '' : money(inYear(w, year)), w.payDate ?? '', w.taxYear, notes.join(' ')]);
     }
   }
   return toCsv(rows);

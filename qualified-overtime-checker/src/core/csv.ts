@@ -15,6 +15,8 @@ export interface CsvRow {
 export interface CsvTable {
   separator: string;
   rows: CsvRow[];
+  /** The line of a quote that is never closed (everything after it became one cell). */
+  unclosedQuote?: number;
 }
 
 /** The separator the first line uses most, outside quotes. Defaults to a comma. */
@@ -41,6 +43,7 @@ export function parseCsv(input: string, separator?: string): CsvTable {
   let quoted = false;
   let line = 1;
   let rowLine = 1;
+  let quoteLine = 0;
 
   const endRow = () => {
     cells.push(cell);
@@ -63,7 +66,10 @@ export function parseCsv(input: string, separator?: string): CsvTable {
       }
       continue;
     }
-    if (ch === '"' && cell === '') quoted = true;
+    if (ch === '"' && cell === '') {
+      quoted = true;
+      quoteLine = line;
+    }
     else if (ch === sep) {
       cells.push(cell);
       cell = '';
@@ -75,7 +81,7 @@ export function parseCsv(input: string, separator?: string): CsvTable {
     } else cell += ch;
   }
   if (cell !== '' || cells.length > 0) endRow();
-  return { separator: sep, rows };
+  return quoted ? { separator: sep, rows, unclosedQuote: quoteLine } : { separator: sep, rows };
 }
 
 /** Quotes a value for CSV output when it needs it. */

@@ -16,6 +16,7 @@
  */
 import type { AuthChangeEvent, Session, SupabaseClient, User } from '@supabase/supabase-js';
 import googleG from './google-g-light.svg?raw';
+import googleGDark from './google-g-dark.svg?raw';
 import { ensureSignInStyles } from './signin-styles';
 import { APP_SLUG, getSupabase, supabaseEnv } from './supabase';
 
@@ -301,9 +302,12 @@ export function resetTurnstileLoader(): void {
 
 // ---- The panel -----------------------------------------------------------------
 
-/** Google's light G (signin-assets.zip, unmodified), shown through a 20px window on its 40px artboard. */
-export function googleLogoSvg(): string {
-  return googleG.replace(/^<svg width="40" height="40" viewBox="0 0 40 40"/, '<svg width="20" height="20" viewBox="10 10 20 20" focusable="false" aria-hidden="true"');
+/**
+ * Google's G (signin-assets.zip, unmodified: the light asset, or the dark one
+ * with its #131314 square), shown through a 20px window on its 40px artboard.
+ */
+export function googleLogoSvg(theme: 'light' | 'dark' = 'light'): string {
+  return (theme === 'dark' ? googleGDark : googleG).replace(/^<svg width="40" height="40" viewBox="0 0 40 40"/, '<svg width="20" height="20" viewBox="10 10 20 20" focusable="false" aria-hidden="true"');
 }
 
 /** The light Google button of the branding guidelines: G, then "Continue with Google". */
@@ -314,7 +318,8 @@ export function googleButton(onClick: () => void): HTMLButtonElement {
   const logo = document.createElement('span');
   logo.className = 'hw-signin-google-logo';
   logo.setAttribute('aria-hidden', 'true');
-  logo.innerHTML = googleLogoSvg(); // a static asset bundled with the app
+  // Static assets bundled with the app; the page's CSS shows the dark one on a dark page.
+  logo.innerHTML = `<span class="hw-g-light">${googleLogoSvg()}</span><span class="hw-g-dark">${googleLogoSvg('dark')}</span>`;
   const label = document.createElement('span');
   label.textContent = GOOGLE_BUTTON_TEXT;
   b.append(logo, label);

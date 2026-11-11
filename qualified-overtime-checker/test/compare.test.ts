@@ -113,7 +113,9 @@ describe('the sample employer', () => {
     expect(r).toContain('Too low');
     const w = worksheetCsv(checks, { ...file.settings, name: '' });
     expect(w).toContain('employer, tax year 2026');
-    expect(w).toContain('2026-12-27,2027-01-02');
+    // The year-end week is paid in 2027: on the 2027 worksheet, not the 2026 one (as in the PDF).
+    expect(w).not.toContain('2026-12-27,2027-01-02');
+    expect(worksheetCsv(checks, { ...file.settings, taxYear: 2027 })).toContain('2026-12-27,2027-01-02');
     expect(resultsCsv([{ ...checks[0], reported: null, difference: null, status: 'not-entered' }], { ...file.settings, name: '' })).toContain('not entered');
   });
 });
