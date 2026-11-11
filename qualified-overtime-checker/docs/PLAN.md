@@ -74,6 +74,18 @@ Each is about one build day. Milestone 1 is deployable on day 1.
   under state law, contractual premiums) is not.
 - Tax year: a workweek's premium belongs to the year it is paid (the pay date
   of the period that pays it); without pay dates, the year the workweek ends.
+- Bonuses (milestone 3): a non-discretionary bonus or commission is spread
+  over the workweeks it was earned in (period columns, or the week, month,
+  quarter or year of its date), equally or by hours, a week across the
+  period's edge weighted by its days inside (778.209(b)). Each share adds
+  share / hours x half x overtime hours, reported in the year the bonus is
+  paid. Tests use hand-worked figures; the regulation's own printed examples
+  were not re-read in this build.
+- Tip credit: hours paid below the minimum-wage setting count at it
+  (531.60). Differentials add to their week's pay (778.207). Tips, gifts,
+  discretionary and holiday bonuses and expense reimbursements stay out.
+- Paid cap: with overtime lines in the file, the week's qualified premium is
+  capped at the premium actually paid; the shortfall is flagged as owed.
 - Rounding: each week's premium is rounded to the cent; the year's figure is
   the sum of the rounded weeks. Differences under $1.00 are shown as "matches
   (rounding)".

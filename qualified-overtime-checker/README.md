@@ -34,9 +34,16 @@ in it, email builder@hintwise.org from the address you signed in with.
 
 This is a worksheet, not tax advice.
 
-Still being built (week of 10 November 2026): bonuses and tip-credit staff,
-presets for QuickBooks, Toast and EasyAcct exports, and PDF worksheets. The
-full write-up comes with the finished app.
+It handles the cases payroll software gets wrong: staff on two or more pay
+rates, bonuses and commissions (spread back over the weeks they were earned
+in, and reported in the year they were paid), shift differentials, servers
+paid a cash wage plus a tip credit, and weeks that straddle pay periods or
+the year end. Tips, gifts, discretionary bonuses and expense reimbursements
+are left out, as the overtime rules require.
+
+Still being built (week of 10 November 2026): presets for QuickBooks, Toast
+and EasyAcct exports, and PDF worksheets. The full write-up comes with the
+finished app.
 
 ## For developers
 
