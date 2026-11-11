@@ -96,6 +96,22 @@ Each is about one build day. Milestone 1 is deployable on day 1.
   per the idea's evidence) and 29 CFR part 778. The app labels its output a
   worksheet, not tax advice.
 
+## Milestone 4 as built (2026-11-11)
+
+- Toast: TimeEntries.csv columns from Toast's field reference
+  (doc.toasttab.com, adminDataExportFieldReference; undated page, read 11
+  Nov 2026). Toast Web's "Time entries" download is assumed to match.
+- QuickBooks Online "Time Activities by Employee Detail": no published header
+  list; layout inferred from Intuit community answers (Duration as h:mm since
+  about Oct 2021; employee name rows; Rates/Amount are billing). Marked
+  "inferred" in the app.
+- EasyACCT (an Intuit product, not Thomson Reuters as the idea said): no
+  export with dated hours found; not supported. QuickBooks payroll summaries
+  and Toast's payroll register have no dated hours either.
+- Instead of an EasyACCT preset: hourly pay rates typed per employee for
+  hours-only files, which covers QuickBooks time activities and plain
+  timesheets.
+
 ## Out of scope
 
 - Direct payroll integrations (OAuth to QuickBooks, Gusto, Toast).
