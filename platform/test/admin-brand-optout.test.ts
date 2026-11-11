@@ -70,6 +70,37 @@ describe('brand-upload: what it sends', () => {
   });
 });
 
+describe('the Supabase admin workflow', () => {
+  const wf = fs.readFileSync(path.join(here, '..', '..', '.github', 'workflows', 'supabase-admin.yml'), 'utf8');
+  it('offers brand-upload and email-optout, with an email input', () => {
+    expect(wf).toMatch(/description: '[^']*\| brand-upload \| email-optout \|[^']*'/);
+    expect(wf).toContain("email-optout: status, add or remove'");
+    expect(wf).toMatch(/\n {6}email:\n {8}description: 'email-optout only: the address \(masked in the log/);
+  });
+  it('masks the address before the only step that holds it, and never puts it in a script', () => {
+    const mask = wf.indexOf('- name: Mask the address');
+    const support = wf.indexOf('- name: Email opt-out (support)');
+    expect(mask).toBeGreaterThan(0);
+    expect(support).toBeGreaterThan(mask);
+    expect(wf.slice(mask, support)).toContain(`jq -r '.inputs.email // ""' "$GITHUB_EVENT_PATH"`);
+    expect(wf.slice(mask, support)).toContain('echo "::add-mask::$EMAIL"');
+    expect(wf.match(/\$\{\{ inputs\.email \}\}/g)).toHaveLength(1);
+    expect(wf.indexOf('OPTOUT_EMAIL: ${{ inputs.email }}')).toBeGreaterThan(support);
+    expect(wf).not.toContain('github.event.inputs.email');
+    expect(wf).toMatch(/inputs\.command != 'email-hook' && inputs\.command != 'email-optout'\n/);
+  });
+  it('gives the service-role key to the generic step only for brand-upload', () => {
+    expect(wf).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ inputs.command == 'brand-upload' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}");
+    expect(wf.match(/SUPABASE_SERVICE_ROLE_KEY: \$\{\{ secrets\.SUPABASE_SERVICE_ROLE_KEY \}\}/g)).toHaveLength(1);
+  });
+  it('generates EMAIL_OPTOUT_SECRET only once and sets EMAIL_LOGO_URL only when the logo is served', () => {
+    expect(wf).toContain('if ! has EMAIL_OPTOUT_SECRET; then');
+    expect(wf).toContain('V=$(openssl rand -hex 32); echo "::add-mask::$V"; put EMAIL_OPTOUT_SECRET "$V"; OPTOUT_NEW=true');
+    expect(wf).toContain(`case "$LOGO_TYPE" in image/png*) put EMAIL_LOGO_URL "$LOGO"; LOGO_SET=true;; esac`);
+    expect(wf).toContain('/storage/v1/object/public/brand/hintwise-wordmark-email@2x.png');
+  });
+});
+
 describe('email-optout (support)', () => {
   it('masks the address exactly as sign-in links do', () => {
     for (const e of ['Ann.Lee+x@Example.com', ' bob@x.org ', 'nope', '@x.org', '']) expect(m.maskAddress(e)).toBe(maskEmail(e));
