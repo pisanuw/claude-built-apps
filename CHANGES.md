@@ -499,3 +499,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-11 [note] Account deletion live: 0004 applied, delete-account deployed. Live test: sign-in kept for everyone (public.handle_new_user makes public.profiles per sign-in). Fix 0005 on fix/account-deletion-auto-rows, not applied; QOC button not deployed.
 
 2026-11-11 [decision] Account deletion fix: option 1 by default (16:01): ignore public.profiles (auto-made per sign-in) in the other-app check (0005, branch fix/account-deletion-auto-rows). Not applied; waits for a yes.
+
+2026-11-11 [code] Account deletion live: 0005 applied, account-deletion-test passed (sign-in, profile and file gone), Qualified Overtime Checker redeployed with Delete my account.
