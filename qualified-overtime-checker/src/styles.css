@@ -162,3 +162,25 @@ button.danger { color: var(--bad); }
   #week-start-help { display: none; }
   table.results > thead > tr > th:last-child, table.results td.toggle { display: none; }
 }
+/* Phone: a workweek per card, like the results. */
+@media (max-width: 40rem) {
+  table.weeks > thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  table.weeks, table.weeks > tbody, table.weeks > tbody > tr, table.weeks > tbody > tr > th, table.weeks > tbody > tr > td { display: block; width: 100%; }
+  table.weeks > tbody > tr { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 0.5rem; padding: 0.25rem 0; background: var(--card); }
+  table.weeks > tbody > tr > th, table.weeks > tbody > tr > td { border-bottom: none; padding: 0.15rem 0.5rem; }
+  table.weeks > tbody > tr > td[data-label] { display: flex; justify-content: space-between; gap: 1rem; }
+  table.weeks > tbody > tr > td[data-label]::before { content: attr(data-label); color: var(--muted); font-size: 0.85rem; }
+  table.weeks td.notes { min-width: 0; }
+  table.weeks > tbody > tr.other-year { background: var(--warn-bg); }
+}
+/* Google's dark-theme button on a dark page (branding guidelines: fill #131314, stroke #8E918F, text #E3E3E3). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .hw-signin-button { background: #131314; border-color: #8e918f; color: #e3e3e3; }
+  :root:not([data-theme='light']) .hw-signin input[type='email'] { background: #131314; color: #e3e3e3; border-color: #8e918f; }
+}
+.scroll:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+h2[tabindex='-1']:focus { outline: none; }
+/* The sign-in button's own ring (#0B57D0) is under 3:1 on the dark page: use the app's. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .hw-signin-button:focus-visible { outline-color: var(--accent); }
+}

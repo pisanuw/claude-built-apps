@@ -13,6 +13,8 @@ import { mountApp, type AuthHooks } from './ui/app';
 const root = document.getElementById('app');
 if (!root) throw new Error('index.html needs <div id="app">');
 
+let storageBlocked = false;
+
 function browserStore() {
   try {
     const probe = 'qoc.probe';
@@ -21,6 +23,7 @@ function browserStore() {
     return new LocalFileStore(window.localStorage);
   } catch {
     // Storage blocked (private mode, site data off): keep files in the tab.
+    storageBlocked = true;
     return new MemoryFileStore('browser');
   }
 }
@@ -33,4 +36,5 @@ const auth: AuthHooks | undefined = hasSupabase()
     }
   : undefined;
 
-void mountApp(root, { files: new Files(browserStore()), auth });
+const files = new Files(browserStore());
+void mountApp(root, { files, auth, storageBlocked });

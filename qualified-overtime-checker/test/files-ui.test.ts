@@ -224,3 +224,13 @@ describe('signed in', () => {
     expect(root.querySelector('.warn')?.textContent).toBe('Could not list your saved files: offline.');
   });
 });
+
+describe('storage blocked', () => {
+  it('says files last only while the tab is open', async () => {
+    document.body.innerHTML = '<main id="app"></main>';
+    root = document.getElementById('app') as HTMLElement;
+    await mountApp(root, { files: new Files(new MemoryFileStore('browser')), storageBlocked: true, saveDelay: 0, confirm: () => true });
+    await settle();
+    expect(root.textContent).toContain('files last only while this tab is open');
+  });
+});

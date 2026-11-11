@@ -298,8 +298,11 @@ export interface ImportResult {
   report: ImportReport;
 }
 
+/** Longest cell kept: a runaway cell (an unclosed quote) is cut, not carried into PDFs. */
+export const MAX_CELL = 200;
+
 function cell(cells: string[], i: number | null): string {
-  return i === null ? '' : (cells[i] ?? '').trim();
+  return i === null ? '' : (cells[i] ?? '').trim().slice(0, MAX_CELL);
 }
 
 /**

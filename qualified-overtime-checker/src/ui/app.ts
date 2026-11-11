@@ -40,6 +40,8 @@ export interface AppDeps {
   confirm?: (question: string) => boolean;
   /** Milliseconds to wait after a change before saving (default 700; tests pass 0). */
   saveDelay?: number;
+  /** Set when the browser blocks storage: files then last only while the tab is open. */
+  storageBlocked?: boolean;
 }
 
 export const TAX_YEARS = [2026, 2025];
@@ -59,6 +61,9 @@ interface PendingImport {
   /** The mapping came from the file's saved choice for this layout. */
   saved?: boolean;
 }
+
+/** Largest CSV read (a year of time entries for a small employer is a few MB). */
+const MAX_UPLOAD = 50 * 1024 * 1024;
 
 export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> {
   const download = deps.download ?? downloadText;
@@ -314,8 +319,9 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       heading,
       deps.auth && !user ? h('p', { class: 'help', text: 'Sign in at the top of the page to keep files in your account and open them on any computer.' }) : null,
       error ? h('p', { class: 'warn', text: error }) : null,
+      deps.storageBlocked && !user ? h('p', { class: 'warn', text: 'This browser does not let the page save anything (private browsing or site data turned off), so files last only while this tab is open. Sign in to keep them, or download the CSV and PDF files before closing.' }) : null,
       list.length
-        ? h('div', { class: 'scroll' },
+        ? h('div', { class: 'scroll', tabindex: 0, role: 'region', 'aria-label': 'Your client files' },
             h('table', { class: 'files' },
               h('caption', { class: 'sr-only', text: 'Your client files' }),
               h('thead', {}, h('tr', {}, ...['Employer', 'Tax year', 'Status', 'Kept in', 'Saved', 'Actions'].map((t) => h('th', { scope: 'col', text: t })))),
@@ -410,11 +416,23 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
 
   // ---- Hours ------------------------------------------------------------
   async function readFile(f: Blob & { name: string }, then: (name: string, text: string) => void | Promise<void>) {
+    if (f.size > MAX_UPLOAD) {
+      say(`${f.name} is over 50 MB. Export a shorter date range (one tax year) and try again.`);
+      return;
+    }
+    // The file being read belongs to the client file open now; if another one
+    // is opened (or the account changes) while it reads, it is not put there.
+    const forFile = file.id;
+    const gen = accountGen;
     let text: string;
     try {
       text = await readFileText(f);
     } catch {
       say(`${f.name} could not be read. Save it as CSV and try again.`);
+      return;
+    }
+    if (file.id !== forFile || accountGen !== gen) {
+      say(`${f.name} was not imported: another client file was opened while it was being read.`);
       return;
     }
     await then(f.name, text);
@@ -496,6 +514,8 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     await save();
     renderAll();
     say('Loaded the sample employer: eight staff (one tipped, one with quarterly bonuses), one year of hours, and the figures a payroll produced.');
+    // The button that was clicked is redrawn: put focus where the news is.
+    (document.getElementById('results-h') as HTMLElement | null)?.focus();
   }
 
   function mappingPanel(p: PendingImport): HTMLElement {
@@ -678,7 +698,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       h('p', { class: 'help', text: 'Enter the Box 12 code TT amount your payroll shows for each employee (from its W-2 preview or year-end report), or import a CSV with a name or ID column and an amount column.' }),
       showRates ? h('p', { class: 'warn', text: 'Your export has hours but no pay rates (a timesheet, or QuickBooks time activities, which show billing rates). Enter each employee\u2019s straight-time hourly pay rate below; overtime lines count at that rate times their multiplier.' }) : null,
       h('div', { class: 'row' }, h('label', { for: 'reported-file', text: 'Import figures (CSV)' }), input),
-      h('div', { class: 'scroll' },
+      h('div', { class: 'scroll', tabindex: 0, role: 'region', 'aria-label': 'TT figures from your payroll' },
         h('table', {},
           h('caption', { class: 'sr-only', text: 'TT figures from your payroll' }),
           h('thead', {}, h('tr', {}, h('th', { scope: 'col', text: 'Employee' }), h('th', { scope: 'col', text: 'ID' }), showRates ? h('th', { scope: 'col', text: 'Hourly pay rate' }) : null, h('th', { scope: 'col', text: 'TT on payroll\u2019s W-2' }))),
@@ -698,16 +718,16 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     const row = (w: WeekResult) =>
       h('tr', { class: w.taxYear === year || w.bonusParts.some((p) => p.taxYear === year) ? '' : 'other-year' },
         h('th', { scope: 'row', class: 'nowrap', text: `${formatDay(w.start)} – ${formatDay(w.end)}` }),
-        h('td', { class: 'num', text: hours(w.hours) }),
-        h('td', { class: 'num', text: money(w.straightPay) }),
-        h('td', { class: 'num', text: `$${w.regularRate.toFixed(4)}` }),
-        h('td', { class: 'num', text: hours(w.overtimeHours) }),
-        h('td', { class: 'num', text: money(inYear(w, year)) }),
-        h('td', { text: w.payDate ? `${formatDay(w.payDate)}${w.taxYear === year ? '' : ` (${w.taxYear} W-2)`}` : `none (${w.taxYear})` }),
+        h('td', { class: 'num', 'data-label': 'Hours', text: hours(w.hours) }),
+        h('td', { class: 'num', 'data-label': 'Straight-time pay', text: money(w.straightPay) }),
+        h('td', { class: 'num', 'data-label': 'Regular rate', text: `$${w.regularRate.toFixed(4)}` }),
+        h('td', { class: 'num', 'data-label': 'Overtime hours', text: hours(w.overtimeHours) }),
+        h('td', { class: 'num', 'data-label': `On the ${year} W-2`, text: money(inYear(w, year)) }),
+        h('td', { 'data-label': 'Paid on', text: w.payDate ? `${formatDay(w.payDate)}${w.taxYear === year ? '' : ` (${w.taxYear} W-2)`}` : `none (${w.taxYear})` }),
         h('td', { class: 'notes', text: w.notes.join(' ') }),
       );
     return h('div', {},
-      h('div', { class: 'scroll' },
+      h('div', { class: 'scroll', tabindex: 0, role: 'region', 'aria-label': `${c.employee.name}: workweeks` },
         h('table', { class: 'weeks' },
           h('caption', { text: `${c.employee.name}: workweeks with overtime or a note` }),
           h('thead', {}, h('tr', {}, ...['Workweek', 'Hours', 'Straight-time pay', 'Regular rate', 'Overtime hours', `On the ${year} W-2`, 'Paid on', 'Notes'].map((t) => h('th', { scope: 'col', text: t })))),
@@ -719,7 +739,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
   }
 
   function renderResults() {
-    const heading = h('h2', { id: 'results-h', text: '4. Results' });
+    const heading = h('h2', { id: 'results-h', tabindex: -1, text: '4. Results' });
     if (!file.lines.length) {
       fill(resultsSec, heading, h('p', { class: 'empty', text: 'Results appear once hours are imported. Try the sample employer to see how it works.' }));
       return;
@@ -786,7 +806,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       weekly ? h('p', { class: 'help', text: `${weekly} employee${weekly > 1 ? 's have' : ' has'} hours as weekly totals: each total is placed in the workweek that contains its date, so check that \u201cWorkweek starts on\u201d matches your export. Daily detail (and so a check of the week boundaries) is not available for them.` }) : null,
       unplaced.length ? h('p', { class: 'warn', text: `${unplaced.length} bonus${unplaced.length > 1 ? 'es' : ''} fell on no worked week of ${unplaced.length > 1 ? 'their' : 'its'} period and raise no rate: ${unplaced.slice(0, 3).join('; ')}${unplaced.length > 3 ? '; ...' : ''}. Check the bonus period setting or the dates.` }) : null,
       noPayDates ? h('p', { class: 'warn', text: 'Some lines have no pay date, so their weeks count in the year the workweek ends. Add a pay date (check date) column for weeks that are paid in January.' }) : null,
-      h('div', { class: 'scroll' },
+      h('div', { class: 'scroll', tabindex: 0, role: 'region', 'aria-label': `TT check for ${year}` },
         h('table', { class: 'results' },
           h('caption', { class: 'sr-only', text: `TT check for ${year}` }),
           h('thead', {}, h('tr', {}, ...['Employee', 'Overtime hours', 'Weeks with overtime', 'Correct TT', 'Payroll TT', 'Difference', 'Status', 'Worksheet'].map((t) => h('th', { scope: 'col', text: t })))),
@@ -869,12 +889,14 @@ function methodSection(): HTMLElement {
       li('Each employee’s hours are put into fixed seven-day workweeks starting on the day you chose, whatever the pay period (29 CFR 778.104).'),
       li('Regular rate = all straight-time pay for the week divided by all hours worked. With two or more rates it is the weighted average (29 CFR 778.115). Holiday, vacation and sick pay are left out of both.'),
       li('Qualified overtime for the week = hours over 40 × half the regular rate, rounded to the cent. Overtime the FLSA does not require (daily overtime, double time beyond time and a half) is not qualified.'),
-      li('A week belongs to the W-2 of the year it is paid: the latest pay date in the week, or the year the week ends when the file has no pay dates.'),
+      li('A week belongs to the W-2 of the year it is paid as wages (IRS FS-2026-13, Q3): the latest pay date in the week, or the year the week ends when the file has no pay dates.'),
+      li('Box 12 code TT shows the full qualified amount. The $12,500 limit ($25,000 joint) applies on the employee\u2019s own return, not to the W-2 figure (FS-2026-13, Q10).'),
       li('A non-discretionary bonus or commission is spread over the weeks it was earned in, equally or by hours (29 CFR 778.209); each share adds share \u00f7 hours \u00d7 half \u00d7 overtime hours, on the W-2 of the year the bonus is paid. Shift differentials add to their week\u2019s pay (778.207).'),
       li('Tip-credit staff count at the minimum wage you set, not their cash wage (29 CFR 531.60); tips, gifts, discretionary bonuses and expense reimbursements are left out (778.208-224).'),
       li('Where your file shows the overtime actually paid, the figure is capped at that premium, and any shortfall is flagged as overtime that looks owed. The extra overtime a bonus causes is assumed paid with the bonus; a payroll that never recalculated it owes it.'),
       li('Differences under $1.00 are shown as rounding.'),
     ),
-    h('p', { class: 'help', text: 'Not covered: California and other daily-overtime states, the 8-and-80 system for hospitals, salaried non-exempt staff on a fluctuating workweek, and qualified tips (code TP). Rows the checker cannot use are listed under the import, so you can see what was left out.' }),
+    h('p', { class: 'help', text: 'Source: IRS fact sheet FS-2026-13 (6 August 2026): the premium is FLSA hours over 40 \u00d7 one-half \u00d7 the FLSA regular rate (Q12), and only the amount the FLSA requires is qualified (Q16). The regular-rate rules for bonuses, differentials and tip credit are the Labor Department\u2019s (29 CFR 778, 531).' }),
+    h('p', { class: 'help', text: 'Not covered: the FLSA\u2019s alternative overtime systems (the 8-and-80 system for hospitals, public safety employees under section 7(k), compensatory time under 7(o)), salaried non-exempt staff on a fluctuating workweek, and qualified tips (code TP). State daily overtime is never qualified, so it is simply left out. Leave out exempt employees and owners of 20% or more who work in the business: they cannot claim the deduction (FS-2026-13, Q4-5). Rows the checker cannot use are listed under the import, so you can see what was left out.' }),
   );
 }

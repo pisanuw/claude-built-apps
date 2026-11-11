@@ -88,13 +88,25 @@ export function wrap(s: string, width: number, size: number, bold = false): stri
   let line = '';
   for (const word of s.split(/\s+/).filter(Boolean)) {
     let w = word;
-    while (textWidth(w, size, bold) > width && w.length > 1) {
-      let cut = w.length - 1;
-      while (cut > 1 && textWidth(w.slice(0, cut), size, bold) > width) cut--;
+    if (textWidth(w, size, bold) > width && w.length > 1) {
+      // Cut a word wider than a line in one pass over its characters, so a
+      // runaway cell (thousands of characters) stays quick.
       if (line) lines.push(line);
       line = '';
-      lines.push(w.slice(0, cut));
-      w = w.slice(cut);
+      const chars = [...w];
+      let piece = '';
+      let used = 0;
+      for (const ch of chars) {
+        const cw = textWidth(ch, size, bold);
+        if (piece && used + cw > width) {
+          lines.push(piece);
+          piece = '';
+          used = 0;
+        }
+        piece += ch;
+        used += cw;
+      }
+      w = piece;
     }
     const next = line ? `${line} ${w}` : w;
     if (textWidth(next, size, bold) > width && line) {

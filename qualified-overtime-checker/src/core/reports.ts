@@ -22,7 +22,8 @@ export const METHOD = [
   'Hours are put into fixed seven-day workweeks starting on the employer\u2019s chosen day, whatever the pay period (29 CFR 778.104).',
   'Regular rate = all straight-time pay for the week (with shift differentials and non-discretionary bonuses spread back to the weeks they were earned in) divided by all hours worked; tip-credit hours count at the minimum wage set (29 CFR 778.109, 778.115, 778.209, 531.60).',
   'Qualified overtime for a week = hours over 40 x half the regular rate, rounded to the cent; where the file shows the overtime actually paid, the figure is capped at it. Overtime the FLSA does not require (daily or double time) is not qualified.',
-  'A week counts on the W-2 of the year it is paid; a bonus\u2019s share counts in the year the bonus is paid.',
+  'A week counts on the W-2 of the year it is paid as wages; a bonus\u2019s share counts in the year the bonus is paid (IRS FS-2026-13, Q3).',
+  'Box 12 code TT shows the full qualified amount; the employee\u2019s $12,500 deduction limit applies on their own return (FS-2026-13, Q10). Source for the formula: FS-2026-13, Q12 and Q16 (6 August 2026).',
 ];
 
 /** The weeks a worksheet lists: those that add to the year's figure, or have overtime or a note in the year. */

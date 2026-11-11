@@ -2,65 +2,94 @@
 
 **Live:** https://qualified-overtime-checker.hintwise.org
 
-For owners of small businesses with hourly staff, and the bookkeepers who run
-their payroll. From tax year 2026 every W-2 shows the extra half of overtime
-pay on its own line (Box 12, code TT), and your staff can deduct only what is
-reported there. Payroll software often gets it wrong when someone works at two
-pay rates, when overtime is counted per pay period, or when the whole overtime
-pay goes into the box.
+![The results for the sample employer: six of eight figures need correcting, each with the likely cause](docs/screenshot.png)
 
-This checker rebuilds every workweek from your timesheet export, works out the
-correct figure for each employee, compares it with what your payroll
-calculated, and tells you who is off, by how much, and the likely reason.
+From tax year 2026, every W-2 shows the extra half of overtime pay on its own
+line: Box 12, code TT. Your staff can deduct only what is reported there, and
+a wrong figure means a corrected W-2 (a W-2c). Payroll software often gets it
+wrong. It may use one pay rate when someone worked at two, count overtime
+per pay period instead of per week, put the whole overtime pay in the box, or
+leave a bonus out.
 
-- Upload a timesheet or payroll export (CSV) with dated hours.
-- Enter, or upload, the TT figures your payroll shows.
-- See each employee's correct figure and a week-by-week worksheet; download
-  both as CSV.
+This checker is for **owners of small businesses with hourly staff** and the
+**bookkeepers who run their payroll**. It rebuilds every workweek from your
+timesheet export, works out the right figure for each employee, compares it
+with what your payroll calculated, and tells you who is off, by how much, and
+the likely reason.
 
-Each employer is a client file. Without signing in, files are kept in this
+## How it works
+
+1. **Employer.** Name the employer, choose the tax year and the day your
+   workweek starts.
+2. **Hours.** Upload a timesheet or time-clock export (CSV). Toast time
+   entries and QuickBooks Online "Time Activities by Employee Detail" are
+   recognised by their columns; for any other file you pick the columns once
+   and the file remembers them. QuickBooks time activities have no pay
+   rates, so you type each employee's hourly rate once.
+3. **Your payroll's figures.** Type in, or upload, the Box 12 code TT amounts
+   your payroll shows (from its W-2 preview or year-end report).
+4. **Results.** Each employee's correct figure, the difference, the likely
+   cause, and a week-by-week view.
+
+Try the sample employer on the page to see it with made-up data first.
+
+## What you get
+
+- An **employer summary** (PDF): every employee's figure, what to correct
+  and why, and how the figures are worked out.
+- A **worksheet per employee** (PDF), week by week, whose total is the
+  figure. Keep it on file.
+- The **W-2c list** (CSV): exactly the employees to correct, the amount your
+  payroll shows and the right one. Correct the figure in payroll before you
+  file; after filing, each needs a W-2c.
+- The results and the worksheet as CSV, and a print view.
+
+## The cases it handles
+
+- Staff on two or more pay rates (the weighted-average regular rate).
+- Non-discretionary bonuses and commissions, spread back over the weeks they
+  were earned in and reported in the year they are paid.
+- Shift differentials, and servers paid a cash wage plus a tip credit (counted
+  at the minimum wage you set).
+- Weeks that straddle pay periods or the year end (a week counts in the year
+  it is paid).
+- Overtime your payroll paid short: the figure is what was actually paid, and
+  the shortfall is flagged.
+- Tips, gifts, discretionary bonuses and expense reimbursements are left out,
+  as the rules require.
+
+The method follows the IRS fact sheet FS-2026-13 (6 August 2026) and the
+Labor Department's overtime rules (29 CFR 778).
+
+## What it does not do
+
+- It does not connect to your payroll; it reads exports.
+- Pay-period totals (two weeks of hours in one row) cannot be checked per
+  workweek, and are refused with an explanation. Payroll summaries with no
+  dated hours, and EasyACCT's earnings totals, cannot be used.
+- It does not cover the FLSA's alternative overtime systems (hospitals'
+  8-and-80, public safety under section 7(k), compensatory time), salaried
+  staff on a fluctuating workweek, or qualified tips (code TP).
+- It does not file anything. This is a worksheet, not tax advice.
+
+## Your data
+
+Each employer is a **client file**. Without signing in, files stay in this
 browser only. Sign in with Google or an emailed link to keep them in your
 account, so they follow you to another computer; you can move any file back
 to "this browser only" at any time.
 
-**What is stored, and where.** A saved file holds the employer's name and
-settings, each employee's name and ID, their dated hours and pay rates, and
-the TT figures your payroll produced. Social Security numbers are never
-read or kept: a column that holds them is dropped before anything else
-happens. Files in your account are kept in HintWise's database (Supabase,
-United States East) and only your account can read them. **Deleting:** the
-Delete button removes a file at once; to remove your account and everything
-in it, email builder@hintwise.org from the address you signed in with.
+A saved file holds the employer's name and settings, each employee's name and
+ID, their dated hours and pay rates, the rates you typed, and your payroll's
+figures. **Social Security numbers are never kept**: a column that holds
+them is dropped as soon as the file is read, before any column is matched,
+and is never saved or exported. Files in your account are
+kept in HintWise's database (Supabase, United States East) and only your
+account can read them. The Delete button removes a file at once; to remove
+your account and everything in it, email builder@hintwise.org from the
+address you signed in with.
 
-This is a worksheet, not tax advice.
-
-It handles the cases payroll software gets wrong: staff on two or more pay
-rates, bonuses and commissions (spread back over the weeks they were earned
-in, and reported in the year they were paid), shift differentials, servers
-paid a cash wage plus a tip credit, and weeks that straddle pay periods or
-the year end. Tips, gifts, discretionary bonuses and expense reimbursements
-are left out, as the overtime rules require.
-
-Exports it knows by their columns: Toast time entries (from Toast's
-published column list) and QuickBooks Online "Time Activities by Employee
-Detail" (an inferred layout; it has hours but no pay rates, so you type each
-employee's rate once). Any other CSV works by choosing its columns, and the
-file remembers your choice for the next export from the same system. Weekly
-totals are checked by week; pay-period totals (two weeks in one row) cannot
-be checked per workweek and are refused with an explanation. You can add a
-second export to a file without counting rows twice.
-
-Not supported: exports with no dated or weekly hours (payroll summaries, or
-EasyACCT's earnings totals).
-
-What you can hand over or keep on file: an employer summary (PDF) with each
-employee's figure, what to correct and why; a week-by-week worksheet per
-employee (PDF), whose total is the figure; the W-2c list (CSV) of exactly
-the employees to correct, with the amount previously reported and the right
-one; the results and worksheet as CSV; and a print view.
-
-Still being built (week of 10 November 2026): a final polish pass. The full
-write-up comes with the finished app.
+The app is free.
 
 ## For developers
 
@@ -71,4 +100,6 @@ npm run dev   # http://localhost:5173
 npm run e2e   # Playwright walkthrough (PW_CHROMIUM=/path/to/chromium if the bundled browser is missing)
 ```
 
-Plan: `docs/PLAN.md`. Handoff: `HANDOFF.md`.
+TypeScript and Vite, with no framework; Supabase for sign-in and saved files;
+PDFs written by a small built-in writer. Plan: `docs/PLAN.md`. Handoff:
+`HANDOFF.md`.
