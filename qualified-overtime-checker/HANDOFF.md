@@ -1,4 +1,4 @@
-# Qualified Overtime Checker: handoff (day 3 of 7, 2026-11-11)
+# Qualified Overtime Checker: handoff (day 4 of 7, 2026-11-11)
 
 Rewritten at the end of every build day by the build routine
 (BUILD_ROUTINE.md). It is the only state the next day's session has, and the
@@ -28,29 +28,21 @@ provisional; three tied at 19 (this one 2026-11-07, Delivery Canary
 
 ## What is live
 
-- https://qualified-overtime-checker.hintwise.org (deploy 2026-11-11 08:01 UTC,
-  commit b31eb5f, Deploy run 42983541131; migration 0002_owner_key applied
-  in that run): milestones 1 to 3 and sign-in in the header.
-  - Checker: timesheet import (SSN columns dropped), FLSA workweeks,
-    blended regular rate, year by pay date, likely causes, CSVs.
-  - Client files in this browser or the signed-in account.
-  - Milestone 3: non-discretionary bonuses and commissions spread over the
-    weeks they were earned in (settings under "Bonuses and tipped staff"),
-    shift differentials (also overtime differentials), tip-credit hours at
-    the minimum-wage setting, tips/gifts/discretionary bonuses/expenses left
-    out, the paid cap with "looks owed" notes. Sample: eight staff, six
-    flagged (new: Rosa Diaz, tipped; Theo Grant, quarterly bonuses).
-  - Sign-in: the template's Google-branded "Continue with Google" button at
-    the top right, "Use email instead" opening the email-link form, which
-    uses the platform sign-in-link service (Turnstile when asked, link
-    finished on page load). Sign-out of this app only; PKCE.
-- Verified live 2026-11-11: 200 with the footer; Google button in the header;
-  sample gives "6 of 8 employees"; no console errors.
-- Verified by the owner 2026-11-11: a signed-in save after migration 0002
-  (the upsert uses on_conflict user_id,id) and an email link through the
-  sign-in-link service.
-- Pushed, not deployed: the bonus help text now names "Earned from / Earned
-  to" columns (ships with the next deploy).
+- https://qualified-overtime-checker.hintwise.org (deploy 2026-11-11 about
+  10:40 UTC, commit af17b38): milestones 1 to 4 and sign-in in the header.
+  - Checker, client files (browser or account), bonuses, differentials,
+    tip credit, paid cap (milestones 1-3; see PLAN.md "Method").
+  - Milestone 4: Toast time entries recognised (columns from Toast's field
+    reference: Regular/Overtime Hours, Wage, Overtime Pay, GUID); QuickBooks
+    Online time activities recognised as an inferred layout (name rows,
+    hours:minutes, billing rate and amount ignored); hourly pay rates typed
+    per employee for hours-only files; column choices saved per layout in the
+    file; "add to the hours already here" without duplicates (Toast by GUID);
+    weekly totals checked by week and marked; pay-period totals refused.
+- Verified live 2026-11-11: 200 with the footer; the Toast fixture imports
+  (Ann $90.73, Rosa $6.39 as worked by hand); no console errors.
+- Pushed, not deployed: import report says rows used (lines) separately;
+  clearer overtime sentence; the bonus help naming Earned from/to columns.
 
 ## Milestones (docs/PLAN.md)
 
@@ -59,8 +51,8 @@ provisional; three tied at 19 (this one 2026-11-07, Delivery Canary
 | 1 | One employer, checked | done | 1 | reviewed (high), 13 findings fixed |
 | 2 | Saved client files | done | 2 | reviewed (high) and security-reviewed; owner confirmed signed-in save 10 Nov |
 | 3 | The hard cases | done | 3 | reviewed (high), 10 findings fixed; security review of the sign-in move: nothing serious, 3 low fixed |
-| 4 | Real exports | next | | QuickBooks / Toast / EasyAcct presets, saved mappings, weekly-hours fallback |
-| 5 | Worksheet and W-2c list | | | PDFs, W-2c CSV, print |
+| 4 | Real exports | done | 4 | Toast (confirmed) and QuickBooks (inferred) presets, typed rates, saved mappings, add without duplicates, weekly totals; EasyACCT not supported (no dated hours); reviewed (high), 10 findings fixed |
+| 5 | Worksheet and W-2c list | next | | PDFs, W-2c CSV, print |
 | 6 | Polish | | | |
 | 7 | Finish | | | |
 
@@ -72,9 +64,9 @@ npm run dev          # http://localhost:5173
 PW_CHROMIUM=/opt/pw-browsers/chromium npm run e2e   # cloud session: the bundled Playwright browser is missing
 ```
 
-Tests: 187 vitest (core, compare, hard cases, review regressions, codec and
-stores, jsdom UI), coverage 99.3% statements, 94.5% branches; 3 Playwright
-tests (sample flow, file import, browser save across a reload and delete).
+Tests: 216 vitest (core, compare, hard cases, presets with Toast and
+QuickBooks fixtures, layouts, review regressions, codec and stores, jsdom
+UI), coverage 99.3% statements, 94.8% branches; 3 Playwright tests.
 
 ## Platform use
 
@@ -131,17 +123,19 @@ None open. Answered 2026-11-10: saved files allowed (as recommended); free.
 
 ## Next
 
-Milestone 4, "Real exports" (docs/PLAN.md): presets for QuickBooks Online
-time activity, Toast labor summary and EasyAcct payroll register layouts,
-saved column mappings per client, a weekly-hours fallback (no dated days)
-flagged "checked by week only", and an import report with line numbers
-(mostly there). Find the vendors' real column names first (help pages or
-sample exports); if none can be fetched, say so and build the presets from
-the idea's evidence, marked unverified.
+Milestone 5, "Worksheet and W-2c list" (docs/PLAN.md): a per-employee
+worksheet PDF (each workweek: hours, straight-time pay, regular rate,
+overtime hours, premium, bonus shares), an employer summary PDF, the W-2c
+list CSV (employee, TT reported, TT correct, difference; only flagged
+employees), and a print view. Check PDFs with pdfinfo and pdftoppm; totals
+must equal the results table. donation-receipts has a small PDF writer to
+reuse (Helvetica/WinAnsi).
 
 ## Remaining and known issues
 
 - Milestones 2 to 7.
+- Toast shifts that run past midnight count in the week of their In Date (no Out Date check yet).
+- Duplicate detection without an entry id treats rows identical in every field as the same row.
 - The extra overtime a bonus causes is assumed paid with the bonus (no cap on bonus shares); the method text says so.
 - Bonus tests use hand-worked figures; the CFR's printed examples were not re-read.
 - Template follow-up for the Plabs session: the stale switch-offer fix was made in platform/templates/app too (ff11c02); other apps copied before that keep the old behaviour.
@@ -165,6 +159,7 @@ the idea's evidence, marked unverified.
 ## Log
 
 - Day 1 (2026-11-10): picked, claimed, planned; milestone 1 built, reviewed, fixed and deployed.
+- Day 4 (2026-11-11): milestone 4 (Toast and QuickBooks layouts, typed rates, saved columns, add without duplicates, weekly and pay-period totals); vendor columns researched (Toast confirmed, QuickBooks inferred, EasyACCT not found); code review (high) 10 findings fixed; deployed.
 - Day 3 (2026-11-11): sign-in moved to the header with the template's branded button and the sign-in-link service; milestone 3 (bonuses, differentials, tip credit, not-wages, paid cap) built; code review (high) 10 findings and security review 3 low findings fixed; deployed with migration 0002.
 - Day 2 security review (security-review, by a subagent; the skill itself failed on the missing origin/HEAD ref, so the diff was reviewed by hand): nothing serious; three low items fixed (owner-scoped primary key, ask before a sign-out copy, SSN header and value gaps).
 - Day 2 (2026-11-10, second run the same day at the owner's request): milestone 2, saved client files with sign-in, reviewed, fixed and deployed; first app on the Supabase migrations step; two platform fixes (VITE env in the build, expose-schema wait).
