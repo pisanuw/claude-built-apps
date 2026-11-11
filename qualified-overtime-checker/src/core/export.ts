@@ -28,11 +28,13 @@ export function resultsCsv(checks: EmployeeCheck[], settings: EmployerSettings):
 export function worksheetCsv(checks: EmployeeCheck[], settings: EmployerSettings): string {
   const rows: (string | number)[][] = [
     [`Week-by-week worksheet, ${settings.name || 'employer'}, tax year ${settings.taxYear}. Premium = overtime hours x half the regular rate.`],
-    ['Employee ID', 'Employee', 'Week start', 'Week end', 'Hours worked', 'Straight-time pay', 'Regular rate', 'Overtime hours', 'Qualified premium', 'Pay date', 'W-2 year', 'Notes'],
+    ['Employee ID', 'Employee', 'Week start', 'Week end', 'Hours worked', 'Straight-time pay', 'Regular rate', 'Overtime hours', 'Premium before bonuses', 'Bonus shares', 'Premium from bonuses', 'Qualified premium', 'Pay date', 'W-2 year', 'Notes'],
   ];
   for (const c of checks) {
     for (const w of c.weeks) {
-      rows.push([c.employee.id, c.employee.name, w.start, w.end, hours(w.hours), money(w.straightPay), w.regularRate.toFixed(4), hours(w.overtimeHours), money(w.premium), w.payDate ?? '', w.taxYear, w.notes.join(' ')]);
+      const shares = w.bonusParts.reduce((t, p) => t + p.amount, 0);
+      const fromBonus = w.bonusParts.reduce((t, p) => t + p.premium, 0);
+      rows.push([c.employee.id, c.employee.name, w.start, w.end, hours(w.hours), money(w.straightPay), w.regularRate.toFixed(4), hours(w.overtimeHours), money(w.basePremium), money(shares), money(fromBonus), money(w.premium), w.payDate ?? '', w.taxYear, w.notes.join(' ')]);
     }
   }
   return toCsv(rows);

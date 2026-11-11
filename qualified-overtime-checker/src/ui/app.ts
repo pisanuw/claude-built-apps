@@ -14,7 +14,7 @@ import { FIELD_LABELS, FIELDS, guessMapping, importRows, mappingProblems, parseM
 import { importReported, keepKnown } from '../core/reported';
 import { buildSample, sampleCsv } from '../core/sample';
 import { worthSaving, type FileLocation, type FileSummary } from '../core/codec';
-import type { WeekResult } from '../core/types';
+import type { BonusAllocation, BonusPeriod, WeekResult } from '../core/types';
 import type { Files, FileStore } from '../store/stores';
 import { downloadText, fileSlug, fill, h, readFileText, hours, money, signedMoney, uuid } from './dom';
 
@@ -38,6 +38,13 @@ export interface AppDeps {
 }
 
 export const TAX_YEARS = [2026, 2025];
+
+const BONUS_PERIODS: [BonusPeriod, string][] = [
+  ['week', 'The workweek of its date'],
+  ['month', 'The calendar month of its date'],
+  ['quarter', 'The calendar quarter of its date'],
+  ['year', 'The calendar year of its date'],
+];
 
 interface PendingImport {
   name: string;
@@ -121,7 +128,18 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
   const status = h('p', { class: 'status', role: 'status', 'aria-live': 'polite' });
   const privacy = h('p', { class: 'privacy' });
   const filesSec = h('section', { class: 'card', 'aria-labelledby': 'files-h' });
+  // Sign-in sits at the top right: the Google button, and the email-link form
+  // behind "Use email instead" (both from src/lib/auth.ts mountSignIn).
   const authBox = h('div', { class: 'auth' });
+  const emailToggle = h('button', { type: 'button', class: 'link email-toggle', 'aria-expanded': 'false', text: 'Use email instead' });
+  const authArea = h('div', { class: 'top-auth', role: 'region', 'aria-label': 'Sign in' }, authBox, emailToggle);
+  emailToggle.addEventListener('click', () => {
+    const open = !authArea.classList.contains('email-open');
+    authArea.classList.toggle('email-open', open);
+    emailToggle.setAttribute('aria-expanded', String(open));
+    emailToggle.textContent = open ? 'Hide email sign-in' : 'Use email instead';
+    if (open) (authBox.querySelector('input[type="email"]') as HTMLInputElement | null)?.focus();
+  });
   const employerSec = h('section', { class: 'card', 'aria-labelledby': 'employer-h' });
   const hoursSec = h('section', { class: 'card', 'aria-labelledby': 'hours-h' });
   const reportedSec = h('section', { class: 'card', 'aria-labelledby': 'reported-h' });
@@ -129,7 +147,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
 
   root.append(
     h('header', { class: 'top' },
-      h('h1', { text: 'Qualified Overtime Checker' }),
+      h('div', { class: 'top-bar' }, h('h1', { text: 'Qualified Overtime Checker' }), deps.auth ? authArea : null),
       h('p', { class: 'lede', text: 'Check the overtime figure on your staff’s W-2s (Box 12, code TT) before you file. Upload your timesheet, enter what your payroll calculated, and see who is off and by how much.' }),
       privacy,
     ),
@@ -274,7 +292,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     });
     fill(filesSec,
       heading,
-      deps.auth ? authBox : null,
+      deps.auth && !user ? h('p', { class: 'help', text: 'Sign in at the top of the page to keep files in your account and open them on any computer.' }) : null,
       error ? h('p', { class: 'warn', text: error }) : null,
       list.length
         ? h('div', { class: 'scroll' },
@@ -311,6 +329,38 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       renderResults();
       say(`Workweeks now start on ${WEEKDAYS[Number(start.value)]}.`);
     });
+    const minWage = h('input', { id: 'min-wage', type: 'text', inputmode: 'decimal', value: file.settings.minimumWage.toFixed(2), 'aria-describedby': 'min-wage-help' });
+    minWage.addEventListener('change', async () => {
+      const v = parseMoney(minWage.value);
+      if (!Number.isFinite(v) || v < 0 || v > 100) {
+        minWage.setAttribute('aria-invalid', 'true');
+        say(`"${minWage.value}" is not an hourly wage.`);
+        return;
+      }
+      minWage.removeAttribute('aria-invalid');
+      file = { ...file, settings: { ...file.settings, minimumWage: v } };
+      await save();
+      renderResults();
+      say(`Tip-credit hours now count at $${v.toFixed(2)} an hour.`);
+    });
+    const period = h('select', { id: 'bonus-period', 'aria-describedby': 'bonus-help' },
+      ...BONUS_PERIODS.map(([v, t]) => h('option', { value: v, selected: v === file.settings.bonusPeriod, text: t })));
+    period.addEventListener('change', async () => {
+      file = { ...file, settings: { ...file.settings, bonusPeriod: period.value as BonusPeriod } };
+      await save();
+      renderResults();
+      say('Bonuses re-spread over their period.');
+    });
+    const alloc = h('select', { id: 'bonus-alloc', 'aria-describedby': 'bonus-help' },
+      h('option', { value: 'per-week', selected: file.settings.bonusAllocation === 'per-week', text: 'Equally to each week worked' }),
+      h('option', { value: 'per-hour', selected: file.settings.bonusAllocation === 'per-hour', text: 'By hours worked each week' }));
+    alloc.addEventListener('change', async () => {
+      file = { ...file, settings: { ...file.settings, bonusAllocation: alloc.value as BonusAllocation } };
+      await save();
+      renderResults();
+      say('Bonuses re-spread over their period.');
+    });
+    const hasBonus = file.lines.some((l) => l.kind === 'bonus');
     fill(employerSec, 
       h('h2', { id: 'employer-h', text: '1. Employer' }),
       h('div', { class: 'grid' },
@@ -322,6 +372,19 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
         start,
       ),
       h('p', { id: 'week-start-help', class: 'help', text: 'Overtime is counted per fixed workweek of seven days, not per pay period. Use the day your workweek starts (most often Sunday).' }),
+      h('details', { class: 'more', open: hasBonus },
+        h('summary', { text: 'Bonuses and tipped staff' }),
+        h('div', { class: 'grid' },
+          h('label', { for: 'min-wage' }, 'Minimum wage for tip-credit staff ($/h)'),
+          minWage,
+          h('label', { for: 'bonus-period' }, 'A bonus line covers'),
+          period,
+          h('label', { for: 'bonus-alloc' }, 'Spread a bonus'),
+          alloc,
+        ),
+        h('p', { id: 'min-wage-help', class: 'help', text: 'Hours paid below this rate are treated as a cash wage plus a tip credit and count at this rate (federal $7.25, or your state\u2019s tipped minimum wage total). Tips themselves are not part of the regular rate.' }),
+        h('p', { id: 'bonus-help', class: 'help', text: 'A bonus, commission or incentive the employee was promised raises the overtime premium of every week it was earned in. When your export has period start and end columns they are used; otherwise each bonus covers the week, month, quarter or year of its date. Gifts, discretionary and holiday bonuses, tips and expense reimbursements are left out.' }),
+      ),
     );
   }
 
@@ -367,6 +430,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     file = { ...file, lines, report, mapping: pending.mapping, source: pending.name };
     file = withReported(file, keepKnown(reportedFor(file), employees));
     await save();
+    renderEmployer();
     renderHours();
     renderReported();
     renderResults();
@@ -389,7 +453,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     file.mapping = pending.mapping;
     await save();
     renderAll();
-    say('Loaded the sample employer: six staff, one year of hours, and the figures a payroll produced.');
+    say('Loaded the sample employer: eight staff (one tipped, one with quarterly bonuses), one year of hours, and the figures a payroll produced.');
   }
 
   function mappingPanel(p: PendingImport): HTMLElement {
@@ -430,6 +494,9 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       r.droppedColumns.length ? h('p', { class: 'ok', text: `Dropped as Social Security numbers, never read or kept: ${r.droppedColumns.join(', ')}.` }) : null,
       r.overtimeLines ? h('p', { text: `${r.overtimeLines} lines were paid as overtime; their hours count at the straight rate (the overtime rate divided by 1.5, or 2 for double time).` }) : null,
       r.excludedLines ? h('p', { text: `${r.excludedLines} lines are paid time off (holiday, vacation, sick): not hours worked, left out.` }) : null,
+      r.bonusLines ? h('p', { text: `${r.bonusLines} bonus or commission lines are spread over the weeks they were earned in (settings under 1. Employer).` }) : null,
+      r.extraLines ? h('p', { text: `${r.extraLines} shift differential or premium lines are added to their week\u2019s pay.` }) : null,
+      r.notWagesLines ? h('p', { text: `${r.notWagesLines} lines are tips, gifts, discretionary bonuses or expenses: not part of the regular rate, left out.` }) : null,
       r.badPayDates ? h('p', { class: 'warn', text: `${r.badPayDates} pay dates could not be read; those lines take their year from the workweek.` }) : null,
       skipped
         ? h('details', {},
@@ -608,11 +675,13 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     dlWeeks.addEventListener('click', () => download(`tt-worksheet-${fileSlug(file.settings.name)}-${year}.csv`, worksheetCsv(checks, file.settings)));
     const spill = checks.filter((c) => c.otherYearPremium > 0).length;
     const noPayDates = checks.some((c) => c.yearFromWeekEnd);
+    const unplaced = checks.flatMap((c) => c.unallocated.map((u) => `${c.employee.name}, ${u.label}`));
     fill(resultsSec, 
       heading,
       h('p', { class: summary.needCorrection ? 'lead bad-text' : 'lead', text: lead }),
       h('p', { class: 'help', text: `Total TT by the workweek rules: ${money(summary.totalCorrect)}; reported by payroll: ${money(summary.totalReported)}.` }),
       spill ? h('p', { class: 'help', text: `${spill} employees have overtime in weeks paid in another year; those weeks count on that year’s W-2 and are shaded in the weeks table.` }) : null,
+      unplaced.length ? h('p', { class: 'warn', text: `${unplaced.length} bonus${unplaced.length > 1 ? 'es' : ''} fell on no worked week of ${unplaced.length > 1 ? 'their' : 'its'} period and raise no rate: ${unplaced.slice(0, 3).join('; ')}${unplaced.length > 3 ? '; ...' : ''}. Check the bonus period setting or the dates.` }) : null,
       noPayDates ? h('p', { class: 'warn', text: 'Some lines have no pay date, so their weeks count in the year the workweek ends. Add a pay date (check date) column for weeks that are paid in January.' }) : null,
       h('div', { class: 'scroll' },
         h('table', { class: 'results' },
@@ -658,6 +727,8 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     auth.onUser((u) => {
       const was = user;
       user = u;
+      authArea.classList.toggle('signed-in', u !== null);
+      emailToggle.hidden = u !== null;
       const switched = was !== null && (u === null || u.id !== was.id);
       files.setAccount(u ? auth.accountStore() : null);
       renderPrivacy();
@@ -693,8 +764,11 @@ function methodSection(): HTMLElement {
       li('Regular rate = all straight-time pay for the week divided by all hours worked. With two or more rates it is the weighted average (29 CFR 778.115). Holiday, vacation and sick pay are left out of both.'),
       li('Qualified overtime for the week = hours over 40 × half the regular rate, rounded to the cent. Overtime the FLSA does not require (daily overtime, double time beyond time and a half) is not qualified.'),
       li('A week belongs to the W-2 of the year it is paid: the latest pay date in the week, or the year the week ends when the file has no pay dates.'),
+      li('A non-discretionary bonus or commission is spread over the weeks it was earned in, equally or by hours (29 CFR 778.209); each share adds share \u00f7 hours \u00d7 half \u00d7 overtime hours, on the W-2 of the year the bonus is paid. Shift differentials add to their week\u2019s pay (778.207).'),
+      li('Tip-credit staff count at the minimum wage you set, not their cash wage (29 CFR 531.60); tips, gifts, discretionary bonuses and expense reimbursements are left out (778.208-224).'),
+      li('Where your file shows the overtime actually paid, the figure is capped at that premium, and any shortfall is flagged as overtime that looks owed.'),
       li('Differences under $1.00 are shown as rounding.'),
     ),
-    h('p', { class: 'help', text: 'Not covered yet: bonuses, commissions and shift differentials (they raise the regular rate), tip-credit staff, California and other daily-overtime states. Rows for them are listed as not used, so you can see what was left out.' }),
+    h('p', { class: 'help', text: 'Not covered: California and other daily-overtime states, the 8-and-80 system for hospitals, salaried non-exempt staff on a fluctuating workweek, and qualified tips (code TP). Rows the checker cannot use are listed under the import, so you can see what was left out.' }),
   );
 }

@@ -8,7 +8,7 @@ import { parseCsv, type CsvTable } from './csv';
 import { parseDate } from './dates';
 import type { LineKind, TimeLine } from './types';
 
-export const FIELDS = ['employeeId', 'employeeName', 'firstName', 'lastName', 'date', 'hours', 'overtimeHours', 'doubleHours', 'rate', 'amount', 'payDate', 'code'] as const;
+export const FIELDS = ['employeeId', 'employeeName', 'firstName', 'lastName', 'date', 'hours', 'overtimeHours', 'doubleHours', 'rate', 'amount', 'payDate', 'code', 'earnedFrom', 'earnedTo'] as const;
 export type Field = (typeof FIELDS)[number];
 export type Mapping = Record<Field, number | null>;
 
@@ -25,6 +25,8 @@ export const FIELD_LABELS: Record<Field, string> = {
   amount: 'Pay amount',
   payDate: 'Pay date (check date)',
   code: 'Pay type or item',
+  earnedFrom: 'Bonus earned from (period start)',
+  earnedTo: 'Bonus earned to (period end)',
 };
 
 /** Normalised header: lower case, letters, digits, # and single spaces. */
@@ -69,6 +71,8 @@ const GUESSES: [Field, RegExp][] = [
   ['hours', /^(hours|hrs|duration|total hours|hours worked|regular hours|qty|quantity|time|total)$/],
   ['rate', /^(rate|pay rate|hourly rate|wage|wage rate|hourly wage|rate per hour|bill rate|cost rate)$/],
   ['amount', /^(amount|earnings|pay|gross|gross pay|total pay|wages|current amount|line total)$/],
+  ['earnedFrom', /^(pay )?period (start|begin|beginning|from)( date)?$|^earned from$|^earning period start$/],
+  ['earnedTo', /^(pay )?period (end|ending|to)( date)?$|^earned to$|^earning period end$/],
   ['code', /^(pay type|pay code|earning|earnings code|earning code|earnings type|item|service item|payroll item|job|type|category|code|wage type|pay item)$/],
 ];
 
@@ -156,12 +160,22 @@ const EXCLUDED = /\b(holiday|vacation|sick|pto|paid time off|bereavement|jury|le
 const HOLIDAY_WORKED = /\bholiday (worked|work)\b|\bworked holiday\b/;
 const DOUBLE = /\b(double|dt|2x|2\.0x|2\.0)\b/;
 const OVERTIME = /\b(overtime|ot|o\/t|1\.5x|1\.5|time and a half|time and one half)\b/;
-const LUMP = /\b(bonus|commission|incentive|award|tips?|gratuit\w*|reimburse\w*|mileage|per diem|allowance|severance|differential|shift diff|shift premium)\b/;
+/** Pay that is not part of the regular rate at all (29 CFR 778.200 and following): gifts, discretionary bonuses, tips, expenses. */
+const NOT_WAGES = /\b(discretionary|gift|christmas bonus|holiday bonus|tips?|gratuit\w*|reimburse\w*|expense\w*|mileage|per diem|allowance|severance|referral)\b/;
+/** Non-discretionary bonuses and commissions: spread over the weeks they were earned in (778.209-210, 778.117). */
+const BONUS = /\b(bonus\w*|commission\w*|incentive\w*|production|attendance|retention|safety award|award)\b/;
+/** Pay that adds to the week it was earned in: shift differentials and premiums (778.207). */
+const EXTRA = /\b(differential|shift diff|shift premium|night premium|hazard pay|on.call pay|lead pay)\b/;
 
-/** Classifies a pay code. `lump` means pay that is not hours at a rate (not used yet). */
-export function classifyCode(code: string): { kind: LineKind; multiplier: number } | { kind: 'lump' } {
+/**
+ * Classifies a pay code. `not-wages` is pay the regular rate leaves out
+ * (counted, then dropped); `bonus` and `extra` are amounts with no hours.
+ */
+export function classifyCode(code: string): { kind: LineKind | 'not-wages'; multiplier: number } {
   const c = code.toLowerCase();
-  if (LUMP.test(c)) return { kind: 'lump' };
+  if (NOT_WAGES.test(c)) return { kind: 'not-wages', multiplier: 1 };
+  if (BONUS.test(c)) return { kind: 'bonus', multiplier: 1 };
+  if (EXTRA.test(c)) return { kind: 'extra', multiplier: 1 };
   if (DOUBLE.test(c)) return { kind: 'overtime', multiplier: 2 };
   if (OVERTIME.test(c)) return { kind: 'overtime', multiplier: 1.5 };
   if (EXCLUDED.test(c) && !HOLIDAY_WORKED.test(c)) return { kind: 'excluded', multiplier: 1 };
@@ -184,6 +198,12 @@ export interface ImportReport {
   lastDate: string | null;
   overtimeLines: number;
   excludedLines: number;
+  /** Bonus and commission lines, spread over the weeks they were earned in. */
+  bonusLines: number;
+  /** Shift differential and similar lines added to their week's pay. */
+  extraLines: number;
+  /** Gifts, discretionary bonuses, tips and expense lines: not part of the regular rate, left out. */
+  notWagesLines: number;
   /** Rows whose pay date could not be read (the line is kept without one). */
   badPayDates: number;
 }
@@ -212,6 +232,7 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
   const lines: TimeLine[] = [];
   const skipped: SkippedRow[] = [];
   let badPayDates = 0;
+  let notWagesLines = 0;
   const body = table.rows.slice(1);
   for (const row of body) {
     const c = row.cells;
@@ -238,8 +259,46 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
     const hours = wide && !Number.isFinite(regRaw) ? 0 : regRaw;
     const rateCell = parseMoney(cell(c, safe.rate), comma);
     const amount = parseMoney(cell(c, safe.amount), comma);
-    if (cls.kind === 'lump' || (!Number.isFinite(hours) && Number.isFinite(amount))) {
-      skipped.push({ line: row.line, reason: `${code || 'Pay without hours'}: bonuses, commissions, tips and shift differentials are not used yet, so the regular rate may be understated.` });
+    if (cls.kind === 'not-wages') {
+      notWagesLines++;
+      continue;
+    }
+    if (cls.kind === 'bonus' || cls.kind === 'extra') {
+      // Pay with no hours of its own: the amount, or hours x rate for a differential given per hour.
+      const pay = Number.isFinite(amount) ? amount : Number.isFinite(hours) && Number.isFinite(rateCell) ? hours * rateCell : NaN;
+      const payRawB = cell(c, safe.payDate);
+      const payDateB = payRawB ? parseDate(payRawB) : null;
+      const dateB = parseDate(cell(c, safe.date)) ?? payDateB;
+      if (!Number.isFinite(pay) || pay === 0) {
+        skipped.push({ line: row.line, reason: `${code}: no amount to add to the regular rate.` });
+        continue;
+      }
+      if (!dateB) {
+        skipped.push({ line: row.line, reason: `${code}: no work date or pay date to place it in a week.` });
+        continue;
+      }
+      const from = parseDate(cell(c, safe.earnedFrom));
+      const to = parseDate(cell(c, safe.earnedTo));
+      lines.push({
+        employeeKey: employeeKey(id, name),
+        employeeId: id,
+        employeeName: name,
+        date: dateB,
+        hours: 0,
+        rate: 0,
+        kind: cls.kind,
+        multiplier: 1,
+        amount: pay,
+        earnedFrom: cls.kind === 'bonus' && from && to ? from : null,
+        earnedTo: cls.kind === 'bonus' && from && to ? to : null,
+        payDate: payDateB,
+        code,
+        line: row.line,
+      });
+      continue;
+    }
+    if (!Number.isFinite(hours) && Number.isFinite(amount)) {
+      skipped.push({ line: row.line, reason: `${code || 'Pay without hours'}: pay with no hours and a pay type the checker does not know, so it is left out. If it is a bonus or commission, name the pay type so (for example "Bonus").` });
       continue;
     }
     const date = parseDate(cell(c, safe.date));
@@ -300,6 +359,9 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
       lastDate: dates[dates.length - 1] ?? null,
       overtimeLines: lines.filter((l) => l.kind === 'overtime').length,
       excludedLines: lines.filter((l) => l.kind === 'excluded').length,
+      bonusLines: lines.filter((l) => l.kind === 'bonus').length,
+      extraLines: lines.filter((l) => l.kind === 'extra').length,
+      notWagesLines,
       badPayDates,
     },
   };

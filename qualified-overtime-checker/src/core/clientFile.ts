@@ -6,7 +6,7 @@
 import { checkEmployee, summarize, type EmployeeCheck, type Summary } from './compare';
 import { buildWeeks } from './engine';
 import type { ImportReport, Mapping } from './importer';
-import type { EmployerSettings, TimeLine } from './types';
+import { withDefaults, type EmployerSettings, type TimeLine } from './types';
 
 export interface ClientFile {
   id: string;
@@ -24,7 +24,7 @@ export interface ClientFile {
 export function newClientFile(id: string, settings?: Partial<EmployerSettings>, now: Date = new Date()): ClientFile {
   return {
     id,
-    settings: { name: '', taxYear: 2026, workweekStart: 0, ...settings },
+    settings: withDefaults(settings ?? {}),
     lines: [],
     reported: {},
     source: null,

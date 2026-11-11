@@ -125,8 +125,13 @@ describe('importer', () => {
     expect(classifyCode('Holiday')).toEqual({ kind: 'excluded', multiplier: 1 });
     expect(classifyCode('Holiday worked')).toEqual({ kind: 'work', multiplier: 1 });
     expect(classifyCode('PTO')).toEqual({ kind: 'excluded', multiplier: 1 });
-    expect(classifyCode('Bonus')).toEqual({ kind: 'lump' });
-    expect(classifyCode('Night shift differential')).toEqual({ kind: 'lump' });
+    expect(classifyCode('Bonus')).toEqual({ kind: 'bonus', multiplier: 1 });
+    expect(classifyCode('Sales commission')).toEqual({ kind: 'bonus', multiplier: 1 });
+    expect(classifyCode('Night shift differential')).toEqual({ kind: 'extra', multiplier: 1 });
+    expect(classifyCode('Discretionary bonus')).toEqual({ kind: 'not-wages', multiplier: 1 });
+    expect(classifyCode('Christmas bonus')).toEqual({ kind: 'not-wages', multiplier: 1 });
+    expect(classifyCode('Tips')).toEqual({ kind: 'not-wages', multiplier: 1 });
+    expect(classifyCode('Mileage reimbursement')).toEqual({ kind: 'not-wages', multiplier: 1 });
   });
   it('guesses columns from common headers', () => {
     const m = guessMapping(['Employee ID', 'Employee', 'Date', 'Pay Type', 'Hours', 'Rate', 'Amount', 'Check Date']);
@@ -167,15 +172,15 @@ describe('importer', () => {
       'Total,,,,,,',
     ].join('\n');
     const r = importCsv(csv);
-    expect(r.lines).toHaveLength(4);
+    expect(r.lines).toHaveLength(5);
+    expect(r.lines[4]).toMatchObject({ kind: 'bonus', amount: 100, hours: 0, date: '2026-11-06' });
     expect(r.lines[1]).toMatchObject({ kind: 'overtime', multiplier: 1.5, rate: 30 });
     expect(r.lines[2]).toMatchObject({ kind: 'excluded', payDate: null });
     expect(r.lines[3].rate).toBe(21);
-    expect(r.report).toMatchObject({ rowsRead: 11, linesUsed: 4, employees: 1, overtimeLines: 1, excludedLines: 1, badPayDates: 1, firstDate: '2026-11-02', lastDate: '2026-11-05' });
-    expect(r.report.skipped.map((s) => s.line)).toEqual([6, 7, 8, 9, 10, 11, 12]);
+    expect(r.report).toMatchObject({ rowsRead: 11, linesUsed: 5, bonusLines: 1, employees: 1, overtimeLines: 1, excludedLines: 1, badPayDates: 1, firstDate: '2026-11-02', lastDate: '2026-11-06' });
+    expect(r.report.skipped.map((s) => s.line)).toEqual([6, 7, 8, 9, 10, 12]);
     expect(r.report.skipped[0].reason).toMatch(/No employee/);
-    expect(r.report.skipped[5].reason).toMatch(/not used yet/);
-    expect(r.report.skipped[6].reason).toMatch(/total row/);
+    expect(r.report.skipped[5].reason).toMatch(/total row/);
   });
   it('keys employees by ID when there is one, by name otherwise', () => {
     const r = importCsv('ID,First,Last,Date,Hours,Rate\n7,Ann,Lee,2026-11-02,8,20\n,Bo,Ray,2026-11-02,8,20\n');
@@ -223,9 +228,10 @@ describe('engine', () => {
   it('flags overtime hours paid at straight time and a premium paid short', () => {
     const lines = [...week('2026-11-01', [8, 8, 8, 8, 8, 4], 20), line({ date: '2026-11-07', hours: 2, rate: 30, kind: 'overtime', multiplier: 1.5 })];
     const w = computeWeek(dayNumber('2026-11-01'), lines);
-    expect(w.premium).toBe(60);
+    // 46 h at $20: the FLSA premium is $60, but only 2 h x $10 = $20 was paid as premium.
+    expect(w).toMatchObject({ flsaPremium: 60, paidPremium: 20, basePremium: 20, premium: 20 });
     expect(w.notes.join(' ')).toMatch(/Only 2 h were paid as overtime/);
-    expect(w.notes.join(' ')).toMatch(/less than the FLSA premium/);
+    expect(w.notes.join(' ')).toMatch(/less than the FLSA premium \(\$60\.00\): TT counts what was paid, and \$40\.00 of overtime looks owed/);
   });
   it('leaves paid time off out of hours and pay', () => {
     const lines = [...week('2026-11-01', [8, 8, 8, 8, 8], 20), line({ date: '2026-11-07', hours: 8, rate: 20, kind: 'excluded' })];

@@ -8,7 +8,7 @@ test('check the sample employer and open a worksheet', async ({ page }) => {
   await expect(page.getByText('Results appear once hours are imported')).toBeVisible();
 
   await page.getByRole('button', { name: 'Try the sample employer' }).click();
-  await expect(page.getByText('4 of 6 employees have a TT figure that needs correcting for 2026.')).toBeVisible();
+  await expect(page.getByText('6 of 8 employees have a TT figure that needs correcting for 2026.')).toBeVisible();
   await expect(page.getByText('Dropped as Social Security numbers, never read or kept: SSN.')).toBeVisible();
 
   const dev = page.getByRole('table', { name: 'TT check for 2026' }).getByRole('row', { name: /Dev Patel/ });
@@ -19,7 +19,7 @@ test('check the sample employer and open a worksheet', async ({ page }) => {
   const reported = page.getByLabel('TT reported for Dev Patel');
   await reported.fill('1815.25');
   await reported.press('Tab');
-  await expect(page.getByText('3 of 6 employees have a TT figure that needs correcting for 2026.')).toBeVisible();
+  await expect(page.getByText('5 of 8 employees have a TT figure that needs correcting for 2026.')).toBeVisible();
 
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download results (CSV)' }).click();

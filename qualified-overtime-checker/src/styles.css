@@ -106,12 +106,6 @@ th.nowrap { white-space: nowrap; }
   table.results > tbody > tr.detail > td { padding: 0.5rem; }
   td.notes { min-width: 10rem; }
 }
-.auth { margin: 0 0 0.75rem; }
-.hw-signin { display: grid; gap: 0.5rem; max-width: 28rem; }
-.hw-signin form { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.hw-signin input[type='email'] { flex: 1 1 12rem; font: inherit; padding: 0.4rem 0.5rem; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text); }
-.hw-signin p { margin: 0; }
-.hw-signin-user { font-weight: 600; }
 table.files tr.current { background: var(--shade); }
 td.actions { white-space: nowrap; }
 td.actions button + button { margin-left: 0.75rem; }
@@ -125,3 +119,25 @@ button.danger { color: var(--bad); }
   table.files > tbody > tr > td[data-label] { display: flex; justify-content: space-between; gap: 1rem; }
   table.files > tbody > tr > td[data-label]::before { content: attr(data-label); color: var(--muted); font-size: 0.85rem; }
 }
+/* Header: title left, sign-in top right (wraps under the title on phones). */
+.top-bar { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0.75rem 1.5rem; margin-bottom: 0.5rem; }
+.top-bar h1 { margin: 0; flex: 1 1 18rem; }
+.top-auth { display: grid; justify-items: end; gap: 0.35rem; max-width: 26rem; }
+.top-auth .hw-signin { justify-items: end; gap: 0.5rem; max-width: none; }
+.top-auth .hw-signin form, .top-auth .hw-signin-challenge { display: none; }
+.top-auth.email-open .hw-signin form { display: flex; }
+.top-auth.email-open .hw-signin-challenge:not(:empty) { display: block; }
+.top-auth .hw-signin-status:empty { display: none; }
+.top-auth .hw-signin-status, .top-auth .hw-signin-user { margin: 0; font-size: 0.9rem; text-align: right; }
+.top-auth.signed-in .hw-signin { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
+.top-auth .email-toggle { font-size: 0.9rem; }
+.top-auth .hw-signin-button { justify-self: end; }
+@media (max-width: 40rem) {
+  .top-auth, .top-auth .hw-signin { justify-items: start; }
+  .top-auth .hw-signin-button { justify-self: start; }
+  .top-auth .hw-signin-status, .top-auth .hw-signin-user { text-align: left; }
+  .top-auth.signed-in .hw-signin { justify-content: flex-start; }
+}
+.more { margin: 0.5rem 0 0; }
+.more summary { cursor: pointer; font-weight: 600; }
+.more .grid { margin-top: 0.75rem; }

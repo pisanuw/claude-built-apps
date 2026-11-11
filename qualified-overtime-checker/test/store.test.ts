@@ -63,8 +63,8 @@ describe('codec', () => {
     const enc = encodeFile(f);
     expect(decodeFile('a1', JSON.parse(JSON.stringify(enc)))).toEqual(f);
     expect(JSON.stringify(enc).length).toBeLessThan(JSON.stringify(f).length / 2);
-    expect(enc.employees).toHaveLength(6);
-    expect(enc.codes).toEqual(['Regular', 'Catering']);
+    expect(enc.employees).toHaveLength(8);
+    expect(enc.codes).toEqual(['Regular', 'Catering', 'Server', 'Quarterly bonus']);
   });
   it('refuses an unknown format and fills defaults', () => {
     expect(() => decodeFile('x', { v: 2 })).toThrow(/format/);
@@ -74,7 +74,7 @@ describe('codec', () => {
     expect(minimal.lines[0]).toMatchObject({ kind: 'work', code: '' });
   });
   it('summarizes and decides what is worth saving', () => {
-    expect(summarizeFile(sampleFile(), 'account')).toMatchObject({ id: 'a1', name: 'Cedar Lane Kitchen (sample)', employees: 6, needCorrection: 4, notEntered: 0, location: 'account' });
+    expect(summarizeFile(sampleFile(), 'account')).toMatchObject({ id: 'a1', name: 'Cedar Lane Kitchen (sample)', employees: 8, needCorrection: 6, notEntered: 0, location: 'account' });
     expect(worthSaving(newClientFile('x'))).toBe(false);
     expect(worthSaving(newClientFile('x', { name: ' Bo ' }))).toBe(true);
   });
@@ -126,11 +126,11 @@ describe('stores', () => {
     await s.put(f);
     const row = db.rows.get(f.id)!;
     expect(row).not.toHaveProperty('user_id');
-    expect(row).toMatchObject({ name: 'Cedar Lane Kitchen (sample)', tax_year: 2026, summary: { employees: 6, needCorrection: 4, notEntered: 0 } });
+    expect(row).toMatchObject({ name: 'Cedar Lane Kitchen (sample)', tax_year: 2026, summary: { employees: 8, needCorrection: 6, notEntered: 0 } });
     expect(JSON.stringify(row)).not.toContain('***-**');
     expect(db.calls).toContain(`from ${TABLE}`);
     expect(db.calls).toContain('upsert on user_id,id');
-    expect(await s.list()).toEqual([expect.objectContaining({ id: f.id, employees: 6, needCorrection: 4, location: 'account', taxYear: 2026 })]);
+    expect(await s.list()).toEqual([expect.objectContaining({ id: f.id, employees: 8, needCorrection: 6, location: 'account', taxYear: 2026 })]);
     expect(await s.get(f.id)).toEqual(f);
     expect(await s.get('missing')).toBeUndefined();
     await s.remove(f.id);

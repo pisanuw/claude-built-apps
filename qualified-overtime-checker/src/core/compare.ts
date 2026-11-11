@@ -34,6 +34,10 @@ export interface EmployeeCheck {
   /** True when some weeks had no pay date, so their year came from the week's end date. */
   yearFromWeekEnd: boolean;
   notes: number;
+  /** Premium added by bonuses paid in the tax year. */
+  bonusPremium: number;
+  /** Bonuses that reached no worked week of their period. */
+  unallocated: { label: string; amount: number }[];
 }
 
 function sum(xs: number[]): number {
@@ -58,59 +62,82 @@ export function needsCorrection(s: Status): boolean {
 }
 
 /** The candidate figures common mistakes produce, with the sentence that explains each, most specific first. */
+/** The week's qualified premium that belongs on the tax year's W-2: its own, if paid that year, plus bonus shares paid that year. */
+export function inYear(w: WeekResult, taxYear: number): number {
+  return round2((w.taxYear === taxYear ? w.basePremium : 0) + w.bonusParts.filter((p) => p.taxYear === taxYear).reduce((a, p) => a + p.premium, 0));
+}
+
+/** Premium added by bonuses paid in the tax year. */
+function bonusPremiumIn(weeks: WeekResult[], taxYear: number): number {
+  return sum(weeks.flatMap((w) => w.bonusParts.filter((p) => p.taxYear === taxYear).map((p) => p.premium)));
+}
+
+/** The week's pay without its bonus shares. */
+function basePay(w: WeekResult): number {
+  return w.straightPay - w.bonusParts.reduce((a, p) => a + p.amount, 0);
+}
+
 export function mistakeCandidates(weeks: WeekResult[], allWeeks: WeekResult[], taxYear: number): { value: number; cause: string }[] {
-  const ot = weeks.filter((w) => w.overtimeHours > 0);
-  const correct = sum(ot.map((w) => w.premium));
+  const own = weeks.filter((w) => w.taxYear === taxYear);
+  const ot = own.filter((w) => w.overtimeHours > 0);
+  const correct = sum(allWeeks.map((w) => inYear(w, taxYear)));
+  const bonusY = bonusPremiumIn(allWeeks, taxYear);
   const out: { value: number; cause: string }[] = [];
+  // Bonuses left out of the regular rate.
+  if (bonusY > 0) out.push({ value: round2(correct - bonusY), cause: 'The bonuses were left out of the regular rate: a non-discretionary bonus raises the overtime premium of every week it was earned in.' });
+  // Tip-credit staff: the premium worked out on the cash wage alone.
+  if (ot.some((w) => w.tipCredit)) {
+    const cash = sum(ot.map((w) => round2((0.5 * (basePay(w) - w.tipCreditPay) * w.overtimeHours) / w.hours)));
+    out.push({ value: round2(cash + bonusY), cause: 'The premium was worked out on the cash wage: for tip-credit staff the regular rate is at least the minimum wage (cash wage plus tip credit).' });
+  }
   // One rate instead of the blended rate: the employee's main rate, and the lowest.
   const rateHours = new Map<number, number>();
-  for (const w of weeks) for (const r of w.rates) rateHours.set(r.rate, (rateHours.get(r.rate) ?? 0) + r.hours);
+  for (const w of own) for (const r of w.rates) rateHours.set(r.rate, (rateHours.get(r.rate) ?? 0) + r.hours);
   if (rateHours.size > 1) {
     const byHours = [...rateHours.entries()].sort((a, b) => b[1] - a[1]);
     const main = byHours[0][0];
     const lowest = Math.min(...rateHours.keys());
     for (const r of new Set([main, lowest])) {
-      out.push({ value: sum(ot.map((w) => round2(0.5 * r * w.overtimeHours))), cause: `One pay rate ($${r.toFixed(2)}) was used for the overtime instead of the weighted average of all the rates worked that week.` });
+      out.push({ value: round2(sum(ot.map((w) => round2(0.5 * r * w.overtimeHours))) + bonusY), cause: `One pay rate ($${r.toFixed(2)}) was used for the overtime instead of the weighted average of all the rates worked that week.` });
     }
   }
 
   // Overtime counted per pay period (over 80 hours in two weeks) instead of per workweek.
   const byCheck = new Map<string, WeekResult[]>();
-  for (const w of weeks) if (w.payDate) byCheck.set(w.payDate, [...(byCheck.get(w.payDate) ?? []), w]);
+  for (const w of own) if (w.payDate) byCheck.set(w.payDate, [...(byCheck.get(w.payDate) ?? []), w]);
   if (byCheck.size > 0 && [...byCheck.values()].some((ws) => ws.length > 1)) {
     let period = 0;
     for (const ws of byCheck.values()) {
       const h = ws.reduce((a, w) => a + w.hours, 0);
-      const pay = ws.reduce((a, w) => a + w.straightPay, 0);
+      const pay = ws.reduce((a, w) => a + basePay(w), 0);
       const over = Math.max(0, h - 40 * ws.length);
       period += h > 0 ? round2((0.5 * pay * over) / h) : 0;
     }
-    out.push({ value: round2(period), cause: 'Overtime was counted per pay period (over 80 hours in two weeks) rather than per workweek, so busy weeks next to quiet ones lost their overtime.' });
+    out.push({ value: round2(period + bonusY), cause: 'Overtime was counted per pay period (over 80 hours in two weeks) rather than per workweek, so busy weeks next to quiet ones lost their overtime.' });
   }
 
   // Year-end weeks: worked in the year but paid in the next, or worked in the previous year and paid in this one.
   // Only weeks with a pay date: without one the file says nothing about when a week was paid.
-  const spill = allWeeks.filter((w) => !w.yearFromWeekEnd && w.taxYear === taxYear + 1 && Number(w.start.slice(0, 4)) === taxYear && w.premium > 0);
-  if (spill.length) out.push({ value: round2(correct + sum(spill.map((w) => w.premium))), cause: `It includes overtime worked in late ${taxYear} but paid in ${taxYear + 1}; that belongs on the ${taxYear + 1} W-2.` });
-  const carried = weeks.filter((w) => !w.yearFromWeekEnd && Number(w.start.slice(0, 4)) === taxYear - 1 && w.premium > 0);
-  if (carried.length) out.push({ value: round2(correct - sum(carried.map((w) => w.premium))), cause: `It leaves out overtime worked in late ${taxYear - 1} but paid in ${taxYear}; that belongs on the ${taxYear} W-2.` });
+  const spill = allWeeks.filter((w) => !w.yearFromWeekEnd && w.taxYear === taxYear + 1 && Number(w.start.slice(0, 4)) === taxYear && w.basePremium > 0);
+  if (spill.length) out.push({ value: round2(correct + sum(spill.map((w) => w.basePremium))), cause: `It includes overtime worked in late ${taxYear} but paid in ${taxYear + 1}; that belongs on the ${taxYear + 1} W-2.` });
+  const carried = own.filter((w) => !w.yearFromWeekEnd && Number(w.start.slice(0, 4)) === taxYear - 1 && w.basePremium > 0);
+  if (carried.length) out.push({ value: round2(correct - sum(carried.map((w) => w.basePremium))), cause: `It leaves out overtime worked in late ${taxYear - 1} but paid in ${taxYear}; that belongs on the ${taxYear} W-2.` });
   // Generic mistakes last, so the most specific explanation is named first.
   if (correct > 0) out.push({ value: 0, cause: 'The payroll reported no qualified overtime, but these workweeks have hours over 40.' });
 
-  const paidOtLines = ot.filter((w) => w.paidPremium !== null);
-  if (paidOtLines.length) {
-    const paidPremium = sum(weeks.map((w) => w.paidPremium ?? 0));
+  if (ot.some((w) => w.paidPremium !== null)) {
+    const paidPremium = sum(own.map((w) => w.paidPremium ?? 0));
     out.push({ value: paidPremium, cause: 'The payroll reported the overtime premium it paid, including overtime the FLSA does not require (daily or contract overtime) or at a rate other than the regular rate.' });
   }
-  out.push({ value: sum(ot.map((w) => round2(3 * w.premium))), cause: 'The full overtime pay (time and a half) went into TT instead of only the half-time premium.' });
-  out.push({ value: sum(ot.map((w) => round2(2 * w.premium))), cause: 'The figure looks doubled, as if the premium was counted twice.' });
+  out.push({ value: round2(3 * correct), cause: 'The full overtime pay (time and a half) went into TT instead of only the half-time premium.' });
+  out.push({ value: round2(2 * correct), cause: 'The figure looks doubled, as if the premium was counted twice.' });
 
   return out;
 }
-
 export function checkEmployee(ew: EmployeeWeeks, taxYear: number, reported: number | null): EmployeeCheck {
-  const yearWeeks = ew.weeks.filter((w) => w.taxYear === taxYear);
-  const correct = sum(yearWeeks.map((w) => w.premium));
+  const yearWeeks = ew.weeks.filter((w) => w.taxYear === taxYear || w.bonusParts.some((p) => p.taxYear === taxYear));
+  const own = ew.weeks.filter((w) => w.taxYear === taxYear);
+  const correct = sum(ew.weeks.map((w) => inYear(w, taxYear)));
   const status = statusOf(reported, correct);
   const causes: string[] = [];
   if (reported !== null && needsCorrection(status)) {
@@ -122,17 +149,19 @@ export function checkEmployee(ew: EmployeeWeeks, taxYear: number, reported: numb
     employee: ew.employee,
     weeks: ew.weeks,
     yearWeeks,
-    hours: yearWeeks.reduce((a, w) => a + w.hours, 0),
-    overtimeHours: yearWeeks.reduce((a, w) => a + w.overtimeHours, 0),
-    weeksWithOvertime: yearWeeks.filter((w) => w.overtimeHours > 0).length,
+    hours: own.reduce((a, w) => a + w.hours, 0),
+    overtimeHours: own.reduce((a, w) => a + w.overtimeHours, 0),
+    weeksWithOvertime: own.filter((w) => w.overtimeHours > 0).length,
     correct,
     reported,
     difference: reported === null ? null : round2(reported - correct),
     status,
     causes,
-    otherYearPremium: sum(ew.weeks.filter((w) => w.taxYear !== taxYear).map((w) => w.premium)),
-    yearFromWeekEnd: yearWeeks.some((w) => w.yearFromWeekEnd),
+    otherYearPremium: round2(sum(ew.weeks.map((w) => w.premium)) - correct),
+    yearFromWeekEnd: own.some((w) => w.yearFromWeekEnd),
     notes: yearWeeks.reduce((a, w) => a + w.notes.length, 0),
+    bonusPremium: bonusPremiumIn(ew.weeks, taxYear),
+    unallocated: ew.unallocated ?? [],
   };
 }
 

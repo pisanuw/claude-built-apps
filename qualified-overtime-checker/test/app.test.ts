@@ -54,7 +54,7 @@ describe('the checker page', () => {
     await mount();
     button('Try the sample employer').click();
     await settle();
-    expect(root.querySelector('.lead')?.textContent).toBe('4 of 6 employees have a TT figure that needs correcting for 2026.');
+    expect(root.querySelector('.lead')?.textContent).toBe('6 of 8 employees have a TT figure that needs correcting for 2026.');
     expect(root.textContent).toContain('Dropped as Social Security numbers, never read or kept: SSN.');
     const dev = [...root.querySelectorAll('table.results tbody tr')].find((tr) => tr.textContent?.includes('Dev Patel')) as HTMLElement;
     expect(dev.textContent).toContain('Too low');
@@ -127,7 +127,7 @@ describe('the checker page', () => {
     name.value = '  Doe Plumbing ';
     name.dispatchEvent(new Event('change'));
     await settle();
-    expect((await repo.get('f1'))?.settings).toEqual({ name: 'Doe Plumbing', taxYear: 2025, workweekStart: 4 });
+    expect((await repo.get('f1'))?.settings).toMatchObject({ name: 'Doe Plumbing', taxYear: 2025, workweekStart: 4, minimumWage: 7.25 });
   });
 
   it('imports payroll figures from a CSV and reports unmatched rows', async () => {

@@ -6,12 +6,19 @@
  */
 import { runChecks, type ClientFile } from './clientFile';
 import type { ImportReport, Mapping } from './importer';
-import type { EmployerSettings, LineKind, TimeLine } from './types';
+import { withDefaults, type EmployerSettings, type LineKind, type TimeLine } from './types';
 
-const KINDS: LineKind[] = ['work', 'overtime', 'excluded'];
+// Append only: stored files keep the index.
+const KINDS: LineKind[] = ['work', 'overtime', 'excluded', 'bonus', 'extra'];
 
-/** [employee index, date, hours, rate, kind index, multiplier, pay date or null, code index, source line] */
-export type StoredLine = [number, string, number, number, number, number, string | null, number, number];
+/**
+ * [employee index, date, hours, rate, kind index, multiplier, pay date or null,
+ * code index, source line, then for bonus and extra lines: amount, earned from,
+ * earned to]
+ */
+export type StoredLine =
+  | [number, string, number, number, number, number, string | null, number, number]
+  | [number, string, number, number, number, number, string | null, number, number, number, string | null, string | null];
 
 export interface StoredFile {
   v: 1;
@@ -45,7 +52,8 @@ export function encodeFile(file: ClientFile): StoredFile {
       codeIdx.set(l.code, c);
       codes.push(l.code);
     }
-    return [e, l.date, l.hours, l.rate, KINDS.indexOf(l.kind), l.multiplier, l.payDate, c, l.line];
+    const base: StoredLine = [e, l.date, l.hours, l.rate, KINDS.indexOf(l.kind), l.multiplier, l.payDate, c, l.line];
+    return l.amount === undefined ? base : [...(base as [number, string, number, number, number, number, string | null, number, number]), l.amount, l.earnedFrom ?? null, l.earnedTo ?? null];
   });
   return {
     v: 1,
@@ -69,15 +77,17 @@ export function decodeFile(id: string, stored: unknown): ClientFile {
   if (!st || typeof st.name !== 'string' || !Number.isInteger(st.taxYear) || !Number.isInteger(st.workweekStart)) throw bad();
   const lines: TimeLine[] = s.lines.map((l) => {
     if (!Array.isArray(l) || l.length < 9) throw bad();
-    const [e, date, hours, rate, kind, multiplier, payDate, c, line] = l;
+    const [e, date, hours, rate, kind, multiplier, payDate, c, line, amount, earnedFrom, earnedTo] = l as unknown[] as [number, string, number, number, number, number, string | null, number, number, number?, (string | null)?, (string | null)?];
     const emp = s.employees[e];
     if (!Array.isArray(emp) || typeof date !== 'string' || !Number.isFinite(hours) || !Number.isFinite(rate) || !Number.isFinite(multiplier)) throw bad();
     const [employeeKey, employeeId, employeeName] = emp;
-    return { employeeKey, employeeId, employeeName, date, hours, rate, kind: KINDS[kind] ?? 'work', multiplier, payDate, code: s.codes[c] ?? '', line };
+    const out: TimeLine = { employeeKey, employeeId, employeeName, date, hours, rate, kind: KINDS[kind] ?? 'work', multiplier, payDate, code: s.codes[c] ?? '', line };
+    if (typeof amount === 'number' && Number.isFinite(amount)) Object.assign(out, { amount, earnedFrom: earnedFrom ?? null, earnedTo: earnedTo ?? null });
+    return out;
   });
   return {
     id,
-    settings: s.settings,
+    settings: withDefaults(s.settings),
     lines,
     reported: s.reported ?? {},
     source: s.source ?? null,

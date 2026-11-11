@@ -82,7 +82,7 @@ describe('the sample employer', () => {
   it('drops the SSN column and imports every row', () => {
     expect(s.csv).toContain('SSN');
     expect(JSON.stringify(s.lines)).not.toContain('***-**');
-    expect(s.lines.length).toBe(sampleCsv().trim().split('\r\n').length - 1);
+    expect(s.lines.length + 53).toBe(sampleCsv().trim().split('\r\n').length - 1); // 53 weekly tips lines are not wages
   });
   it('flags the two-rate employee and not the single-rate one', () => {
     expect(by('E102').status).toBe('under');
@@ -94,7 +94,7 @@ describe('the sample employer', () => {
     expect(by('E103').causes[0]).toMatch(/full overtime pay/);
     expect(by('E105').causes.join(' ')).toMatch(/per pay period/);
     expect(by('E106').causes[0]).toMatch(/paid in 2027/);
-    expect(summary).toMatchObject({ employees: 6, withOvertime: 5, needCorrection: 4, notEntered: 0 });
+    expect(summary).toMatchObject({ employees: 8, withOvertime: 7, needCorrection: 6, notEntered: 0 });
   });
   it('works the blended rate by hand for a 47-hour week', () => {
     const w = by('E102').yearWeeks.find((x) => x.hours === 47)!;
