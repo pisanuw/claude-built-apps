@@ -36,6 +36,17 @@ export const ACADEMIC_URL = 'https://pisanorg.github.io/yusuf/';
 /** Visible text for ACADEMIC_URL. */
 export const ACADEMIC_LABEL = 'https://pisanorg.github.io/yusuf/';
 
+/**
+ * The HintWise icon (platform/brand/hintwise-icon.svg, coordinates rounded to
+ * 0.1), shown small above the text. It carries its own colours (indigo square,
+ * white "h", coral spark), so it reads on light and dark pages alike, and it is
+ * decorative: the text already names HintWise.
+ */
+export const LOGO_SVG =
+  '<svg class="mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="28" height="28" aria-hidden="true" focusable="false">' +
+  '<rect width="1000" height="1000" rx="250" fill="#312E81"/><g transform="translate(0 1000) scale(1 -1)"><path fill="#FFFFFF" d="M557.1 253.2V441.5Q557.1 467.4 541.1 483.3Q525.2 499.3 500.7 499.3Q483.7 499.3 470.8 492.2Q457.8 485 450.4 471.8Q442.9 458.5 442.9 441.5L402.8 461.2Q402.8 500 419.1 529.2Q435.4 558.5 464.6 574.5Q493.9 590.4 532 590.4Q570.7 590.4 600 574.5Q629.2 558.5 645.2 530.3Q661.2 502 661.2 464.6V253.2ZM338.8 253.2V746.8H442.9V253.2Z"/><path fill="#FF7A45" d="M750 892.9 L781.4 781.4 L892.9 750 L781.4 718.6 L750 607.1 L718.6 718.6 L607.1 750 L718.6 781.4Z"/></g>' +
+  '</svg>';
+
 /** Marks an already-injected page so a second run is a no-op. */
 export const MARKER = 'data-site-footer';
 
@@ -43,6 +54,7 @@ const STYLE = `
 :host { display: block; box-sizing: border-box; width: 100%; grid-column: 1 / -1; align-self: stretch; clear: both; }
 aside { box-sizing: border-box; max-width: 46rem; margin: 2.5rem auto 0; padding: 1rem 16px 1.5rem; border-top: 1px solid color-mix(in srgb, currentColor 22%, transparent); font: 13px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; text-align: center; overflow-wrap: anywhere; }
 p { margin: 0; }
+.mark { display: block; margin: 0 auto 0.6rem; }
 .nb { white-space: nowrap; }
 p + p { margin-top: 0.4em; }
 a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
@@ -65,7 +77,7 @@ export function footerHtml(app) {
   const mailto = `mailto:${CONTACT_EMAIL}?subject=${escapeHtml(subject)}`;
   return (
     `<site-footer ${MARKER}><template shadowrootmode="open"><style>${STYLE}</style>` +
-    `<aside aria-label="About the builder"><p>` +
+    `<aside aria-label="About the builder">${LOGO_SVG}<p>` +
     `HintWise builds tools like this for small businesses, startups and educators.<br>` +
     `Built with Claude, guided by experts.<br>` +
     `Want something like this for your own work? <span class="nb">Email <a href="${mailto}">${CONTACT_EMAIL}</a>.</span><br>` +

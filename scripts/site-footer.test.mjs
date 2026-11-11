@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { footerHtml, injectFooter, injectFooterIntoDir, MARKER, PROJECTS_URL, PROJECTS_LABEL, CONTACT_EMAIL, ACADEMIC_URL, ACADEMIC_LABEL } from './site-footer.mjs';
+import { footerHtml, injectFooter, injectFooterIntoDir, MARKER, PROJECTS_URL, PROJECTS_LABEL, CONTACT_EMAIL, ACADEMIC_URL, ACADEMIC_LABEL, LOGO_SVG } from './site-footer.mjs';
 
 const page = '<!doctype html><html><head></head><body><div id="root"></div><script src="a.js"></script></body></html>';
 
@@ -19,6 +19,15 @@ test('footer links the projects page and email, naming the app in the subject', 
   assert.ok(html.includes('<p>Yusuf Pisan, Chief Education Officer, HintWise</p>'));
   assert.ok(html.includes('HintWise builds tools like this for small businesses, startups and educators.<br>'));
   assert.ok(html.includes('Want something like this for your own work?'));
+});
+
+test('footer shows the HintWise icon above the text, decorative and self-coloured', () => {
+  const html = footerHtml('app');
+  assert.ok(html.includes(`<aside aria-label="About the builder">${LOGO_SVG}<p>`));
+  assert.ok(LOGO_SVG.includes('aria-hidden="true"'));
+  assert.ok(LOGO_SVG.includes('fill="#312E81"') && LOGO_SVG.includes('fill="#FF7A45"'));
+  assert.ok(!LOGO_SVG.includes('currentColor'));
+  assert.ok(LOGO_SVG.length < 900);
 });
 
 test('contact address is builder@hintwise.org', () => {

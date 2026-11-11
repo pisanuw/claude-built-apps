@@ -82,5 +82,5 @@ written with Pillow from the 16, 32 and 48 px PNGs.
   A changed image under the same name takes up to a day to show everywhere.
   The SVGs are not uploaded: a public SVG opened directly can run script on
   auth.hintwise.org, so the bucket accepts PNG and ICO only.
-- **Next:** a small mark in the shared site footer (`scripts/site-footer.mjs`), which each app picks up on its next deploy.
+- **Shared site footer** (`scripts/site-footer.mjs`, `LOGO_SVG`, 11 Nov): the icon at 28 px above the text; each app picks it up on its next deploy (no app redeployed for it).
 - **Later:** app favicons and social preview images.
