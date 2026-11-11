@@ -214,9 +214,10 @@ The build routine (BUILD_ROUTINE.md) picks a substantial idea (small business fi
 
 ### Scheduling
 - Previous session: session_01JyJzMZ1aBTZCRkUXLJnRG4 ("Plabs: Nov 8"), created 8 Nov 2026 by create_session from session_01JyJzMYaEBiQ8ixgKSDb4Lu, lineage depth 2 of limit 8. Handed over on 11 November 2026 at 66% context (657,961 of 1,000,000 tokens). The 14:52 Europe/Berlin start routine creates the next session (depth 3 of 8).
-- Relay routines (currently aimed at the previous session; the new session moves them):
-  - trig_01NAfm62qztXkR5RUrYuPXZy: Plabs hourly status report, `46 * * * *`
-  - trig_01DDT69peni1JYMUF8dyCCCK: Plabs handoff check, `CRON_TZ=Europe/Berlin 56 13 * * *`
-  - trig_01GfNe88huewMUQ7tk5Rxx4t: Plabs session start, `CRON_TZ=Europe/Berlin 52 14 * * *`
-- No one-shot check-in from the previous session is pending; two disabled ones that never fired (trig_01GXgEy75jjqyW6uVe5bfDPg, trig_01ATSrYiV8dttFXM3PuaSVof, 9 Nov) may be deleted by the new session.
+- **Current session: session_01JyJzMXxeHu9P7By5BXRNJv ("Plabs: Nov 11")**, took over on 11 November 2026 (created 13:53 UTC by the start routine from session_01JyJzMZ1aBTZCRkUXLJnRG4), lineage depth 3 of limit 8.
+- Relay routines (aimed at the current session since the 11 Nov takeover):
+  - trig_01DF97CqMqhDtJLS2LiVwjc5: Plabs hourly status report, `46 * * * *`
+  - trig_01Wxj14aKZPbxNMZZ4cFqDy5: Plabs handoff check, `CRON_TZ=Europe/Berlin 56 13 * * *`
+  - trig_01FBwDwP9XRuBfkaCzyRPVg4: Plabs session start, `CRON_TZ=Europe/Berlin 52 14 * * *`
+- The old routines (trig_01NAfm62…, trig_01DDT69p…, trig_01GfNe88…) and the two disabled 9 Nov one-shots were deleted at the takeover.
 - Not relay, leave alone: the owner's ideas (trig_01K986yzFbf3noGkLA6RgZkn) and build (trig_01BAP9nsXTtxTdpMiwk5GdXE) routines; the Chess TD, Chess Analyzer and DSA relays (other sessions); the StepWise relay has ended (its session said its routines are deleted and the owner is archiving it; not checked); TPT daily product builder; research-map; SIGCSE poster reminder.
