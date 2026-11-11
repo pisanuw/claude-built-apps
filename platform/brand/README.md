@@ -67,7 +67,6 @@ written with Pillow from the 16, 32 and 48 px PNGs.
 
 ## Where it is used
 
-- **Next:**
-  - the email header, together with the footer and opt-out work;
-  - a small mark in the shared site footer (`scripts/site-footer.mjs`), which each app picks up on its next deploy.
+- **Shared site footer** (`scripts/site-footer.mjs`, `LOGO_SVG`, 11 Nov): the icon at 28 px above the text; each app picks it up on its next deploy (no app redeployed for it).
+- **Next:** the email header, together with the footer and opt-out work.
 - **Later:** app favicons and social preview images.

@@ -478,3 +478,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-11 [decision] HintWise logo (owner): A1, Outfit 400/700 wordmark, deep indigo #312E81, coral #FF7A45 sparks, sparks on tiny icons too. Outlined SVGs and PNGs in platform/brand.
 2026-11-11 [note] StepWise final deploy 70155fe (10:32); its session relay ended at the owner's request. New StepWise work starts by hand from HANDOFF.md on next in its repo.
 2026-11-11 [code] qualified-overtime-checker day 7, finished: whole-app review (11 findings) and a second review of the fixes (8 more) fixed and deployed with migration 0004 (name and summary caps); dev tooling on vitest 4; catalog row, PROJECTS.md write-up, pisan-labs mirror files, implemented.json and aiprojects.md.
+
+2026-11-11 [code] Shared site footer shows the HintWise icon (28px) above the text; owner default taken 14:21 Lisbon, undo: git revert the merge. Apps get it on next deploy.
