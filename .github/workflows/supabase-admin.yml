@@ -17,7 +17,7 @@
 #   check-google [arg: return URL]  test the Google sign-in request without logging in; flag --base=URL for a custom auth domain
 #   external-hosts           print HOOK_EXTERNAL_HOSTS (auth allow-list and site URL hosts minus hintwise.org)
 #   brand-upload             create the public Storage bucket "brand" if missing and upload platform/brand
-#                            (PNG, SVG, favicon.ico; one-year cache); prints EMAIL_LOGO_URL; idempotent
+#                            (PNG and favicon.ico, no SVG; one-day cache); prints EMAIL_LOGO_URL; idempotent
 #   email-optout <arg: status | add | remove>  support for "Stop all email from HintWise": the address
 #                            goes in the "email" input and is masked in the log before any step can show
 #                            it; the log shows only the action, the time and the hash prefix. add on any

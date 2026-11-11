@@ -13,10 +13,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const brandDir = path.join(here, '..', 'brand');
 
 describe('brand-upload: what it sends', () => {
-  it('picks the PNGs, SVGs and favicon.ico, sorted, with their content types', () => {
+  it('picks the PNGs and favicon.ico, never an SVG, sorted, with their content types', () => {
     expect(m.brandFiles(['README.md', 'make_logo.py', 'b.svg', 'a.png', 'favicon.ico', 'other.ico', 'x.PNG', '../evil.png', 'sp ace.png', 'hintwise-wordmark-email@2x.png', 7])).toEqual([
       { name: 'a.png', contentType: 'image/png' },
-      { name: 'b.svg', contentType: 'image/svg+xml' },
       { name: 'favicon.ico', contentType: 'image/x-icon' },
       { name: 'hintwise-wordmark-email@2x.png', contentType: 'image/png' },
     ]);
@@ -26,11 +25,13 @@ describe('brand-upload: what it sends', () => {
     const files = m.brandFiles(fs.readdirSync(brandDir));
     expect(files.map((f) => f.name)).toContain(m.EMAIL_LOGO_FILE);
     expect(files.map((f) => f.name)).toContain('favicon.ico');
-    expect(files.length).toBe(fs.readdirSync(brandDir).filter((n) => /\.(png|svg|ico)$/.test(n)).length);
+    expect(files.length).toBe(fs.readdirSync(brandDir).filter((n) => /\.(png|ico)$/.test(n)).length);
+    expect(files.some((f) => f.name.endsWith('.svg'))).toBe(false);
+    expect(fs.readdirSync(brandDir).some((n) => n.endsWith('.svg'))).toBe(true);
     for (const f of files) expect(fs.statSync(path.join(brandDir, f.name)).size, f.name).toBeLessThan(m.BRAND_SIZE_LIMIT);
   });
-  it('makes a public bucket for these image types only, with a small size limit', () => {
-    expect(m.brandBucketConfig()).toEqual({ public: true, file_size_limit: 262144, allowed_mime_types: ['image/png', 'image/svg+xml', 'image/x-icon'] });
+  it('makes a public bucket for PNG and ICO only (no SVG), with a small size limit', () => {
+    expect(m.brandBucketConfig()).toEqual({ public: true, file_size_limit: 262144, allowed_mime_types: ['image/png', 'image/x-icon'] });
   });
   it('creates the bucket when it is missing, corrects what differs, and leaves a right one alone', () => {
     const want = m.brandBucketConfig();
@@ -42,11 +43,13 @@ describe('brand-upload: what it sends', () => {
       body: { id: 'brand', name: 'brand', ...want },
     });
     expect(m.brandBucketPlan({ ...want, file_size_limit: '262144' }).action).toBe('none');
+    // A bucket that still allows SVG is corrected.
+    expect(m.brandBucketPlan({ ...want, allowed_mime_types: ['image/png', 'image/svg+xml', 'image/x-icon'] })).toMatchObject({ action: 'update', differs: ['allowed_mime_types'] });
   });
-  it('uploads with the type, a one-year cache and overwrite, so a rerun is harmless', () => {
-    expect(m.BRAND_CACHE_SECONDS).toBe(31536000);
-    expect(m.brandUploadHeaders('eyJ.a.b', 'image/png')).toEqual({ apikey: 'eyJ.a.b', authorization: 'Bearer eyJ.a.b', 'content-type': 'image/png', 'cache-control': 'max-age=31536000', 'x-upsert': 'true' });
-    expect(m.brandUploadHeaders('sb_secret_x', 'image/svg+xml')).toEqual({ apikey: 'sb_secret_x', 'content-type': 'image/svg+xml', 'cache-control': 'max-age=31536000', 'x-upsert': 'true' });
+  it('uploads with the type, a one-day cache and overwrite, so a rerun is harmless', () => {
+    expect(m.BRAND_CACHE_SECONDS).toBe(86400);
+    expect(m.brandUploadHeaders('eyJ.a.b', 'image/png')).toEqual({ apikey: 'eyJ.a.b', authorization: 'Bearer eyJ.a.b', 'content-type': 'image/png', 'cache-control': 'max-age=86400', 'x-upsert': 'true' });
+    expect(m.brandUploadHeaders('sb_secret_x', 'image/x-icon')).toEqual({ apikey: 'sb_secret_x', 'content-type': 'image/x-icon', 'cache-control': 'max-age=86400', 'x-upsert': 'true' });
   });
   it('gives the logo URL on the custom domain, as EMAIL_LOGO_URL expects', () => {
     const pub = JSON.parse(fs.readFileSync(path.join(here, '..', 'supabase.json'), 'utf8'));
@@ -54,18 +57,6 @@ describe('brand-upload: what it sends', () => {
     expect(m.publicBase({ url: 'not a url' }, 'https://ref.supabase.co/')).toBe('https://ref.supabase.co/');
     expect(m.publicBase(null, 'f')).toBe('f');
     expect(m.brandPublicUrl('https://ref.supabase.co/', 'a.png')).toBe('https://ref.supabase.co/storage/v1/object/public/brand/a.png');
-  });
-  it('refuses an SVG that could run script on the project domain; the committed ones are clean', () => {
-    for (const n of fs.readdirSync(brandDir).filter((f) => f.endsWith('.svg'))) expect(m.svgProblems(fs.readFileSync(path.join(brandDir, n), 'utf8')), n).toEqual([]);
-    expect(m.svgProblems('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>')).toEqual(['has a <script>']);
-    expect(m.svgProblems('<svg onload="x()"></svg>')).toEqual(['has an event handler attribute']);
-    expect(m.svgProblems('<svg><a href="javascript:x()"/></svg>')).toEqual(['has a javascript: URL', 'links outside itself']);
-    expect(m.svgProblems('<svg><foreignObject/></svg>')).toEqual(['has a <foreignObject>']);
-    expect(m.svgProblems('<!DOCTYPE svg [<!ENTITY x "y">]><svg/>')).toEqual(['does not start with <svg', 'has a DOCTYPE or ENTITY']);
-    expect(m.svgProblems('<svg><image xlink:href="https://x/y.png"/></svg>')).toEqual(['links outside itself']);
-    expect(m.svgProblems('<svg><use href="#a"/></svg>')).toEqual([]);
-    expect(m.svgProblems('<?xml version="1.0"?>\n<svg></svg>')).toEqual([]);
-    expect(m.svgProblems(null)).toEqual(['does not start with <svg']);
   });
 });
 

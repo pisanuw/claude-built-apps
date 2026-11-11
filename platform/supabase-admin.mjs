@@ -68,13 +68,15 @@
  *                           also needs the email-optout function and the
  *                           EMAIL_OPTOUT_SECRET function secret
  *   brand-upload            create the public Storage bucket `brand` if it
- *                           is missing (public read, PNG/SVG/ICO only, 256 KB
+ *                           is missing (public read, PNG and ICO only, 256 KB
  *                           a file; settings corrected if they differ), upload
- *                           platform/brand/*.png, *.svg and favicon.ico over
- *                           any earlier copy (content type, one-year cache),
- *                           check the email logo's public URL and print it as
- *                           EMAIL_LOGO_URL=...; idempotent. Needs
- *                           SUPABASE_SERVICE_ROLE_KEY
+ *                           platform/brand/*.png and favicon.ico over any
+ *                           earlier copy (content type, one-day cache: a
+ *                           changed image shows within a day), check the
+ *                           email logo's public URL and print it as
+ *                           EMAIL_LOGO_URL=...; idempotent. No SVG (a public
+ *                           SVG can run script on auth.hintwise.org). Needs
+ *                           SUPABASE_SERVICE_ROLE_KEY, not the access token
  *   email-optout status|add|remove [email]
  *                           support for the email opt-out: the address comes
  *                           from OPTOUT_EMAIL (the workflow's masked "email"
@@ -920,21 +922,25 @@ async function emailHook(action = 'status') {
 export const BRAND_BUCKET = 'brand';
 /** The file the emails' header shows (EMAIL_LOGO_URL). */
 export const EMAIL_LOGO_FILE = 'hintwise-wordmark-email@2x.png';
-/** One year. A changed image gets a new file name (and EMAIL_LOGO_URL a new value), so caches never need clearing. */
-export const BRAND_CACHE_SECONDS = 31536000;
+/** One day: a changed image under the same name shows within a day. */
+export const BRAND_CACHE_SECONDS = 86400;
 /** The largest brand file is about 12 KB. */
 export const BRAND_SIZE_LIMIT = 256 * 1024;
-export const BRAND_TYPES = { '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
+/**
+ * PNG and ICO only. No SVG: a public SVG opened directly runs any script in
+ * it on auth.hintwise.org, so the SVGs stay in the repo and are not served.
+ */
+export const BRAND_TYPES = { '.png': 'image/png', '.ico': 'image/x-icon' };
 
 /** Pure: the bucket's settings: public read, these image types only, small files. */
 export function brandBucketConfig() {
   return { public: true, file_size_limit: BRAND_SIZE_LIMIT, allowed_mime_types: [...new Set(Object.values(BRAND_TYPES))].sort() };
 }
 
-/** Pure: the files brand-upload sends, from a directory listing: *.png, *.svg and favicon.ico, sorted, with their content types. */
+/** Pure: the files brand-upload sends, from a directory listing: *.png and favicon.ico, sorted, with their content types. */
 export function brandFiles(names) {
   return (Array.isArray(names) ? names : [])
-    .filter((n) => typeof n === 'string' && /^[A-Za-z0-9@._-]+$/.test(n) && (/\.(png|svg)$/.test(n) || n === 'favicon.ico'))
+    .filter((n) => typeof n === 'string' && /^[A-Za-z0-9@._-]+$/.test(n) && (/\.png$/.test(n) || n === 'favicon.ico'))
     .sort()
     .map((name) => ({ name, contentType: BRAND_TYPES[path.extname(name)] }));
 }
@@ -951,25 +957,6 @@ export function brandBucketPlan(existing) {
   return differs.length ? { action: 'update', differs, body: { id: BRAND_BUCKET, name: BRAND_BUCKET, ...want } } : { action: 'none' };
 }
 
-/**
- * Pure: why an SVG must not be served from the project's own domain, or [].
- * A public SVG opened directly runs its scripts on auth.hintwise.org, so it
- * may hold no script, event handler, javascript: URL, foreignObject, entity
- * or link to anything outside itself.
- */
-export function svgProblems(text) {
-  const t = String(text ?? '');
-  const problems = [];
-  if (!/^\s*(<\?xml[^>]*>\s*)?<svg[\s>]/i.test(t)) problems.push('does not start with <svg');
-  if (/<script/i.test(t)) problems.push('has a <script>');
-  if (/\son[a-z]+\s*=/i.test(t)) problems.push('has an event handler attribute');
-  if (/javascript:/i.test(t)) problems.push('has a javascript: URL');
-  if (/<foreignObject/i.test(t)) problems.push('has a <foreignObject>');
-  if (/<!(DOCTYPE|ENTITY)/i.test(t)) problems.push('has a DOCTYPE or ENTITY');
-  if (/\b(xlink:)?href\s*=\s*["']\s*(?!#)/i.test(t)) problems.push('links outside itself');
-  return problems;
-}
-
 /** Pure: a brand file's public URL on `base` (the custom domain from platform/supabase.json). */
 export const brandPublicUrl = (base, name) => `${String(base).replace(/\/+$/, '')}/storage/v1/object/public/${BRAND_BUCKET}/${name}`;
 
@@ -982,7 +969,7 @@ export function serviceHeaders(key) {
   return String(key).startsWith('sb_') ? { apikey: key } : { apikey: key, authorization: `Bearer ${key}` };
 }
 
-/** Pure: the upload headers: type, a long cache, and overwrite (so a rerun replaces the file). */
+/** Pure: the upload headers: type, a one-day cache, and overwrite (so a rerun replaces the file). */
 export function brandUploadHeaders(key, contentType) {
   return { ...serviceHeaders(key), 'content-type': contentType, 'cache-control': `max-age=${BRAND_CACHE_SECONDS}`, 'x-upsert': 'true' };
 }
@@ -995,8 +982,8 @@ export function publicBase(json, fallback) {
 
 /**
  * Creates the public bucket `brand` when it is missing (or corrects its
- * settings), uploads platform/brand/*.png, *.svg and favicon.ico over any
- * earlier copy, and checks the email logo's public URL. Idempotent.
+ * settings), uploads platform/brand/*.png and favicon.ico over any earlier
+ * copy, and checks the email logo's public URL. Idempotent.
  */
 async function brandUpload() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -1008,8 +995,6 @@ async function brandUpload() {
   for (const f of files) {
     f.bytes = fs.readFileSync(path.join(dir, f.name));
     if (f.bytes.length > BRAND_SIZE_LIMIT) fail(`brand-upload: ${f.name} is ${f.bytes.length} bytes, over the bucket's ${BRAND_SIZE_LIMIT}`);
-    const bad = f.contentType === 'image/svg+xml' ? svgProblems(f.bytes.toString('utf8')) : [];
-    if (bad.length) fail(`brand-upload: ${f.name} ${bad.join(', ')}; not uploaded`);
   }
   const storage = async (route, init = {}) => {
     const res = await fetch(`${base}/storage/v1${route}`, { ...init, headers: { ...serviceHeaders(key), ...(init.headers || {}) } });
