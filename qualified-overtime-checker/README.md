@@ -53,8 +53,14 @@ second export to a file without counting rows twice.
 Not supported: exports with no dated or weekly hours (payroll summaries, or
 EasyACCT's earnings totals).
 
-Still being built (week of 10 November 2026): PDF worksheets and the W-2c
-list. The full write-up comes with the finished app.
+What you can hand over or keep on file: an employer summary (PDF) with each
+employee's figure, what to correct and why; a week-by-week worksheet per
+employee (PDF), whose total is the figure; the W-2c list (CSV) of exactly
+the employees to correct, with the amount previously reported and the right
+one; the results and worksheet as CSV; and a print view.
+
+Still being built (week of 10 November 2026): a final polish pass. The full
+write-up comes with the finished app.
 
 ## For developers
 

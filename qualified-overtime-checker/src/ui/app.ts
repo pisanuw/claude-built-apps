@@ -10,6 +10,7 @@ import { parseCsv, type CsvTable } from '../core/csv';
 import { formatDay, WEEKDAYS } from '../core/dates';
 import { employeesOf } from '../core/engine';
 import { resultsCsv, STATUS_TEXT, worksheetCsv } from '../core/export';
+import { summaryPdf, w2cListCsv, worksheetPdf } from '../core/reports';
 import { FIELD_LABELS, FIELDS, guessMapping, importRows, mappingProblems, parseMoney, ssnColumns, type Mapping } from '../core/importer';
 import { importReported, keepKnown } from '../core/reported';
 import { headerSignature, mergeLines, periodTotals } from '../core/layout';
@@ -29,7 +30,10 @@ export interface AuthHooks {
 export interface AppDeps {
   files: Files;
   auth?: AuthHooks;
-  download?: (name: string, text: string) => void;
+  /** Saves a file; PDFs come as bytes with type application/pdf. */
+  download?: (name: string, data: string | Uint8Array, type?: string) => void;
+  /** Opens the print dialog (window.print by default). */
+  print?: () => void;
   now?: () => Date;
   newId?: () => string;
   /** Asks before deleting a file; window.confirm by default. */
@@ -58,6 +62,7 @@ interface PendingImport {
 
 export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> {
   const download = deps.download ?? downloadText;
+  const printPage = deps.print ?? (() => window.print());
   const now = deps.now ?? (() => new Date());
   const makeId = deps.newId ?? uuid;
   const ask = deps.confirm ?? ((q: string) => window.confirm(q));
@@ -687,7 +692,9 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
   function weekTable(c: EmployeeCheck): HTMLElement {
     const year = file.settings.taxYear;
     const shown = c.weeks.filter((w) => w.overtimeHours > 0 || w.notes.length > 0);
-    if (!shown.length) return h('p', { class: 'empty', text: 'No workweek over 40 hours.' });
+    const pdf = h('button', { type: 'button', class: 'link', text: `Worksheet for ${c.employee.name} (PDF)` });
+    pdf.addEventListener('click', () => download(`tt-worksheet-${fileSlug(c.employee.name)}-${year}.pdf`, worksheetPdf([c], file.settings, now()), 'application/pdf'));
+    if (!shown.length) return h('div', {}, h('p', { class: 'empty', text: 'No workweek over 40 hours.' }), pdf);
     const row = (w: WeekResult) =>
       h('tr', { class: w.taxYear === year || w.bonusParts.some((p) => p.taxYear === year) ? '' : 'other-year' },
         h('th', { scope: 'row', class: 'nowrap', text: `${formatDay(w.start)} – ${formatDay(w.end)}` }),
@@ -699,12 +706,15 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
         h('td', { text: w.payDate ? `${formatDay(w.payDate)}${w.taxYear === year ? '' : ` (${w.taxYear} W-2)`}` : `none (${w.taxYear})` }),
         h('td', { class: 'notes', text: w.notes.join(' ') }),
       );
-    return h('div', { class: 'scroll' },
-      h('table', { class: 'weeks' },
-        h('caption', { text: `${c.employee.name}: workweeks with overtime or a note` }),
-        h('thead', {}, h('tr', {}, ...['Workweek', 'Hours', 'Straight-time pay', 'Regular rate', 'Overtime hours', `On the ${year} W-2`, 'Paid on', 'Notes'].map((t) => h('th', { scope: 'col', text: t })))),
-        h('tbody', {}, ...shown.map(row)),
+    return h('div', {},
+      h('div', { class: 'scroll' },
+        h('table', { class: 'weeks' },
+          h('caption', { text: `${c.employee.name}: workweeks with overtime or a note` }),
+          h('thead', {}, h('tr', {}, ...['Workweek', 'Hours', 'Straight-time pay', 'Regular rate', 'Overtime hours', `On the ${year} W-2`, 'Paid on', 'Notes'].map((t) => h('th', { scope: 'col', text: t })))),
+          h('tbody', {}, ...shown.map(row)),
+        ),
       ),
+      pdf,
     );
   }
 
@@ -752,8 +762,18 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     });
     const dlResults = h('button', { type: 'button', text: 'Download results (CSV)' });
     dlResults.addEventListener('click', () => download(`tt-check-${fileSlug(file.settings.name)}-${year}.csv`, resultsCsv(checks, file.settings)));
-    const dlWeeks = h('button', { type: 'button', text: 'Download week-by-week worksheet (CSV)' });
+    const dlWeeks = h('button', { type: 'button', text: 'Week-by-week worksheet (CSV)' });
     dlWeeks.addEventListener('click', () => download(`tt-worksheet-${fileSlug(file.settings.name)}-${year}.csv`, worksheetCsv(checks, file.settings)));
+    const slug = fileSlug(file.settings.name);
+    const dlSummary = h('button', { type: 'button', class: 'primary', text: 'Employer summary (PDF)' });
+    dlSummary.addEventListener('click', () => download(`tt-summary-${slug}-${year}.pdf`, summaryPdf(checks, file.settings, now()), 'application/pdf'));
+    const dlSheets = h('button', { type: 'button', text: 'All worksheets (PDF)' });
+    dlSheets.addEventListener('click', () => download(`tt-worksheets-${slug}-${year}.pdf`, worksheetPdf(checks, file.settings, now()), 'application/pdf'));
+    const flagged = checks.filter((c) => needsCorrection(c.status)).length;
+    const dlW2c = h('button', { type: 'button', disabled: flagged === 0, text: `W-2c list (CSV${flagged ? `, ${flagged}` : ''})` });
+    dlW2c.addEventListener('click', () => download(`tt-w2c-list-${slug}-${year}.csv`, w2cListCsv(checks, file.settings)));
+    const print = h('button', { type: 'button', text: 'Print results' });
+    print.addEventListener('click', () => printPage());
     const spill = checks.filter((c) => c.otherYearPremium > 0).length;
     const noPayDates = checks.some((c) => c.yearFromWeekEnd);
     const unplaced = checks.flatMap((c) => c.unallocated.map((u) => `${c.employee.name}, ${u.label}`));
@@ -773,7 +793,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
           h('tbody', {}, ...body),
         ),
       ),
-      h('div', { class: 'row' }, dlResults, dlWeeks),
+      h('div', { class: 'row downloads' }, dlSummary, dlSheets, dlW2c, dlResults, dlWeeks, print),
     );
   }
 

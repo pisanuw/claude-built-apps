@@ -33,8 +33,8 @@ export function hours(x: number): string {
 }
 
 /** Saves text as a file through a temporary link. */
-export function downloadText(name: string, text: string, type = 'text/csv'): void {
-  const url = URL.createObjectURL(new Blob([text], { type }));
+export function downloadText(name: string, data: string | Uint8Array, type = 'text/csv'): void {
+  const url = URL.createObjectURL(new Blob([data as BlobPart], { type }));
   const a = h('a', { href: url, download: name });
   document.body.append(a);
   a.click();

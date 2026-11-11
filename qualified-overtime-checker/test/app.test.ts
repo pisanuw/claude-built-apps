@@ -14,7 +14,7 @@ const settle = async () => {
 let root: HTMLElement;
 let repo: MemoryFileStore;
 let ids: number;
-let downloads: { name: string; text: string }[];
+let downloads: { name: string; text: string | Uint8Array; type?: string }[];
 
 function button(name: string | RegExp): HTMLButtonElement {
   const b = [...root.querySelectorAll('button')].find((x) => (typeof name === 'string' ? x.textContent === name : name.test(x.textContent ?? '')));
@@ -34,7 +34,7 @@ async function mount(seed: ClientFile[] = [], confirm: (q: string) => boolean = 
   for (const f of seed) await repo.put(f);
   downloads = [];
   ids = 0;
-  await mountApp(root, { files: new Files(repo), download: (name, text) => downloads.push({ name, text }), now: () => new Date('2026-11-10T12:00:00Z'), newId: () => `f${++ids}`, confirm, saveDelay: 0 });
+  await mountApp(root, { files: new Files(repo), download: (name, text, type) => downloads.push({ name, text, type }), now: () => new Date('2026-11-10T12:00:00Z'), newId: () => `f${++ids}`, confirm, saveDelay: 0 });
 }
 
 beforeEach(() => {
@@ -79,7 +79,7 @@ describe('the checker page', () => {
     button('Try the sample employer').click();
     await settle();
     button('Download results (CSV)').click();
-    button('Download week-by-week worksheet (CSV)').click();
+    button('Week-by-week worksheet (CSV)').click();
     expect(downloads.map((d) => d.name)).toEqual(['sample-timesheet.csv', 'tt-check-cedar-lane-kitchen-sample-2026.csv', 'tt-worksheet-cedar-lane-kitchen-sample-2026.csv']);
     expect(downloads[1].text).toContain('Sam Okafor');
   });
