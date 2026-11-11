@@ -141,3 +141,8 @@ button.danger { color: var(--bad); }
 .more { margin: 0.5rem 0 0; }
 .more summary { cursor: pointer; font-weight: 600; }
 .more .grid { margin-top: 0.75rem; }
+.mode { border: 1px solid var(--line); border-radius: 8px; padding: 0.5rem 0.75rem; margin: 0 0 0.75rem; display: grid; gap: 0.25rem; }
+.mode legend { font-weight: 600; padding: 0 0.25rem; }
+.radio { display: flex; gap: 0.4rem; align-items: center; }
+.badge + .badge { margin-left: 0.35rem; }
+.muted-cell { color: var(--muted); font-size: 0.85rem; }

@@ -8,7 +8,7 @@ import { parseCsv, type CsvTable } from './csv';
 import { parseDate } from './dates';
 import type { LineKind, TimeLine } from './types';
 
-export const FIELDS = ['employeeId', 'employeeName', 'firstName', 'lastName', 'date', 'hours', 'overtimeHours', 'doubleHours', 'rate', 'amount', 'payDate', 'code', 'earnedFrom', 'earnedTo'] as const;
+export const FIELDS = ['employeeId', 'employeeName', 'firstName', 'lastName', 'employeeGroup', 'date', 'hours', 'overtimeHours', 'doubleHours', 'rate', 'amount', 'overtimePay', 'payDate', 'code', 'earnedFrom', 'earnedTo'] as const;
 export type Field = (typeof FIELDS)[number];
 export type Mapping = Record<Field, number | null>;
 
@@ -17,12 +17,14 @@ export const FIELD_LABELS: Record<Field, string> = {
   employeeName: 'Employee name',
   firstName: 'First name',
   lastName: 'Last name',
+  employeeGroup: 'Employee (a name row above their lines)',
   date: 'Work date',
   hours: 'Hours (regular, or all hours)',
   overtimeHours: 'Overtime hours (own column)',
   doubleHours: 'Double-time hours (own column)',
   rate: 'Hourly rate',
   amount: 'Pay amount',
+  overtimePay: 'Overtime pay (own column)',
   payDate: 'Pay date (check date)',
   code: 'Pay type or item',
   earnedFrom: 'Bonus earned from (period start)',
@@ -62,6 +64,7 @@ export function ssnColumns(table: CsvTable): number[] {
 const GUESSES: [Field, RegExp][] = [
   ['payDate', /^(pay|check|payment|paid|payroll) ?(date|day)$|^paid on$|^check dt$/],
   ['overtimeHours', /^(ot|overtime|o t) ?(hours|hrs)$|^(hours|hrs) ?(ot|overtime)$|^overtime$/],
+  ['overtimePay', /^(ot|overtime) ?(pay|earnings|wages|amount)$/],
   ['doubleHours', /^(dt|double|double time|doubletime) ?(hours|hrs)?$|^(hours|hrs) ?(dt|double)$/],
   ['employeeId', /^(employee|emp|worker|staff|team member|payroll) ?(id|#|no|number|num|code|badge)$|^(id|badge( number)?)$/],
   ['firstName', /^(employee )?first( name)?$|^given name$/],
@@ -81,6 +84,8 @@ const GUESSES: [Field, RegExp][] = [
 const LOOSE: [Field, RegExp][] = [
   ['payDate', /\b(pay|check) ?date\b/],
   ['date', /\bdate\b/],
+  // Weekly totals ("Week Ending"), and pay-period totals, which the import then refuses by name.
+  ['date', /\b(week|period) (ending|end|start|starting|beginning|of)\b|^week$/],
   ['hours', /\b(hours|hrs|duration)\b/],
   ['rate', /\brate\b/],
   ['amount', /\b(amount|earnings|gross)\b/],
@@ -92,14 +97,65 @@ export function emptyMapping(): Mapping {
   return Object.fromEntries(FIELDS.map((f) => [f, null])) as Mapping;
 }
 
+/**
+ * Export layouts the checker knows by name. `confirmed` says whether the
+ * column names come from the vendor's own documentation or are inferred.
+ * Each sets the columns that a plain guess would get wrong.
+ */
+export interface Layout {
+  name: string;
+  confirmed: boolean;
+  note: string;
+  detect(norm: string[]): boolean;
+  columns: Partial<Record<Field, string | null>>;
+}
+
+export const LAYOUTS: Layout[] = [
+  {
+    // Toast's TimeEntries.csv, field reference at doc.toasttab.com (adminDataExportFieldReference), read 11 Nov 2026.
+    name: 'Toast time entries',
+    confirmed: true,
+    note: 'Columns from Toast\u2019s published field reference. Regular and overtime hours are read separately (Total Hours already includes the overtime), the hourly rate is Wage, and Overtime Pay shows the premium actually paid. Tips are left out of the regular rate.',
+    detect: (n) => ['in date', 'regular hours', 'overtime hours', 'wage'].every((h) => n.includes(h)),
+    columns: { employeeName: 'employee', employeeId: 'employee id', date: 'in date', hours: 'regular hours', overtimeHours: 'overtime hours', rate: 'wage', overtimePay: 'overtime pay', amount: null, code: null },
+  },
+  {
+    // QuickBooks Online "Time Activities by Employee Detail": no published header list; inferred from Intuit community answers (2021, 2025).
+    name: 'QuickBooks Online time activities',
+    confirmed: false,
+    note: 'Layout inferred, not confirmed by Intuit: check the columns. Each employee\u2019s name is on a row above their lines; Duration is hours:minutes; Rates and Amount are what the customer is billed, not pay, so enter each employee\u2019s pay rate in step 3.',
+    detect: (n) => n.includes('activity date') && n.includes('duration') && !n.some((h) => /\b(employee|name|first|last)\b/.test(h)),
+    // "Rates" (billing) is never guessed as the pay rate; Amount is what the customer is billed.
+    columns: { date: 'activity date', hours: 'duration', amount: null, code: null },
+  },
+];
+
+/** The known layout these headers match, if any. */
+export function detectLayout(header: string[]): Layout | null {
+  const norm = header.map(normHeader);
+  return LAYOUTS.find((l) => l.detect(norm)) ?? null;
+}
+
 /** Guesses the mapping from the header row, never choosing an SSN column. */
 export function guessMapping(header: string[], skip: number[] = []): Mapping {
   const mapping = emptyMapping();
   const used = new Set<number>(skip);
   const norm = header.map(normHeader);
+  const layout = detectLayout(header);
+  if (layout) {
+    for (const [field, name] of Object.entries(layout.columns) as [Field, string | null][]) {
+      const i = name === null ? -1 : norm.findIndex((h, idx) => h === name && !used.has(idx));
+      if (name === null) mapping[field] = null;
+      else if (i >= 0) {
+        mapping[field] = i;
+        used.add(i);
+      }
+    }
+  }
+  const fixed = new Set<Field>(layout ? (Object.keys(layout.columns) as Field[]) : []);
   for (const pass of [GUESSES, LOOSE]) {
     for (const [field, re] of pass) {
-      if (mapping[field] !== null) continue;
+      if (mapping[field] !== null || fixed.has(field)) continue;
       const i = norm.findIndex((h, idx) => !used.has(idx) && re.test(h));
       if (i >= 0) {
         mapping[field] = i;
@@ -111,16 +167,25 @@ export function guessMapping(header: string[], skip: number[] = []): Mapping {
   if (mapping.firstName !== null && mapping.lastName !== null && mapping.employeeName !== null && /\b(employee|name)\b/.test(norm[mapping.employeeName]) && !/^(employee|employee name|name|full name)$/.test(norm[mapping.employeeName])) {
     mapping.employeeName = null;
   }
+  // Total hours already include the overtime: with an overtime column, read regular hours.
+  if (mapping.overtimeHours !== null && mapping.hours !== null && /\b(total|payable|all)\b/.test(norm[mapping.hours])) {
+    const reg = norm.findIndex((h, idx) => /^(regular|reg|straight) ?(hours|hrs|time)$/.test(h) && !skip.includes(idx));
+    if (reg >= 0) mapping.hours = reg;
+  }
+  // No employee column, and a blank first header: employee names sit on rows above their lines.
+  if (mapping.employeeId === null && mapping.employeeName === null && (mapping.firstName === null || mapping.lastName === null) && header.length > 1 && (header[0] ?? '').trim() === '' && !skip.includes(0)) {
+    mapping.employeeGroup = 0;
+  }
   return mapping;
 }
 
 /** What is missing before an import can run, as sentences; empty when the mapping is usable. */
 export function mappingProblems(m: Mapping): string[] {
   const out: string[] = [];
-  if (m.employeeId === null && m.employeeName === null && (m.firstName === null || m.lastName === null)) out.push('Choose the column with the employee name or ID.');
+  if (m.employeeId === null && m.employeeName === null && m.employeeGroup === null && (m.firstName === null || m.lastName === null)) out.push('Choose the column with the employee name or ID.');
   if (m.date === null) out.push('Choose the column with the date the hours were worked.');
   if (m.hours === null) out.push('Choose the column with the hours.');
-  if (m.rate === null && m.amount === null) out.push('Choose the column with the hourly rate or the pay amount.');
+  // No rate or amount is allowed: the pay rates are then entered per employee.
   return out;
 }
 
@@ -210,6 +275,10 @@ export interface ImportReport {
   extraLines: number;
   /** Gifts, discretionary bonuses, tips and expense lines: not part of the regular rate, left out. */
   notWagesLines: number;
+  /** Lines of an hours-only file: their pay rate is entered per employee. */
+  rateMissingLines: number;
+  /** The known export layout, when the headers match one. */
+  layout: { name: string; confirmed: boolean; note: string } | null;
   /** Rows whose pay date could not be read (the line is kept without one). */
   badPayDates: number;
 }
@@ -235,6 +304,10 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
   for (const f of FIELDS) if (safe[f] !== null && drop.has(safe[f] as number)) safe[f] = null;
 
   const comma = table.separator === ';';
+  let group = '';
+  // No rate and no amount column: an hours-only file; pay rates are entered per employee.
+  const hoursOnly = safe.rate === null && safe.amount === null;
+  let rateMissingLines = 0;
   const lines: TimeLine[] = [];
   const skipped: SkippedRow[] = [];
   let badPayDates = 0;
@@ -242,8 +315,21 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
   const body = table.rows.slice(1);
   for (const row of body) {
     const c = row.cells;
+    if (safe.employeeGroup !== null) {
+      const label = cell(c, safe.employeeGroup);
+      const rest = c.filter((_, i) => i !== safe.employeeGroup).some((v) => v.trim() !== '');
+      if (label && !rest) {
+        // A name row: the lines below belong to this employee.
+        group = /^(total|totals|grand total)\b/i.test(label) ? '' : label;
+        continue;
+      }
+      if (/^total for\b|^(total|totals|grand total)\b/i.test(label)) {
+        group = '';
+        continue;
+      }
+    }
     const id = cell(c, safe.employeeId);
-    const full = cell(c, safe.employeeName) || [cell(c, safe.firstName), cell(c, safe.lastName)].filter(Boolean).join(' ');
+    const full = cell(c, safe.employeeName) || [cell(c, safe.firstName), cell(c, safe.lastName)].filter(Boolean).join(' ') || (safe.employeeGroup !== null ? group : '');
     const name = full || id;
     if (!name) {
       skipped.push({ line: row.line, reason: 'No employee name or ID.' });
@@ -327,6 +413,10 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
     // amount pays the regular hours plus 1.5x and 2x for the overtime columns.
     let rate = rateCell;
     if (!Number.isFinite(rate) || rate === 0) rate = Number.isFinite(amount) ? amount / (hours + 1.5 * otHours + 2 * dtHours) : NaN;
+    if (!Number.isFinite(rate) && hoursOnly) {
+      rate = 0;
+      rateMissingLines++;
+    }
     if (!Number.isFinite(rate) || rate < 0) {
       skipped.push({ line: row.line, reason: 'No hourly rate or pay amount.' });
       continue;
@@ -336,8 +426,13 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
     if (payRaw && !payDate) badPayDates++;
     const base = { employeeKey: employeeKey(id, name), employeeId: id, employeeName: name, date, payDate, code, line: row.line };
     if (hours !== 0) lines.push({ ...base, hours, rate, kind: cls.kind, multiplier: cls.multiplier });
-    if (otHours !== 0) lines.push({ ...base, hours: otHours, rate: rate * 1.5, kind: 'overtime', multiplier: 1.5, code: code || 'Overtime hours column' });
-    if (dtHours !== 0) lines.push({ ...base, hours: dtHours, rate: rate * 2, kind: 'overtime', multiplier: 2, code: code || 'Double-time hours column' });
+    // An overtime pay column shows what was actually paid for the overtime hours.
+    const otPay = safe.overtimePay === null ? NaN : parseMoney(cell(c, safe.overtimePay), comma);
+    const otRate = Number.isFinite(otPay) && otHours > 0 && otPay > 0 ? otPay / otHours : rate * 1.5;
+    // The row's rate is the straight rate of its overtime hours (a row may be overtime only, at another job's rate).
+    const known = rate > 0 ? { baseRate: rate } : {};
+    if (otHours !== 0) lines.push({ ...base, hours: otHours, rate: otRate, kind: 'overtime', multiplier: 1.5, code: code || 'Overtime hours column', ...known });
+    if (dtHours !== 0) lines.push({ ...base, hours: dtHours, rate: rate * 2, kind: 'overtime', multiplier: 2, code: code || 'Double-time hours column', ...known });
   }
   // A row with a blank ID but the name of an employee who has one (a
   // correction line, say) belongs to that employee, not to a second one.
@@ -371,6 +466,11 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
       bonusLines: lines.filter((l) => l.kind === 'bonus').length,
       extraLines: lines.filter((l) => l.kind === 'extra').length,
       notWagesLines,
+      rateMissingLines,
+      layout: (() => {
+        const l = detectLayout(header);
+        return l ? { name: l.name, confirmed: l.confirmed, note: l.note } : null;
+      })(),
       badPayDates,
     },
   };

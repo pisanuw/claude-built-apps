@@ -1,0 +1,13 @@
+Location,Location Code,Id,GUID,Employee Id,Employee GUID,Employee External Id,Employee,Job Id,Job GUID,Job Code,Job Title,In Date,Out Date,Total Hours,Unpaid Break Time,Paid Break Time,Payable Hours,Cash Tips Declared,Non Cash Tips,Total Gratuity,Total Tips,Tips Withheld,Wage,Regular Hours,Overtime Hours,Regular Pay,Overtime Pay,Total Pay
+Main Street,MAI,1001,g1,101,eg101,,Ann Lee,7,jg7,LIN,Line Cook,3/2/26 9:00 AM,3/2/26 6:00 PM,9.00,0.50,0.00,9.00,0.00,0.00,0.00,0.00,0.00,20.00,9.00,0.00,180.00,0.00,180.00
+Main Street,MAI,1002,g2,101,eg101,,Ann Lee,7,jg7,LIN,Line Cook,3/3/26 9:00 AM,3/3/26 6:00 PM,9.00,0.50,0.00,9.00,0.00,0.00,0.00,0.00,0.00,20.00,9.00,0.00,180.00,0.00,180.00
+Main Street,MAI,1003,g3,101,eg101,,Ann Lee,7,jg7,LIN,Line Cook,3/4/26 9:00 AM,3/4/26 6:00 PM,9.00,0.50,0.00,9.00,0.00,0.00,0.00,0.00,0.00,20.00,9.00,0.00,180.00,0.00,180.00
+Main Street,MAI,1004,g4,101,eg101,,Ann Lee,7,jg7,LIN,Line Cook,3/5/26 9:00 AM,3/5/26 6:00 PM,9.00,0.50,0.00,9.00,0.00,0.00,0.00,0.00,0.00,20.00,9.00,0.00,180.00,0.00,180.00
+Main Street,MAI,1005,g5,101,eg101,,Ann Lee,7,jg7,LIN,Line Cook,3/6/26 9:00 AM,3/6/26 6:00 PM,9.00,0.50,0.00,9.00,0.00,0.00,0.00,0.00,0.00,20.00,4.00,5.00,80.00,150.00,230.00
+Main Street,MAI,1006,g6,102,eg102,,Rosa Diaz,7,jg7,SER,Server,3/2/26 9:00 AM,3/2/26 6:00 PM,9.00,0.50,0.00,9.00,120.00,0.00,0.00,120.00,0.00,2.13,9.00,0.00,19.17,0.00,19.17
+Main Street,MAI,1007,g7,102,eg102,,Rosa Diaz,7,jg7,SER,Server,3/3/26 9:00 AM,3/3/26 6:00 PM,9.00,0.50,0.00,9.00,120.00,0.00,0.00,120.00,0.00,2.13,9.00,0.00,19.17,0.00,19.17
+Main Street,MAI,1008,g8,102,eg102,,Rosa Diaz,7,jg7,SER,Server,3/4/26 9:00 AM,3/4/26 6:00 PM,9.00,0.50,0.00,9.00,120.00,0.00,0.00,120.00,0.00,2.13,9.00,0.00,19.17,0.00,19.17
+Main Street,MAI,1009,g9,102,eg102,,Rosa Diaz,7,jg7,SER,Server,3/5/26 9:00 AM,3/5/26 6:00 PM,9.00,0.50,0.00,9.00,120.00,0.00,0.00,120.00,0.00,2.13,9.00,0.00,19.17,0.00,19.17
+Main Street,MAI,1010,g10,102,eg102,,Rosa Diaz,7,jg7,SER,Server,3/6/26 9:00 AM,3/6/26 7:00 PM,10.00,0.50,0.00,10.00,150.00,0.00,0.00,150.00,0.00,2.13,4.00,6.00,8.52,19.17,27.69
+Harbor,HAR,1011,g11,101,eg101,,Ann Lee,7,jg7,PRE,Prep Cook,3/7/26 9:00 AM,3/7/26 1:00 PM,4.00,0.50,0.00,4.00,0.00,0.00,0.00,0.00,0.00,22.00,0.00,4.00,0.00,132.00,132.00
+Main Street,MAI,1999,g99,101,eg101,,Ann Lee,7,jg7,LIN,Line Cook,not a date,3/8/26 5:00 PM,8.00,0.50,0.00,8.00,0.00,0.00,0.00,0.00,0.00,20.00,8.00,0.00,160.00,0.00,160.00

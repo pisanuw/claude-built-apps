@@ -70,6 +70,7 @@ export function straightRate(l: TimeLine, isWorkRate: (r: number) => boolean, on
  */
 export function overtimeStraight(l: TimeLine, isWorkRate: (r: number) => boolean, onlyWorkRate: number | null): { straight: number; paidKnown: boolean } {
   if (l.kind !== 'overtime') return { straight: l.rate, paidKnown: true };
+  if (typeof l.baseRate === 'number' && l.baseRate > 0) return { straight: l.baseRate, paidKnown: true };
   const divided = l.rate / l.multiplier;
   if (isWorkRate(divided)) return { straight: divided, paidKnown: true };
   if (isWorkRate(l.rate)) return { straight: l.rate, paidKnown: false };
@@ -164,6 +165,8 @@ export function computeWeek(startDay: number, lines: TimeLine[], opts: { minimum
     notes.push(`Paid on checks in two years; the premium goes with the later check (${payDate}).`);
   }
   if (hours < 0) notes.push('Negative hours in total: check the corrections in the export.');
+  const weeklyOnly = lines.some((l) => (l.kind === 'work' || l.kind === 'overtime') && l.hours > 24);
+  if (weeklyOnly) notes.push('Hours came as a weekly total, not dated days: checked by week only.');
   return {
     start: isoDay(startDay),
     end,
@@ -178,6 +181,7 @@ export function computeWeek(startDay: number, lines: TimeLine[], opts: { minimum
     extraPay: round2(extraPay),
     tipCredit,
     tipCreditPay: round2(tipCreditPay),
+    weeklyOnly,
     rates: rateList,
     paidPremium,
     payDate,

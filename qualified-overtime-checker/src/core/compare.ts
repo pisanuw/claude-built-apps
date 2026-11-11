@@ -8,7 +8,7 @@
 import { round2 } from './engine';
 import type { Employee, EmployeeWeeks, WeekResult } from './types';
 
-export type Status = 'match' | 'rounding' | 'over' | 'under' | 'not-entered';
+export type Status = 'match' | 'rounding' | 'over' | 'under' | 'not-entered' | 'rate-needed';
 
 export const ROUNDING_TOLERANCE = 1;
 
@@ -38,6 +38,8 @@ export interface EmployeeCheck {
   bonusPremium: number;
   /** Bonuses that reached no worked week of their period. */
   unallocated: { label: string; amount: number }[];
+  /** Some of the year's weeks came as weekly totals: checked by week only. */
+  weeklyOnly: boolean;
 }
 
 function sum(xs: number[]): number {
@@ -162,6 +164,7 @@ export function checkEmployee(ew: EmployeeWeeks, taxYear: number, reported: numb
     notes: yearWeeks.reduce((a, w) => a + w.notes.length, 0),
     bonusPremium: bonusPremiumIn(ew.weeks, taxYear),
     unallocated: ew.unallocated ?? [],
+    weeklyOnly: own.some((w) => w.weeklyOnly),
   };
 }
 
@@ -170,6 +173,8 @@ export interface Summary {
   withOvertime: number;
   needCorrection: number;
   notEntered: number;
+  /** Employees of an hours-only file whose pay rate has not been entered. */
+  rateNeeded: number;
   totalCorrect: number;
   totalReported: number;
 }
@@ -180,6 +185,7 @@ export function summarize(checks: EmployeeCheck[]): Summary {
     withOvertime: checks.filter((c) => c.overtimeHours > 0).length,
     needCorrection: checks.filter((c) => needsCorrection(c.status)).length,
     notEntered: checks.filter((c) => c.status === 'not-entered').length,
+    rateNeeded: checks.filter((c) => c.status === 'rate-needed').length,
     totalCorrect: sum(checks.map((c) => c.correct)),
     totalReported: sum(checks.map((c) => c.reported ?? 0)),
   };

@@ -1,0 +1,16 @@
+,Activity Date,Customer,Product/Service,Memo/Description,Rates,Duration,Billable,Amount
+Ann Lee,,,,,,,,
+,03/02/2026,Harbor Cafe,Catering,"Prep, setup",85.00,9:00,Yes,765.00
+,03/03/2026,Harbor Cafe,Catering,"Prep, setup",85.00,9:00,Yes,765.00
+,03/04/2026,Harbor Cafe,Catering,"Prep, setup",85.00,9:00,Yes,765.00
+,03/05/2026,Harbor Cafe,Catering,"Prep, setup",85.00,9:00,Yes,765.00
+,03/06/2026,Harbor Cafe,Catering,"Prep, setup",85.00,9:00,Yes,765.00
+Total for Ann Lee,,,,,,45:00,,"3,825.00"
+Bo Ray,,,,,,,,
+,03/02/2026,Harbor Cafe,Delivery,,60.00,10:30,No,
+,03/03/2026,Harbor Cafe,Delivery,,60.00,10:30,No,
+,03/04/2026,Harbor Cafe,Delivery,,60.00,10:30,No,
+,03/05/2026,Harbor Cafe,Delivery,,60.00,10:30,No,
+,03/06/2026,Harbor Cafe,Delivery,,60.00,,No,
+Total for Bo Ray,,,,,,42:00,,
+TOTAL,,,,,,87:00,,"3,825.00"

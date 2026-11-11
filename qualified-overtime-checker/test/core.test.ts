@@ -142,7 +142,8 @@ describe('importer', () => {
     expect(loose).toMatchObject({ employeeName: 0, date: 1, hours: 2, rate: 3 });
   });
   it('names what a mapping is missing', () => {
-    expect(mappingProblems(emptyMapping())).toHaveLength(4);
+    // Employee, date and hours; a rate is optional (hours-only files take rates per employee).
+    expect(mappingProblems(emptyMapping())).toHaveLength(3);
     expect(mappingProblems({ ...emptyMapping(), firstName: 0, lastName: 1, date: 2, hours: 3, amount: 4 })).toEqual([]);
   });
   it('drops SSN columns by header and by value, even when mapped', () => {

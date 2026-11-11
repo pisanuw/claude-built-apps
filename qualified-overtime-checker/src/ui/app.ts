@@ -5,13 +5,14 @@
  * files are saved in this browser, or in the signed-in user's account.
  */
 import { inYear, needsCorrection, type EmployeeCheck } from '../core/compare';
-import { newClientFile, reportedFor, runChecks, withReported, type ClientFile } from '../core/clientFile';
+import { needsRate, newClientFile, reportedFor, runChecks, withReported, type ClientFile } from '../core/clientFile';
 import { parseCsv, type CsvTable } from '../core/csv';
 import { formatDay, WEEKDAYS } from '../core/dates';
 import { employeesOf } from '../core/engine';
 import { resultsCsv, STATUS_TEXT, worksheetCsv } from '../core/export';
 import { FIELD_LABELS, FIELDS, guessMapping, importRows, mappingProblems, parseMoney, ssnColumns, type Mapping } from '../core/importer';
 import { importReported, keepKnown } from '../core/reported';
+import { headerSignature, mergeLines, periodTotals } from '../core/layout';
 import { buildSample, sampleCsv } from '../core/sample';
 import { worthSaving, type FileLocation, type FileSummary } from '../core/codec';
 import type { BonusAllocation, BonusPeriod, WeekResult } from '../core/types';
@@ -51,6 +52,8 @@ interface PendingImport {
   table: CsvTable;
   mapping: Mapping;
   ssn: number[];
+  /** The mapping came from the file's saved choice for this layout. */
+  saved?: boolean;
 }
 
 export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> {
@@ -65,6 +68,8 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
   let file: ClientFile = newClientFile(makeId(), {}, now());
   let location: FileLocation = 'browser';
   let pending: PendingImport | null = null;
+  /** For a file that already has hours: replace them, or add the new export to them. */
+  let importMode: 'replace' | 'add' = 'replace';
   const open = new Set<string>();
   let timer: ReturnType<typeof setTimeout> | null = null;
   let saveText = '';
@@ -369,7 +374,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       say('Bonuses re-spread over their period.');
     });
     const hasBonus = file.lines.some((l) => l.kind === 'bonus');
-    fill(employerSec, 
+    fill(employerSec,
       h('h2', { id: 'employer-h', text: '1. Employer' }),
       h('div', { class: 'grid' },
         h('label', { for: 'emp-name' }, 'Employer name'),
@@ -417,9 +422,12 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       return;
     }
     const ssn = ssnColumns(table);
-    const mapping = guessMapping(table.rows[0].cells, ssn);
-    pending = { name, table, mapping, ssn };
-    if (mappingProblems(mapping).length === 0) applyImport();
+    const saved = file.mappings?.[headerSignature(table.rows[0].cells)];
+    // A saved choice for this layout wins, unless it now points at an SSN column.
+    const usable = saved && !Object.values(saved).some((i) => i !== null && ssn.includes(i)) ? saved : null;
+    const mapping = usable ?? guessMapping(table.rows[0].cells, ssn);
+    pending = { name, table, mapping, ssn, saved: usable !== null };
+    if (mappingProblems(mapping).length === 0) void applyImport();
     else {
       renderHours();
       say(`Read ${name}. Choose the columns below, then import.`);
@@ -428,21 +436,34 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
 
   async function applyImport() {
     if (!pending) return;
-    const { lines, report } = importRows(pending.table, pending.mapping);
-    if (lines.length === 0) {
+    const { lines: incoming, report } = importRows(pending.table, pending.mapping);
+    if (incoming.length === 0) {
       say(`No usable rows in ${pending.name}. Check the columns.`);
       renderHours();
       return;
     }
+    const totals = periodTotals(incoming);
+    if (totals.length) {
+      say(`${pending.name} gives hours as pay-period totals (two weeks or more per row) for ${totals.slice(0, 3).join(', ')}${totals.length > 3 ? ' and others' : ''}. Overtime is counted per workweek, so the checker needs daily or weekly hours: export a timesheet or a weekly hours report instead.`);
+      renderHours();
+      return;
+    }
+    const adding = importMode === 'add' && file.lines.length > 0;
+    const merged = adding ? mergeLines(file.lines, incoming) : { lines: incoming, added: incoming.length, duplicates: 0 };
+    const lines = merged.lines;
     const employees = employeesOf(lines);
-    file = { ...file, lines, report, mapping: pending.mapping, source: pending.name };
-    file = withReported(file, keepKnown(reportedFor(file), employees));
+    const sig = headerSignature(pending.table.rows[0].cells);
+    file = { ...file, lines, report, mapping: pending.mapping, mappings: { ...(file.mappings ?? {}), [sig]: pending.mapping }, source: pending.name };
+    if (!adding) file = withReported(file, keepKnown(reportedFor(file), employees));
     await save();
     renderEmployer();
     renderHours();
     renderReported();
     renderResults();
-    say(`Imported ${report.linesUsed} lines for ${report.employees} employees from ${pending.name}.`);
+    const from = pending.saved ? ' with the columns you chose last time for this layout' : '';
+    say(adding
+      ? `Added ${merged.added} lines from ${pending.name}${from}${merged.duplicates ? `; ${merged.duplicates} lines were already in the file and were left out` : ''}.`
+      : `Imported ${report.linesUsed} lines for ${report.employees} employees from ${pending.name}${from}.`);
   }
 
   /** The sample opens as a file of its own, so it never replaces a client's data. */
@@ -504,6 +525,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       r.excludedLines ? h('p', { text: `${r.excludedLines} lines are paid time off (holiday, vacation, sick): not hours worked, left out.` }) : null,
       r.bonusLines ? h('p', { text: `${r.bonusLines} bonus or commission lines are spread over the weeks they were earned in (settings under 1. Employer).` }) : null,
       r.extraLines ? h('p', { text: `${r.extraLines} shift differential or premium lines are added to their week\u2019s pay.` }) : null,
+      r.layout ? h('p', { class: r.layout.confirmed ? 'ok' : 'warn', text: `Recognised: ${r.layout.name} export. ${r.layout.note}` }) : null,
       r.notWagesLines ? h('p', { text: `${r.notWagesLines} lines are tips, gifts, discretionary bonuses or expenses: not part of the regular rate, left out.` }) : null,
       r.badPayDates ? h('p', { class: 'warn', text: `${r.badPayDates} pay dates could not be read; those lines take their year from the workweek.` }) : null,
       skipped
@@ -528,7 +550,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     const drop = h('div', { class: 'drop' },
       h('label', { for: 'hours-file', class: 'drop-label' }, 'Timesheet or payroll export (CSV)'),
       input,
-      h('p', { id: 'hours-help', class: 'help', text: 'One row per day (or shift) worked: employee, date, hours and rate or pay. Overtime, holiday and PTO rows are recognised by their pay type. Drop the file here or choose it.' }),
+      h('p', { id: 'hours-help', class: 'help', text: 'One row per day or shift worked (or one per week): employee, date, hours, and the rate or pay if the export has them. Toast time entries and QuickBooks Online time activities exports are recognised by their columns; overtime, holiday, PTO, bonus and tips rows by their pay type. Drop the file here or choose it.' }),
     );
     drop.addEventListener('dragover', (e) => {
       e.preventDefault();
@@ -541,8 +563,21 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       const f = e.dataTransfer?.files?.[0];
       if (f) await readFile(f, readTable);
     });
-    fill(hoursSec, 
+    const modeBox = file.lines.length
+      ? h('fieldset', { class: 'mode' },
+          h('legend', { text: 'This file already has hours. The next export should' }),
+          ...(['replace', 'add'] as const).map((m) => {
+            const id = `mode-${m}`;
+            const radio = h('input', { type: 'radio', name: 'import-mode', id, value: m, checked: importMode === m });
+            radio.addEventListener('change', () => {
+              if (radio.checked) importMode = m;
+            });
+            return h('label', { for: id, class: 'radio' }, radio, m === 'replace' ? ' Replace them' : ' Be added to them (rows already imported are left out)');
+          }))
+      : null;
+    fill(hoursSec,
       h('h2', { id: 'hours-h', text: '2. Hours worked' }),
+      modeBox,
       drop,
       h('div', { class: 'row' }, sample, sampleLink),
       pending ? mappingPanel(pending) : null,
@@ -575,8 +610,34 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
       const f = input.files?.[0];
       if (f) await readFile(f, (name, text) => importFigures(name, text, employees));
     });
+    const rateFor = new Set(file.lines.filter(needsRate).map((l) => l.employeeKey));
+    const showRates = rateFor.size > 0 || Object.keys(file.rates ?? {}).length > 0;
     const rows = employees.map((e, n) => {
       const id = `rep-${n}`;
+      const rateCell = (() => {
+        if (!showRates) return null;
+        if (!rateFor.has(e.key) && file.rates?.[e.key] === undefined) return h('td', { class: 'muted-cell', text: 'from the file' });
+        const v = file.rates?.[e.key];
+        const input = h('input', { id: `rate-${n}`, type: 'text', inputmode: 'decimal', value: typeof v === 'number' ? v.toFixed(2) : '', placeholder: '0.00', 'aria-label': `Hourly pay rate for ${e.name}` });
+        input.addEventListener('change', async () => {
+          const raw = input.value.trim();
+          const r = parseMoney(raw);
+          const next = { ...(file.rates ?? {}) };
+          if (raw === '') delete next[e.key];
+          else if (Number.isFinite(r) && r > 0 && r < 1000) next[e.key] = r;
+          else {
+            input.setAttribute('aria-invalid', 'true');
+            say(`"${raw}" is not an hourly rate.`);
+            return;
+          }
+          input.removeAttribute('aria-invalid');
+          say('');
+          file = { ...file, rates: next };
+          await save();
+          renderResults();
+        });
+        return h('td', {}, input);
+      })();
       const v = reportedFor(file)[e.key];
       const field = h('input', { id, type: 'text', inputmode: 'decimal', value: typeof v === 'number' ? v.toFixed(2) : '', placeholder: '0.00', 'aria-label': `TT reported for ${e.name}` });
       field.addEventListener('change', async () => {
@@ -596,16 +657,17 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
         await save();
         renderResults();
       });
-      return h('tr', {}, h('th', { scope: 'row', text: e.name }), h('td', { text: e.id }), h('td', {}, field));
+      return h('tr', {}, h('th', { scope: 'row', text: e.name }), h('td', { text: e.id }), rateCell, h('td', {}, field));
     });
-    fill(reportedSec, 
+    fill(reportedSec,
       h('h2', { id: 'reported-h', text: '3. Your payroll’s TT figures' }),
       h('p', { class: 'help', text: 'Enter the Box 12 code TT amount your payroll shows for each employee (from its W-2 preview or year-end report), or import a CSV with a name or ID column and an amount column.' }),
+      showRates ? h('p', { class: 'warn', text: 'Your export has hours but no pay rates (a timesheet, or QuickBooks time activities, which show billing rates). Enter each employee\u2019s straight-time hourly pay rate below; overtime lines count at that rate times their multiplier.' }) : null,
       h('div', { class: 'row' }, h('label', { for: 'reported-file', text: 'Import figures (CSV)' }), input),
       h('div', { class: 'scroll' },
         h('table', {},
           h('caption', { class: 'sr-only', text: 'TT figures from your payroll' }),
-          h('thead', {}, h('tr', {}, h('th', { scope: 'col', text: 'Employee' }), h('th', { scope: 'col', text: 'ID' }), h('th', { scope: 'col', text: 'TT on payroll’s W-2' }))),
+          h('thead', {}, h('tr', {}, h('th', { scope: 'col', text: 'Employee' }), h('th', { scope: 'col', text: 'ID' }), showRates ? h('th', { scope: 'col', text: 'Hourly pay rate' }) : null, h('th', { scope: 'col', text: 'TT on payroll\u2019s W-2' }))),
           h('tbody', {}, ...rows),
         ),
       ),
@@ -645,7 +707,9 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     }
     const { checks, summary } = runChecks(file);
     const year = file.settings.taxYear;
-    const lead = summary.needCorrection
+    const lead = summary.rateNeeded
+      ? `Enter the hourly pay rate for ${summary.rateNeeded} employee${summary.rateNeeded > 1 ? 's' : ''} in step 3 to check ${summary.rateNeeded > 1 ? 'them' : 'them'}.${summary.needCorrection ? ` ${summary.needCorrection} of the others need correcting for ${year}.` : ''}`
+      : summary.needCorrection
       ? `${summary.needCorrection} of ${summary.employees} employees have a TT figure that needs correcting for ${year}.`
       : summary.notEntered === summary.employees
         ? `Enter your payroll’s figures in step 3 to compare. The correct figures for ${year} are below.`
@@ -671,7 +735,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
           h('td', { class: 'num strong', 'data-label': 'Correct TT', text: money(c.correct) }),
           h('td', { class: 'num', 'data-label': 'Payroll TT', text: money(c.reported) }),
           h('td', { class: 'num', 'data-label': 'Difference', text: signedMoney(c.difference) }),
-          h('td', { 'data-label': 'Status' }, h('span', { class: `badge ${cls}`, text: STATUS_TEXT[c.status] }), c.causes.length ? h('p', { class: 'cause', text: c.causes.join(' ') }) : null),
+          h('td', { 'data-label': 'Status' }, h('span', { class: `badge ${cls}`, text: STATUS_TEXT[c.status] }), c.weeklyOnly ? h('span', { class: 'badge muted', text: 'Checked by week only' }) : null, c.causes.length ? h('p', { class: 'cause', text: c.causes.join(' ') }) : null),
           h('td', { class: 'toggle' }, toggle),
         ),
       );
@@ -684,11 +748,13 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     const spill = checks.filter((c) => c.otherYearPremium > 0).length;
     const noPayDates = checks.some((c) => c.yearFromWeekEnd);
     const unplaced = checks.flatMap((c) => c.unallocated.map((u) => `${c.employee.name}, ${u.label}`));
-    fill(resultsSec, 
+    const weekly = checks.filter((c) => c.weeklyOnly).length;
+    fill(resultsSec,
       heading,
       h('p', { class: summary.needCorrection ? 'lead bad-text' : 'lead', text: lead }),
       h('p', { class: 'help', text: `Total TT by the workweek rules: ${money(summary.totalCorrect)}; reported by payroll: ${money(summary.totalReported)}.` }),
       spill ? h('p', { class: 'help', text: `${spill} employees have overtime in weeks paid in another year; those weeks count on that year’s W-2 and are shaded in the weeks table.` }) : null,
+      weekly ? h('p', { class: 'help', text: `${weekly} employee${weekly > 1 ? 's have' : ' has'} hours as weekly totals: each total is placed in the workweek that contains its date, so check that \u201cWorkweek starts on\u201d matches your export. Daily detail (and so a check of the week boundaries) is not available for them.` }) : null,
       unplaced.length ? h('p', { class: 'warn', text: `${unplaced.length} bonus${unplaced.length > 1 ? 'es' : ''} fell on no worked week of ${unplaced.length > 1 ? 'their' : 'its'} period and raise no rate: ${unplaced.slice(0, 3).join('; ')}${unplaced.length > 3 ? '; ...' : ''}. Check the bonus period setting or the dates.` }) : null,
       noPayDates ? h('p', { class: 'warn', text: 'Some lines have no pay date, so their weeks count in the year the workweek ends. Add a pay date (check date) column for weeks that are paid in January.' }) : null,
       h('div', { class: 'scroll' },

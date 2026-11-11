@@ -9,6 +9,7 @@ export const STATUS_TEXT: Record<Status, string> = {
   over: 'Too high',
   under: 'Too low',
   'not-entered': 'Payroll figure not entered',
+  'rate-needed': 'Pay rate needed (step 3)',
 };
 
 const money = (x: number | null) => (x === null ? '' : x.toFixed(2));

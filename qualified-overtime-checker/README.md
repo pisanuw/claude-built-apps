@@ -41,9 +41,20 @@ paid a cash wage plus a tip credit, and weeks that straddle pay periods or
 the year end. Tips, gifts, discretionary bonuses and expense reimbursements
 are left out, as the overtime rules require.
 
-Still being built (week of 10 November 2026): presets for QuickBooks, Toast
-and EasyAcct exports, and PDF worksheets. The full write-up comes with the
-finished app.
+Exports it knows by their columns: Toast time entries (from Toast's
+published column list) and QuickBooks Online "Time Activities by Employee
+Detail" (an inferred layout; it has hours but no pay rates, so you type each
+employee's rate once). Any other CSV works by choosing its columns, and the
+file remembers your choice for the next export from the same system. Weekly
+totals are checked by week; pay-period totals (two weeks in one row) cannot
+be checked per workweek and are refused with an explanation. You can add a
+second export to a file without counting rows twice.
+
+Not supported: exports with no dated or weekly hours (payroll summaries, or
+EasyACCT's earnings totals).
+
+Still being built (week of 10 November 2026): PDF worksheets and the W-2c
+list. The full write-up comes with the finished app.
 
 ## For developers
 

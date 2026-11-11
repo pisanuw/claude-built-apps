@@ -19,7 +19,8 @@ const KINDS: LineKind[] = ['work', 'overtime', 'excluded', 'bonus', 'extra'];
 export type StoredLine =
   | [number, string, number, number, number, number, string | null, number, number]
   | [number, string, number, number, number, number, string | null, number, number, number, string | null, string | null]
-  | [number, string, number, number, number, number, string | null, number, number, number, string | null, string | null, number];
+  | [number, string, number, number, number, number, string | null, number, number, number, string | null, string | null, number]
+  | [number, string, number, number, number, number, string | null, number, number, number | null, string | null, string | null, number, number | null];
 
 export interface StoredFile {
   v: 1;
@@ -31,6 +32,8 @@ export interface StoredFile {
   reported: Record<string, Record<string, number>>;
   source: string | null;
   mapping: Mapping | null;
+  mappings?: Record<string, Mapping>;
+  rates?: Record<string, number>;
   report: ImportReport | null;
   updatedAt: string;
 }
@@ -54,8 +57,10 @@ export function encodeFile(file: ClientFile): StoredFile {
       codes.push(l.code);
     }
     const base: StoredLine = [e, l.date, l.hours, l.rate, KINDS.indexOf(l.kind), l.multiplier, l.payDate, c, l.line];
+    const b9 = base as [number, string, number, number, number, number, string | null, number, number];
+    if (l.baseRate !== undefined) return [...b9, l.amount ?? null, l.earnedFrom ?? null, l.earnedTo ?? null, l.datedByPay ? 1 : 0, l.baseRate] as StoredLine;
     if (l.amount === undefined) return base;
-    const withAmount = [...(base as [number, string, number, number, number, number, string | null, number, number]), l.amount, l.earnedFrom ?? null, l.earnedTo ?? null] as StoredLine;
+    const withAmount = [...b9, l.amount, l.earnedFrom ?? null, l.earnedTo ?? null] as StoredLine;
     return l.datedByPay ? ([...withAmount, 1] as StoredLine) : withAmount;
   });
   return {
@@ -67,6 +72,8 @@ export function encodeFile(file: ClientFile): StoredFile {
     reported: file.reported,
     source: file.source,
     mapping: file.mapping,
+    ...(file.mappings ? { mappings: file.mappings } : {}),
+    ...(file.rates ? { rates: file.rates } : {}),
     report: file.report,
     updatedAt: file.updatedAt,
   };
@@ -80,13 +87,14 @@ export function decodeFile(id: string, stored: unknown): ClientFile {
   if (!st || typeof st.name !== 'string' || !Number.isInteger(st.taxYear) || !Number.isInteger(st.workweekStart)) throw bad();
   const lines: TimeLine[] = s.lines.map((l) => {
     if (!Array.isArray(l) || l.length < 9) throw bad();
-    const [e, date, hours, rate, kind, multiplier, payDate, c, line, amount, earnedFrom, earnedTo, byPay] = l as unknown[] as [number, string, number, number, number, number, string | null, number, number, number?, (string | null)?, (string | null)?, number?];
+    const [e, date, hours, rate, kind, multiplier, payDate, c, line, amount, earnedFrom, earnedTo, byPay, baseRate] = l as unknown[] as [number, string, number, number, number, number, string | null, number, number, (number | null)?, (string | null)?, (string | null)?, number?, (number | null)?];
     const emp = s.employees[e];
     if (!Array.isArray(emp) || typeof date !== 'string' || !Number.isFinite(hours) || !Number.isFinite(rate) || !Number.isFinite(multiplier)) throw bad();
     const [employeeKey, employeeId, employeeName] = emp;
     const out: TimeLine = { employeeKey, employeeId, employeeName, date, hours, rate, kind: KINDS[kind] ?? 'work', multiplier, payDate, code: s.codes[c] ?? '', line };
     if (typeof amount === 'number' && Number.isFinite(amount)) Object.assign(out, { amount, earnedFrom: earnedFrom ?? null, earnedTo: earnedTo ?? null });
     if (byPay === 1) out.datedByPay = true;
+    if (typeof baseRate === 'number' && Number.isFinite(baseRate)) out.baseRate = baseRate;
     return out;
   });
   return {
@@ -96,6 +104,8 @@ export function decodeFile(id: string, stored: unknown): ClientFile {
     reported: s.reported ?? {},
     source: s.source ?? null,
     mapping: s.mapping ?? null,
+    ...(s.mappings && typeof s.mappings === 'object' ? { mappings: s.mappings } : {}),
+    ...(s.rates && typeof s.rates === 'object' ? { rates: s.rates } : {}),
     report: s.report ?? null,
     updatedAt: s.updatedAt,
   };

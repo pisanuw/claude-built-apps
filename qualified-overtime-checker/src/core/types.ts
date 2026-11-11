@@ -47,6 +47,8 @@ export interface TimeLine {
   earnedTo?: string | null;
   /** A bonus line whose date is its pay date (no work date in the export). */
   datedByPay?: boolean;
+  /** An overtime line's straight rate when the export states it (the row's own rate column). */
+  baseRate?: number;
   /** Pay date of the check that paid these hours, ISO, or null when the export has none. */
   payDate: string | null;
   /** The pay code or item as exported, for the worksheet. */
@@ -127,6 +129,8 @@ export interface WeekResult {
   tipCredit: boolean;
   /** The tip credit counted in straightPay: hours x (minimum wage - cash wage). */
   tipCreditPay: number;
+  /** True when the week's hours came as a weekly total (a row of more than a day's hours), not dated days. */
+  weeklyOnly: boolean;
   /** Straight-time hours by rate, highest hours first. */
   rates: RateHours[];
   /** Premium the payroll paid on overtime-coded lines, or null when it paid none that way. */
