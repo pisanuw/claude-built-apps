@@ -25,7 +25,12 @@ unattended, engine.
 
 ## What is live
 
-- LIVE_STATUS
+- https://teacher-catalog-kit.hintwise.org (first deploy 2026-11-11 15:28 UTC,
+  commit cc76e70; migration 0001 applied, check-schema passed): pick a tier
+  (or both), add a resource with its type, TPT price and other stores, see
+  the Exclusive and Basic verdicts live, edit and delete; the catalog stays
+  in the browser, or in the account after Google or email-link sign-in, with
+  a "copy this browser's catalog to my account" button.
 - Not live yet: milestones 2 to 7.
 
 ## Milestones (docs/PLAN.md)
@@ -48,7 +53,7 @@ npm run dev          # http://localhost:5173 (browser storage only without .env)
 PW_CHROMIUM=/opt/pw-browsers/chromium npm run e2e   # Playwright walkthrough (cloud sessions need PW_CHROMIUM)
 ```
 
-Tests: TEST_COUNT vitest (coverage COVERAGE), 1 Playwright walkthrough. Live
+Tests: 117 vitest (coverage 99.8% statements, 97.2% branches), 1 Playwright walkthrough. Live
 check: `curl -s https://teacher-catalog-kit.hintwise.org/ | grep -c "Teacher Catalog Kit"`
 and `| grep -c "Want something like this"` (the footer).
 
@@ -137,4 +142,4 @@ and `| grep -c "Want something like this"` (the footer).
 
 ## Log
 
-- Day 1 (2026-11-11): picked and claimed the idea, plan, scaffold, milestone 1 built, reviewed and DEPLOY_NOTE.
+- Day 1 (2026-11-11): picked and claimed the idea, plan, scaffold, milestone 1 built, reviewed (10 code findings fixed, no security findings), deployed and checked live; sign-in-link redeployed with the new host.
