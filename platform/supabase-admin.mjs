@@ -78,16 +78,26 @@
  *   email-optout status|add|remove [email]
  *                           support for the email opt-out: the address comes
  *                           from OPTOUT_EMAIL (the workflow's masked "email"
- *                           input), is hashed by the email-optout function,
- *                           and is printed only masked (a***@example.com).
- *                           remove turns all HintWise email back on. Needs
- *                           SUPABASE_SERVICE_ROLE_KEY
+ *                           input) and is hashed by the email-optout function;
+ *                           the log shows only the action, the time and the
+ *                           hash prefix. add stops all HintWise email (run it
+ *                           on any request). remove turns it all back on: run
+ *                           it ONLY on a request sent from that address that
+ *                           passes DMARC, or after a confirming reply from
+ *                           it. Needs SUPABASE_SERVICE_ROLE_KEY, not the
+ *                           access token
+ *   optout-ready            exit 1 unless platform.email_optout_check answers
+ *                           (0003 applied); the workflow runs it before it
+ *                           deploys sign-in-link or auth-email-hook, which
+ *                           send no email without it. Needs
+ *                           SUPABASE_SERVICE_ROLE_KEY, not the access token
  *
  * Edge functions are deployed, and their secrets set, by shell steps of the
  * same workflow (deploy-function, deploy-gateway, set-gateway-key,
  * set-sign-in-secrets), not by this script.
  *
- * Env: SUPABASE_ACCESS_TOKEN (personal access token), and SUPABASE_URL
+ * Env: SUPABASE_ACCESS_TOKEN (personal access token; not needed by
+ * brand-upload, email-optout and optout-ready), and SUPABASE_URL
  * (https://<ref>.supabase.co) or SUPABASE_PROJECT_REF. configure-auth also
  * reads RESEND_API and, with --google, HINTWISE_AUTH_GOOGLE_ID and
  * HINTWISE_AUTH_GOOGLE_SECRET. domain-setup also reads CLOUDFLARE_API_TOKEN
@@ -1038,13 +1048,6 @@ async function brandUpload() {
 
 export const OPTOUT_ACTIONS = ['status', 'add', 'remove'];
 
-/** Pure: "a***@example.com", the mask sign-in links use. The full address is never printed. */
-export function maskAddress(email) {
-  const e = String(email ?? '').trim().toLowerCase();
-  const at = e.lastIndexOf('@');
-  return at < 1 ? '***' : `${e[0]}***@${e.slice(at + 1)}`;
-}
-
 /** Pure: the support request: POST <project>/functions/v1/email-optout with the service-role key and { action, email }. */
 export function optOutSupportRequest(base, key, action, email) {
   return {
@@ -1053,22 +1056,23 @@ export function optOutSupportRequest(base, key, action, email) {
   };
 }
 
-/** Pure: the lines to print for the function's answer: the masked address and the short hash, with any copy of the address masked. */
-export function optOutSummary(action, email, status, answer) {
-  const who = maskAddress(email);
-  const lines = [];
-  if (!answer || answer.ok !== true) {
-    lines.push(`email-optout ${action} for ${who} failed: HTTP ${status}${answer?.error ? ` ${String(answer.error).slice(0, 200)}` : ''}`);
-  } else if (action === 'status') {
-    lines.push(`${who} (hash ${answer.hash}): ${answer.optedOut ? 'gets no HintWise email' : 'gets HintWise email'}`);
-    for (const e of answer.entries || []) lines.push(`  scope ${e.scope}, via ${e.via}, since ${e.since}`);
-  } else if (action === 'add') {
-    lines.push(`${who} (hash ${answer.hash}): on the opt-out list; HintWise sends it no email, sign-in links included`);
-  } else {
-    lines.push(`${who} (hash ${answer.hash}): ${answer.removed ? `taken off the opt-out list (${answer.removed} row(s)); email is on again` : 'was not on the opt-out list; nothing changed'}`);
+/** Why a support command failed, by HTTP status: fixed words, never the function's text. */
+const OPTOUT_FAILURES = { 400: 'the function refused the address or the action', 401: 'the key was refused', 403: 'the key was refused', 404: 'the email-optout function is not deployed', 503: 'the email-optout function is not configured' };
+
+/**
+ * Pure: the lines to print for the function's answer. This repo's logs are
+ * public, so only the action, the time and the hash prefix appear: never the
+ * address, its domain or a mask of it.
+ */
+export function optOutSummary(action, status, answer, when) {
+  const at = when.toISOString();
+  if (!answer || answer.ok !== true) return [`email-optout ${action} at ${at}: failed, HTTP ${status} (${OPTOUT_FAILURES[status] || 'no answer from the function'})`];
+  const head = `email-optout ${action} ${String(answer.hash).slice(0, 16)} at ${at}`;
+  if (action === 'status') {
+    return [`${head}: ${answer.optedOut ? 'email off' : 'email on'}`, ...(answer.entries || []).map((e) => `  scope ${e.scope}, via ${e.via}, since ${e.since}`)];
   }
-  const raw = String(email ?? '').trim();
-  return raw ? lines.map((l) => l.split(raw).join(who).split(raw.toLowerCase()).join(who)) : lines;
+  if (action === 'add') return [`${head}: email off (on the opt-out list; sign-in links included)`];
+  return [`${head}: ${answer.removed ? `email on again (${answer.removed} row(s) removed)` : 'was not on the opt-out list; nothing changed'}`];
 }
 
 /** Support: status, add or remove for one address (env OPTOUT_EMAIL, or the second argument when run by hand). */
@@ -1086,9 +1090,53 @@ async function emailOptout(action) {
     status = res.status;
     answer = JSON.parse(await res.text());
   } catch { /* reported below */ }
-  const lines = optOutSummary(action, email, status, answer);
+  const lines = optOutSummary(action, status, answer, new Date());
   for (const line of lines) console.log(line);
   if (answer?.ok !== true) process.exit(1);
+}
+
+// ---- Deploy guard: the opt-out list must exist ------------------------------
+
+/** A mailbox hash no address has: the guard's probe. */
+export const PROBE_HASH = '0'.repeat(64);
+
+/** Pure: the probe of platform.email_optout_check with the service-role key (PostgREST, schema platform). */
+export function optOutReadyRequest(base, key) {
+  return {
+    url: `${String(base).replace(/\/+$/, '')}/rest/v1/rpc/email_optout_check`,
+    init: { method: 'POST', headers: { ...serviceHeaders(key), 'content-type': 'application/json', 'content-profile': 'platform', accept: 'application/json' }, body: JSON.stringify({ p_email_hash: PROBE_HASH, p_scopes: [] }) },
+  };
+}
+
+/** Pure: null when the probe answered a boolean, else why sign-in-link and auth-email-hook must not be deployed. */
+export function optOutReadyProblem(status, text) {
+  const body = String(text ?? '').trim();
+  if (status === 200 && (body === 'true' || body === 'false')) return null;
+  if (status === 404 || /PGRST202|could not find the function/i.test(body)) return 'platform.email_optout_check does not exist: run apply-shared (0003_email_optout.sql) first';
+  return `platform.email_optout_check did not answer a boolean (HTTP ${status}: ${body.slice(0, 120)})`;
+}
+
+/**
+ * optout-ready: run by the workflow before it deploys sign-in-link or
+ * auth-email-hook. Both stop all email (fail closed) while the opt-out list
+ * is missing, so they are deployed only once email_optout_check answers.
+ */
+async function optOutReady() {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) fail('optout-ready needs SUPABASE_SERVICE_ROLE_KEY (the workflow passes the repo secret)');
+  const req = optOutReadyRequest(url || `https://${ref}.supabase.co`, key);
+  let status = 0;
+  let text = '';
+  try {
+    const res = await fetch(req.url, req.init);
+    status = res.status;
+    text = await res.text();
+  } catch (e) {
+    text = String(e?.message || e);
+  }
+  const problem = optOutReadyProblem(status, text);
+  if (problem) fail(`${problem}. Not deploying: without it sign-in-link and auth-email-hook send no email.`);
+  console.log('platform.email_optout_check answers: the opt-out list is in place.');
 }
 
 // ---- main -----------------------------------------------------------------
@@ -1114,11 +1162,15 @@ const commands = {
   },
   'brand-upload': () => brandUpload(),
   'email-optout': () => emailOptout(arg),
+  'optout-ready': () => optOutReady(),
 };
+
+/** Commands that use only SUPABASE_URL and the service-role key, never the Management API token. */
+export const NO_ACCESS_TOKEN = ['brand-upload', 'email-optout', 'optout-ready'];
 
 // SUPABASE_ADMIN_NO_RUN=1 lets tests import the pure helpers without running.
 if (process.env.SUPABASE_ADMIN_NO_RUN !== '1') {
-  if (!token) fail('SUPABASE_ACCESS_TOKEN is not set');
+  if (!token && !NO_ACCESS_TOKEN.includes(cmd)) fail('SUPABASE_ACCESS_TOKEN is not set');
   if (!ref) fail('SUPABASE_PROJECT_REF or SUPABASE_URL (https://<ref>.supabase.co) is not set');
   try {
     if (!commands[cmd]) fail(`unknown command ${cmd}; use one of ${Object.keys(commands).join(', ')}`);

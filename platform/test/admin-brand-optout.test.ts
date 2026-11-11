@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { maskEmail } from '../src/signin/keys.ts';
 
 type Admin = typeof import('../supabase-admin.mjs');
 let m: Admin;
@@ -75,23 +74,39 @@ describe('the Supabase admin workflow', () => {
   it('offers brand-upload and email-optout, with an email input', () => {
     expect(wf).toMatch(/description: '[^']*\| brand-upload \| email-optout \|[^']*'/);
     expect(wf).toContain("email-optout: status, add or remove'");
-    expect(wf).toMatch(/\n {6}email:\n {8}description: 'email-optout only: the address \(masked in the log/);
+    expect(wf).toMatch(/\n {6}email:\n {8}description: 'email-optout only: the address \(masked in the log, never printed\)'/);
   });
   it('masks the address before the only step that holds it, and never puts it in a script', () => {
     const mask = wf.indexOf('- name: Mask the address');
     const support = wf.indexOf('- name: Email opt-out (support)');
     expect(mask).toBeGreaterThan(0);
     expect(support).toBeGreaterThan(mask);
-    expect(wf.slice(mask, support)).toContain(`jq -r '.inputs.email // ""' "$GITHUB_EVENT_PATH"`);
-    expect(wf.slice(mask, support)).toContain('echo "::add-mask::$EMAIL"');
+    const step = wf.slice(mask, support);
+    expect(step).toContain(`ARG=$(jq -r '.inputs.arg // ""' "$GITHUB_EVENT_PATH")`);
+    expect(step).toContain('case "$ARG" in status|add|remove) ;; *) echo "::error::');
+    expect(step).toContain(`gsub("%"; "%25") | gsub("\\r"; "%0D") | gsub("\\n"; "%0A")`);
+    expect(step).toContain('ascii_downcase');
+    expect(step).toContain('while IFS= read -r V; do echo "::add-mask::$V"; done');
+    expect(step).not.toContain('${{');
+    // The support step uses no Management API token.
+    expect(wf.slice(support, wf.indexOf('- name: Commit platform/supabase.json'))).not.toContain('SUPABASE_ACCESS_TOKEN');
     expect(wf.match(/\$\{\{ inputs\.email \}\}/g)).toHaveLength(1);
     expect(wf.indexOf('OPTOUT_EMAIL: ${{ inputs.email }}')).toBeGreaterThan(support);
     expect(wf).not.toContain('github.event.inputs.email');
     expect(wf).toMatch(/inputs\.command != 'email-hook' && inputs\.command != 'email-optout'\n/);
   });
-  it('gives the service-role key to the generic step only for brand-upload', () => {
-    expect(wf).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ inputs.command == 'brand-upload' && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}");
+  it('gives the service-role key to the generic step only for brand-upload and optout-ready', () => {
+    expect(wf).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.command == 'brand-upload' || inputs.command == 'optout-ready') && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}");
     expect(wf.match(/SUPABASE_SERVICE_ROLE_KEY: \$\{\{ secrets\.SUPABASE_SERVICE_ROLE_KEY \}\}/g)).toHaveLength(1);
+  });
+  it('deploys sign-in-link and auth-email-hook only after optout-ready passes', () => {
+    const deploy = wf.slice(wf.indexOf('- name: Deploy an edge function'), wf.indexOf('- name: Set the ANTHROPIC_API_KEY function secret'));
+    const guard = deploy.indexOf('case "$NAME" in sign-in-link|auth-email-hook) node supabase-admin.mjs optout-ready;; esac');
+    expect(guard).toBeGreaterThan(0);
+    expect(guard).toBeLessThan(deploy.indexOf('supabase functions deploy'));
+    expect(deploy).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.arg == 'sign-in-link' || inputs.arg == 'auth-email-hook') && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}");
+    // The step runs under bash -e, so a failed guard stops the deploy.
+    expect(deploy).not.toContain('set +e');
   });
   it('generates EMAIL_OPTOUT_SECRET only once and sets EMAIL_LOGO_URL only when the logo is served', () => {
     expect(wf).toContain('if ! has EMAIL_OPTOUT_SECRET; then');
@@ -102,10 +117,9 @@ describe('the Supabase admin workflow', () => {
 });
 
 describe('email-optout (support)', () => {
-  it('masks the address exactly as sign-in links do', () => {
-    for (const e of ['Ann.Lee+x@Example.com', ' bob@x.org ', 'nope', '@x.org', '']) expect(m.maskAddress(e)).toBe(maskEmail(e));
-    expect(m.maskAddress('Ann@Example.com')).toBe('a***@example.com');
+  it('takes status, add or remove', () => {
     expect(m.OPTOUT_ACTIONS).toEqual(['status', 'add', 'remove']);
+    expect(m.NO_ACCESS_TOKEN).toEqual(['brand-upload', 'email-optout', 'optout-ready']);
   });
   it('asks the email-optout function with the service-role key; the address goes only in the body', () => {
     const r = m.optOutSupportRequest('https://ref.supabase.co/', 'eyJ.a.b', 'remove', 'ann@example.com');
@@ -115,31 +129,53 @@ describe('email-optout (support)', () => {
     expect(JSON.parse(r.init.body)).toEqual({ action: 'remove', email: 'ann@example.com' });
     expect(r.url).not.toContain('ann');
   });
-  it('prints the masked address and the short hash, never the address', () => {
-    const e = 'Ann.Lee@Example.com';
+  it('prints only the action, the hash prefix and the time: no local part, domain or mask', () => {
+    const when = new Date('2026-11-11T12:00:00Z');
+    const hash = '0123456789abcdef';
     const lines = [
-      ...m.optOutSummary('status', e, 200, { ok: true, optedOut: true, hash: '0123456789abcdef', entries: [{ scope: 'all', via: 'link', since: '2026-11-11T10:00:00Z' }] }),
-      ...m.optOutSummary('status', e, 200, { ok: true, optedOut: false, hash: '0123456789abcdef', entries: [] }),
-      ...m.optOutSummary('add', e, 200, { ok: true, hash: '0123456789abcdef', entries: [] }),
-      ...m.optOutSummary('remove', e, 200, { ok: true, removed: 1, hash: '0123456789abcdef' }),
-      ...m.optOutSummary('remove', e, 200, { ok: true, removed: 0, hash: '0123456789abcdef' }),
-      ...m.optOutSummary('remove', e, 403, { ok: false, error: `Only the service-role key may do this (${e}, ${e.toLowerCase()}).` }),
-      ...m.optOutSummary('status', e, 0, null),
+      ...m.optOutSummary('status', 200, { ok: true, optedOut: true, hash, entries: [{ scope: 'all', via: 'link', since: '2026-11-11T10:00:00Z' }] }, when),
+      ...m.optOutSummary('status', 200, { ok: true, optedOut: false, hash, entries: [] }, when),
+      ...m.optOutSummary('add', 200, { ok: true, hash: `${hash}ffff`, entries: [] }, when),
+      ...m.optOutSummary('remove', 200, { ok: true, removed: 1, hash }, when),
+      ...m.optOutSummary('remove', 200, { ok: true, removed: 0, hash }, when),
+      ...m.optOutSummary('remove', 403, { ok: false, error: 'Only the service-role key may do this (ann@example.com).' }, when),
+      ...m.optOutSummary('status', 400, { ok: false }, when),
+      ...m.optOutSummary('status', 404, null, when),
+      ...m.optOutSummary('status', 503, { ok: false }, when),
+      ...m.optOutSummary('status', 0, null, when),
     ];
     expect(lines).toEqual([
-      'a***@example.com (hash 0123456789abcdef): gets no HintWise email',
+      'email-optout status 0123456789abcdef at 2026-11-11T12:00:00.000Z: email off',
       '  scope all, via link, since 2026-11-11T10:00:00Z',
-      'a***@example.com (hash 0123456789abcdef): gets HintWise email',
-      'a***@example.com (hash 0123456789abcdef): on the opt-out list; HintWise sends it no email, sign-in links included',
-      'a***@example.com (hash 0123456789abcdef): taken off the opt-out list (1 row(s)); email is on again',
-      'a***@example.com (hash 0123456789abcdef): was not on the opt-out list; nothing changed',
-      'email-optout remove for a***@example.com failed: HTTP 403 Only the service-role key may do this (a***@example.com, a***@example.com).',
-      'email-optout status for a***@example.com failed: HTTP 0',
+      'email-optout status 0123456789abcdef at 2026-11-11T12:00:00.000Z: email on',
+      'email-optout add 0123456789abcdef at 2026-11-11T12:00:00.000Z: email off (on the opt-out list; sign-in links included)',
+      'email-optout remove 0123456789abcdef at 2026-11-11T12:00:00.000Z: email on again (1 row(s) removed)',
+      'email-optout remove 0123456789abcdef at 2026-11-11T12:00:00.000Z: was not on the opt-out list; nothing changed',
+      'email-optout remove at 2026-11-11T12:00:00.000Z: failed, HTTP 403 (the key was refused)',
+      'email-optout status at 2026-11-11T12:00:00.000Z: failed, HTTP 400 (the function refused the address or the action)',
+      'email-optout status at 2026-11-11T12:00:00.000Z: failed, HTTP 404 (the email-optout function is not deployed)',
+      'email-optout status at 2026-11-11T12:00:00.000Z: failed, HTTP 503 (the email-optout function is not configured)',
+      'email-optout status at 2026-11-11T12:00:00.000Z: failed, HTTP 0 (no answer from the function)',
     ]);
-    for (const l of lines) {
-      expect(l).not.toContain('Ann.Lee');
-      expect(l).not.toContain('ann.lee');
-    }
-    expect(m.optOutSummary('status', '', 0, null)).toEqual(['email-optout status for *** failed: HTTP 0']);
+    for (const l of lines) expect(l).not.toMatch(/@|\*\*\*|example/);
+  });
+});
+
+describe('optout-ready (the deploy guard)', () => {
+  it('probes platform.email_optout_check with the service-role key and a hash no address has', () => {
+    const r = m.optOutReadyRequest('https://ref.supabase.co/', 'eyJ.a.b');
+    expect(r.url).toBe('https://ref.supabase.co/rest/v1/rpc/email_optout_check');
+    expect(r.init.headers).toEqual({ apikey: 'eyJ.a.b', authorization: 'Bearer eyJ.a.b', 'content-type': 'application/json', 'content-profile': 'platform', accept: 'application/json' });
+    expect(JSON.parse(r.init.body)).toEqual({ p_email_hash: '0'.repeat(64), p_scopes: [] });
+    expect(m.optOutReadyRequest('https://ref.supabase.co', 'sb_secret_x').init.headers).not.toHaveProperty('authorization');
+  });
+  it('passes only on a boolean answer', () => {
+    expect(m.optOutReadyProblem(200, 'false')).toBeNull();
+    expect(m.optOutReadyProblem(200, ' true\n')).toBeNull();
+    expect(m.optOutReadyProblem(404, '{"code":"PGRST202","message":"Could not find the function platform.email_optout_check"}')).toMatch(/does not exist: run apply-shared/);
+    expect(m.optOutReadyProblem(400, '{"code":"PGRST202"}')).toMatch(/does not exist/);
+    expect(m.optOutReadyProblem(200, '1')).toMatch(/did not answer a boolean \(HTTP 200: 1\)/);
+    expect(m.optOutReadyProblem(401, '{"message":"Invalid API key"}')).toMatch(/HTTP 401/);
+    expect(m.optOutReadyProblem(0, null)).toMatch(/HTTP 0/);
   });
 });
