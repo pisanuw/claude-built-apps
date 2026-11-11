@@ -1,4 +1,4 @@
-# Qualified Overtime Checker: handoff (day 2 of 7, 2026-11-10)
+# Qualified Overtime Checker: handoff (day 3 of 7, 2026-11-11)
 
 Rewritten at the end of every build day by the build routine
 (BUILD_ROUTINE.md). It is the only state the next day's session has, and the
@@ -28,33 +28,38 @@ provisional; three tied at 19 (this one 2026-11-07, Delivery Canary
 
 ## What is live
 
-- https://qualified-overtime-checker.hintwise.org (deploy 2026-11-10 12:43 UTC,
-  commit 9a4da59, Deploy run 42817804373): everything from day 1 plus client
-  files. Files are kept in this browser (localStorage); with Google or
-  magic-link sign-in they are kept in the user's account
-  (`app_qualified_overtime_checker.client_files`). A file list offers open,
-  new, move between browser and account, and delete. Autosave runs after
-  700 ms, plus on page hide. The sample opens as a file of its own.
-- Verified live: sign-in panel renders; browser save survives a reload;
-  anonymous API read and write both answer 401 "permission denied for
-  schema". Owner confirmed 2026-11-10 13:50 UTC: sign-in, sample employer,
-  saved to the account, delete all work on the live site.
-- Pushed, not deployed yet (ships with the day-3 deploy): sign-out of this
-  app only (scope local) and the PKCE sign-in flow, carried over from the
-  template fix 67727d4 at the Plabs session's request (fb46c8b).
-  Also waiting for that deploy: migration `0002_owner_key.sql` (primary key
-  `(user_id, id)`, upsert on_conflict user_id,id), the sign-out prompt before
-  keeping a browser copy, and wider SSN detection (security review fixes).
-- Not live yet: milestones 3 to 7.
+- https://qualified-overtime-checker.hintwise.org (deploy 2026-11-11 08:01 UTC,
+  commit b31eb5f, Deploy run 42983541131; migration 0002_owner_key applied
+  in that run): milestones 1 to 3 and sign-in in the header.
+  - Checker: timesheet import (SSN columns dropped), FLSA workweeks,
+    blended regular rate, year by pay date, likely causes, CSVs.
+  - Client files in this browser or the signed-in account.
+  - Milestone 3: non-discretionary bonuses and commissions spread over the
+    weeks they were earned in (settings under "Bonuses and tipped staff"),
+    shift differentials (also overtime differentials), tip-credit hours at
+    the minimum-wage setting, tips/gifts/discretionary bonuses/expenses left
+    out, the paid cap with "looks owed" notes. Sample: eight staff, six
+    flagged (new: Rosa Diaz, tipped; Theo Grant, quarterly bonuses).
+  - Sign-in: the template's Google-branded "Continue with Google" button at
+    the top right, "Use email instead" opening the email-link form, which
+    uses the platform sign-in-link service (Turnstile when asked, link
+    finished on page load). Sign-out of this app only; PKCE.
+- Verified live 2026-11-11: 200 with the footer; Google button in the header;
+  sample gives "6 of 8 employees"; no console errors.
+- Not verified live: a signed-in save after migration 0002 (the upsert now
+  uses on_conflict user_id,id) and an email link through the new service.
+  Owner action 1.
+- Pushed, not deployed: the bonus help text now names "Earned from / Earned
+  to" columns (ships with the next deploy).
 
 ## Milestones (docs/PLAN.md)
 
 | # | Milestone | Status | Day | Notes |
 |---|---|---|---|---|
 | 1 | One employer, checked | done | 1 | reviewed (high), 13 findings fixed |
-| 2 | Saved client files | done | 2 | reviewed (high), 10 findings fixed; signed-in save not yet tried by a person |
-| 3 | The hard cases | next | | bonuses (allocate over earning period), shift differentials, tip credit at the full minimum wage, excluded pay, cap TT at the premium actually paid |
-| 4 | Real exports | | | QuickBooks / Toast / EasyAcct presets, saved mappings, weekly-hours fallback |
+| 2 | Saved client files | done | 2 | reviewed (high) and security-reviewed; owner confirmed signed-in save 10 Nov |
+| 3 | The hard cases | done | 3 | reviewed (high), 10 findings fixed; security review of the sign-in move: nothing serious, 3 low fixed |
+| 4 | Real exports | next | | QuickBooks / Toast / EasyAcct presets, saved mappings, weekly-hours fallback |
 | 5 | Worksheet and W-2c list | | | PDFs, W-2c CSV, print |
 | 6 | Polish | | | |
 | 7 | Finish | | | |
@@ -67,10 +72,9 @@ npm run dev          # http://localhost:5173
 PW_CHROMIUM=/opt/pw-browsers/chromium npm run e2e   # cloud session: the bundled Playwright browser is missing
 ```
 
-Tests: 123 vitest (core, compare, two review-regression files, codec and
-stores, jsdom UI for the checker and the file list), coverage 99.4%
-statements, 94.6% branches; 3 Playwright tests (sample flow, file import,
-browser save across a reload and delete). Live check: `curl -s https://qualified-overtime-checker.hintwise.org/ | grep -c "Chief Education Officer"` prints 1.
+Tests: 187 vitest (core, compare, hard cases, review regressions, codec and
+stores, jsdom UI), coverage 99.3% statements, 94.5% branches; 3 Playwright
+tests (sample flow, file import, browser save across a reload and delete).
 
 ## Platform use
 
@@ -120,22 +124,31 @@ None open. Answered 2026-11-10: saved files allowed (as recommended); free.
 
 ## Owner actions
 
-None. (The signed-in save check was done by the owner on 2026-11-10.)
+1. Two-minute check after the day-3 deploy (migration 0002 changed the
+   table's key and the sign-in moved): open
+   https://qualified-overtime-checker.hintwise.org, sign in with "Continue
+   with Google" at the top right, click "Try the sample employer", wait for
+   "Saved to your account.", reload, then Delete it. Optional: sign out,
+   "Use email instead", ask for a link and open it in the same browser.
+2. The email hook (refusing direct signInWithOtp mail) can be switched on
+   for this app now: it no longer calls signInWithOtp.
 
-## Next (owner, 2026-11-10 13:50 UTC; paused for the session limit until 15:40 Lisbon = 15:40 UTC)
+## Next
 
-1. Move the standard Google sign-in button to the top right of the page (header), with the email-link option beside it or in a small menu; the file list stays in "Client files". Use Google's standard button look (white, the G logo, "Sign in with Google").
-2. Then milestone 3, "The hard cases" (docs/PLAN.md).
-3. One deploy at the end of that work ships everything pending (sign-out scope, PKCE, migration 0002, the security fixes, the header button, milestone 3).
-
-Platform note (Plabs session, 10 Nov 18:20 UTC), do it with item 1:
-- The Google button must follow Google's branding rules, now in BUILD_ROUTINE.md ("Google sign-in button"): "Continue with Google" (or "Sign in with Google"), the official G, light theme, 14/20 Google Sans, padding 12/10/12. The app template has a compliant button to copy: platform/templates/app/src/lib/auth.ts and signin-styles.ts.
-- Magic links move to the platform's rate-limited sign-in-link service (live since 10 Nov). Replace `signInWithOtp` (src/lib/auth.ts) with the template's `sendMagicLink`, handle its wait and challenge answers (Turnstile), and finish sign-in on page load with the template's `completeSignInFromUrl` (verifyOtp with token_hash). The contract is in platform/src/signin/README.md.
-- The owner will switch on the email hook, which refuses direct signInWithOtp mail, only after this app has moved. Until then its email sign-in keeps working as it is.
+Milestone 4, "Real exports" (docs/PLAN.md): presets for QuickBooks Online
+time activity, Toast labor summary and EasyAcct payroll register layouts,
+saved column mappings per client, a weekly-hours fallback (no dated days)
+flagged "checked by week only", and an import report with line numbers
+(mostly there). Find the vendors' real column names first (help pages or
+sample exports); if none can be fetched, say so and build the presets from
+the idea's evidence, marked unverified.
 
 ## Remaining and known issues
 
 - Milestones 2 to 7.
+- The extra overtime a bonus causes is assumed paid with the bonus (no cap on bonus shares); the method text says so.
+- Bonus tests use hand-worked figures; the CFR's printed examples were not re-read.
+- Template follow-up for the Plabs session: the stale switch-offer fix was made in platform/templates/app too (ff11c02); other apps copied before that keep the old behaviour.
 - Phone layout: results and the file list show as cards; the weeks table scrolls sideways (polish day).
 - Self-service account deletion is not offered; README says to email builder@hintwise.org (platform milestone).
 - supabase-js 2.119 asks for Node 22; the Deploy workflow builds on Node 20 (warning only, build fine).
@@ -156,5 +169,6 @@ Platform note (Plabs session, 10 Nov 18:20 UTC), do it with item 1:
 ## Log
 
 - Day 1 (2026-11-10): picked, claimed, planned; milestone 1 built, reviewed, fixed and deployed.
+- Day 3 (2026-11-11): sign-in moved to the header with the template's branded button and the sign-in-link service; milestone 3 (bonuses, differentials, tip credit, not-wages, paid cap) built; code review (high) 10 findings and security review 3 low findings fixed; deployed with migration 0002.
 - Day 2 security review (security-review, by a subagent; the skill itself failed on the missing origin/HEAD ref, so the diff was reviewed by hand): nothing serious; three low items fixed (owner-scoped primary key, ask before a sign-out copy, SSN header and value gaps).
 - Day 2 (2026-11-10, second run the same day at the owner's request): milestone 2, saved client files with sign-in, reviewed, fixed and deployed; first app on the Supabase migrations step; two platform fixes (VITE env in the build, expose-schema wait).

@@ -464,3 +464,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-10 [decision] Owner: StepWise carries the shared HintWise footer. Sent its session footerHtml('stepwise') (sha256 f40ff32d), on every page. UpvoteMe and PasteMD (own repos) lack it too.
 2026-11-10 [code] UpvoteMe #5 (335af9e) and PasteMD #3 (904fe66) live: Google-compliant buttons and the shared footer, checked live. StepWise: button and footer approved, deploy pending.
 2026-11-11 [note] StepWise b418072 live (00:04): shared footer byte-identical once per page (home + 6 sampled of 204); Google button meets Google's light and dark specs. Checked by Plabs.
+
+2026-11-11 [code] qualified-overtime-checker day 3: milestone 3 live (bonuses spread over the weeks earned, differentials, tip credit at the minimum wage, tips and gifts left out, cap at the premium paid; sample now 8 staff); sign-in moved to the top right with the Google-branded template button and the platform sign-in-link service; migration 0002 (owner-scoped key) applied; code review 10 and security review 3 findings fixed; template fix: a stale switch offer is dropped when the account changes.

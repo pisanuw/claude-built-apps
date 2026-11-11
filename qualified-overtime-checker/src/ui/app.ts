@@ -391,7 +391,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
           alloc,
         ),
         h('p', { id: 'min-wage-help', class: 'help', text: 'Hours paid below this rate are treated as a cash wage plus a tip credit and count at this rate (federal $7.25, or your state\u2019s tipped minimum wage total). Tips themselves are not part of the regular rate.' }),
-        h('p', { id: 'bonus-help', class: 'help', text: 'A bonus, commission or incentive the employee was promised raises the overtime premium of every week it was earned in. When your export has period start and end columns they are used; otherwise each bonus covers the week, month, quarter or year of its date. Gifts, discretionary and holiday bonuses, tips and expense reimbursements are left out.' }),
+        h('p', { id: 'bonus-help', class: 'help', text: 'A bonus, commission or incentive the employee was promised raises the overtime premium of every week it was earned in. When your export has Earned from and Earned to columns they are used; otherwise each bonus covers the week, month, quarter or year of its work date, or, with only a pay date, the period before the one it was paid in. Gifts, discretionary and holiday bonuses, tips and expense reimbursements are left out.' }),
       ),
     );
   }
