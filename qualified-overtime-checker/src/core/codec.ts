@@ -18,7 +18,8 @@ const KINDS: LineKind[] = ['work', 'overtime', 'excluded', 'bonus', 'extra'];
  */
 export type StoredLine =
   | [number, string, number, number, number, number, string | null, number, number]
-  | [number, string, number, number, number, number, string | null, number, number, number, string | null, string | null];
+  | [number, string, number, number, number, number, string | null, number, number, number, string | null, string | null]
+  | [number, string, number, number, number, number, string | null, number, number, number, string | null, string | null, number];
 
 export interface StoredFile {
   v: 1;
@@ -53,7 +54,9 @@ export function encodeFile(file: ClientFile): StoredFile {
       codes.push(l.code);
     }
     const base: StoredLine = [e, l.date, l.hours, l.rate, KINDS.indexOf(l.kind), l.multiplier, l.payDate, c, l.line];
-    return l.amount === undefined ? base : [...(base as [number, string, number, number, number, number, string | null, number, number]), l.amount, l.earnedFrom ?? null, l.earnedTo ?? null];
+    if (l.amount === undefined) return base;
+    const withAmount = [...(base as [number, string, number, number, number, number, string | null, number, number]), l.amount, l.earnedFrom ?? null, l.earnedTo ?? null] as StoredLine;
+    return l.datedByPay ? ([...withAmount, 1] as StoredLine) : withAmount;
   });
   return {
     v: 1,
@@ -77,12 +80,13 @@ export function decodeFile(id: string, stored: unknown): ClientFile {
   if (!st || typeof st.name !== 'string' || !Number.isInteger(st.taxYear) || !Number.isInteger(st.workweekStart)) throw bad();
   const lines: TimeLine[] = s.lines.map((l) => {
     if (!Array.isArray(l) || l.length < 9) throw bad();
-    const [e, date, hours, rate, kind, multiplier, payDate, c, line, amount, earnedFrom, earnedTo] = l as unknown[] as [number, string, number, number, number, number, string | null, number, number, number?, (string | null)?, (string | null)?];
+    const [e, date, hours, rate, kind, multiplier, payDate, c, line, amount, earnedFrom, earnedTo, byPay] = l as unknown[] as [number, string, number, number, number, number, string | null, number, number, number?, (string | null)?, (string | null)?, number?];
     const emp = s.employees[e];
     if (!Array.isArray(emp) || typeof date !== 'string' || !Number.isFinite(hours) || !Number.isFinite(rate) || !Number.isFinite(multiplier)) throw bad();
     const [employeeKey, employeeId, employeeName] = emp;
     const out: TimeLine = { employeeKey, employeeId, employeeName, date, hours, rate, kind: KINDS[kind] ?? 'work', multiplier, payDate, code: s.codes[c] ?? '', line };
     if (typeof amount === 'number' && Number.isFinite(amount)) Object.assign(out, { amount, earnedFrom: earnedFrom ?? null, earnedTo: earnedTo ?? null });
+    if (byPay === 1) out.datedByPay = true;
     return out;
   });
   return {

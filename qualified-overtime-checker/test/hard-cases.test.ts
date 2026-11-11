@@ -60,7 +60,7 @@ describe('non-discretionary bonuses (29 CFR 778.209)', () => {
   });
 
   it('reads the earning period from period columns', () => {
-    const r = importCsv('Employee,Date,Pay Type,Hours,Rate,Amount,Pay Date,Period Start,Period End\nAnn,2026-03-02,Regular,45,20,,,,\nAnn,2026-03-13,Bonus,,,90,2026-03-13,2026-03-01,2026-03-14\n');
+    const r = importCsv('Employee,Date,Pay Type,Hours,Rate,Amount,Pay Date,Earned From,Earned To\nAnn,2026-03-02,Regular,45,20,,,,\nAnn,2026-03-13,Bonus,,,90,2026-03-13,2026-03-01,2026-03-14\n');
     expect(r.mapping).toMatchObject({ earnedFrom: 7, earnedTo: 8 });
     expect(r.lines[1]).toMatchObject({ earnedFrom: '2026-03-01', earnedTo: '2026-03-14' });
     const [ew] = buildWeeks(r.lines, base);
@@ -149,5 +149,65 @@ describe('stored files and older files', () => {
     const old = { v: 1, settings: { name: 'Old', taxYear: 2026, workweekStart: 0 }, employees: [['k', '', 'K']], codes: [''], lines: [[0, '2026-11-02', 8, 20, 0, 1, null, 0, 2]], updatedAt: 't' };
     expect(decodeFile('o', old).settings).toEqual({ name: 'Old', taxYear: 2026, workweekStart: 0, minimumWage: 7.25, bonusPeriod: 'week', bonusAllocation: 'per-week' });
     expect(runChecks(decodeFile('o', old)).checks[0].correct).toBe(0);
+  });
+});
+
+describe('milestone 3 review fixes', () => {
+  it('keeps a non-discretionary bonus, and hours on rows named like pay', () => {
+    expect(importCsv(csv(['Ann,2026-03-02,Non-discretionary bonus,,,50,'])).lines[0].kind).toBe('bonus');
+    const r = importCsv(csv(['Ann,2026-03-02,Tip credit hours,8,2.13,,', 'Ann,2026-03-03,Per Diem RN,8,40,,', 'Ann,2026-03-04,Production,8,20,,', 'Ann,2026-03-05,Incentive OT,2,30,,']));
+    expect(r.lines.map((l) => [l.kind, l.hours])).toEqual([['work', 8], ['work', 8], ['work', 8], ['overtime', 2]]);
+    expect(r.report.notWagesLines).toBe(0);
+  });
+
+  it('does not count a differential twice when overtime was paid on the blended rate', () => {
+    // 40 h at $20, a $100 differential, 5 h overtime at $33.33 (1.5 x the true $22.22).
+    const { ew } = weeksOf(['Ann,2026-03-02,Regular,40,20,,', 'Ann,2026-03-03,Shift differential,,,100,', 'Ann,2026-03-07,Overtime,5,33.33,,']);
+    const w = ew.weeks[0];
+    expect(w).toMatchObject({ straightPay: 1000, flsaPremium: 55.56, basePremium: 55.56, paidPremium: 66.65 });
+    expect(w.notes.join(' ')).not.toMatch(/looks owed/);
+  });
+
+  it('does not cap when the overtime line shows only the base rate', () => {
+    const { ew } = weeksOf(['Ann,2026-03-02,Regular,40,20,,', 'Ann,2026-03-03,Shift differential,,,100,', 'Ann,2026-03-07,Overtime,5,20,,']);
+    expect(ew.weeks[0]).toMatchObject({ flsaPremium: 55.56, basePremium: 55.56, paidPremium: null });
+  });
+
+  it('caps a tipped server at the cash premium actually paid', () => {
+    // 40 h at $2.13 cash, 5 h overtime at $3.195: $5.33 premium paid in cash; the FLSA asks $18.13.
+    const { ew } = weeksOf(['Ann,2026-03-02,Server,40,2.13,,', 'Ann,2026-03-07,Overtime,5,3.195,,']);
+    expect(ew.weeks[0]).toMatchObject({ tipCredit: true, flsaPremium: 18.13, paidPremium: 5.33, basePremium: 5.33 });
+    expect(ew.weeks[0].notes.join(' ')).toMatch(/\$12\.80 of overtime looks owed/);
+  });
+
+  it('a negative overtime correction never makes the premium negative', () => {
+    const { ew } = weeksOf(['Ann,2026-03-02,Regular,45,20,,', 'Ann,2026-03-07,Overtime,-2,30,,']);
+    expect(ew.weeks[0].basePremium).toBeGreaterThanOrEqual(0);
+    expect(ew.weeks[0].paidPremium).toBeNull();
+  });
+
+  it('does not take pay-period columns as the earning period', () => {
+    const r = importCsv('Employee,Date,Hours,Rate,Pay Period Start,Pay Period End,Period Start\nAnn,2026-03-02,8,20,2026-03-01,2026-03-14,2026-03-01\n');
+    expect(r.mapping).toMatchObject({ earnedFrom: null, earnedTo: null });
+  });
+
+  it('spreads a bonus dated only by its check over the period before', () => {
+    // A Q4 bonus paid 2027-01-15, no work date, quarter setting: it belongs to Q4 2026, not Q1 2027.
+    const rows = [...nineHourDays('2026-11-01', 20), ...nineHourDays('2026-12-27', 20), 'Ann,,Bonus,,,900,2027-01-15'];
+    const { r, ew } = weeksOf(rows, { bonusPeriod: 'quarter' });
+    expect(r.lines.find((l) => l.kind === 'bonus')).toMatchObject({ date: '2027-01-15', datedByPay: true });
+    const nov = ew.weeks.find((w) => w.start === '2026-11-01')!;
+    const dec = ew.weeks.find((w) => w.start === '2026-12-27')!;
+    // Weights 7/7 and 5/7 (Dec 27-31 inside Q4): 900 x 7/12 = 525 and 900 x 5/12 = 375.
+    expect([nov.bonusParts[0].amount, dec.bonusParts[0].amount]).toEqual([525, 375]);
+    const f = { ...newClientFile('x', { ...base, bonusPeriod: 'quarter' }), lines: r.lines };
+    expect(decodeFile('x', JSON.parse(JSON.stringify(encodeFile(f))))).toEqual(f);
+  });
+
+  it('an overtime differential keeps its premium out of the regular rate', () => {
+    // 45 h at $20, and "OT shift diff" $15 = 5 h x $2 x 1.5: $10 is pay, $5 is premium paid.
+    const { r, ew } = weeksOf([...nineHourDays('2026-03-01', 20), 'Ann,2026-03-06,OT shift differential,,,15,']);
+    expect(r.lines.at(-1)).toMatchObject({ kind: 'extra', multiplier: 1.5 });
+    expect(ew.weeks[0]).toMatchObject({ extraPay: 10, straightPay: 910, flsaPremium: 50.56 });
   });
 });

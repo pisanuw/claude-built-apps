@@ -39,7 +39,8 @@ describe('review fixes', () => {
   it('treats an overtime line at the base rate as the straight rate', () => {
     const r = importCsv(week(['Pat,11/2/2026,Regular,40,20', 'Pat,11/3/2026,Overtime,5,20']));
     const w = buildWeeks(r.lines, { workweekStart: 0 })[0].weeks[0];
-    expect(w).toMatchObject({ straightPay: 900, regularRate: 20, premium: 50, paidPremium: 50 });
+    // The export shows the base rate, so what was paid as premium is unknown: no cap.
+    expect(w).toMatchObject({ straightPay: 900, regularRate: 20, premium: 50, paidPremium: null });
     expect(w.notes).toEqual([]);
     // Two rates where the overtime rate is 1.5x one of them: still divided.
     const two = importCsv(week(['Pat,11/2/2026,Regular,20,20', 'Pat,11/3/2026,Regular,20,30', 'Pat,11/4/2026,Overtime,5,30']));

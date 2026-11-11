@@ -1,7 +1,8 @@
 # Deploy control file for Qualified Overtime Checker (Netlify, static site).
 #
 # Client files are kept in the visitor's browser, or in their account once
-# they sign in (milestone 2). `supabase: true` makes the Deploy workflow apply
+# they sign in (milestone 2; milestone 3 deployed 2026-11-11 with migration
+# 0002 and sign-in in the header). `supabase: true` makes the Deploy workflow apply
 # supabase/migrations/*.sql and expose schema app_qualified_overtime_checker
 # before the Netlify deploy. `env` holds the public client values from
 # platform/supabase.json (public by design; row level security guards the

@@ -45,6 +45,8 @@ export interface TimeLine {
   /** The period a bonus was earned over, ISO, when the export says. */
   earnedFrom?: string | null;
   earnedTo?: string | null;
+  /** A bonus line whose date is its pay date (no work date in the export). */
+  datedByPay?: boolean;
   /** Pay date of the check that paid these hours, ISO, or null when the export has none. */
   payDate: string | null;
   /** The pay code or item as exported, for the worksheet. */

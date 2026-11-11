@@ -4,7 +4,7 @@
  * worksheet per employee. Everything is worked out in the browser. Client
  * files are saved in this browser, or in the signed-in user's account.
  */
-import { needsCorrection, type EmployeeCheck } from '../core/compare';
+import { inYear, needsCorrection, type EmployeeCheck } from '../core/compare';
 import { newClientFile, reportedFor, runChecks, withReported, type ClientFile } from '../core/clientFile';
 import { parseCsv, type CsvTable } from '../core/csv';
 import { formatDay, WEEKDAYS } from '../core/dates';
@@ -618,20 +618,20 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
     const shown = c.weeks.filter((w) => w.overtimeHours > 0 || w.notes.length > 0);
     if (!shown.length) return h('p', { class: 'empty', text: 'No workweek over 40 hours.' });
     const row = (w: WeekResult) =>
-      h('tr', { class: w.taxYear === year ? '' : 'other-year' },
+      h('tr', { class: w.taxYear === year || w.bonusParts.some((p) => p.taxYear === year) ? '' : 'other-year' },
         h('th', { scope: 'row', class: 'nowrap', text: `${formatDay(w.start)} – ${formatDay(w.end)}` }),
         h('td', { class: 'num', text: hours(w.hours) }),
         h('td', { class: 'num', text: money(w.straightPay) }),
         h('td', { class: 'num', text: `$${w.regularRate.toFixed(4)}` }),
         h('td', { class: 'num', text: hours(w.overtimeHours) }),
-        h('td', { class: 'num', text: money(w.premium) }),
+        h('td', { class: 'num', text: money(inYear(w, year)) }),
         h('td', { text: w.payDate ? `${formatDay(w.payDate)}${w.taxYear === year ? '' : ` (${w.taxYear} W-2)`}` : `none (${w.taxYear})` }),
         h('td', { class: 'notes', text: w.notes.join(' ') }),
       );
     return h('div', { class: 'scroll' },
       h('table', { class: 'weeks' },
         h('caption', { text: `${c.employee.name}: workweeks with overtime or a note` }),
-        h('thead', {}, h('tr', {}, ...['Workweek', 'Hours', 'Straight-time pay', 'Regular rate', 'Overtime hours', 'Qualified premium', 'Paid on', 'Notes'].map((t) => h('th', { scope: 'col', text: t })))),
+        h('thead', {}, h('tr', {}, ...['Workweek', 'Hours', 'Straight-time pay', 'Regular rate', 'Overtime hours', `On the ${year} W-2`, 'Paid on', 'Notes'].map((t) => h('th', { scope: 'col', text: t })))),
         h('tbody', {}, ...shown.map(row)),
       ),
     );
@@ -777,7 +777,7 @@ function methodSection(): HTMLElement {
       li('A week belongs to the W-2 of the year it is paid: the latest pay date in the week, or the year the week ends when the file has no pay dates.'),
       li('A non-discretionary bonus or commission is spread over the weeks it was earned in, equally or by hours (29 CFR 778.209); each share adds share \u00f7 hours \u00d7 half \u00d7 overtime hours, on the W-2 of the year the bonus is paid. Shift differentials add to their week\u2019s pay (778.207).'),
       li('Tip-credit staff count at the minimum wage you set, not their cash wage (29 CFR 531.60); tips, gifts, discretionary bonuses and expense reimbursements are left out (778.208-224).'),
-      li('Where your file shows the overtime actually paid, the figure is capped at that premium, and any shortfall is flagged as overtime that looks owed.'),
+      li('Where your file shows the overtime actually paid, the figure is capped at that premium, and any shortfall is flagged as overtime that looks owed. The extra overtime a bonus causes is assumed paid with the bonus; a payroll that never recalculated it owes it.'),
       li('Differences under $1.00 are shown as rounding.'),
     ),
     h('p', { class: 'help', text: 'Not covered: California and other daily-overtime states, the 8-and-80 system for hospitals, salaried non-exempt staff on a fluctuating workweek, and qualified tips (code TP). Rows the checker cannot use are listed under the import, so you can see what was left out.' }),

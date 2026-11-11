@@ -71,8 +71,9 @@ const GUESSES: [Field, RegExp][] = [
   ['hours', /^(hours|hrs|duration|total hours|hours worked|regular hours|qty|quantity|time|total)$/],
   ['rate', /^(rate|pay rate|hourly rate|wage|wage rate|hourly wage|rate per hour|bill rate|cost rate)$/],
   ['amount', /^(amount|earnings|pay|gross|gross pay|total pay|wages|current amount|line total)$/],
-  ['earnedFrom', /^(pay )?period (start|begin|beginning|from)( date)?$|^earned from$|^earning period start$/],
-  ['earnedTo', /^(pay )?period (end|ending|to)( date)?$|^earned to$|^earning period end$/],
+  // Only earning-period columns: a pay period's dates are not when a bonus was earned.
+  ['earnedFrom', /^(earned|period earned|earning period|bonus period) ?(from|start|begin)?$|^earned from( date)?$/],
+  ['earnedTo', /^(earned|period earned|earning period|bonus period) ?(to|end|through)$|^earned (to|through)( date)?$/],
   ['code', /^(pay type|pay code|earning|earnings code|earning code|earnings type|item|service item|payroll item|job|type|category|code|wage type|pay item)$/],
 ];
 
@@ -161,23 +162,28 @@ const HOLIDAY_WORKED = /\bholiday (worked|work)\b|\bworked holiday\b/;
 const DOUBLE = /\b(double|dt|2x|2\.0x|2\.0)\b/;
 const OVERTIME = /\b(overtime|ot|o\/t|1\.5x|1\.5|time and a half|time and one half)\b/;
 /** Pay that is not part of the regular rate at all (29 CFR 778.200 and following): gifts, discretionary bonuses, tips, expenses. */
-const NOT_WAGES = /\b(discretionary|gift|christmas bonus|holiday bonus|tips?|gratuit\w*|reimburse\w*|expense\w*|mileage|per diem|allowance|severance|referral)\b/;
+const NOT_WAGES = /\b((?<!non[- ]?)discretionary|gift|christmas bonus|holiday bonus|tips?|gratuit\w*|reimburse\w*|expense\w*|mileage|per diem|allowance|severance|referral)\b/;
 /** Non-discretionary bonuses and commissions: spread over the weeks they were earned in (778.209-210, 778.117). */
 const BONUS = /\b(bonus\w*|commission\w*|incentive\w*|production|attendance|retention|safety award|award)\b/;
 /** Pay that adds to the week it was earned in: shift differentials and premiums (778.207). */
 const EXTRA = /\b(differential|shift diff|shift premium|night premium|hazard pay|on.call pay|lead pay)\b/;
 
 /**
- * Classifies a pay code. `not-wages` is pay the regular rate leaves out
- * (counted, then dropped); `bonus` and `extra` are amounts with no hours.
+ * Classifies a pay code. A row with worked hours is always work, overtime or
+ * paid time off (a "Tip credit hours" or "Per Diem RN" row is hours worked);
+ * only a row without hours can be a bonus, or pay the regular rate leaves out
+ * (`not-wages`: counted, then dropped). A differential is `extra` either way,
+ * with the overtime multiplier when it is an overtime differential.
  */
-export function classifyCode(code: string): { kind: LineKind | 'not-wages'; multiplier: number } {
+export function classifyCode(code: string, hasHours = false): { kind: LineKind | 'not-wages'; multiplier: number } {
   const c = code.toLowerCase();
-  if (NOT_WAGES.test(c)) return { kind: 'not-wages', multiplier: 1 };
-  if (BONUS.test(c)) return { kind: 'bonus', multiplier: 1 };
-  if (EXTRA.test(c)) return { kind: 'extra', multiplier: 1 };
-  if (DOUBLE.test(c)) return { kind: 'overtime', multiplier: 2 };
-  if (OVERTIME.test(c)) return { kind: 'overtime', multiplier: 1.5 };
+  const multiplier = DOUBLE.test(c) ? 2 : OVERTIME.test(c) ? 1.5 : 1;
+  if (EXTRA.test(c)) return { kind: 'extra', multiplier };
+  if (!hasHours) {
+    if (NOT_WAGES.test(c)) return { kind: 'not-wages', multiplier: 1 };
+    if (BONUS.test(c)) return { kind: 'bonus', multiplier: 1 };
+  }
+  if (multiplier > 1) return { kind: 'overtime', multiplier };
   if (EXCLUDED.test(c) && !HOLIDAY_WORKED.test(c)) return { kind: 'excluded', multiplier: 1 };
   return { kind: 'work', multiplier: 1 };
 }
@@ -248,7 +254,6 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
       continue;
     }
     const code = cell(c, safe.code);
-    const cls = classifyCode(code);
     const regRaw = parseHours(cell(c, safe.hours), comma);
     const ot = safe.overtimeHours === null ? 0 : parseHours(cell(c, safe.overtimeHours), comma);
     const dt = safe.doubleHours === null ? 0 : parseHours(cell(c, safe.doubleHours), comma);
@@ -259,6 +264,7 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
     const hours = wide && !Number.isFinite(regRaw) ? 0 : regRaw;
     const rateCell = parseMoney(cell(c, safe.rate), comma);
     const amount = parseMoney(cell(c, safe.amount), comma);
+    const cls = classifyCode(code, (Number.isFinite(hours) && hours !== 0) || wide);
     if (cls.kind === 'not-wages') {
       notWagesLines++;
       continue;
@@ -268,7 +274,8 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
       const pay = Number.isFinite(amount) ? amount : Number.isFinite(hours) && Number.isFinite(rateCell) ? hours * rateCell : NaN;
       const payRawB = cell(c, safe.payDate);
       const payDateB = payRawB ? parseDate(payRawB) : null;
-      const dateB = parseDate(cell(c, safe.date)) ?? payDateB;
+      const workDate = parseDate(cell(c, safe.date));
+      const dateB = workDate ?? payDateB;
       if (!Number.isFinite(pay) || pay === 0) {
         skipped.push({ line: row.line, reason: `${code}: no amount to add to the regular rate.` });
         continue;
@@ -287,10 +294,12 @@ export function importRows(table: CsvTable, mapping: Mapping): ImportResult {
         hours: 0,
         rate: 0,
         kind: cls.kind,
-        multiplier: 1,
+        multiplier: cls.multiplier,
         amount: pay,
         earnedFrom: cls.kind === 'bonus' && from && to ? from : null,
         earnedTo: cls.kind === 'bonus' && from && to ? to : null,
+        // Dated only by its check: the bonus was earned in the period before.
+        ...(cls.kind === 'bonus' && !workDate ? { datedByPay: true } : {}),
         payDate: payDateB,
         code,
         line: row.line,

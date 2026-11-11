@@ -57,10 +57,24 @@ function hrs(x: number): string {
  * the rate matches a regular line of the same week and the divided rate does
  * not, the rate is taken as the straight rate.
  */
-export function straightRate(l: TimeLine, isWorkRate: (r: number) => boolean): number {
-  if (l.kind !== 'overtime') return l.rate;
+export function straightRate(l: TimeLine, isWorkRate: (r: number) => boolean, onlyWorkRate: number | null = null): number {
+  return overtimeStraight(l, isWorkRate, onlyWorkRate).straight;
+}
+
+/**
+ * The straight rate of an overtime line, and whether the premium it paid is
+ * known: its rate divided by the multiplier when that is a rate the employee
+ * worked at; the rate itself when the export put the base rate on the line
+ * (premium paid unknown); otherwise, with one work rate in the week, that rate
+ * (the line paid overtime at another rate, often the blended one).
+ */
+export function overtimeStraight(l: TimeLine, isWorkRate: (r: number) => boolean, onlyWorkRate: number | null): { straight: number; paidKnown: boolean } {
+  if (l.kind !== 'overtime') return { straight: l.rate, paidKnown: true };
   const divided = l.rate / l.multiplier;
-  return !isWorkRate(divided) && isWorkRate(l.rate) ? l.rate : divided;
+  if (isWorkRate(divided)) return { straight: divided, paidKnown: true };
+  if (isWorkRate(l.rate)) return { straight: l.rate, paidKnown: false };
+  if (onlyWorkRate !== null) return { straight: onlyWorkRate, paidKnown: true };
+  return { straight: divided, paidKnown: true };
 }
 
 /** One workweek from its lines (bonus lines are allocated later, in buildWeeks). */
@@ -78,6 +92,9 @@ export function computeWeek(startDay: number, lines: TimeLine[], opts: { minimum
   const rates = new Map<number, number>();
   const workRates = lines.filter((l) => l.kind === 'work').map((l) => l.rate);
   const isWorkRate = (r: number) => workRates.some((w) => Math.abs(w - r) < 0.005);
+  const distinct = [...new Set(workRates.map((r) => Math.round(r * 10_000)))];
+  const onlyWorkRate = distinct.length === 1 ? workRates[0] : null;
+  let paidUnknown = false;
   for (const l of lines) {
     if (l.kind === 'excluded') {
       excludedHours += l.hours;
@@ -85,10 +102,15 @@ export function computeWeek(startDay: number, lines: TimeLine[], opts: { minimum
     }
     if (l.kind === 'bonus') continue;
     if (l.kind === 'extra') {
-      extraPay += l.amount ?? 0;
+      // An overtime differential: its straight part is pay, the rest premium paid.
+      const amt = l.amount ?? 0;
+      extraPay += amt / l.multiplier;
+      if (l.multiplier > 1) paid += amt - amt / l.multiplier;
       continue;
     }
-    let straight = straightRate(l, isWorkRate);
+    const ot = overtimeStraight(l, isWorkRate, onlyWorkRate);
+    const cash = ot.straight;
+    let straight = cash;
     if (minWage > 0 && straight > 0 && straight + 0.0001 < minWage) {
       // A cash wage below the minimum wage: the tip credit makes up the rest.
       tipCredit = true;
@@ -102,14 +124,17 @@ export function computeWeek(startDay: number, lines: TimeLine[], opts: { minimum
     if (l.kind === 'overtime') {
       hasOtLines = true;
       otCoded += l.hours;
-      paid += l.hours * straight * (l.multiplier - 1);
+      // What was paid over the straight rate, from the cash wage (a tip credit is not paid in cash).
+      if (ot.paidKnown) paid += l.hours * (l.rate - cash);
+      else paidUnknown = true;
     }
   }
   straightPay += extraPay;
   const overtimeHours = Math.max(0, hours - OVERTIME_THRESHOLD);
   const regularRate = hours > 0 ? straightPay / hours : 0;
   const flsaPremium = hours > 0 ? round2((0.5 * straightPay * overtimeHours) / hours) : 0;
-  const paidPremium = hasOtLines ? round2(paid) : null;
+  // The cap needs the premium actually paid: overtime lines that show it, and a positive total.
+  const paidPremium = hasOtLines && !paidUnknown && otCoded > 0 ? Math.max(0, round2(paid)) : null;
   const basePremium = paidPremium !== null ? Math.min(flsaPremium, paidPremium) : flsaPremium;
   const payDates = lines.map((l) => l.payDate).filter((d): d is string => d !== null).sort();
   const payDate = payDates.length ? payDates[payDates.length - 1] : null;
@@ -131,8 +156,8 @@ export function computeWeek(startDay: number, lines: TimeLine[], opts: { minimum
     } else if (otCoded + 0.005 < overtimeHours) {
       notes.push(`Only ${hrs(otCoded)} h were paid as overtime, but ${hrs(overtimeHours)} h are over 40 in the workweek.`);
     }
-    if ((paidPremium as number) + 0.005 < flsaPremium) {
-      notes.push(`The overtime premium paid (${fmt(paidPremium as number)}) is less than the FLSA premium (${fmt(flsaPremium)}): TT counts what was paid, and ${fmt(round2(flsaPremium - (paidPremium as number)))} of overtime looks owed.`);
+    if (paidPremium !== null && paidPremium + 0.005 < flsaPremium) {
+      notes.push(`The overtime premium paid (${fmt(paidPremium)}) is less than the FLSA premium (${fmt(flsaPremium)}): TT counts what was paid, and ${fmt(round2(flsaPremium - paidPremium))} of overtime looks owed.`);
     }
   }
   if (payDates.length && yearOf(payDates[0]) !== yearOf(payDates[payDates.length - 1])) {
@@ -168,6 +193,11 @@ export function bonusSpan(l: TimeLine, period: EmployerSettings['bonusPeriod'], 
     const a = dayNumber(l.earnedFrom);
     const b = dayNumber(l.earnedTo);
     return a <= b ? [a, b] : [b, a];
+  }
+  if (l.datedByPay) {
+    // Only a pay date: the bonus was earned in the period before the one it was paid in.
+    const [start] = bonusSpan({ ...l, datedByPay: false }, period, weekStartDay);
+    return bonusSpan({ ...l, datedByPay: false, date: isoDay(start - 1) }, period, weekStartDay);
   }
   const d = dayNumber(l.date);
   const [y, m] = l.date.split('-').map(Number);
