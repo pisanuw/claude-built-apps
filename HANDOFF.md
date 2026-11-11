@@ -44,6 +44,7 @@ Owner's words (2026-11-02): "Get people using these projects, advertise these pr
 - Test Google sign-in on MeetMe (https://meetme.hintwise.org/login), Chess TD (https://chesstd.hintwise.org) and Digital Yusuf (https://ypai.hintwise.org).
 - Re-run `python3 scripts/pisan_labs_setup.py` locally so pisan-labs repo homepages show hintwise.org.
 - Post launch drafts 1 to 7 in docs/launch-drafts.md, one at a time, days apart.
+- qualified-overtime-checker (finished 11 Nov, first weekly build): pisan-labs/qualified-overtime-checker is created by the halflife job (04:13), else `python3 scripts/pisan_labs_setup.py` on the Mac then `gh workflow run mirror.yml --repo pisanuw/claude-built-apps --ref main`; Netlify analytics at https://app.netlify.com/projects/qualified-overtime-checker/analytics-and-metrics/analytics. Follow-up items: qualified-overtime-checker/HANDOFF.md "Remaining". The next build run starts a new project (day 1).
 - us-duty-price-sheet (built 8 Nov): pisan-labs mirror exists and matches main (e50db89); Netlify analytics at https://app.netlify.com/projects/us-duty-price-sheet/analytics-and-metrics/analytics.
 
 ## 7. Dated tasks
