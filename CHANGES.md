@@ -501,3 +501,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-11 [decision] Account deletion fix: option 1 by default (16:01): ignore public.profiles (auto-made per sign-in) in the other-app check (0005, branch fix/account-deletion-auto-rows). Not applied; waits for a yes.
 
 2026-11-11 [code] Account deletion live: 0005 applied, account-deletion-test passed (sign-in, profile and file gone), Qualified Overtime Checker redeployed with Delete my account.
+
+2026-11-11 [decision] teacher-catalog-kit aborted by the owner after day 1: no further development; placeholder removed; live site and schema kept pending a decision.
