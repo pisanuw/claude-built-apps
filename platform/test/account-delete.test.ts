@@ -234,3 +234,19 @@ describe('0004_account_deletion.sql', () => {
     expect(sql).toContain('create or replace function platform.delete_hintwise_data(p_uid uuid)');
   });
 });
+
+describe('0005_account_auto_references.sql', () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const sql = fs.readFileSync(path.join(here, '..', 'supabase', 'shared', '0005_account_auto_references.sql'), 'utf8').replace(/--.*$/gm, '');
+  it('leaves rows another app makes for every sign-in out of the "used elsewhere" check', () => {
+    expect(sql).toContain("('public', 'profiles',");
+    expect(sql).toContain('from platform.account_auto_references ar');
+    expect(sql).toContain('where not x.hintwise');
+  });
+  it('keeps delete_hintwise_data service-role only', () => {
+    expect(sql).toContain('revoke all on function platform.delete_hintwise_data(uuid) from public, anon, authenticated;');
+    expect(sql).toContain('grant execute on function platform.delete_hintwise_data(uuid) to service_role;');
+    expect(sql).toContain("security definer set search_path = ''");
+    expect(sql).toContain('revoke all on table platform.account_auto_references from public, anon, authenticated;');
+  });
+});

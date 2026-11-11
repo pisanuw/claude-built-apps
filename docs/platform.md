@@ -379,7 +379,11 @@ sign-in from the last 15 minutes and the word DELETE, then runs
   function deletes the sign-in (Auth admin API) only when none of their tables
   refer to the person; otherwise the sign-in stays and the person is told to
   email support@hintwise.org to remove it. Columns with no foreign key are
-  listed in `platform.account_soft_references`.
+  listed in `platform.account_soft_references`. Tables another app fills
+  automatically for every sign-in (a trigger on `auth.users`) do not count:
+  they are listed in `platform.account_auto_references` (0005; today
+  `public.profiles`, from `public.handle_new_user`), and their rows go with
+  the sign-in by cascade.
 - Data a HintWise app keeps outside this project (UpvoteMe, PasteMD) is not
   covered yet.
 - The log holds counts and outcomes only (an error logs its SQLSTATE code).
