@@ -23,6 +23,8 @@ export type DeleteResult =
   | { status: 'error'; message: string };
 
 export const DELETED_MESSAGE = 'Your account and your data in every HintWise app are deleted.';
+/** Shown on the signed-out panel after "Sign in again". */
+export const SIGN_IN_AGAIN = 'Sign in again, then open "Delete my account" within 15 minutes.';
 
 /** The function's URL for the configured project, or null without Supabase env. */
 export function deleteAccountUrl(env: Record<string, unknown> = import.meta.env): string | null {
@@ -47,8 +49,10 @@ export interface DeleteOptions {
 }
 
 /**
- * Asks the platform to delete the signed-in visitor's account. On deleted or
- * data-deleted the local session is ended too. Never throws.
+ * Asks the platform to delete the signed-in visitor's account. Never throws.
+ * After deleted, this browser's session is ended (the sign-in is gone, so
+ * every other session is too). After data-deleted, every session of the
+ * sign-in is ended (scope global), so a forgotten or stolen one stops too.
  */
 export async function deleteAccount(confirm: string, opts: DeleteOptions = {}): Promise<DeleteResult> {
   const env = opts.env ?? import.meta.env;
@@ -71,7 +75,7 @@ export async function deleteAccount(confirm: string, opts: DeleteOptions = {}): 
   }
   const result = toDeleteResult(res.status, await res.json().catch(() => null));
   if (result.status === 'deleted' || result.status === 'data-deleted') {
-    await client.auth.signOut({ scope: 'local' }).catch(() => undefined);
+    await client.auth.signOut({ scope: result.status === 'deleted' ? 'local' : 'global' }).catch(() => undefined);
   }
   return result;
 }
@@ -79,7 +83,8 @@ export async function deleteAccount(confirm: string, opts: DeleteOptions = {}): 
 /**
  * The control: a closed "Delete my account" section with what it does, a
  * box for the word DELETE and the button. `onDone` gets the message to show
- * after the account is gone (the panel re-renders signed out).
+ * on the signed-out panel: after the account is gone, or after "Sign in
+ * again" when the sign-in was too old.
  */
 export function deleteAccountControl(opts: DeleteOptions & { onDone?: (message: string) => void } = {}): HTMLElement {
   const box = document.createElement('details');
@@ -103,6 +108,13 @@ export function deleteAccountControl(opts: DeleteOptions & { onDone?: (message: 
   go.disabled = true;
   const status = document.createElement('p');
   status.setAttribute('role', 'status');
+  const again = document.createElement('button');
+  again.type = 'button';
+  again.textContent = 'Sign in again';
+  again.addEventListener('click', () => {
+    opts.onDone?.(SIGN_IN_AGAIN);
+    void (opts.client ?? getSupabase()).auth.signOut({ scope: 'local' }).catch(() => undefined);
+  });
   input.addEventListener('input', () => {
     go.disabled = input.value.trim() !== CONFIRM_WORD;
   });
@@ -116,6 +128,7 @@ export function deleteAccountControl(opts: DeleteOptions & { onDone?: (message: 
       else if (r.status === 'data-deleted') opts.onDone?.(r.message);
       status.textContent = r.status === 'deleted' ? DELETED_MESSAGE : r.message;
       go.disabled = r.status === 'deleted' || r.status === 'data-deleted';
+      if (r.status === 'reauth' && !again.isConnected) box.append(again);
     });
   });
   form.append(label, go);

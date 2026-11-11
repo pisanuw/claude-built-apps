@@ -382,7 +382,17 @@ sign-in from the last 15 minutes and the word DELETE, then runs
   listed in `platform.account_soft_references`.
 - Data a HintWise app keeps outside this project (UpvoteMe, PasteMD) is not
   covered yet.
-- The log holds counts and outcomes only.
+- The log holds counts and outcomes only (an error logs its SQLSTATE code).
+- Rules for app schemas: every table holding a person's rows has a foreign
+  key to `auth.users(id)`, and a table that points at another app table uses
+  `on delete cascade` (a `no action` key there makes the delete fail, and the
+  person gets an error until it is fixed); no `force row level security`
+  (the function runs as the migration role, which would then delete nothing).
+- A sign-in counts as recent from the session's own `amr` timestamp, not the
+  user's `last_sign_in_at`. After "data-deleted" the app signs out every
+  session of the person (scope global).
+- Known small race: if another app creates a row for the person between the
+  check and the sign-in's removal, that row cascades away with it.
 
 ## 3. LLM calls: bring your own key, or the owner's key behind caps
 

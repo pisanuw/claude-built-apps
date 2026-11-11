@@ -43,6 +43,8 @@ language sql stable security definer set search_path = '' as $$
     join pg_catalog.pg_attribute a on a.attrelid = c.oid and a.attnum = con.conkey[1]
    where con.contype = 'f' and con.confrelid = 'auth.users'::regclass
      and pg_catalog.array_length(con.conkey, 1) = 1
+     and con.confkey = array[(select ua.attnum from pg_catalog.pg_attribute ua
+                                where ua.attrelid = 'auth.users'::regclass and ua.attname = 'id')]
      and n.nspname <> 'auth'
 $$;
 

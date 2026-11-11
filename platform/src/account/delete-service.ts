@@ -9,8 +9,11 @@
  *
  * Steps:
  *   1. The token must belong to a live user (GET /auth/v1/user).
- *   2. That user must have signed in within RECENT_SIGN_IN_MS, so a session
- *      left open on a shared computer cannot delete the account.
+ *   2. That session must come from a sign-in within RECENT_SIGN_IN_MS: the
+ *      newest amr[].timestamp in the token, which belongs to the session and
+ *      survives token refreshes (the user's last_sign_in_at does not: a
+ *      fresh sign-in on another device would make an old session pass). So
+ *      a session left open, or an old stolen token, cannot delete the account.
  *   3. platform.delete_hintwise_data(uid) deletes the user's rows in
  *      platform and every app_% schema (0004_account_deletion.sql) and says
  *      which other schemas on the shared project still refer to the user.
@@ -87,21 +90,42 @@ export async function sessionUser(
   fetchFn: typeof fetch,
   env: DeleteEnv,
   token: string,
-): Promise<{ id: string; last_sign_in_at: string | null } | null> {
+): Promise<{ id: string } | null> {
   const res = await fetchFn(`${env.SUPABASE_URL.replace(/\/+$/, '')}/auth/v1/user`, {
     headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, authorization: `Bearer ${token}`, accept: 'application/json' },
   });
   if (!res.ok) return null;
-  const u = (await res.json().catch(() => null)) as { id?: unknown; last_sign_in_at?: unknown } | null;
+  const u = (await res.json().catch(() => null)) as { id?: unknown } | null;
   if (!u || typeof u.id !== 'string' || !/^[0-9a-f-]{36}$/i.test(u.id)) return null;
-  return { id: u.id, last_sign_in_at: typeof u.last_sign_in_at === 'string' ? u.last_sign_in_at : null };
+  return { id: u.id };
 }
 
-/** True when the last sign-in is no older than RECENT_SIGN_IN_MS (and not in the future by more than a minute). */
-export function signedInRecently(lastSignInAt: string | null, now: number): boolean {
-  const t = lastSignInAt ? Date.parse(lastSignInAt) : NaN;
-  if (!Number.isFinite(t)) return false;
-  return now - t <= RECENT_SIGN_IN_MS && t - now <= 60_000;
+/**
+ * When this session's sign-in happened, in ms: the newest amr[].timestamp
+ * (seconds) of the token's payload, or null. Call only after
+ * /auth/v1/user accepted the token, which checks its signature.
+ */
+export function sessionSignInAt(token: string): number | null {
+  const part = token.split('.')[1];
+  if (!part) return null;
+  let payload: { amr?: unknown };
+  try {
+    const b64 = part.replace(/-/g, '+').replace(/_/g, '/');
+    payload = JSON.parse(atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4))) as { amr?: unknown };
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(payload?.amr)) return null;
+  const ts = payload.amr
+    .map((a) => Number((a as { timestamp?: unknown } | null)?.timestamp))
+    .filter((t) => Number.isFinite(t) && t > 0);
+  return ts.length ? Math.max(...ts) * 1000 : null;
+}
+
+/** True when the sign-in is no older than RECENT_SIGN_IN_MS (and not in the future by more than a minute). */
+export function signedInRecently(signInAt: number | null, now: number): boolean {
+  if (signInAt === null || !Number.isFinite(signInAt)) return false;
+  return now - signInAt <= RECENT_SIGN_IN_MS && signInAt - now <= 60_000;
 }
 
 export async function handleDeleteAccount(req: Request, deps: DeleteDeps): Promise<Response> {
@@ -139,7 +163,7 @@ export async function handleDeleteAccount(req: Request, deps: DeleteDeps): Promi
   try {
     const user = await sessionUser(deps.fetch, deps.env, token);
     if (!user) return reply(401, { status: 'error', message: 'Your session has ended. Sign in again.' });
-    if (!signedInRecently(user.last_sign_in_at, now)) {
+    if (!signedInRecently(sessionSignInAt(token), now)) {
       log('delete-account: reauth');
       return reply(403, { status: 'reauth', message: REAUTH });
     }
@@ -162,13 +186,15 @@ export async function handleDeleteAccount(req: Request, deps: DeleteDeps): Promi
       log(`delete-account: data deleted (${rows} rows), auth delete failed HTTP ${res.status}`);
       return reply(500, {
         status: 'error',
-        message: 'Your HintWise data is deleted, but your sign-in could not be removed. Email support@hintwise.org.',
+        message: 'Your HintWise data is deleted, but your sign-in could not be removed. Try again, or email support@hintwise.org.',
       });
     }
     log(`delete-account: deleted (${rows} rows and the sign-in)`);
     return reply(200, { status: 'deleted' });
   } catch (e) {
-    log(`delete-account: failed: ${errorText(e).replace(/[0-9a-f]{8}-[0-9a-f-]{27}/gi, '<id>')}`);
+    // The error's code only: a Postgres DETAIL line can carry key values.
+    const code = /"code"\s*:\s*"([0-9A-Z]{5})"/.exec(errorText(e))?.[1] ?? (/^delete_hintwise_data: HTTP (\d{3})/.exec(errorText(e))?.[1] ?? 'network');
+    log(`delete-account: failed (${code})`);
     return reply(500, { status: 'error', message: 'Something went wrong. Try again, or email support@hintwise.org.' });
   }
 }

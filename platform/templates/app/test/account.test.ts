@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   CONFIRM_WORD,
   DELETED_MESSAGE,
+  SIGN_IN_AGAIN,
   deleteAccount,
   deleteAccountControl,
   deleteAccountUrl,
@@ -43,7 +44,7 @@ describe('deleteAccount', () => {
     const { c, signOut } = client();
     const r = await deleteAccount(CONFIRM_WORD, { client: c, env, fetch: answering(200, { status: 'data-deleted', message: 'kept' }) });
     expect(r).toEqual({ status: 'data-deleted', message: 'kept' });
-    expect(signOut).toHaveBeenCalled();
+    expect(signOut).toHaveBeenCalledWith({ scope: 'global' });
   });
 
   it('keeps the session for reauth and errors', async () => {
@@ -102,7 +103,8 @@ describe('deleteAccountControl', () => {
 
   it('shows the reason and lets the visitor try again after reauth', async () => {
     const onDone = vi.fn();
-    const el = deleteAccountControl({ client: client().c, env, fetch: answering(403, { status: 'reauth', message: 'Sign in again.' }), onDone });
+    const { c, signOut } = client();
+    const el = deleteAccountControl({ client: c, env, fetch: answering(403, { status: 'reauth', message: 'Sign in again.' }), onDone });
     const input = el.querySelector('input')!;
     input.value = CONFIRM_WORD;
     input.dispatchEvent(new Event('input'));
@@ -112,6 +114,10 @@ describe('deleteAccountControl', () => {
     expect(el.querySelector('[role="status"]')!.textContent).toBe('Sign in again.');
     expect(el.querySelector('button')!.disabled).toBe(false);
     expect(onDone).not.toHaveBeenCalled();
+    const again = [...el.querySelectorAll('button')].find((b) => b.textContent === 'Sign in again')!;
+    again.click();
+    expect(onDone).toHaveBeenCalledWith(SIGN_IN_AGAIN);
+    expect(signOut).toHaveBeenCalledWith({ scope: 'local' });
   });
 
   it('passes the kept-sign-in message on', async () => {
