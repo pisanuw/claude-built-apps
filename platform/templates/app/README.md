@@ -73,8 +73,10 @@ npm install && npm run lint && npm run typecheck && npm run coverage && npm run 
 to `<VITE_SUPABASE_URL>/functions/v1/sign-in-link` with the anon key as
 `apikey`. `browserId` is kept in localStorage `hintwise.browserId`. The
 answer is typed: `{status:'sent'}`, `{status:'wait', retryAt}` (shown in the
-visitor's local time), `{status:'challenge', siteKey}` or
-`{status:'error', message}`.
+visitor's local time), `{status:'challenge', siteKey}`,
+`{status:'suppressed', message}` (the address used the "Stop all email from
+HintWise" link in an email footer: no link is sent, the panel shows the
+message, and Google sign-in still works) or `{status:'error', message}`.
 
 On a challenge, the panel loads Cloudflare Turnstile once
 (`api.js?render=explicit`) and renders the widget into the panel with
