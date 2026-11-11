@@ -6,7 +6,7 @@
  */
 import { centsToInput, formatCents, parseCents } from '../core/money';
 import { checkResource, DATES, PRODUCT_TYPES, productType, RULES_CHECKED, SOURCES, verdict, VERDICT_LABELS, type Finding, type ProductTypeId, type Verdict } from '../core/rules';
-import { LIMITS, STORES, storeLabel, TIER_LABELS, TIERS, type Listing, type Resource, type StoreId, type Tier } from '../core/types';
+import { isUuid, LIMITS, STORES, storeLabel, TIER_LABELS, TIERS, type Listing, type Resource, type StoreId, type Tier } from '../core/types';
 import type { CatalogStore } from '../store/catalog';
 import { fill, h, uuid } from './dom';
 
@@ -81,6 +81,11 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<AppHan
   let loading: Promise<void> = Promise.resolve();
   let loadSeq = 0;
   let browserCount = 0;
+  /** True while a store is loading: the list and controls wait, so nothing acts on the store being left. */
+  let busy = false;
+  let saving = false;
+  let loadError = '';
+  let copying = false;
 
   // ---- skeleton -------------------------------------------------------
   const status = h('p', { class: 'status', role: 'status', 'aria-live': 'polite' });
@@ -158,7 +163,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<AppHan
   const sources = h('section', { class: 'card sources', 'aria-labelledby': 'sources-h' },
     h('h2', { id: 'sources-h', text: 'Where the rules come from' }),
     h('p', {}, `The rules were last checked on ${longDate(RULES_CHECKED)}. TPT can change them; read TPT's own pages before you decide.`),
-    h('ul', {}, ...Object.values(SOURCES).map((s) => h('li', {}, h('a', { href: s.url, rel: 'noopener', target: '_blank' }, s.title), s.confirmed ? '' : ' (TPT help centre)'))),
+    h('ul', {}, ...Object.values(SOURCES).map((s) => h('li', {}, h('a', { href: s.url, rel: 'noopener', target: '_blank' }, s.title), s.confirmed ? '' : ' (TPT help centre; the app could not fetch it, so its wording is not confirmed)'))),
     h('p', { class: 'help', text: 'Teacher Catalog Kit is not made by, or affiliated with, Teachers Pay Teachers. It gives no legal or tax advice.' }),
   );
 
@@ -187,13 +192,13 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<AppHan
     const listings: Listing[] = [];
     let error = '';
     if (!title) error = 'Give the resource a title.';
-    else if (tptText !== '' && tptCents === null) error = 'The TPT price should be a number of dollars, like 4.50.';
+    else if (tptText !== '' && tptCents === null) error = 'The TPT price should be a number of dollars, like 4.50 (at most $100,000).';
     for (const s of STORES) {
       const row = storeRows.get(s.id);
       if (!row?.box.checked) continue;
       const t = row.price.value.trim();
       const c = t === '' ? null : parseCents(t);
-      if (t !== '' && c === null && !error) error = `The price on ${s.label} should be a number of dollars, like 4.50.`;
+      if (t !== '' && c === null && !error) error = `The price on ${s.label} should be a number of dollars, like 4.50 (at most $100,000).`;
       const kept = editing?.listings.find((l) => l.store === s.id);
       listings.push({ store: s.id, priceCents: c, ...(kept?.url ? { url: kept.url } : {}) });
     }
@@ -228,9 +233,10 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<AppHan
 
   function preview(): void {
     typeHelp.textContent = `For example: ${productType(typeSelect.value as ProductTypeId).examples}. ${productType(typeSelect.value as ProductTypeId).rule}`;
-    const { resource } = readForm();
-    if (!resource || (!titleInput.value.trim() && resource.listings.length === 0)) {
-      fill(previewBox);
+    const { resource, error } = readForm();
+    if (!resource) {
+      // A missing title is said on save; a bad price is said now.
+      fill(previewBox, titleInput.value.trim() ? h('p', { class: 'problems', text: error }) : null);
       return;
     }
     if (resource.listings.length === 0) {
@@ -275,7 +281,11 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<AppHan
   }
 
   function renderTier(): void {
-    for (const [t, input] of tierInputs) input.checked = t === tier;
+    for (const [t, input] of tierInputs) {
+      input.checked = t === tier;
+      input.disabled = busy;
+    }
+    saveBtn.disabled = busy || saving;
   }
 
   function renderAccount(): void {
@@ -286,7 +296,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<AppHan
         : 'Kept in this browser only. Sign in to save it to an account and use it on any device.';
     const parts: (Node | string)[] = [h('p', { text: where })];
     if (store.location === 'account' && browserCount > 0) {
-      const copy = h('button', { type: 'button', text: `Copy ${browserCount} resource${browserCount === 1 ? '' : 's'} from this browser to your account` });
+      const copy = h('button', { type: 'button', text: `Copy ${browserCount} resource${browserCount === 1 ? '' : 's'} from this browser to your account`, disabled: copying || busy || Boolean(loadError) });
       copy.addEventListener('click', () => void copyBrowserToAccount());
       parts.push(h('div', { class: 'row' }, copy));
     }
@@ -295,6 +305,16 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<AppHan
   }
 
   function renderList(): void {
+    if (busy) {
+      fill(summary);
+      fill(listBox, h('p', { class: 'empty', text: 'Loading your catalog…' }));
+      return;
+    }
+    if (loadError) {
+      fill(summary);
+      fill(listBox, h('p', { class: 'problems', text: `Your catalog could not be loaded: ${loadError} Reload the page to try again; nothing was deleted.` }));
+      return;
+    }
     if (resources.length === 0) {
       fill(summary);
       fill(listBox, h('p', { class: 'empty', text: 'No resources yet. Add your first one above.' }));
@@ -330,7 +350,9 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<AppHan
         tr.append(cell);
       }
       const edit = h('button', { type: 'button', class: 'link', 'aria-label': `Edit ${r.title}`, text: 'Edit' });
-      edit.addEventListener('click', () => editResource(r));
+      edit.addEventListener('click', () => {
+        if (!busy) editResource(r);
+      });
       const del = h('button', { type: 'button', class: 'link danger', 'aria-label': `Delete ${r.title}`, text: 'Delete' });
       del.addEventListener('click', () => void removeResource(r));
       tr.append(h('td', { class: 'actions' }, edit, del));
@@ -351,17 +373,25 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<AppHan
   async function load(): Promise<void> {
     const seq = ++loadSeq;
     const from = store;
+    busy = true;
+    renderTier();
+    renderList();
+    renderAccount();
     try {
       const [list, t, local] = await Promise.all([from.list(), from.getTier(), from === deps.browser ? Promise.resolve(null) : deps.browser.list()]);
       if (seq !== loadSeq) return; // a newer sign-in change won
       resources = list;
       tier = t;
       browserCount = local?.length ?? 0;
+      if (loadError && status.textContent === loadError) say('');
+      loadError = '';
     } catch (e) {
       if (seq !== loadSeq) return;
       resources = [];
-      say((e as Error).message);
+      loadError = (e as Error).message;
+      say(loadError);
     }
+    busy = false;
     renderAll();
   }
 
@@ -389,6 +419,7 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<AppHan
     const isNew = !editing;
     const saved: Resource = { ...resource, id: editing?.id ?? newId() };
     const target = store;
+    saving = true;
     saveBtn.disabled = true;
     try {
       await target.put(saved);
@@ -403,14 +434,17 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<AppHan
     } catch (e) {
       formError.textContent = (e as Error).message;
     } finally {
-      saveBtn.disabled = false;
+      saving = false;
+      saveBtn.disabled = busy;
     }
   }
 
   async function removeResource(r: Resource): Promise<void> {
-    if (!confirmFn(`Delete "${r.title}" from your catalog?`)) return;
+    if (busy || !confirmFn(`Delete "${r.title}" from your catalog?`)) return;
+    const from = store;
     try {
-      await store.remove(r.id);
+      await from.remove(r.id);
+      if (from !== store) return;
       resources = resources.filter((x) => x.id !== r.id);
       if (editing?.id === r.id) resetForm();
       say(`Deleted "${r.title}".`);
@@ -421,27 +455,37 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<AppHan
     }
   }
 
+  /**
+   * Moves the browser catalog into the account. A resource the account
+   * already has is uploaded only if the browser's copy is newer; each one
+   * leaves the browser only once the account holds it, so a failure part way
+   * loses nothing.
+   */
   async function copyBrowserToAccount(): Promise<void> {
     const target = store;
-    if (target.location !== 'account') return;
+    if (target.location !== 'account' || copying) return;
+    copying = true;
+    renderAccount();
+    let copied = 0;
     try {
-      const local = await deps.browser.list();
-      const have = new Set(resources.map((r) => r.id));
-      let copied = 0;
-      for (const r of local) {
-        if (have.has(r.id)) continue;
-        await target.put(r);
-        copied++;
+      const remote = new Map((await target.list()).map((r) => [r.id, r]));
+      for (const r of await deps.browser.list()) {
+        const there = remote.get(r.id);
+        if (!there || r.updatedAt > there.updatedAt) {
+          await target.put(isUuid(r.id) ? r : { ...r, id: newId() });
+          copied++;
+        }
+        await deps.browser.remove(r.id);
       }
-      for (const r of local) await deps.browser.remove(r.id);
       say(`Copied ${copied} resource${copied === 1 ? '' : 's'} to your account and cleared them from this browser.`);
     } catch (e) {
-      say((e as Error).message);
+      say(`${(e as Error).message} ${copied} copied so far; the rest are still in this browser.`);
     }
+    copying = false;
     if (target === store) {
       loading = load();
       await loading;
-    }
+    } else renderAccount();
   }
 
   form.addEventListener('submit', (e) => {

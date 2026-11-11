@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Resource } from '../src/core/types';
-import { FULL_STORAGE, LOCAL_RESOURCES, LOCAL_TIER, LocalCatalog, MemoryCatalog, resourceToRow, rowToResource, SupabaseCatalog, type KeyValue, type TableClient } from '../src/store/catalog';
+import { DAMAGED_STORAGE, FULL_STORAGE, LOCAL_RESOURCES, LOCAL_TIER, LocalCatalog, MemoryCatalog, resourceToRow, rowToResource, SupabaseCatalog, type KeyValue, type TableClient } from '../src/store/catalog';
 
 function res(id: string, createdAt: string, extra: Partial<Resource> = {}): Resource {
   return { id, title: `R ${id}`, productType: 'digital-education', tptPriceCents: 300, tptId: null, listings: [], notes: '', createdAt, updatedAt: createdAt, ...extra };
@@ -54,17 +54,29 @@ describe('LocalCatalog', () => {
     expect(await new LocalCatalog(s).getTier()).toBe('exclusive');
   });
 
-  it('ignores damaged storage', async () => {
+  it('never writes over damaged storage', async () => {
     const s = new FakeStorage();
     s.data.set(LOCAL_RESOURCES, '{not json');
     s.data.set(LOCAL_TIER, 'premium');
     const c = new LocalCatalog(s);
     expect(await c.list()).toEqual([]);
     expect(await c.getTier()).toBe('undecided');
+    await expect(c.put(res('a', '2026-11-01'))).rejects.toThrow(DAMAGED_STORAGE);
+    await expect(c.remove('a')).rejects.toThrow(DAMAGED_STORAGE);
+    expect(s.data.get(LOCAL_RESOURCES)).toBe('{not json');
     s.data.set(LOCAL_RESOURCES, '{"a":1}');
     expect(await c.list()).toEqual([]);
-    s.data.set(LOCAL_RESOURCES, JSON.stringify([res('a', '2026-11-01'), { id: '' }]));
+    await expect(c.put(res('a', '2026-11-01'))).rejects.toThrow(DAMAGED_STORAGE);
+  });
+
+  it('keeps entries it cannot read when it writes', async () => {
+    const s = new FakeStorage();
+    s.data.set(LOCAL_RESOURCES, JSON.stringify([res('a', '2026-11-01'), { id: '', future: true }]));
+    const c = new LocalCatalog(s);
     expect((await c.list()).length).toBe(1);
+    await c.put(res('b', '2026-11-02'));
+    await c.remove('a');
+    expect(JSON.parse(s.data.get(LOCAL_RESOURCES) as string)).toEqual([res('b', '2026-11-02'), { id: '', future: true }]);
   });
 
   it('says so when the browser is full', async () => {

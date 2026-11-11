@@ -129,6 +129,7 @@ describe('one resource, one verdict', () => {
     type('#f-tpt', 'four');
     await save();
     expect($('#form-error').textContent).toContain('The TPT price should be');
+    expect($('#preview').textContent).toContain('(at most $100,000)');
     type('#f-tpt', '4');
     tick('tes', 'x');
     await save();
@@ -283,7 +284,8 @@ describe('account', () => {
     await settle();
     await app.ready();
     expect(status()).toBe('Copied 1 resource to your account and cleared them from this browser.');
-    expect((await account.list()).map((r) => r.title)).toEqual(['Browser one', 'Already there']);
+    expect((await account.list()).find((r) => r.title === 'Browser one')?.id).toMatch(/^id-|^[0-9a-f-]{36}$/);
+    expect((await account.list()).map((r) => r.title).sort()).toEqual(['Already there', 'Browser one']);
     expect(await browser.list()).toEqual([]);
     expect(() => button(/^Copy/)).toThrow();
     // Same user again: nothing reloads.
@@ -310,7 +312,65 @@ describe('account', () => {
     await settle();
     await app.ready();
     expect(status()).toContain('Could not save');
+    expect(status()).toContain('0 copied so far; the rest are still in this browser.');
     expect(await browser.list()).toHaveLength(1);
+  });
+
+  it('uploads a newer browser copy of a resource the account has, under a fresh id when needed', async () => {
+    const uuidA = '123e4567-e89b-42d3-a456-426614174000';
+    const base = { productType: 'physical' as const, tptPriceCents: 100, tptId: null, listings: [], notes: '' };
+    const browser = new MemoryCatalog('browser', [
+      { ...base, id: uuidA, title: 'Newer edit', createdAt: 'a', updatedAt: '2026-11-10' },
+      { ...base, id: 'old-style', title: 'Hand made id', createdAt: 'b', updatedAt: 'b' },
+    ]);
+    const account = new MemoryCatalog('account', [{ ...base, id: uuidA, title: 'Older', createdAt: 'a', updatedAt: '2026-11-01' }]);
+    const auth = fakeAuth(account);
+    const app = await mount(browser, { auth: auth.hooks });
+    auth.signIn({ id: 'u1', email: null });
+    await app.ready();
+    button(/^Copy 2/).click();
+    await settle();
+    await app.ready();
+    const after = await account.list();
+    expect(after.find((r) => r.id === uuidA)?.title).toBe('Newer edit');
+    expect(after.find((r) => r.title === 'Hand made id')?.id).toBe('id-1');
+    expect(status()).toBe('Copied 2 resources to your account and cleared them from this browser.');
+  });
+
+  it('shows a failed account load as an error, not an empty catalog, and waits while loading', async () => {
+    let release: () => void = () => {};
+    class Gate extends FailingCatalog {
+      override async list() {
+        await new Promise<void>((r) => {
+          release = r;
+        });
+        return super.list();
+      }
+    }
+    const account = new Gate('account', [{ id: 'a1', title: 'Account one', productType: 'physical', tptPriceCents: 1, tptId: null, listings: [], notes: '', createdAt: 'a', updatedAt: 'a' }]);
+    account.failList = true;
+    const browser = new MemoryCatalog('browser', [{ id: 'b1', title: 'Local', productType: 'physical', tptPriceCents: 1, tptId: null, listings: [], notes: '', createdAt: 'a', updatedAt: 'a' }]);
+    const auth = fakeAuth(account);
+    const app = await mount(browser, { auth: auth.hooks });
+    button('Edit').click();
+    auth.signIn({ id: 'u1', email: null });
+    await flush();
+    expect(listText()).toContain('Loading your catalog');
+    expect($('#tier-basic').disabled).toBe(true);
+    expect(button('Save resource').disabled).toBe(true);
+    release();
+    await app.ready();
+    expect(listText()).toContain('could not be loaded');
+    expect(listText()).not.toContain('No resources yet');
+    account.failList = false;
+    auth.signIn(null);
+    await app.ready();
+    auth.signIn({ id: 'u1', email: null });
+    await flush();
+    release();
+    await app.ready();
+    expect(listText()).toContain('Account one');
+    expect(status()).toBe('');
   });
 
   it('a save that finishes after sign-out does not land in the new list', async () => {

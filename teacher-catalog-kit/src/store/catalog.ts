@@ -54,45 +54,67 @@ export type KeyValue = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
 export const LOCAL_RESOURCES = 'tck.resources';
 export const LOCAL_TIER = 'tck.tier';
+export const DAMAGED_STORAGE = 'The catalog saved in this browser could not be read, so nothing was changed to avoid losing it. Sign in and add the resource there, or clear this site\'s data in the browser to start again.';
 export const FULL_STORAGE = 'This browser has no room left to keep your catalog. Sign in to save it to your account, or delete some resources.';
 
 export class LocalCatalog implements CatalogStore {
   readonly location = 'browser' as const;
   constructor(private readonly storage: KeyValue) {}
 
-  private read(): Resource[] {
+  /**
+   * The stored catalog. Entries this version cannot read are kept as they are
+   * (`kept`) and written back untouched; unreadable storage as a whole is
+   * `damaged`, and then nothing is written over it.
+   */
+  private read(): { items: Resource[]; kept: unknown[]; damaged: boolean } {
+    const raw = this.storage.getItem(LOCAL_RESOURCES);
+    if (raw === null) return { items: [], kept: [], damaged: false };
+    let list: unknown;
     try {
-      const raw = this.storage.getItem(LOCAL_RESOURCES);
-      const list: unknown = raw ? JSON.parse(raw) : [];
-      if (!Array.isArray(list)) return [];
-      return list.map(normalizeResource).filter((r): r is Resource => r !== null);
+      list = JSON.parse(raw);
     } catch {
-      return [];
+      return { items: [], kept: [], damaged: true };
     }
+    if (!Array.isArray(list)) return { items: [], kept: [], damaged: true };
+    const items: Resource[] = [];
+    const kept: unknown[] = [];
+    for (const entry of list) {
+      const r = normalizeResource(entry);
+      if (r) items.push(r);
+      else kept.push(entry);
+    }
+    return { items, kept, damaged: false };
   }
 
-  private write(list: Resource[]): void {
+  private write(items: Resource[], kept: unknown[]): void {
     try {
-      this.storage.setItem(LOCAL_RESOURCES, JSON.stringify(list));
+      this.storage.setItem(LOCAL_RESOURCES, JSON.stringify([...items, ...kept]));
     } catch {
       throw new Error(FULL_STORAGE);
     }
   }
 
+  private writable(): { items: Resource[]; kept: unknown[] } {
+    const r = this.read();
+    if (r.damaged) throw new Error(DAMAGED_STORAGE);
+    return r;
+  }
+
   async list(): Promise<Resource[]> {
-    return this.read().sort(byCreated);
+    return this.read().items.sort(byCreated);
   }
 
   async put(resource: Resource): Promise<void> {
-    const list = this.read();
-    const i = list.findIndex((r) => r.id === resource.id);
-    if (i >= 0) list[i] = resource;
-    else list.push(resource);
-    this.write(list);
+    const { items, kept } = this.writable();
+    const i = items.findIndex((r) => r.id === resource.id);
+    if (i >= 0) items[i] = resource;
+    else items.push(resource);
+    this.write(items, kept);
   }
 
   async remove(id: string): Promise<void> {
-    this.write(this.read().filter((r) => r.id !== id));
+    const { items, kept } = this.writable();
+    this.write(items.filter((r) => r.id !== id), kept);
   }
 
   async getTier(): Promise<Tier> {

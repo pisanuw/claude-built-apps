@@ -3,6 +3,7 @@
  * may be listed on the marketplace (Teachers Pay Teachers) at one price and on
  * other stores at theirs. Prices are whole cents.
  */
+import { MAX_CENTS } from './money';
 import { PRODUCT_TYPES, type ProductTypeId } from './rules';
 
 export const TIERS = ['undecided', 'exclusive', 'basic'] as const;
@@ -53,7 +54,12 @@ export interface Resource {
   updatedAt: string;
 }
 
-export const LIMITS = { title: 300, notes: 2000, listings: 20, url: 500, maxCents: 10_000_000 } as const;
+/** The database keys resources by uuid; ids from elsewhere get a new one before they are uploaded. */
+export function isUuid(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
+export const LIMITS = { title: 300, notes: 2000, listings: 20, url: 500, maxCents: MAX_CENTS } as const;
 
 const TYPE_IDS = new Set<string>(PRODUCT_TYPES.map((t) => t.id));
 

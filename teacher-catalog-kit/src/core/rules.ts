@@ -140,6 +140,7 @@ export interface Finding {
     | 'exclusive-own-site-checkout'
     | 'exclusive-wrong-platform'
     | 'exclusive-unknown-type'
+    | 'exclusive-price-missing'
     | 'free-elsewhere'
     | 'basic-lower-elsewhere'
     | 'basic-higher-elsewhere'
@@ -181,6 +182,10 @@ function exclusiveFindings(r: Resource, labels: (s: StoreId) => string): Finding
       continue;
     }
     if (l.priceCents === 0) continue;
+    if (l.priceCents === null) {
+      out.push({ severity: 'check', code: 'exclusive-price-missing', store: l.store, message: `Enter the price on ${name}: Exclusive allows it there only if it is free.` });
+      continue;
+    }
     if (l.store === 'own-site') {
       out.push({ severity: 'conflict', code: 'exclusive-own-site-checkout', store: l.store, message: `Exclusive does not allow selling this on your own website. You may keep the page if its Buy button goes to your TPT store, or offer it free.` });
     } else {

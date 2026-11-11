@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { centsToInput, formatCents, parseCents } from '../src/core/money';
 import { checkResource, PRODUCT_TYPES, productType, verdict, type ProductTypeId } from '../src/core/rules';
-import { normalizeResource, safeUrl, storeLabel, type Listing, type Resource } from '../src/core/types';
+import { isUuid, normalizeResource, safeUrl, storeLabel, type Listing, type Resource } from '../src/core/types';
 
 function res(productType: ProductTypeId, tptPriceCents: number | null, listings: Listing[]): Resource {
   return { id: 'r1', title: 'Fractions task cards', productType, tptPriceCents, tptId: null, listings, notes: '', createdAt: '2026-11-11T00:00:00.000Z', updatedAt: '2026-11-11T00:00:00.000Z' };
@@ -56,8 +56,10 @@ describe('Exclusive rules', () => {
     expect(c.exclusive[0].message).toMatch(/Buy button/);
   });
 
-  it('counts a listing with no price yet as a sale', () => {
-    expect(codes(checkResource(res('digital-education', 300, [{ store: 'etsy', priceCents: null }])).exclusive)).toEqual(['exclusive-not-allowed']);
+  it('asks for the price of an unpriced listing: free would be allowed', () => {
+    const c = checkResource(res('digital-education', 300, [{ store: 'etsy', priceCents: null }]));
+    expect(codes(c.exclusive)).toEqual(['exclusive-price-missing']);
+    expect(verdict(c.exclusive)).toBe('check');
   });
 
   it('allows Boom Cards on Boom Learning and Kindle books on KDP, and asks to check elsewhere', () => {
@@ -144,6 +146,12 @@ describe('money', () => {
     expect(parseCents('-3')).toBeNull();
     expect(parseCents('4.555')).toBeNull();
     expect(parseCents('9'.repeat(20))).toBeNull();
+    expect(parseCents('.99')).toBe(99);
+    expect(parseCents('$.5')).toBe(50);
+    expect(parseCents('.')).toBeNull();
+    expect(parseCents('100000')).toBe(10_000_000);
+    expect(parseCents('100000.01')).toBeNull();
+    expect(parseCents('250000')).toBeNull();
   });
 
   it('formats cents', () => {
@@ -192,6 +200,11 @@ describe('normalizeResource', () => {
     expect(safeUrl('not a url')).toBeUndefined();
     expect(safeUrl(5)).toBeUndefined();
     expect(safeUrl('https://x.com/' + 'a'.repeat(600))).toBeUndefined();
+  });
+
+  it('recognises uuids', () => {
+    expect(isUuid('123e4567-e89b-42d3-a456-426614174000')).toBe(true);
+    expect(isUuid('r1')).toBe(false);
   });
 
   it('labels stores', () => {
