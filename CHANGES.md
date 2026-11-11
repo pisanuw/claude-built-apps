@@ -485,3 +485,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-11 [doc] BUILD_ROUTINE.md MARK IMPLEMENTED: add the studio.json entry and the Studio image (studio_media.js); QOC shipped without either.
 
 2026-11-11 [code] Email footer, logo header and opt-out shipped (owner yes 14:26): 0003 applied, brand bucket, secrets (EMAIL_OPTOUT_SECRET new), email-optout, sign-in-link, auth-email-hook deployed; hook check green.
+
+2026-11-11 [note] Email ship live test passed: owner checked the email, Stop and Undo; email-optout status shows "email on", log has only the hash prefix.
