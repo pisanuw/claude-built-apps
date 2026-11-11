@@ -1,7 +1,7 @@
-# Sign-in links
+# Sign-in links and HintWise email
 
-The pure logic of two Supabase Edge Functions (design: `docs/platform.md`,
-"Sign-in links and abuse limits"):
+The pure logic of three Supabase Edge Functions (design: `docs/platform.md`,
+"Sign-in links and abuse limits" and "Email footer, logo and opt-out"):
 
 - `sign-in-link` (`platform/supabase/functions/sign-in-link/index.ts`): apps
   call it instead of `supabase.auth.signInWithOtp`. It spaces out links,
@@ -15,6 +15,9 @@ The pure logic of two Supabase Edge Functions (design: `docs/platform.md`,
   the project. It sends the account emails (invite, email change,
   reauthentication, notices) for every app. All of it goes through the same
   per-address ladder.
+- `email-optout` (`platform/supabase/functions/email-optout/index.ts`): the
+  page behind every email's "Stop all email from HintWise" link, and the
+  support commands of `supabase-admin.mjs email-optout`.
 
 The Deno entries only pass `Deno.env`, `fetch` and `EdgeRuntime.waitUntil`
 to the handlers here. Tests: `platform/test/signin-*.test.ts`.
@@ -28,13 +31,15 @@ to the handlers here. Tests: `platform/test/signin-*.test.ts`.
 | `policy.ts` | `decide`: wait, send, or send after a challenge; `ladderOnly` for the hook; the limits |
 | `turnstile.ts` | `verifyTurnstile` (siteverify) and the hostname allowlist; `TURNSTILE_SITE_KEY` |
 | `link.ts` | `createLinkToken` (`generate_link`, creating the user once if Auth says it does not exist), `signInLink` |
-| `email.ts` | the sign-in email and the hook's emails, as text and HTML |
+| `email.ts` | the sign-in email and the hook's emails, as text and HTML: header (logo or wordmark), footer, Reply-To; `emailLogoUrl` reads `EMAIL_LOGO_URL` |
+| `optout.ts` | the opt-out token (`optOutToken`, `verifyOptOutToken`), the footer link (`optOutUrl`), `emailLook`, `isSuppressed`, the suppressed messages |
+| `optout-service.ts` | `handleOptOut`: the opt-out page (GET, form POST) and the support commands (JSON POST) |
 | `resend.ts` | `sendEmail` |
 | `alerts.ts` | the alert rules and the owner's alert emails |
 | `db.ts` | `restDb`: PostgREST RPCs in schema `platform` with the service-role key |
 | `service.ts` | `handleSignInLink`: the whole sign-in-link request |
 | `hook.ts`, `hook-service.ts` | Standard Webhooks check, what the hook does with each email, `handleEmailHook` |
-| `util.ts` | `readBody` (size-capped), `errorText`, `num` |
+| `util.ts` | `readBody` (size-capped), `errorText`, `num`, `sameText` |
 
 ## Request and answers
 
@@ -50,6 +55,7 @@ JWT (`verify_jwt = false`). JSON body:
 | HTTP | Body | When |
 |---|---|---|
 | 200 | `{ status: 'sent' }` | the email went out |
+| 200 | `{ status: 'suppressed', message }` | the address turned HintWise email off; nothing was sent. `message`: "This address asked HintWise not to send it email. Sign in with Google instead, or write to support@hintwise.org to turn email back on." Checked after the ladder and the challenge, just before the link would be made; logged `refused` |
 | 429 | `{ status: 'wait', retryAt }` | too early for this address or browser, or the IP network is over 100 requests an hour; `retryAt` is an ISO time |
 | 403 | `{ status: 'challenge', siteKey, failed? }` | a Turnstile check is needed; `failed: true` when the token did not pass |
 | 503 | `{ status: 'error', message: 'Email sign-in is paused; try Google' }` | a check is due but `TURNSTILE_SECRET` is unset |
@@ -208,6 +214,7 @@ project: a comma list, `*.` for a wildcard, never a hintwise.org name.
 | the same four for a hintwise.org page or an unknown host | refused with 403 "Use the HintWise sign-in-link service", logged `refused`, raises `bypass` (HintWise apps send these through sign-in-link) |
 | `invite`, `email_change`, `reauthentication` and every `*_notification`, for every host | sent through the ladder |
 | any other type | refused the same way |
+| any type the plan sends, for an address on the opt-out list | refused with 403 "This address asked HintWise not to send it email. Write to support@hintwise.org to turn email back on.", before the ladder; logged `refused` with detail `suppressed`; no bypass alert (an email change sends neither message when either address is on the list) |
 
 Every email the hook sends goes through `sign_in_begin`, keyed by the
 recipient's canonical mailbox, with the fixed `hook` IP key, no browser and
@@ -226,6 +233,68 @@ overrides). `on` also refuses with an empty `HOOK_EXTERNAL_HOSTS`, because
 every external app would lose its email (`--accept-external-breakage`
 overrides).
 
+## Email footer, logo and opt-out
+
+Every email the functions send (`email.ts renderEmail`) has:
+
+- **Header.** The logo, `<img>` of `hintwise-wordmark-email@2x.png` at
+  `width="100" height="28" alt="HintWise"`, on a small white panel, when
+  `EMAIL_LOGO_URL` is an https URL on hintwise.org (`emailLogoUrl`, the one
+  place the setting is read); else the text wordmark "HintWise" in deep
+  indigo `#312E81`, bold, 18px.
+- **Colours.** Body text has no colour of its own. The Sign in button is
+  white on deep indigo; links are deep indigo and underlined; a
+  `prefers-color-scheme: dark` rule lightens links (`#A5B4FC`) and the text
+  wordmark (`#E0E7FF`) in clients that read it. Coral is only in the logo.
+- **Reply-To** `support@hintwise.org` (Resend `reply_to`), alerts included.
+- **Footer** (visitor emails, not the owner's alerts), text and HTML, in
+  this order: why this address got it (one line per type, `WHY` in
+  `email.ts`); "Questions or trouble signing in? support@hintwise.org (or
+  just reply)."; "HintWise builds tools for small businesses, startups and
+  educators. More apps: studio.hintwise.org"; "Stop all email from
+  HintWise" (the recipient's opt-out link) "(sign-in links too)". Without
+  `EMAIL_OPTOUT_SECRET` the last line names support instead.
+
+**The opt-out link.** `https://auth.hintwise.org/functions/v1/email-optout?t=<token>`,
+token `v1.<mailbox hash>.<signature>`:
+
+- the mailbox hash is the sign-in log's key, HMAC-SHA256 of
+  `email:<canonical mailbox>` under `SIGN_IN_HASH_KEY`, so the URL has no
+  address and a `+tag` or Gmail dot variant is the same address;
+- the signature is HMAC-SHA256 under `EMAIL_OPTOUT_SECRET` of
+  `hintwise-email-optout:v1:all:<hash>`, base64url, checked with WebCrypto
+  verify (constant time), canonical spelling only;
+- tokens do not expire. Never rotate `EMAIL_OPTOUT_SECRET` or
+  `SIGN_IN_HASH_KEY`: every link already sent would stop working.
+
+**The page** (`email-optout`, `verify_jwt = false`). It is served on the
+custom domain because Supabase rewrites a GET's `text/html` to `text/plain`
+on `*.supabase.co`.
+
+| Request | Answer |
+|---|---|
+| `GET ?t=<token>` (or HEAD) | 200, "Stop all email from HintWise to this address?" (sign-in links included; Google sign-in still works) with a form that POSTs `t` and `action=stop`. Reads and changes nothing. A bad token: 400 "This link does not work" |
+| `POST t=<token>&action=stop` (form) | `email_optout_set`, idempotent; 200 "Done" with an Undo button |
+| `POST t=<token>&action=undo` (form) | `email_optout_clear`, idempotent; 200 "Email from HintWise is on again" with a Stop button |
+| `POST application/json` `{ action: 'status' \| 'add' \| 'remove', email }` with the service-role key (`Authorization: Bearer`, or `apikey` for a `sb_secret_` key) | support: the function hashes the address and runs the RPC with the caller's key, so Postgres grants decide; answers with the 16-character hash prefix, never the address. `remove` clears every scope |
+| without `EMAIL_OPTOUT_SECRET` | 503 "This page is not ready yet" |
+
+Every page: no script, works without JavaScript, CSP `default-src 'none'`
+(plus `img-src` for the logo's origin), `form-action 'self'`, no framing,
+`no-referrer`, `no-store`, `noindex`. Only a token that verified is echoed
+into the page, escaped; the page never knows the address.
+
+**The list** is `platform.email_optouts` (`0003_email_optout.sql`): one row
+per mailbox hash and scope (`all` now; `app:<slug>` reserved for per-app
+opt-outs with the app-notify sender, which `email_optout_check(hash,
+scopes)` already takes), with `via` (`link` or `support`) and `created_at`.
+RLS on, no policies, service role only, RPCs `email_optout_check`,
+`email_optout_set`, `email_optout_clear`, `email_optout_status`.
+
+**Failures send nothing.** When `email_optout_check` fails (or 0003 is not
+applied yet), sign-in-link answers 500 and the hook refuses, so the
+migration goes before the deploys.
+
 ## Function secrets
 
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` come with every function. The
@@ -242,7 +311,13 @@ arguments:
   takes the redirect allow-list and the site URL hosts, minus hintwise.org
   and names without a dot. The host names are printed, since they are not
   secret. Rerun the step after changing the allow-list.
-- `SIGN_IN_HASH_KEY` and `SEND_EMAIL_HOOK_SECRET`, generated once.
+- `SIGN_IN_HASH_KEY`, `SEND_EMAIL_HOOK_SECRET` and `EMAIL_OPTOUT_SECRET`,
+  generated once (64 hex characters for the opt-out secret) and never
+  rotated by the step.
+- `EMAIL_LOGO_URL`, from the repo variable of that name, else the brand
+  bucket's `hintwise-wordmark-email@2x.png` on the custom domain, and only
+  once that URL answers `image/png` (run `brand-upload` first). Unset, the
+  emails and the opt-out page show the text wordmark.
 
 `email-hook on` replaces `SEND_EMAIL_HOOK_SECRET` with a fresh value that it
 also gives to Auth.

@@ -185,6 +185,8 @@ short:
     soft signal.
 - **Answers.**
   - `{status:'sent'}` (200).
+  - `{status:'suppressed', message}` (200): the address turned HintWise
+    email off (next section).
   - `{status:'wait', retryAt}` (429, ISO time).
   - `{status:'challenge', siteKey, failed?}` (403).
   - `{status:'error', message}`.
@@ -286,6 +288,53 @@ Deployment order, each step a "Supabase admin" dispatch:
    `hook_send_email_uri` and `hook_send_email_secrets` in the auth config,
    with the same fresh secret as the function. `email-hook off` switches the
    hook off again.
+
+## Email footer, logo and opt-out
+
+Owner decisions of 11 Nov 2026; built on branch `feat/email-footer-optout`.
+The contract is `platform/src/signin/README.md`.
+
+- **Every email** (sign-in-link and auth-email-hook) has Reply-To
+  `support@hintwise.org` and a header: the logo
+  (`hintwise-wordmark-email@2x.png` at 100x28, alt "HintWise") from the one
+  setting `EMAIL_LOGO_URL`, or the text wordmark "HintWise" in deep indigo
+  `#312E81`, bold, 18px. The button and links are deep indigo, lightened
+  in dark mode; coral stays in the logo.
+- **Footer** of every visitor email, text and HTML: why this address got it
+  (per type), "Questions or trouble signing in? support@hintwise.org (or
+  just reply).", "HintWise builds tools for small businesses, startups and
+  educators. More apps: studio.hintwise.org", and "Stop all email from
+  HintWise (sign-in links too)". No postal address (owner).
+- **Opt-out, level 2 (global), built now.** The footer link goes to the
+  `email-optout` function on `https://auth.hintwise.org/functions/v1/email-optout`
+  (the custom domain: Supabase serves HTML from functions only there, see
+  [its limits page](https://supabase.com/docs/guides/functions/limits)).
+  - The token is `v1.<mailbox hash>.<HMAC under EMAIL_OPTOUT_SECRET>`: no
+    address in the URL, no expiry.
+  - GET only asks (mail scanners open links); the confirm button POSTs, then
+    "Done" with Undo. No JavaScript needed.
+  - The list, `platform.email_optouts`, holds the keyed hash of the
+    canonical mailbox and a scope (`all`); level 1 (per app, `app:<slug>`)
+    comes with the app-notify sender.
+  - sign-in-link answers `suppressed` instead of sending; auth-email-hook
+    refuses every type for the address, logged, without the bypass alert.
+  - Support: `email-optout status|add|remove` with the address in the
+    workflow's `email` input, masked in the log.
+- **Brand files.** `brand-upload` puts `platform/brand` in the public
+  Storage bucket `brand` (one-year cache), so the logo is
+  `https://auth.hintwise.org/storage/v1/object/public/brand/hintwise-wordmark-email@2x.png`.
+
+Ship order, each a "Supabase admin" dispatch after the owner's yes:
+
+1. `apply-shared` (runs `0003_email_optout.sql`), then
+   `check-schema platform`. First: without the table, both functions
+   send nothing.
+2. `brand-upload`: it prints `EMAIL_LOGO_URL=` once the logo is served.
+3. `set-sign-in-secrets`: generates `EMAIL_OPTOUT_SECRET` once and sets
+   `EMAIL_LOGO_URL`.
+4. `deploy-function email-optout`, then `deploy-function sign-in-link`,
+   then `deploy-function auth-email-hook`.
+5. `email-hook check`.
 
 ## 3. LLM calls: bring your own key, or the owner's key behind caps
 
@@ -472,15 +521,18 @@ Added with the sign-in links (10 Nov), not exercised live yet:
 
 - `platform/supabase-admin.mjs`, `.github/workflows/supabase-admin.yml`:
   admin commands (inspect, sql, apply-shared, migrate, expose-schema,
-  check-schema, configure-auth, keys, usage, email-hook) and the CLI steps
-  deploy-function, deploy-gateway, set-gateway-key and set-sign-in-secrets.
+  check-schema, configure-auth, keys, usage, email-hook, brand-upload,
+  email-optout) and the CLI steps deploy-function, deploy-gateway,
+  set-gateway-key and set-sign-in-secrets.
 - `platform/supabase/shared/0001_platform.sql`: schema `platform`;
-  `0002_sign_in.sql`: the sign-in log, alerts and their RPCs.
+  `0002_sign_in.sql`: the sign-in log, alerts and their RPCs;
+  `0003_email_optout.sql`: the email opt-out list and its RPCs.
 - `platform/supabase/config.toml`, `platform/supabase/functions/llm-gateway/index.ts`:
   the edge function; `platform/src/gateway/` (pricing, caps, validate, cors,
   request) its tested logic, `platform/src/gateway/README.md` the contract.
 - `platform/supabase/functions/sign-in-link/index.ts`,
-  `platform/supabase/functions/auth-email-hook/index.ts`: the sign-in
+  `platform/supabase/functions/auth-email-hook/index.ts`,
+  `platform/supabase/functions/email-optout/index.ts`: the sign-in and email
   functions; `platform/src/signin/` their tested logic,
   `platform/src/signin/README.md` the contract.
 - `platform/llm-usage-report.mjs`, `platform/src/report/format.mjs`,
