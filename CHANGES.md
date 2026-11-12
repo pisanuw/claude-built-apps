@@ -527,3 +527,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 
 2026-11-12 [doc] docs/new-app-guide.md: standard instructions for any new HintWise app (deployment systems, sign-in, data, gateway, email, footer, logo, favicon); favicon tag in platform/brand/favicon-link.html.
 2026-11-12 [note] photo2pgn: repo pisan-labs/photo2png is misnamed and must be renamed photo2pgn before it is deployed (owner).
+
+2026-11-12 [code] platform: sign-in-link and delete-account redeployed with photo2pgn allowed (owner yes; Supabase admin runs 43240247361, 43240356141); preflight from photo2pgn.hintwise.org answers 204.
