@@ -24,9 +24,9 @@ sha256), never edit an applied file, and put later changes in a new
   eed2943bfacdf8f5103d651b3eab8cd96a7726de648428a065c53931563f14e9. Creates
   schema `app_photo2pgn` with one table, `games` (own-row RLS for
   `authenticated`, nothing for `anon`, rows deleted with the account), the
-  template's grants. **Not applied yet:** waits for the owner's yes, then
-  `migrate photo2pgn`, `expose-schema app_photo2pgn` and
-  `check-schema app_photo2pgn`. Until then the app keeps games on the device.
+  template's grants. Applied 12 Nov 2026 on the owner's "yes 0002"
+  (migrate run 43265085254, expose-schema 43266956563, check-schema
+  43267054372 passed; anon gets 42501 permission denied).
 
 The app's own caps are set by the owner, never in its migrations
 (docs/new-app-guide.md, "Spending limits").

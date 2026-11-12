@@ -555,3 +555,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-12 [note] photo2pgn main fc30b1c deployed (owner merge): CLI reader on with gateway fallback, netlify.app 301, manifest type; verified live. Chess TD asked for a reading API: undecided.
 
 2026-11-12 [note] photo2pgn measured ~$0.12 a sheet; 8000 max_tokens fails past ~75 moves. Asked the owner: max_tokens 12000, caps.
+
+2026-11-12 [code] photo2pgn: 0002_games applied, app_photo2pgn exposed, check-schema passed; max_tokens 12000 (owner yes).
