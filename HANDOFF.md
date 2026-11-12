@@ -101,6 +101,8 @@ Since 9 Nov the build routine builds one substantial project a week on a shared 
 4. **Logo rollout:** a small mark in the shared site footer (scripts/site-footer.mjs). It reaches each app on its next deploy; don't redeploy all (each Netlify deploy costs credits). Favicons and social images later.
 5. **Watch the build routine's next run:** 12 Nov 11:49 CET is day 1 of a new project. It must use the platform template's sign-in (sign-in-link, the branded button), because direct signInWithOtp mail is refused while the hook is on.
 
+6. **photo2pgn support** (owner, 12 Nov: "help it along"). Session session_01JyJzMW9Bz6EAJvfv2NPJQd builds photo2pgn.hintwise.org in its own repo `photo2png`; instructions sent 12 Nov (scratchpad copy given to the owner). Plabs side: `photo2pgn` added to EXTERNAL_APP_LABELS (048dacc); after the owner's yes, redeploy sign-in-link and delete-account, copy its migration into `photo2pgn/supabase/migrations/` (StepWise pattern) and run migrate, expose-schema, check-schema; after the owner imports the repo in Netlify (project photo2pgn), run "Attach custom domain" (site photo2pgn, domain photo2pgn.hintwise.org).
+
 ## 6. Waiting on the owner
 
 (Email ship and account deletion: both answered and shipped 11 Nov.)

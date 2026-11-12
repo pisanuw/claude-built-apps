@@ -522,3 +522,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-12 [note] delivery-canary: owner added the DELIVERY_CANARY_KEY repo secret (not readable from here; the first deploy with envPassthrough confirms it).
 
 2026-11-12 [code] platform: photo2pgn (own repo photo2png, owner) added to EXTERNAL_APP_LABELS for sign-in-link and delete-account; functions not redeployed yet (needs the owner yes).
+
+2026-11-12 [plan] photo2pgn: platform instructions sent to its session (own repo photo2png); Plabs applies its migration, redeploys sign-in functions and attaches the domain on the owner yes.
