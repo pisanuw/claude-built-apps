@@ -101,12 +101,13 @@ Since 9 Nov the build routine builds one substantial project a week on a shared 
 4. **Logo rollout:** a small mark in the shared site footer (scripts/site-footer.mjs). It reaches each app on its next deploy; don't redeploy all (each Netlify deploy costs credits). Favicons and social images later.
 5. **Watch the build routine's next run:** 12 Nov 11:49 CET is day 1 of a new project. It must use the platform template's sign-in (sign-in-link, the branded button), because direct signInWithOtp mail is refused while the hook is on.
 
-6. **photo2pgn support** (owner, 12 Nov: "help it along"). Session session_01JyJzMW9Bz6EAJvfv2NPJQd builds photo2pgn.hintwise.org in its own repo `photo2png`; instructions sent 12 Nov (scratchpad copy given to the owner). Plabs side: `photo2pgn` added to EXTERNAL_APP_LABELS (048dacc); after the owner's yes, redeploy sign-in-link and delete-account, copy its migration into `photo2pgn/supabase/migrations/` (StepWise pattern) and run migrate, expose-schema, check-schema; after the owner imports the repo in Netlify (project photo2pgn), run "Attach custom domain" (site photo2pgn, domain photo2pgn.hintwise.org).
+6. **photo2pgn support** (owner, 12 Nov: "help it along"). Session session_01JyJzMW9Bz6EAJvfv2NPJQd builds photo2pgn.hintwise.org in its own repo `pisan-labs/photo2png`, **misnamed: it must be renamed `photo2pgn` before it is deployed** (owner, 12 Nov; GitHub Settings, General; then `git remote set-url` in each clone and the Netlify import uses the new name); instructions sent 12 Nov (scratchpad copy given to the owner). Plabs side: `photo2pgn` added to EXTERNAL_APP_LABELS (048dacc); after the owner's yes, redeploy sign-in-link and delete-account, copy its migration into `photo2pgn/supabase/migrations/` (StepWise pattern) and run migrate, expose-schema, check-schema; after the owner imports the repo in Netlify (project photo2pgn), run "Attach custom domain" (site photo2pgn, domain photo2pgn.hintwise.org).
 
 ## 6. Waiting on the owner
 
 (Email ship and account deletion: both answered and shipped 11 Nov.)
 
+0. **Rename pisan-labs/photo2png to photo2pgn before its first deploy** (owner, 12 Nov: it was misnamed). GitHub, the repo's Settings, General, Repository name `photo2pgn`. Then the Netlify import uses `photo2pgn`. Check: https://github.com/pisan-labs/photo2pgn opens. Also waiting: the yes to redeploy sign-in-link and delete-account for photo2pgn (asked 12 Nov).
 1. Older, not confirmed since 8 Nov:
    - test Google sign-in on MeetMe, Chess TD and Digital Yusuf;
    - re-run `python3 scripts/pisan_labs_setup.py` locally so pisan-labs repo homepages show hintwise.org;

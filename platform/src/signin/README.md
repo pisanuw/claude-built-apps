@@ -67,7 +67,7 @@ JWT (`verify_jwt = false`). JSON body:
 when `<label>` is:
 - a deployed app (`app-hosts.ts`, generated from each `target.yml`'s
   `netlify.customDomain`, mapped by `scripts/domains.mjs`, or its `siteName`);
-- or one of `EXTERNAL_APP_LABELS` (`stepwise`, and from 12 Nov `photo2pgn`, deployed from its own repository photo2png).
+- or one of `EXTERNAL_APP_LABELS` (`stepwise`, and from 12 Nov `photo2pgn`, deployed from its own repository pisan-labs/photo2png, to be renamed photo2pgn before its first deploy).
 
 `auth`, `www` and the other `NON_APP_LABELS` are never allowed. The Origin
 and CORS follow the same list.
