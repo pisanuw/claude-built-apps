@@ -543,3 +543,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-12 [doc] new-app-guide: "Spending limits" (the six cap scopes, defaults, an app's own limits with photo2pgn as the example, choosing numbers, what the app shows on a 429).
 
 2026-11-12 [code] photo2pgn: its 0001_init.sql (llm_apps insert only; sha256 1832745b...) copied byte for byte into photo2pgn/supabase/migrations; not applied yet (no-op: the row exists).
+
+2026-11-12 [decision] photo2pgn max_tokens 8000 (owner); its 0001_init.sql applied with migrate (owner yes).
