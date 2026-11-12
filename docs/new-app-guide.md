@@ -151,19 +151,52 @@ Details: docs/platform.md section 3.
 - **Bring-your-own-key is always offered:** the visitor's key stays in their browser and goes only to api.anthropic.com.
 - **The template's `llm.ts`** does both modes, plus `off`. The app works without a model wherever deterministic code does the job.
 - **Registering the app:** `insert into platform.llm_apps (slug) values ('<slug>') on conflict do nothing;` in its migration.
-- **Default caps:**
-  - per app, $2 a day, $10 a week and $20 a month;
-  - per user, $0.25 a day across all apps.
-
-  The owner changes them with SQL.
-- **An app's own, stricter limits:** lower its own day, week and month caps, and set its optional per-user caps, which count only that app: `cap_app_user_day_usd` and `cap_app_user_week_usd` (since `shared/0006`; null means none). The 429 scopes are `app-user-day` and `app-user-week`.
-- **Limits:**
+- **Spending limits:** see "Spending limits" below.
+- **Request limits:**
   - the body is at most 1,000,000 bytes, so downscale images in the browser;
   - only `model`, `max_tokens`, `system`, `messages` and `tools` pass through;
   - no streaming, `tool_choice` or `output_config` (the gateway can be extended);
   - `max_tokens` is clamped to the app's limit, 4096 by default;
   - models are the app's `allowed_models`: Opus 5.5, Sonnet 5.5 and Haiku 5.5 by default, with `claude-opus-5-5` used when the request names none.
 - **Calling Claude from scripts:** use the local `claude` CLI. Using an Anthropic API key needs the owner's yes.
+
+### Spending limits
+
+Every call on the owner's key is checked against caps in US dollars before it reaches Anthropic. The cost of each call is recorded in `platform.llm_usage` from the pricing table (`platform/src/gateway/pricing.ts`). Windows are UTC: the day starts at 00:00 UTC, the week on Monday 00:00 UTC, the month on the 1st. A call is refused once the spend has reached a cap.
+
+| Scope in the 429 answer | What it counts | Column in `platform.llm_apps` | Default |
+|---|---|---|---|
+| `app-month` | everyone's spend in this app, this month | `cap_month_usd` | $20 |
+| `app-week` | everyone's spend in this app, this week | `cap_week_usd` | $10 |
+| `app-day` | everyone's spend in this app, today | `cap_day_usd` | $2 |
+| `app-user-week` | one person's spend in this app, this week | `cap_app_user_week_usd` | none (null) |
+| `app-user-day` | one person's spend in this app, today | `cap_app_user_day_usd` | none (null) |
+| `user-day` | one person's spend across all HintWise apps, today | `cap_user_day_usd` | $0.25 |
+
+Notes:
+- The caps are checked in that order, so the answer names the scope that takes longest to clear.
+- `cap_user_day_usd` is a column on each app's row, but it is compared with the person's spend in every app, so one account can't drain the key by hopping between apps.
+- A cap of 0 blocks every call, and so does a cap that can't be read. A null per-person-in-app cap means none.
+- Behind all of this sits a monthly spend limit in the Anthropic console (owner, 9 Nov).
+
+**An app's own, stricter limits** (owner, 12 Nov; the per-person-in-app caps since `shared/0006`):
+- **The owner decides the numbers.** The app's session doesn't put caps in its migration: its `llm_apps` insert stays `on conflict do nothing`.
+- **The Plabs session sets them** with a small SQL file in `platform/supabase/ops/`, run with the Supabase admin `sql` command after the owner's yes. `ops/photo2pgn-llm-caps.sql` is the pattern: an upsert of the app's row, then a select that prints it.
+- **photo2pgn** (the first app with its own limits): the app as a whole $1 a day, $5 a week, $10 a month; each person in photo2pgn $0.10 a day and $0.40 a week; and the default $0.25 a day across apps.
+- **To choose numbers,** measure first. Run the app's typical call on real input and read `usage` from the response: input and output tokens, priced in `pricing.ts`. Then work out how many calls a person should get per day. For example, at $0.03 a call, $0.10 a day is 3 calls.
+- **Changing them later** is one SQL update. It takes effect on the next call, with no deploy.
+
+**What the app shows on a 429:**
+- The body is `{ error: 'cap', scope, resets_at, message }`; the template's `llm.ts` throws `CapReached` with `scope` and `resetsAt`.
+- Say it in plain words:
+  - `app-user-day` / `app-user-week`: "your daily (weekly) allowance in this app is used up";
+  - `user-day`: "your daily HintWise allowance is used up";
+  - `app-*`: "this app's shared allowance is used up".
+- Show `resets_at` in the person's local time.
+- Offer "use your own key" (BYOK), which no cap touches.
+
+**Seeing the spend:** the "LLM usage report" email goes to the owner each day any app used the key, plus a Monday summary. On demand, run `usage` in the Supabase admin workflow.
+
 
 ## 8. Email
 
@@ -191,7 +224,7 @@ Details: docs/platform.md "Email footer, logo and opt-out".
 1. The slug, the repo name (option B) and `<slug>.hintwise.org` all match.
 2. Sign-in comes from the template; email goes through sign-in-link; "Delete my account" is present.
 3. The label is on the sign-in allow-list, and sign-in-link and delete-account are redeployed (owner's yes).
-4. The migration passes `check-schema`, and includes the `llm_apps` row if the app uses the gateway.
+4. The migration passes `check-schema`, and includes the `llm_apps` row if the app uses the gateway. If the app needs its own limits, the owner has named the numbers and Plabs has set them (section 7, "Spending limits"); the app shows each 429 scope in plain words.
 5. No Anthropic key and no service-role key anywhere in the app.
 6. The footer is present once (`grep -c data-site-footer` gives 1); the favicon is set; the page doesn't scroll sideways at 375 px.
 7. Option B: the owner has imported the repo in Netlify with previews off, and the domain is attached by "Attach custom domain".
