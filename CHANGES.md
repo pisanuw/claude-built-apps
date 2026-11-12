@@ -515,3 +515,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-11 [code] four-ghosts shipped (owner, option 1, names kept): live at four-ghosts.hintwise.org, footer and phone width checked; idea marked implemented in daily-project-ideas.
 
 2026-11-11 [code] platform: app-hosts.ts regenerated for four-ghosts (CI red since b86b9ad). sign-in-link not redeployed: four-ghosts has no sign-in.
+2026-11-12 [code] delivery-canary day 1: picked 2026-11-08 #3 (tier a, 19); milestone 1 live: .eml check (SPF/DKIM/DMARC, placement, transit), SSRF-guarded link test, baseline, history.
