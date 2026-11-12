@@ -120,8 +120,9 @@ Live checks:
 ## Open questions for the owner
 
 **Answered by the owner, 12 Nov 2026 (Lisbon midday):** 1 yes, 2 and 3 the
-defaults. The owner adds the repository secret `DELIVERY_CANARY_KEY` to
-pisanuw/claude-built-apps (Actions secrets). The Plabs session already maps
+defaults. The owner added the repository secret `DELIVERY_CANARY_KEY` to
+pisanuw/claude-built-apps (Actions secrets) on 12 Nov; never rotate it once
+credentials are stored (they could not be decrypted). The Plabs session already maps
 it in `.github/workflows/deploy.yml` (Deploy step env), so the build only
 needs `envPassthrough: [DELIVERY_CANARY_KEY]` in `deploy/target.yml`. Until
 the secret exists the runner logs "passthrough env ... is not set" and the
