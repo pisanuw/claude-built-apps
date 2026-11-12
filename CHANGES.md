@@ -547,3 +547,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-12 [decision] photo2pgn max_tokens 8000 (owner); its 0001_init.sql applied with migrate (owner yes).
 
 2026-11-12 [code] photo2pgn: 0001_init.sql applied (run 43257164982); max_tokens 8000 (run 43257279804). Owner: turn on the CLI reader (local-then-gateway; token set by the owner in Netlify).
+
+2026-11-12 [code] photo2pgn live on hintwise.org (cert OK, footer 1). Its 0002_games.sql copied (4c74dc6), waits for owner yes; max_tokens stays 8000.
