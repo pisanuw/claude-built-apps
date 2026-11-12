@@ -58,7 +58,7 @@ PW_CHROMIUM=/opt/pw-browsers/chromium npm run e2e   # walkthrough; PW_CHROMIUM o
 Tests: 202 vitest (99% statements, 95% branches), 1 Playwright walkthrough.
 Live checks:
 - `curl -s https://delivery-canary.hintwise.org/ | grep -c "Want something like this"` prints 1 (footer);
-- `curl -s https://delivery-canary.hintwise.org/api/health` prints `{"ok":true}`;
+- `curl -s https://delivery-canary.hintwise.org/api/health` prints `{"ok":true}` (`{"ok":true,"status":"ok"}` after the day 2 deploy);
 - `curl -s -X POST https://delivery-canary.hintwise.org/api/link-check -d '{"url":"https://example.com"}'` answers 401 (sign-in required).
 
 ## Platform use
@@ -143,9 +143,13 @@ Live checks:
 ## Remaining and known issues
 
 - Milestones 2 to 7 (PLAN.md).
-- After the first deploy: dispatch "Supabase admin" `deploy-function
-  sign-in-link` so email sign-in links work for this app (Google works
-  already). Status in the log below.
+- Done 2026-11-12: "Supabase admin" `deploy-function sign-in-link` (run 69,
+  success), so the platform accepts this app's sign-in links.
+- The first Deploy (run 177) ended with an error annotation: the runner's
+  health check looks for `"status"` in `/api/health`, which then answered
+  `{"ok":true}` (the function and its routing work). Fixed on main the same
+  day (`{"ok":true,"status":"ok"}`); it reaches the live site with the next
+  deploy (day 2). The Supabase migrations step and check-schema passed.
 - In `vite preview` (http://localhost) the sample shows "Download link is not
   secure (http)"; on the live https site it does not.
 - Polish day: README for the shop owner (a stub now), Google button check,
@@ -169,4 +173,5 @@ Live checks:
 
 - Day 1 (2026-11-12): picked and claimed; PLAN and HANDOFF; milestone 1 built
   (email check, link test function, schema), code review (8 findings) and
-  security review (4 findings) fixed; first deploy.
+  security review (4 findings) fixed; first deploy (run 177), sign-in-link
+  redeployed; live sample verified in a browser.

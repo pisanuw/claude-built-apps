@@ -1,7 +1,7 @@
 /**
  * The app's server routes (Netlify Function `api`, served at /api/*):
  *
- * - GET  /api/health      -> {ok: true} (the deploy runner checks it)
+ * - GET  /api/health      -> {ok: true, status: 'ok'} (the deploy runner looks for "status")
  * - POST /api/link-check  -> a LinkResult for {url}, signed-in callers only,
  *   at most LINK_TESTS_PER_HOUR per user. The limit is the insert trigger on
  *   app_delivery_canary.link_tests (atomic per user); the function records
@@ -38,7 +38,7 @@ export function bearer(headers: Record<string, string | undefined>): string {
 
 export async function handleApi(method: string, path: string, bodyText: string | null, headers: Record<string, string | undefined>, deps: ApiDeps): Promise<ApiResponse> {
   const route = path.replace(/^\/\.netlify\/functions\/api/, '/api').replace(/\/+$/, '');
-  if (route === '/api/health') return json(200, { ok: true });
+  if (route === '/api/health') return json(200, { ok: true, status: 'ok' });
   if (route !== '/api/link-check') return json(404, { error: 'Not found.' });
   if (method !== 'POST') return json(405, { error: 'Use POST.' });
 

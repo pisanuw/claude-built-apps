@@ -153,8 +153,8 @@ const auth = { authorization: `Bearer good${'x'.repeat(30)}` };
 
 describe('handleApi', () => {
   it('answers health and unknown routes', async () => {
-    expect(await handleApi('GET', '/api/health', null, {}, deps())).toEqual({ status: 200, body: { ok: true } });
-    expect(await handleApi('GET', '/.netlify/functions/api/health/', null, {}, deps())).toEqual({ status: 200, body: { ok: true } });
+    expect(await handleApi('GET', '/api/health', null, {}, deps())).toEqual({ status: 200, body: { ok: true, status: 'ok' } });
+    expect(await handleApi('GET', '/.netlify/functions/api/health/', null, {}, deps())).toEqual({ status: 200, body: { ok: true, status: 'ok' } });
     expect((await handleApi('GET', '/api/nope', null, {}, deps())).status).toBe(404);
     expect((await handleApi('GET', '/api/link-check', null, auth, deps())).status).toBe(405);
   });
@@ -235,7 +235,7 @@ describe('netlify handler', () => {
     expect(r.headers['cache-control']).toBe('no-store');
     expect(JSON.parse(r.body).url).toBe('https://a.example/x');
     const h = await handler({ httpMethod: 'GET', path: '/api/health', body: null });
-    expect(JSON.parse(h.body)).toEqual({ ok: true });
+    expect(JSON.parse(h.body)).toEqual({ ok: true, status: 'ok' });
   });
   it('builds live deps over the REST config', async () => {
     const d = liveDeps({ url: 'https://auth.example', anonKey: 'anon', fetchImpl: (async () => new Response(JSON.stringify({ id: 'u9' }), { status: 200, headers: { 'content-range': '*/0' } })) as unknown as typeof fetch });
