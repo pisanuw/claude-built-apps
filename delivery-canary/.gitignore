@@ -1,0 +1,4 @@
+netlify/functions/
+coverage/
+test-results/
+playwright-report/
