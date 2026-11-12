@@ -17,8 +17,8 @@ sha256), never edit an applied file, and put later changes in a new
   `insert into platform.llm_apps (slug) values ('photo2pgn') on conflict do
   nothing`: the row already exists with the owner's caps
   (`platform/supabase/ops/photo2pgn-llm-caps.sql`, 12 Nov), so applying it
-  changes nothing but the migration record. Not applied yet (waits for the
-  owner's yes).
+  changes nothing but the migration record. Applied 12 Nov 2026 on the
+  owner's yes (Supabase admin run 43257164982).
 
 The app's own caps are set by the owner, never in its migrations
 (docs/new-app-guide.md, "Spending limits").

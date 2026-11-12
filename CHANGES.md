@@ -545,3 +545,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-12 [code] photo2pgn: its 0001_init.sql (llm_apps insert only; sha256 1832745b...) copied byte for byte into photo2pgn/supabase/migrations; not applied yet (no-op: the row exists).
 
 2026-11-12 [decision] photo2pgn max_tokens 8000 (owner); its 0001_init.sql applied with migrate (owner yes).
+
+2026-11-12 [code] photo2pgn: 0001_init.sql applied (run 43257164982); max_tokens 8000 (run 43257279804). Owner: turn on the CLI reader (local-then-gateway; token set by the owner in Netlify).
