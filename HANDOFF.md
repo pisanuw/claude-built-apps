@@ -196,6 +196,7 @@ The build routine (BUILD_ROUTINE.md) picks a substantial idea (small business fi
 - Ask first, and wait for the answer, before: writing production data; deploying to production unless asked; spending money; deleting the unrestorable; rotating secrets; rewriting shared history; publishing outside the session. Push to main is fine.
 - Number questions with a recommendation, in message text (no blocking dialogs). With a recommendation and no answer in 15 minutes, take it and say how to undo it (never for the explicit-yes list). Set a send_later check-in for 15 minutes when something waits on an answer.
 - **Times in Lisbon time** (Europe/Lisbon; owner, 9 Nov), in reports and chat. Routines keep their Europe/Berlin crons.
+- **Quiet hours are silent** (owner, 12 Nov): when an hourly check finds nothing new, print nothing at all, not even a one-line "nothing changed".
 - Hourly check with nothing new: send nothing (no file, no message).
 - Public pages are for customers (section 8). Never invent facts about the owner in his voice.
 - CHANGES.md is append-only, `YYYY-MM-DD [type] text` (≤200 chars); Conventional Commits; no model names in repo artifacts.
