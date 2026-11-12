@@ -171,3 +171,5 @@ jobs:
           RESEND_API: ${{ secrets.RESEND_API }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           COOKIE_SECRET: ${{ secrets.COOKIE_SECRET }}
+          # delivery-canary: encrypts stored shop credentials (owner, 12 Nov); passed via its target.yml envPassthrough.
+          DELIVERY_CANARY_KEY: ${{ secrets.DELIVERY_CANARY_KEY }}
