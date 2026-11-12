@@ -537,3 +537,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-12 [code] photo2pgn: Netlify project created by the owner; Attach custom domain run 43252288065 set photo2pgn.hintwise.org (CNAME DNS only, primary domain); 404 until the app is deployed; certificate to recheck after the first deploy.
 
 2026-11-12 [decision] photo2pgn limits (owner "yes those numbers"): app $1/day, $5/week, $10/month; per person in photo2pgn $0.10/day, $0.40/week; across apps $0.25/day unchanged. Shipping 0006 and the gateway ("yes limits").
+
+2026-11-12 [code] platform: shared/0006 applied, gateway redeployed with per-app user caps, photo2pgn row set ($1/$5/$10; $0.10/day and $0.40/week per person). Runs 43253879189, 43254024843, 43254164148, 43254295194.
