@@ -5,7 +5,7 @@
  * calendar month, matching date_trunc(..., 'UTC') in the SQL.
  */
 
-export type Scope = 'app-day' | 'app-week' | 'app-month' | 'user-day';
+export type Scope = 'app-day' | 'app-week' | 'app-month' | 'app-user-week' | 'app-user-day' | 'user-day';
 
 /** Row returned by platform.llm_spend; PostgREST may deliver numerics as strings. */
 export interface Spend {
@@ -13,6 +13,9 @@ export interface Spend {
   app_week: number | string;
   app_month: number | string;
   user_day: number | string;
+  /** The user's spend in this app (platform.llm_spend_app_user, 0006); absent from the older llm_spend. */
+  app_user_day?: number | string;
+  app_user_week?: number | string;
 }
 
 /** The cap columns of platform.llm_apps. */
@@ -21,6 +24,9 @@ export interface Limits {
   cap_week_usd: number | string;
   cap_month_usd: number | string;
   cap_user_day_usd: number | string;
+  /** Optional per-app caps for one user (0006); null or absent means no such cap. */
+  cap_app_user_day_usd?: number | string | null;
+  cap_app_user_week_usd?: number | string | null;
 }
 
 export type Decision =
@@ -51,6 +57,7 @@ export function nextUtcMonth(now: Date): Date {
 export function resetsAt(scope: Scope, now: Date): string {
   switch (scope) {
     case 'app-week':
+    case 'app-user-week':
       return nextUtcWeek(now).toISOString();
     case 'app-month':
       return nextUtcMonth(now).toISOString();
@@ -59,20 +66,28 @@ export function resetsAt(scope: Scope, now: Date): string {
   }
 }
 
+/** An optional cap: null, undefined or '' is no cap; anything else is read like a required one. */
+function optionalCap(v: number | string | null | undefined): number | null {
+  return v === null || v === undefined || v === '' ? null : amount(v);
+}
+
 /**
  * A call is refused once the spend has reached the cap (spent >= cap). The
  * widest app window is checked first so the message names the scope that
- * will take longest to clear; the per-user cap comes last.
+ * will take longest to clear; then the user's caps in this app (week, day),
+ * if the app has them; the per-user cap across all apps comes last.
  */
 export function decide(spend: Spend, limits: Limits, now: Date = new Date()): Decision {
-  const checks: Array<[Scope, number, number]> = [
+  const checks: Array<[Scope, number, number | null]> = [
     ['app-month', amount(spend.app_month), amount(limits.cap_month_usd)],
     ['app-week', amount(spend.app_week), amount(limits.cap_week_usd)],
     ['app-day', amount(spend.app_day), amount(limits.cap_day_usd)],
+    ['app-user-week', amount(spend.app_user_week), optionalCap(limits.cap_app_user_week_usd)],
+    ['app-user-day', amount(spend.app_user_day), optionalCap(limits.cap_app_user_day_usd)],
     ['user-day', amount(spend.user_day), amount(limits.cap_user_day_usd)],
   ];
   for (const [scope, spent, cap] of checks) {
-    if (spent >= cap) return { allowed: false, scope, spent, cap, resets_at: resetsAt(scope, now) };
+    if (cap !== null && spent >= cap) return { allowed: false, scope, spent, cap, resets_at: resetsAt(scope, now) };
   }
   return { allowed: true };
 }

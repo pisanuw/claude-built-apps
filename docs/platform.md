@@ -421,9 +421,11 @@ model wherever deterministic code does the job.
      for `app`, and that `model` is in its `allowed_models` (default:
      `default_model`);
   2. sums `llm_usage.cost_usd` for the app over the current UTC day, ISO week
-     and calendar month, and for the user over the day; refuses with HTTP 429
-     and `{ error: 'cap', scope: 'app-day' | 'app-week' | 'app-month' |
-     'user-day', resets_at }` when any cap is reached;
+     and calendar month, for the user over the day (all apps), and for the
+     user in this app over the day and week; refuses with HTTP 429 and
+     `{ error: 'cap', scope: 'app-day' | 'app-week' | 'app-month' |
+     'app-user-day' | 'app-user-week' | 'user-day', resets_at }` when any cap
+     is reached;
   3. calls Anthropic with the `ANTHROPIC_API_KEY` function secret,
      `max_tokens` capped at the app's `max_tokens` (default 4096), adaptive
      thinking left at the model default;
@@ -434,6 +436,18 @@ model wherever deterministic code does the job.
 - **Caps (owner, 9 Nov):** per app $2/day, $10/week, $20/month; per user
   $0.25/day (recommendation taken 9 Nov; change in `llm_apps`). Backstop: a
   monthly spend limit in the Anthropic console (owner action).
+- **An app's own limits** (owner, 12 Nov: "its own limits inside the HintWise
+  gateway"; "the project might have stricter limits"). Every app's row in
+  `llm_apps` has its own day, week and month caps; lower them for a stricter
+  app. Since `shared/0006_llm_app_user_caps.sql` an app can also cap one
+  user's spend in that app alone, per UTC day (`cap_app_user_day_usd`) and per
+  ISO week (`cap_app_user_week_usd`); null, the default, means no such cap.
+  `cap_user_day_usd` still counts the user across all apps. The gateway sums
+  them with `platform.llm_spend_app_user` and refuses with scope
+  `app-user-day` or `app-user-week`. Order to ship: `apply-shared`, then
+  `deploy-gateway`. Example:
+  `update platform.llm_apps set cap_day_usd = 1, cap_app_user_day_usd = 0.10,
+  cap_app_user_week_usd = 0.40 where slug = 'photo2pgn';`
 - **Default model:** `claude-opus-5-5` ($4 in, $20 out per million tokens,
   cache reads $0.20, cache writes 1.25x input), about 100 typical calls per
   $2 day. Apps may allow `claude-sonnet-5-5` ($2 / $10) or `claude-haiku-5-5`

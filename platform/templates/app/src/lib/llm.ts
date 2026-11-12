@@ -54,7 +54,7 @@ export interface AskDeps {
 /** A spending cap of the owner's key is reached; `resetsAt` is an ISO time. */
 export class CapReached extends Error {
   constructor(
-    public readonly scope: 'app-day' | 'app-week' | 'app-month' | 'user-day' | string,
+    public readonly scope: 'app-day' | 'app-week' | 'app-month' | 'app-user-week' | 'app-user-day' | 'user-day' | string,
     public readonly resetsAt: string,
     message?: string,
   ) {

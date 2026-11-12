@@ -27,7 +27,7 @@ const admin = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUP
 });
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '' });
 
-const NO_SPEND: Spend = { app_day: 0, app_week: 0, app_month: 0, user_day: 0 };
+const NO_SPEND: Spend = { app_day: 0, app_week: 0, app_month: 0, user_day: 0, app_user_day: 0, app_user_week: 0 };
 
 function json(origin: string | null, status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: jsonHeaders(origin) });
@@ -66,7 +66,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!valid.ok) return json(origin, valid.status, { error: 'request', message: valid.error });
   const request = valid.request;
 
-  const { data: spendRows, error: spendError } = await admin.rpc('llm_spend', { p_app: request.app, p_user: user.id });
+  const { data: spendRows, error: spendError } = await admin.rpc('llm_spend_app_user', { p_app: request.app, p_user: user.id });
   if (spendError) return json(origin, 500, { error: 'database', message: spendError.message });
   const spend = (Array.isArray(spendRows) ? spendRows[0] : spendRows) as Spend | undefined;
   const decision = decide(spend ?? NO_SPEND, app as Limits, new Date());

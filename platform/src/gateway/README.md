@@ -8,7 +8,7 @@ with `.ts` extensions and only wires them to supabase-js and the Anthropic SDK.
 | Module | What it does |
 |---|---|
 | `pricing.ts` | `PRICES`, `KNOWN_MODELS`, `FALLBACK_MODELS`, `costUsd(model, usage)` (Haiku's 100K-token tier, unknown models billed at Opus prices) |
-| `caps.ts` | `decide(spend, limits, now)`: allowed, or `{scope, resets_at}` for `app-day`, `app-week`, `app-month`, `user-day`; UTC windows |
+| `caps.ts` | `decide(spend, limits, now)`: allowed, or `{scope, resets_at}` for `app-month`, `app-week`, `app-day`, `app-user-week`, `app-user-day` (optional per-app caps for one user, 0006) and `user-day` (one user across all apps); UTC windows |
 | `validate.ts` | `parseBody` (1 MB limit), `appSlug`, `validateRequest` (model in `allowed_models`, `max_tokens` clamped, at most 200 messages) |
 | `cors.ts` | `https://*.hintwise.org` and `http://localhost:5173`; `preflight`, `jsonHeaders` |
 | `request.ts` | `buildAnthropicParams` (server-side refusal fallback behind `SERVER_SIDE_FALLBACK`, not for Haiku), `usageRow`, `errorRow` |

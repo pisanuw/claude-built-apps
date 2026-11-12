@@ -156,12 +156,13 @@ Details: docs/platform.md section 3.
   - per user, $0.25 a day across all apps.
 
   The owner changes them with SQL.
+- **An app's own, stricter limits:** lower its own day, week and month caps, and set its optional per-user caps, which count only that app: `cap_app_user_day_usd` and `cap_app_user_week_usd` (since `shared/0006`; null means none). The 429 scopes are `app-user-day` and `app-user-week`.
 - **Limits:**
   - the body is at most 1,000,000 bytes, so downscale images in the browser;
   - only `model`, `max_tokens`, `system`, `messages` and `tools` pass through;
   - no streaming, `tool_choice` or `output_config` (the gateway can be extended);
   - `max_tokens` is clamped to the app's limit, 4096 by default;
-  - models are the app's `allowed_models`, default `claude-opus-5-5`.
+  - models are the app's `allowed_models`: Opus 5.5, Sonnet 5.5 and Haiku 5.5 by default, with `claude-opus-5-5` used when the request names none.
 - **Calling Claude from scripts:** use the local `claude` CLI. Using an Anthropic API key needs the owner's yes.
 
 ## 8. Email

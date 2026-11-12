@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { amount, decide, nextUtcDay, nextUtcMonth, nextUtcWeek, resetsAt, type Limits, type Spend } from '../src/gateway/caps.ts';
 
@@ -36,6 +39,52 @@ describe('decide', () => {
     const d = decide({ ...quiet, app_day: 2 }, limits);
     expect(d.allowed).toBe(false);
     if (!d.allowed) expect(new Date(d.resets_at).getTime()).toBeGreaterThan(Date.now());
+  });
+});
+
+describe('per-app caps for one user (0006)', () => {
+  const strict: Limits = { cap_day_usd: 1, cap_week_usd: 5, cap_month_usd: 10, cap_user_day_usd: 0.25, cap_app_user_day_usd: 0.1, cap_app_user_week_usd: 0.4 };
+  it('has no such cap when the columns are null, absent or empty', () => {
+    const big: Spend = { ...quiet, app_user_day: 100, app_user_week: 100 };
+    expect(decide(big, limits, now)).toEqual({ allowed: true });
+    expect(decide(big, { ...limits, cap_app_user_day_usd: null, cap_app_user_week_usd: null }, now)).toEqual({ allowed: true });
+    expect(decide(big, { ...limits, cap_app_user_day_usd: '', cap_app_user_week_usd: '' }, now)).toEqual({ allowed: true });
+  });
+  it('refuses at the app-user day and week caps, week first', () => {
+    expect(decide({ ...quiet, app_user_day: 0.09, app_user_week: 0.39 }, strict, now)).toEqual({ allowed: true });
+    expect(decide({ ...quiet, app_user_day: 0.1 }, strict, now)).toMatchObject({ allowed: false, scope: 'app-user-day', cap: 0.1, resets_at: '2026-11-12T00:00:00.000Z' });
+    expect(decide({ ...quiet, app_user_week: 0.4 }, strict, now)).toMatchObject({ allowed: false, scope: 'app-user-week', cap: 0.4, resets_at: '2026-11-16T00:00:00.000Z' });
+    expect(decide({ ...quiet, app_user_day: 0.2, app_user_week: 0.5 }, strict, now)).toMatchObject({ scope: 'app-user-week' });
+  });
+  it('checks the app caps before and the all-apps user cap after them', () => {
+    expect(decide({ ...quiet, app_day: 1, app_user_day: 0.2 }, strict, now)).toMatchObject({ scope: 'app-day' });
+    expect(decide({ ...quiet, app_user_day: 0.2, user_day: 0.3 }, strict, now)).toMatchObject({ scope: 'app-user-day' });
+    expect(decide({ ...quiet, app_user_day: 0.05, user_day: 0.25 }, strict, now)).toMatchObject({ scope: 'user-day' });
+  });
+  it('reads strings and treats an unreadable set cap as 0', () => {
+    expect(decide({ ...quiet, app_user_day: '0.05' }, { ...strict, cap_app_user_day_usd: '0.10' }, now)).toEqual({ allowed: true });
+    expect(decide(quiet, { ...strict, cap_app_user_week_usd: 'oops' }, now)).toMatchObject({ allowed: false, scope: 'app-user-week', cap: 0 });
+  });
+  it('treats missing spend fields (the older llm_spend) as 0', () => {
+    expect(decide(quiet, strict, now)).toEqual({ allowed: true });
+  });
+});
+
+describe('0006_llm_app_user_caps.sql', () => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const sql = fs.readFileSync(path.join(here, '..', 'supabase', 'shared', '0006_llm_app_user_caps.sql'), 'utf8').replace(/--.*$/gm, '');
+  it('adds nullable columns idempotently and keeps llm_spend', () => {
+    expect(sql).toMatch(/add column if not exists cap_app_user_day_usd numeric;/);
+    expect(sql).toMatch(/add column if not exists cap_app_user_week_usd numeric;/);
+    expect(sql).not.toMatch(/drop function/i);
+    expect(sql).not.toMatch(/not null/i);
+  });
+  it('defines llm_spend_app_user for the service role only, with a fixed search_path', () => {
+    expect(sql).toMatch(/create or replace function platform\.llm_spend_app_user\(p_app text, p_user uuid\)/);
+    expect(sql).toMatch(/security definer\s+set search_path = platform, pg_temp/);
+    expect(sql).toMatch(/revoke all on function platform\.llm_spend_app_user\(text, uuid\) from public;/);
+    expect(sql).toMatch(/grant execute on function platform\.llm_spend_app_user\(text, uuid\) to service_role;/);
+    for (const col of ['app_day', 'app_week', 'app_month', 'user_day', 'app_user_day', 'app_user_week']) expect(sql).toContain(`as ${col}`);
   });
 });
 
