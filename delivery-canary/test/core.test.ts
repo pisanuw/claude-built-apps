@@ -11,7 +11,7 @@ import {
   summariseAuth,
   transit,
 } from '../src/core/headers';
-import { decodeEntities, detectApp, downloadCandidates, extractLinks, isShortener, scoreLink } from '../src/core/links';
+import { decodeEntities, detectApp, hostsOnly, downloadCandidates, extractLinks, isShortener, scoreLink } from '../src/core/links';
 import { emptyResult, fileNameOf, hex, isPageType, pageSaysExpired, pageTitleOf, parseLinkResult } from '../src/core/linkcheck';
 import { sampleEmail, sampleFileUrl } from '../src/core/sample';
 import { analyseEmail, EmailError, looksLikeEmail, MAX_EMAIL_BYTES, trimShowOriginal } from '../src/core/email';
@@ -112,6 +112,12 @@ describe('links', () => {
     expect(links.filter((l) => l.url.includes('download/1'))).toHaveLength(1);
     expect(extractLinks(undefined, undefined)).toEqual([]);
     expect(downloadCandidates(links).every((l) => l.score >= 3)).toBe(true);
+  });
+  it('never keeps a URL in link text', () => {
+    const links = extractLinks('<a href="https://dl.example/download/TOKEN123">https://dl.example/download/TOKEN123</a>', 'Old link https://x.example/d/SECRET and new: https://dl.example/download/b.pdf');
+    for (const l of links) expect(l.text).not.toMatch(/TOKEN123|SECRET/);
+    expect(links.find((l) => l.url.endsWith('TOKEN123'))?.text).toBe('dl.example');
+    expect(hostsOnly('see https://[bad and https://ok.example/x')).toBe('see  and ok.example');
   });
   it('recognises shorteners', () => {
     expect(isShortener('bit.ly')).toBe(true);

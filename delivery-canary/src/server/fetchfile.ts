@@ -3,13 +3,16 @@
  * Every hop is checked first: http or https on the standard ports, and a
  * host that resolves only to public addresses, so the function cannot be
  * pointed at private networks or cloud metadata. Redirects are followed by
- * hand so each new host is checked too. Residual risk: DNS can change
- * between the check and the connection (rebinding); the sign-in requirement
- * and the per-user rate limit keep that to a nuisance.
+ * hand so each new host is checked too. The live fetch connects through an
+ * undici Agent whose DNS lookup applies the same address test, so a name
+ * that answers a public address to the check and a private one to the
+ * connection (DNS rebinding) is refused at connect time too.
  */
 import { createHash } from 'node:crypto';
+import { lookup as dnsLookupCb, type LookupAddress } from 'node:dns';
 import { lookup as dnsLookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import { Agent, fetch as undiciFetch } from 'undici';
 import { emptyResult, fileNameOf, isPageType, MAX_FILE_BYTES, MAX_REDIRECTS, pageSaysExpired, pageTitleOf } from '../core/linkcheck';
 import type { LinkResult } from '../core/types';
 
@@ -28,7 +31,9 @@ function ipv4Private(ip: string): boolean {
     (a === 172 && b >= 16 && b <= 31) ||
     (a === 192 && b === 168) ||
     (a === 192 && b === 0) ||
-    (a === 198 && (b === 18 || b === 19))
+    (a === 198 && (b === 18 || b === 19)) ||
+    (a === 198 && b === 51) ||
+    (a === 203 && b === 0)
   );
 }
 
@@ -40,8 +45,10 @@ export function isPrivateAddress(ip: string): boolean {
   const s = ip.toLowerCase();
   const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(s);
   if (mapped) return ipv4Private(mapped[1]);
-  if (/^::ffff:[0-9a-f]{1,4}:[0-9a-f]{1,4}$/.test(s)) return true; // hex-form mapped v4: refuse rather than decode
-  return s === '::' || s === '::1' || /^f[cd]/.test(s) || /^fe[89ab]/.test(s) || s.startsWith('ff') || s.startsWith('64:ff9b:') || s.startsWith('2001:db8') || s.startsWith('2002:') || s.startsWith('100::');
+  // Only global unicast (2000::/3) is public; inside it, refuse documentation,
+  // 6to4, Teredo and ORCHID-style special ranges rather than decode them.
+  if (!/^[23][0-9a-f]{0,3}:/.test(s)) return true;
+  return s.startsWith('2001:db8:') || s.startsWith('2002:') || /^2001:0{0,4}:/.test(s) || /^2001:1[0-9a-f]:/.test(s) || /^2001:2:/.test(s) || s.startsWith('3fff:');
 }
 
 export async function assertPublicUrl(url: URL, lookup: Lookup = defaultLookup): Promise<void> {
@@ -63,6 +70,33 @@ export async function assertPublicUrl(url: URL, lookup: Lookup = defaultLookup):
   if (!addresses.length || addresses.some(isPrivateAddress)) throw new BlockedError('That link does not point to a public website.');
 }
 
+type LookupCallback = (err: NodeJS.ErrnoException | null, address: string | LookupAddress[], family?: number) => void;
+
+/** A dns.lookup that refuses names resolving to any non-public address (used at connect time). */
+export function guardedLookup(hostname: string, options: { all?: boolean } | number | undefined, callback: LookupCallback, resolve: typeof dnsLookupCb = dnsLookupCb): void {
+  const wantAll = typeof options === 'object' && options !== null && options.all === true;
+  resolve(hostname, { all: true, verbatim: true }, (err, addresses) => {
+    if (err) return callback(err, wantAll ? [] : '');
+    const list = addresses as LookupAddress[];
+    if (!list.length || list.some((a) => isPrivateAddress(a.address))) {
+      const e: NodeJS.ErrnoException = new BlockedError('That link does not point to a public website.');
+      e.code = 'EBLOCKED';
+      return callback(e, wantAll ? [] : '');
+    }
+    if (wantAll) return callback(null, list);
+    return callback(null, list[0].address, list[0].family);
+  });
+}
+
+let agent: Agent | null = null;
+/* v8 ignore start -- network wiring; guardedLookup and fetchFile are tested with fakes */
+function pinnedFetch(): typeof fetch {
+  agent ??= new Agent({ connect: { lookup: guardedLookup as never }, connections: 4 });
+  const dispatcher = agent;
+  return ((input: URL | string, init?: RequestInit) => undiciFetch(input, { ...(init as object), dispatcher } as never)) as unknown as typeof fetch;
+}
+/* v8 ignore stop */
+
 export interface FetchFileOptions {
   fetchImpl?: typeof fetch;
   lookup?: Lookup;
@@ -75,7 +109,7 @@ export interface FetchFileOptions {
 const PAGE_BYTES = 512 * 1024;
 
 export async function fetchFile(rawUrl: string, opts: FetchFileOptions = {}): Promise<LinkResult> {
-  const fetchImpl = opts.fetchImpl ?? fetch;
+  const fetchImpl = opts.fetchImpl ?? pinnedFetch();
   const now = opts.now ?? Date.now;
   const deadline = now() + (opts.budgetMs ?? 8000);
   const maxBytes = opts.maxBytes ?? MAX_FILE_BYTES;

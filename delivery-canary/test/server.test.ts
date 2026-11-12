@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { bearer, handleApi, LINK_TESTS_PER_HOUR, type ApiDeps } from '../src/server/api';
-import { assertPublicUrl, BlockedError, fetchFile, isPrivateAddress, type Lookup } from '../src/server/fetchfile';
+import { assertPublicUrl, BlockedError, fetchFile, guardedLookup, isPrivateAddress, type Lookup } from '../src/server/fetchfile';
 import { liveDeps, makeHandler } from '../src/server/netlify';
-import { countRecent, recordTest, verifyUser } from '../src/server/supabase-rest';
+import { recordTest, verifyUser } from '../src/server/supabase-rest';
 import { emptyResult } from '../src/core/linkcheck';
 
 const publicLookup: Lookup = async () => [{ address: '93.184.216.34', family: 4 }];
@@ -29,6 +29,7 @@ describe('isPrivateAddress', () => {
     ['10.0.0.1', true], ['127.0.0.1', true], ['169.254.169.254', true], ['172.16.0.1', true], ['192.168.1.1', true], ['100.64.0.1', true],
     ['0.0.0.0', true], ['224.0.0.1', true], ['198.18.0.1', true], ['192.0.0.1', true], ['::1', true], ['::', true], ['fd00::1', true], ['fe80::1', true],
     ['::ffff:127.0.0.1', true], ['::ffff:7f00:1', true], ['64:ff9b::1', true], ['2002::1', true], ['ff02::1', true], ['not-ip', true],
+    ['::127.0.0.1', true], ['::ffff:0:7f00:1', true], ['fec0::1', true], ['2001::1', true], ['2001:0:4136::1', true], ['2001:db8::1', true], ['198.51.100.1', true], ['203.0.113.9', true], ['240.0.0.1', true],
     ['93.184.216.34', false], ['2606:4700::1111', false], ['::ffff:8.8.8.8', false],
   ])('%s -> %s', (ip, expected) => {
     expect(isPrivateAddress(ip)).toBe(expected);
@@ -132,12 +133,11 @@ function deps(over: Partial<ApiDeps> = {}): ApiDeps & { recorded: string[] } {
   return {
     recorded,
     verifyUser: async (t) => (t.startsWith('good') ? 'user-1' : null),
-    countRecent: async () => 0,
     record: async (_t, h) => {
       recorded.push(h);
+      return 'ok';
     },
     fetchFile: async (u) => ({ ...emptyResult(u), status: 200, size: 3 }),
-    now: () => Date.parse('2026-11-12T12:00:00Z'),
     ...over,
   };
 }
@@ -173,13 +173,12 @@ describe('handleApi', () => {
     expect(r.body).toMatchObject({ url: 'https://files.example/a.pdf', status: 200 });
     expect(d.recorded).toEqual(['files.example']);
   });
-  it('rate-limits per user without recording', async () => {
-    let since = '';
-    const d = deps({ countRecent: async (_t, s) => { since = s; return LINK_TESTS_PER_HOUR; } });
+  it('refuses without fetching when the database says the user is at the limit', async () => {
+    let fetched = false;
+    const d = deps({ record: async () => 'limited', fetchFile: async (u) => ((fetched = true), emptyResult(u)) });
     const r = await handleApi('POST', '/api/link-check', '{"url":"https://a.example/x"}', auth, d);
-    expect(r.status).toBe(429);
-    expect(since).toBe('2026-11-12T11:00:00.000Z');
-    expect(d.recorded).toEqual([]);
+    expect(r).toMatchObject({ status: 429, body: { error: expect.stringContaining(String(LINK_TESTS_PER_HOUR)) } });
+    expect(fetched).toBe(false);
   });
   it('answers 503 when Supabase fails', async () => {
     const r = await handleApi('POST', '/api/link-check', '{"url":"https://a.example/x"}', auth, deps({ verifyUser: async () => { throw new Error('down'); } }));
@@ -208,25 +207,15 @@ describe('supabase-rest', () => {
     expect(await verifyUser(cfg((async () => new Response('{}', { status: 200 })) as unknown as typeof fetch), 't')).toBeNull();
     await expect(verifyUser(cfg((async () => new Response('', { status: 500 })) as unknown as typeof fetch), 't')).rejects.toThrow(/auth 500/);
   });
-  it('counts recent tests from content-range', async () => {
-    let url = '';
-    const f = (async (u: string) => {
-      url = u;
-      return new Response(null, { status: 200, headers: { 'content-range': '*/7' } });
-    }) as unknown as typeof fetch;
-    expect(await countRecent(cfg(f), 't', '2026-11-12T11:00:00.000Z')).toBe(7);
-    expect(url).toContain('created_at=gte.2026-11-12T11%3A00%3A00.000Z');
-    await expect(countRecent(cfg((async () => new Response(null, { status: 200 })) as unknown as typeof fetch), 't', 'x')).rejects.toThrow(/content-range/);
-    await expect(countRecent(cfg((async () => new Response(null, { status: 404 })) as unknown as typeof fetch), 't', 'x')).rejects.toThrow(/count 404/);
-  });
   it('records a test', async () => {
     let body = '';
     const f = (async (_u: string, init?: RequestInit) => {
       body = String(init?.body);
       return new Response(null, { status: 201 });
     }) as unknown as typeof fetch;
-    await recordTest(cfg(f), 't', 'files.example');
+    expect(await recordTest(cfg(f), 't', 'files.example')).toBe('ok');
     expect(JSON.parse(body)).toEqual({ host: 'files.example' });
+    expect(await recordTest(cfg((async () => new Response('{"code":"PT429"}', { status: 429 })) as unknown as typeof fetch), 't', 'h')).toBe('limited');
     await expect(recordTest(cfg((async () => new Response(null, { status: 403 })) as unknown as typeof fetch), 't', 'h')).rejects.toThrow(/record 403/);
   });
 });
@@ -244,8 +233,30 @@ describe('netlify handler', () => {
   it('builds live deps over the REST config', async () => {
     const d = liveDeps({ url: 'https://auth.example', anonKey: 'anon', fetchImpl: (async () => new Response(JSON.stringify({ id: 'u9' }), { status: 200, headers: { 'content-range': '*/0' } })) as unknown as typeof fetch });
     expect(await d.verifyUser('t')).toBe('u9');
-    expect(await d.countRecent('t', 'x')).toBe(0);
-    await d.record('t', 'h');
+    expect(await d.record('t', 'h')).toBe('ok');
     expect((await d.fetchFile('not a url')).error).toMatch(/not a valid link/);
+  });
+});
+
+describe('guardedLookup', () => {
+  type Resolve = Parameters<typeof guardedLookup>[3];
+  const fake = (addresses: Array<{ address: string; family: number }>, err: Error | null = null): Resolve =>
+    ((_h: string, _o: unknown, cb: (e: Error | null, a: unknown) => void) => cb(err, addresses)) as unknown as Resolve;
+  const run = (opts: { all?: boolean } | number | undefined, resolve: Resolve) =>
+    new Promise<{ err: NodeJS.ErrnoException | null; address: unknown; family?: number }>((done) => guardedLookup('h.example', opts, (err, address, family) => done({ err, address, family }), resolve));
+  it('passes public addresses through, one or all', async () => {
+    expect(await run(undefined, fake([{ address: '93.184.216.34', family: 4 }]))).toEqual({ err: null, address: '93.184.216.34', family: 4 });
+    expect((await run({ all: true }, fake([{ address: '2606:4700::1111', family: 6 }]))).address).toEqual([{ address: '2606:4700::1111', family: 6 }]);
+  });
+  it('refuses a name with any private answer, or none', async () => {
+    const r = await run({ all: true }, fake([{ address: '93.184.216.34', family: 4 }, { address: '10.0.0.1', family: 4 }]));
+    expect(r.err?.code).toBe('EBLOCKED');
+    expect(r.address).toEqual([]);
+    expect((await run(4, fake([]))).err?.code).toBe('EBLOCKED');
+  });
+  it('passes resolver errors on', async () => {
+    const r = await run(undefined, fake([], Object.assign(new Error('nx'), { code: 'ENOTFOUND' })));
+    expect(r.err?.code).toBe('ENOTFOUND');
+    expect(r.address).toBe('');
   });
 });

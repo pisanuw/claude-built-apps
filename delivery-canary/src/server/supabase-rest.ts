@@ -22,23 +22,14 @@ export async function verifyUser(cfg: RestConfig, token: string): Promise<string
   return typeof data.id === 'string' && data.id ? data.id : null;
 }
 
-export async function countRecent(cfg: RestConfig, token: string, sinceIso: string): Promise<number> {
-  const res = await (cfg.fetchImpl ?? fetch)(`${base(cfg)}/rest/v1/link_tests?select=id&created_at=gte.${encodeURIComponent(sinceIso)}`, {
-    method: 'HEAD',
-    headers: { apikey: cfg.anonKey, authorization: `Bearer ${token}`, 'accept-profile': SCHEMA, prefer: 'count=exact' },
-  });
-  if (!res.ok) throw new Error(`count ${res.status}`);
-  const range = res.headers.get('content-range') ?? '';
-  const total = Number(range.split('/')[1]);
-  if (!Number.isFinite(total)) throw new Error('count: no content-range');
-  return total;
-}
-
-export async function recordTest(cfg: RestConfig, token: string, host: string): Promise<void> {
+/** Inserts one link_tests row; its trigger answers 429 (SQLSTATE PT429) at the hourly limit. */
+export async function recordTest(cfg: RestConfig, token: string, host: string): Promise<'ok' | 'limited'> {
   const res = await (cfg.fetchImpl ?? fetch)(`${base(cfg)}/rest/v1/link_tests`, {
     method: 'POST',
     headers: { apikey: cfg.anonKey, authorization: `Bearer ${token}`, 'content-profile': SCHEMA, 'content-type': 'application/json', prefer: 'return=minimal' },
     body: JSON.stringify({ host }),
   });
+  if (res.status === 429) return 'limited';
   if (!res.ok) throw new Error(`record ${res.status}`);
+  return 'ok';
 }

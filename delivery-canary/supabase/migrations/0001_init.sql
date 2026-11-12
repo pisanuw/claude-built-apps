@@ -41,9 +41,9 @@ create table if not exists app_delivery_canary.checks (
 comment on table app_delivery_canary.checks is 'One delivery-email check: verdict, placement and the derived report (no raw email).';
 create index if not exists checks_user_shop_created_idx on app_delivery_canary.checks (user_id, shop_id, created_at);
 
--- Link tests: written by /api/link-check with the caller's token, read back
--- to count the last hour. No update or delete policy, so a user cannot
--- clear their own count.
+-- Link tests: written by /api/link-check with the caller's token; the insert
+-- trigger below is the rate limit. No update policy, and delete only of rows
+-- over a day old, so a user cannot clear their own count.
 create table if not exists app_delivery_canary.link_tests (
   id bigint generated always as identity primary key,
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
@@ -96,6 +96,7 @@ language plpgsql
 set search_path = ''
 as $$
 begin
+  perform pg_advisory_xact_lock(hashtextextended('app_delivery_canary.shops:' || new.user_id::text, 0));
   if (
     select count(*) from app_delivery_canary.shops
     where user_id = new.user_id and id <> new.id
@@ -117,6 +118,7 @@ language plpgsql
 set search_path = ''
 as $$
 begin
+  perform pg_advisory_xact_lock(hashtextextended('app_delivery_canary.checks:' || new.user_id::text, 0));
   if (
     select count(*) from app_delivery_canary.checks
     where user_id = new.user_id and id <> new.id
@@ -132,11 +134,46 @@ create trigger checks_limit
   before insert on app_delivery_canary.checks
   for each row execute function app_delivery_canary.checks_limit();
 
+-- The link-test rate limit lives here, so it is atomic: the insert takes a
+-- per-user lock, fixes created_at to now(), forgets the user's rows older than
+-- a day (so the table stays small), and refuses the 31st test within an hour
+-- with SQLSTATE PT429, which PostgREST answers as HTTP 429. /api/link-check
+-- records first and only then fetches, so parallel requests cannot slip past.
+create or replace function app_delivery_canary.link_tests_limit()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  perform pg_advisory_xact_lock(hashtextextended('app_delivery_canary.link_tests:' || new.user_id::text, 0));
+  new.created_at := now();
+  delete from app_delivery_canary.link_tests
+    where user_id = new.user_id and created_at < now() - interval '1 day';
+  if (
+    select count(*) from app_delivery_canary.link_tests
+    where user_id = new.user_id and created_at > now() - interval '1 hour'
+  ) >= 30 then
+    raise sqlstate 'PT429' using message = 'You have tested 30 links in the last hour. Try again later.';
+  end if;
+  return new;
+end
+$$;
+
+drop trigger if exists link_tests_limit on app_delivery_canary.link_tests;
+create trigger link_tests_limit
+  before insert on app_delivery_canary.link_tests
+  for each row execute function app_delivery_canary.link_tests_limit();
+
 -- Signed-in users only; anonymous visitors get no grants in app schemas.
 -- link_tests: select and insert only (the identity column needs no sequence grant).
 grant usage on schema app_delivery_canary to authenticated;
 grant select, insert, update, delete on app_delivery_canary.shops to authenticated;
 grant select, insert, update, delete on app_delivery_canary.checks to authenticated;
 grant select, insert on app_delivery_canary.link_tests to authenticated;
+-- The trigger's delete of old rows runs as the caller: RLS lets a user delete only their own.
+drop policy if exists link_tests_delete_old_own on app_delivery_canary.link_tests;
+create policy link_tests_delete_old_own on app_delivery_canary.link_tests for delete to authenticated using (user_id = auth.uid() and created_at < now() - interval '1 day');
+grant delete on app_delivery_canary.link_tests to authenticated;
 revoke execute on function app_delivery_canary.shops_limit() from public, anon, authenticated;
 revoke execute on function app_delivery_canary.checks_limit() from public, anon, authenticated;
+revoke execute on function app_delivery_canary.link_tests_limit() from public, anon, authenticated;

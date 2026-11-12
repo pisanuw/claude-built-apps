@@ -3,7 +3,9 @@
  *
  * - GET  /api/health      -> {ok: true} (the deploy runner checks it)
  * - POST /api/link-check  -> a LinkResult for {url}, signed-in callers only,
- *   at most LINK_TESTS_PER_HOUR per user.
+ *   at most LINK_TESTS_PER_HOUR per user. The limit is the insert trigger on
+ *   app_delivery_canary.link_tests (atomic per user); the function records
+ *   the test first and fetches only when the database accepted it.
  *
  * The function holds no secret: it acts with the caller's own Supabase
  * token, so row level security applies to everything it reads or writes.
@@ -21,11 +23,9 @@ export interface ApiResponse {
 export interface ApiDeps {
   /** The user id for a session token, or null when the token is not valid. */
   verifyUser(token: string): Promise<string | null>;
-  /** Link tests by this user in the last hour. */
-  countRecent(token: string, sinceIso: string): Promise<number>;
-  record(token: string, host: string): Promise<void>;
+  /** Records one test; 'limited' when the user is at the hourly limit. */
+  record(token: string, host: string): Promise<'ok' | 'limited'>;
   fetchFile(url: string): Promise<LinkResult>;
-  now?: () => number;
 }
 
 const json = (status: number, body: unknown): ApiResponse => ({ status, body });
@@ -64,12 +64,9 @@ export async function handleApi(method: string, path: string, bodyText: string |
   try {
     const user = await deps.verifyUser(token);
     if (!user) return json(401, { error: 'Your session has ended. Sign in again to test links.' });
-    const now = (deps.now ?? Date.now)();
-    const since = new Date(now - 60 * 60 * 1000).toISOString();
-    if ((await deps.countRecent(token, since)) >= LINK_TESTS_PER_HOUR) {
+    if ((await deps.record(token, host)) === 'limited') {
       return json(429, { error: `You have tested ${LINK_TESTS_PER_HOUR} links in the last hour. Try again later.` });
     }
-    await deps.record(token, host);
   } catch {
     return json(503, { error: 'The link test is unavailable right now. Try again in a minute.' });
   }

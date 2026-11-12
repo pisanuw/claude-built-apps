@@ -54,6 +54,17 @@ export function decodeEntities(s: string): string {
     .replace(/&nbsp;/gi, ' ');
 }
 
+/** Link text with any URL in it reduced to its host: anchor text is often the tokenised download URL itself. */
+export function hostsOnly(text: string): string {
+  return text.replace(/https?:\/\/[^\s<>"')]+/gi, (u) => {
+    try {
+      return new URL(u).hostname;
+    } catch {
+      return '';
+    }
+  });
+}
+
 function textOf(html: string): string {
   return decodeEntities(html.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
 }
@@ -80,7 +91,7 @@ export function extractLinks(html: string | undefined, text: string | undefined)
     const score = scoreLink(url, label);
     if (score < 0) return;
     const prev = seen.get(url);
-    if (!prev || prev.score < score) seen.set(url, { url, text: label.slice(0, 120), score });
+    if (!prev || prev.score < score) seen.set(url, { url, text: hostsOnly(label).replace(/\s+/g, ' ').trim().slice(0, 120), score });
   };
   if (html) {
     for (const m of html.matchAll(/<a\b[^>]*?\bhref\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>([\s\S]*?)<\/a\s*>/gi)) {

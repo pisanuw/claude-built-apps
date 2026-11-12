@@ -5,7 +5,7 @@
  */
 import { handleApi, type ApiDeps } from './api';
 import { fetchFile } from './fetchfile';
-import { countRecent, recordTest, verifyUser, type RestConfig } from './supabase-rest';
+import { recordTest, verifyUser, type RestConfig } from './supabase-rest';
 
 declare const __SUPABASE_URL__: string;
 declare const __SUPABASE_ANON_KEY__: string;
@@ -22,7 +22,6 @@ export interface FnEvent {
 export function liveDeps(cfg: RestConfig): ApiDeps {
   return {
     verifyUser: (t) => verifyUser(cfg, t),
-    countRecent: (t, s) => countRecent(cfg, t, s),
     record: (t, h) => recordTest(cfg, t, h),
     fetchFile: (u) => fetchFile(u, { budgetMs: 8000 }),
   };
