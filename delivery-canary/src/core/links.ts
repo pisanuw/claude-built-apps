@@ -26,14 +26,29 @@ const APP_HOSTS: Array<[DeliveryAppId, RegExp]> = [
 
 const DOWNLOAD_WORDS = /\b(download|downloads|get (?:your|the) (?:file|files|download)|access (?:your )?(?:file|files|download|product)|view (?:your )?(?:files|downloads))\b/i;
 const FILE_EXT = /\.(pdf|zip|epub|mobi|mp3|wav|mp4|mov|psd|ai|svg|png|jpe?g|xmp|lrtemplate|dng|cube|docx?|xlsx?|pptx?|key|procreate|abr|brushset|otf|ttf|woff2?|stl|dxf|pes|dst|jef|exp|vp3|hus|csv|txt|rar|7z)(?:$|[?#])/i;
-const NOT_DOWNLOAD = /unsubscribe|preferences|privacy|terms|facebook\.com|instagram\.com|twitter\.com|x\.com\/|pinterest\.|tiktok\.com|youtube\.com|linkedin\.com|mailto:|tel:|\/open\.gif|\/pixel|\/track\/open|apps\.apple\.com|play\.google\.com/i;
+/** Paths that are never the download (matched on the URL path, not the host). */
+const NOT_DOWNLOAD_PATH = /\/(unsubscribe|preferences|privacy|terms)(?:[/?#.]|$)|\/open\.gif$|\/pixel(?:\.gif|\.png)?$|\/track\/open(?:[/?#]|$)/i;
+/** Social and app-store sites, matched by host (the site itself or a subdomain). */
+const NOT_DOWNLOAD_HOSTS = ['facebook.com', 'instagram.com', 'twitter.com', 'x.com', 'pinterest.com', 'tiktok.com', 'youtube.com', 'linkedin.com', 'apps.apple.com', 'play.google.com'];
+
+function notDownload(url: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return true;
+  }
+  const host = u.hostname.toLowerCase();
+  if (NOT_DOWNLOAD_HOSTS.some((d) => host === d || host.endsWith(`.${d}`))) return true;
+  return NOT_DOWNLOAD_PATH.test(u.pathname);
+}
 const SHORTENERS = /^(bit\.ly|tinyurl\.com|t\.co|goo\.gl|ow\.ly|is\.gd|buff\.ly|rebrand\.ly|cutt\.ly|shorturl\.at)$/i;
 
 export function isShortener(host: string): boolean {
   return SHORTENERS.test(host);
 }
 
-function hostOf(url: string): string {
+export function hostOf(url: string): string {
   try {
     return new URL(url).hostname.toLowerCase();
   } catch {
@@ -43,15 +58,16 @@ function hostOf(url: string): string {
 
 /** Decodes the few HTML entities that appear inside href attributes. */
 export function decodeEntities(s: string): string {
+  const cp = (n: number) => (Number.isInteger(n) && n > 0 && n <= 0x10ffff && !(n >= 0xd800 && n <= 0xdfff) ? String.fromCodePoint(n) : '\uFFFD');
   return s
-    .replace(/&amp;/gi, '&')
-    .replace(/&#x([0-9a-f]+);/gi, (_, h: string) => String.fromCodePoint(parseInt(h, 16)))
-    .replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(Number(d)))
+    .replace(/&#x([0-9a-f]{1,8});/gi, (_, h: string) => cp(parseInt(h, 16)))
+    .replace(/&#(\d{1,10});/g, (_, d: string) => cp(Number(d)))
     .replace(/&quot;/gi, '"')
     .replace(/&#39;|&apos;/gi, "'")
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')
-    .replace(/&nbsp;/gi, ' ');
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&');
 }
 
 /** Link text with any URL in it reduced to its host: anchor text is often the tokenised download URL itself. */
@@ -70,7 +86,7 @@ function textOf(html: string): string {
 }
 
 export function scoreLink(url: string, text: string): number {
-  if (!/^https?:\/\//i.test(url) || NOT_DOWNLOAD.test(url) || /unsubscribe|manage preferences/i.test(text)) return -1;
+  if (!/^https?:\/\//i.test(url) || notDownload(url) || /unsubscribe|manage preferences/i.test(text)) return -1;
   let score = 0;
   if (DOWNLOAD_WORDS.test(text)) score += 5;
   if (/download/i.test(url)) score += 3;

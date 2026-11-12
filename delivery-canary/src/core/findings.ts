@@ -4,7 +4,7 @@
  * stable id that the tests pin.
  */
 import { aligned, FREE_MAILBOXES, orgDomain } from './headers';
-import { downloadCandidates, isShortener } from './links';
+import { downloadCandidates, hostOf, isShortener } from './links';
 import type { Baseline, CheckReport, EmailAnalysis, Finding, LinkResult, Placement, Verdict } from './types';
 
 export const SLOW_WARN_SECONDS = 15 * 60;
@@ -82,7 +82,11 @@ function senderFindings(a: EmailAnalysis): Finding[] {
       else out.push(f('dmarc-other', 'warn', `DMARC result: ${dmarc.result}`, 'The DMARC check did not finish cleanly.', 'Check your domain\'s DMARC record with your DNS provider.'));
     }
   }
-  if (FREE_MAILBOXES.has(fromDomain)) {
+  // A free-mailbox From is a problem only when another server sent it: no
+  // passing DKIM signature of that domain, or DMARC did not pass.
+  const ownSigned = !!a.auth && a.auth.dkim.some((d) => d.result === 'pass' && aligned(d.domain, fromDomain));
+  const dmarcPassed = a.auth?.dmarc?.result === 'pass';
+  if (FREE_MAILBOXES.has(fromDomain) && !(ownSigned && dmarcPassed)) {
     out.push(f('from-free-mailbox', 'fail', `Sent "as" a ${fromDomain} address`, `The From address is on ${fromDomain}, but another company's servers sent it. ${fromDomain}'s own policy tells mailbox providers to distrust that.`, 'Use an address on your own domain as the sender in Shopify and in your delivery app, and authenticate that domain.'));
   }
   return out;
@@ -158,14 +162,6 @@ export function verdictOf(findings: Finding[]): Verdict {
   if (findings.some((x) => x.severity === 'fail')) return 'fail';
   if (findings.some((x) => x.severity === 'warn')) return 'warn';
   return 'pass';
-}
-
-function hostOf(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return '';
-  }
 }
 
 /** The saved form: hosts only, never the per-order download URL (it grants access to the file). */

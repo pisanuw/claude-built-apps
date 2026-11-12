@@ -16,6 +16,7 @@ export const DEPLOYED_APP_LABELS: readonly string[] = [
   'consent-leak-watch',
   'cron-cartographer',
   'data-structure-city',
+  'delivery-canary',
   'diagram-layout-engine',
   'donation-receipts',
   'dossier-comment-reflector',

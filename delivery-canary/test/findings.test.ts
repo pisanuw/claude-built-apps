@@ -77,6 +77,12 @@ describe('evaluate', () => {
     expect(out).toContain('from-free-mailbox');
     expect(out).not.toContain('dkim-unaligned');
   });
+  it('does not fail a free-mailbox address that the provider itself signed', () => {
+    const gmail = { ...goodAuth, dkim: [{ method: 'dkim' as const, result: 'pass', domain: 'gmail.com' }], dmarc: { method: 'dmarc' as const, result: 'pass', domain: 'gmail.com' } };
+    expect(ids({ analysis: analysis({ from: { name: '', address: 'shop@gmail.com' }, auth: gmail }) })).not.toContain('from-free-mailbox');
+    expect(ids({ analysis: analysis({ from: { name: '', address: 'shop@gmail.com' }, auth: { ...gmail, dmarc: { method: 'dmarc', result: 'fail', domain: 'gmail.com' } } }) })).toContain('from-free-mailbox');
+    expect(ids({ analysis: analysis({ from: { name: '', address: 'shop@gmail.com' }, auth: null }) })).toContain('from-free-mailbox');
+  });
   it('rates transit time', () => {
     const t = (transitSeconds: number | null, sentAt = '', receivedAt = '') => ids({ analysis: analysis({ transitSeconds, sentAt, receivedAt }) });
     expect(t(SLOW_WARN_SECONDS)).toContain('slow-warn');
@@ -130,6 +136,7 @@ describe('report and baseline', () => {
     expect(text).not.toContain('token=secret');
     expect(text).not.toContain('/download/a.pdf');
     expect(r.link?.host).toBe('files.shop.example');
+    expect(toReport({ ...input, link: file({ url: 'https://Files.Shop.Example/a' }) }, []).link?.host).toBe('files.shop.example');
     expect(r.link?.finalHost).toBe('cdn.example');
     expect(r.analysis.links).toEqual([{ host: 'files.shop.example', text: 'Download' }]);
     expect(toReport({ ...input, link: file({ url: 'nope', finalUrl: 'nope' }) }, []).link?.host).toBe('');

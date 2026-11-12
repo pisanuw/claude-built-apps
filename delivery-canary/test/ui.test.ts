@@ -4,10 +4,10 @@ import { emptyResult } from '../src/core/linkcheck';
 import { sampleEmail } from '../src/core/sample';
 import type { CheckReport, LinkResult } from '../src/core/types';
 import { InMemoryRepository } from '../src/lib/repository';
-import { byNewest, memoryStores, supabaseStores, type CheckRow, type ShopRow, type Stores } from '../src/store/stores';
+import { byNewest, HISTORY_LIMIT, MemoryCheckStore, memoryStores, SupabaseCheckStore, supabaseStores, type CheckRow, type ShopRow, type Stores } from '../src/store/stores';
 import { mountApp, type AppDeps } from '../src/ui/app';
 import { h, when } from '../src/ui/dom';
-import { checkInBrowser, checkLink, checkOnServer, NeedsSignIn, sameOrigin } from '../src/ui/linkclient';
+import { checkInBrowser, checkLink, checkOnServer, LinkTestSkipped, NeedsSignIn, sameOrigin } from '../src/ui/linkclient';
 import { renderReport, sortFindings } from '../src/ui/report';
 import type { AppClient } from '../src/lib/supabase';
 
@@ -16,12 +16,19 @@ const SAMPLE_URL = `${ORIGIN}/sample/canary-pattern.pdf`;
 
 const goodFile = (url: string, sha = 'a'.repeat(64)): LinkResult => ({ ...emptyResult(url), status: 200, contentType: 'application/pdf', fileName: 'canary-pattern.pdf', size: 685, sha256: sha });
 
+async function allChecks(stores: Stores): Promise<CheckRow[]> {
+  const shops = await stores.shops.list();
+  const out: CheckRow[] = [];
+  for (const sh of shops) for (const c of await stores.checks.summaries(sh.id, 10_000)) out.push((await stores.checks.get(c.id))!);
+  return out;
+}
+
 const tick = async (n = 30) => {
   for (let i = 0; i < n; i++) await new Promise((r) => setTimeout(r, 0));
 };
 
 function savedStores(): Stores {
-  return { shops: new InMemoryRepository<ShopRow>(), checks: new InMemoryRepository<CheckRow>(), saved: true };
+  return { shops: new InMemoryRepository<ShopRow>(), checks: new MemoryCheckStore(), saved: true };
 }
 
 function setup(over: Partial<AppDeps> = {}) {
@@ -58,6 +65,37 @@ describe('stores', () => {
     const s = supabaseStores({} as AppClient);
     expect(s.saved).toBe(true);
     expect(memoryStores().saved).toBe(false);
+  });
+});
+
+describe('check stores', () => {
+  it('lists summaries of one shop, newest first, capped', async () => {
+    const m = new MemoryCheckStore();
+    const row = (id: string, shop: string, at: string): CheckRow => ({ id, shop_id: shop, created_at: at, verdict: 'pass', placement: 'inbox', subject: id, report: {} as CheckReport });
+    await m.put(row('a', 's1', '1'));
+    await m.put(row('b', 's1', '2'));
+    await m.put(row('c', 's2', '3'));
+    expect((await m.summaries('s1')).map((r) => r.id)).toEqual(['b', 'a']);
+    expect(await m.summaries('s1', 1)).toEqual([{ id: 'b', shop_id: 's1', created_at: '2', verdict: 'pass', placement: 'inbox', subject: 'b' }]);
+    await m.remove('b');
+    expect((await m.get('a'))?.id).toBe('a');
+  });
+  it('asks Supabase for list columns of one shop only', async () => {
+    const calls: unknown[][] = [];
+    const chain = (result: unknown) => {
+      const q: Record<string, (...a: unknown[]) => unknown> = {};
+      for (const k of ['select', 'eq', 'order', 'limit']) q[k] = (...a: unknown[]) => (calls.push([k, ...a]), k === 'limit' ? Promise.resolve(result) : q);
+      return q;
+    };
+    let result: unknown = { data: [{ id: 'x' }], error: null };
+    const client = { from: (t: string) => (calls.push(['from', t]), chain(result)) } as unknown as AppClient;
+    const store = new SupabaseCheckStore(client);
+    expect(await store.summaries('s1')).toEqual([{ id: 'x' }]);
+    expect(calls).toEqual([['from', 'checks'], ['select', 'id, shop_id, created_at, verdict, placement, subject'], ['eq', 'shop_id', 's1'], ['order', 'created_at', { ascending: false }], ['limit', HISTORY_LIMIT]]);
+    result = { data: null, error: { message: 'denied' } };
+    await expect(store.summaries('s1')).rejects.toThrow('checks: denied');
+    result = { data: null, error: null };
+    expect(await store.summaries('s1')).toEqual([]);
   });
 });
 
@@ -138,13 +176,10 @@ describe('link client', () => {
     });
     expect((sent?.headers as Record<string, string>).authorization).toBe('Bearer tok');
     expect(ok).toMatchObject({ url: 'https://f.example/a', size: 4 });
-    const limited = await checkOnServer('u', 't', { fetchImpl: (async () => new Response(JSON.stringify({ error: 'Too many' }), { status: 429 })) as unknown as typeof fetch });
-    expect(limited.error).toBe('Too many');
-    const noJson = await checkOnServer('u', 't', { fetchImpl: (async () => new Response('oops', { status: 502 })) as unknown as typeof fetch });
-    expect(noJson.error).toBe('The link tester answered 502.');
+    await expect(checkOnServer('u', 't', { fetchImpl: (async () => new Response(JSON.stringify({ error: 'Too many' }), { status: 429 })) as unknown as typeof fetch })).rejects.toThrow('The link was not tested: Too many');
+    await expect(checkOnServer('u', 't', { fetchImpl: (async () => new Response('oops', { status: 502 })) as unknown as typeof fetch })).rejects.toThrow('The link tester answered 502.');
     await expect(checkOnServer('u', 't', { fetchImpl: (async () => new Response('{"error":"Sign in"}', { status: 401 })) as unknown as typeof fetch })).rejects.toBeInstanceOf(NeedsSignIn);
-    const offline = await checkOnServer('u', 't', { fetchImpl: (async () => { throw new Error('x'); }) as unknown as typeof fetch });
-    expect(offline.error).toMatch(/Could not reach/);
+    await expect(checkOnServer('u', 't', { fetchImpl: (async () => { throw new Error('x'); }) as unknown as typeof fetch })).rejects.toBeInstanceOf(LinkTestSkipped);
   });
   it('routes by origin and needs sign-in for other sites', async () => {
     const fetchImpl = (async () => new Response(new Uint8Array([1]), { status: 200 })) as unknown as typeof fetch;
@@ -186,14 +221,14 @@ describe('the app', () => {
     expect($('.status').textContent).toBe('Checked and saved to your history.');
     expect($('#baseline-line').textContent).toContain('canary-pattern.pdf');
     expect($$('.finding').map((li) => li.getAttribute('data-finding'))).toContain('baseline-match');
-    expect(await stores.checks.list()).toHaveLength(1); // re-evaluation updates the same check
+    expect(await allChecks(stores)).toHaveLength(1); // re-evaluation updates the same check
     expect((await stores.shops.list())[0].baseline?.sha256).toBe(sha);
     sha = 'b'.repeat(64);
     $<HTMLButtonElement>('#run-sample').click();
     await tick();
     expect($$('.finding').map((li) => li.getAttribute('data-finding'))).toContain('baseline-differs');
     expect($('#set-baseline').textContent).toBe('Save this file as the new baseline');
-    expect(await stores.checks.list()).toHaveLength(2);
+    expect(await allChecks(stores)).toHaveLength(2);
   });
   it('checks a pasted email, with the placement given, and tests another link on request', async () => {
     const tested: string[] = [];
@@ -241,6 +276,12 @@ describe('the app', () => {
     await tick();
     const untested = $$('.finding').find((li) => li.getAttribute('data-finding') === 'link-untested');
     expect(untested?.textContent).toContain('Sign in to test real download links');
+    const { $: $3, $$: $$3 } = setup({ checkLink: async () => { throw new LinkTestSkipped('The link was not tested: Too many'); } });
+    await tick();
+    $3<HTMLButtonElement>('#run-sample').click();
+    await tick();
+    expect($$3('.finding').map((li) => li.getAttribute('data-finding'))).not.toContain('link-error');
+    expect($$3('.finding').find((li) => li.getAttribute('data-finding') === 'link-untested')?.textContent).toContain('Too many');
     const { $: $2, $$: $$2 } = setup({ checkLink: async () => { throw new Error('x'); } });
     await tick();
     $2<HTMLButtonElement>('#run-sample').click();
@@ -264,11 +305,12 @@ describe('the app', () => {
     await tick();
     expect($<HTMLSelectElement>('#shop-app').value).toBe('filemonk'); // a chosen app is kept
     ($$('[data-view]')[0] as HTMLButtonElement).click();
+    await tick();
     expect($('.report .summary').textContent).toMatch(/checked/);
     ($$('[data-delete]')[0] as HTMLButtonElement).click();
     await tick();
     expect($('.status').textContent).toBe('Check deleted.');
-    expect(await stores.checks.list()).toHaveLength(0);
+    expect(await allChecks(stores)).toHaveLength(0);
     expect($('#history').textContent).toContain('No checks yet');
   });
   it('reports store failures in plain words', async () => {
@@ -313,6 +355,29 @@ describe('the app', () => {
     expect($<HTMLInputElement>('#shop-name').value).toBe('Saved shop');
     expect($('#save-note').textContent).toBe('Saved to your account.');
     expect($('#history').textContent).toContain('No checks yet');
+  });
+  it('says when a saved check cannot be opened, and caps the list', async () => {
+    const stores = savedStores();
+    const { $, $$ } = setup({ stores });
+    await tick();
+    $<HTMLButtonElement>('#run-sample').click();
+    await tick();
+    stores.checks.get = async () => undefined;
+    ($$('[data-view]')[0] as HTMLButtonElement).click();
+    await tick();
+    expect($('.status').textContent).toBe('That check is no longer saved.');
+    stores.checks.get = async () => {
+      throw new Error('offline');
+    };
+    ($$('[data-view]')[0] as HTMLButtonElement).click();
+    await tick();
+    expect($('.status').textContent).toBe('Could not open the check: offline');
+    const shop = (await stores.shops.list())[0];
+    for (let i = 0; i < HISTORY_LIMIT; i++) await stores.checks.put({ id: `x${i}`, shop_id: shop.id, created_at: `2026-11-13T00:00:${String(i).padStart(2, '0')}Z`, verdict: 'pass', placement: 'inbox', subject: 's', report: {} as CheckReport });
+    $<HTMLButtonElement>('#run-sample').click();
+    await tick();
+    expect($$('.history-list li')).toHaveLength(HISTORY_LIMIT);
+    expect($('#history').textContent).toContain(`Showing the latest ${HISTORY_LIMIT} checks.`);
   });
   it('shows the preview note without sign-in', async () => {
     const { $ } = setup();

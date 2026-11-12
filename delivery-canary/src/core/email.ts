@@ -21,10 +21,17 @@ function iso(date: string | undefined): string {
 
 /** Gmail's "Show original" page puts a summary table above the message when the whole page is copied. */
 export function trimShowOriginal(raw: string): string {
-  const lines = raw.replace(/^\uFEFF/, '').split(/\r?\n/);
-  const start = lines.findIndex((l) => /^(Delivered-To|Received|Return-Path|ARC-Seal|X-Received|MIME-Version|DKIM-Signature|Authentication-Results):/i.test(l));
-  return start > 0 ? lines.slice(start).join('\r\n') : raw;
+  let lines = raw.replace(/^\uFEFF/, '').split(/\r?\n/);
+  // An mbox message (Google Takeout) starts with a "From " separator line.
+  if (/^From \S/.test(lines[0] ?? '')) lines = lines.slice(1);
+  // Already a message: its first line is a header.
+  if (HEADER_LINE.test(lines[0] ?? '')) return lines.join('\r\n');
+  const start = lines.findIndex((l) => /^(Delivered-To|Received|Return-Path|ARC-Seal|X-Received|X-Gmail-Labels|MIME-Version|DKIM-Signature|Authentication-Results):/i.test(l));
+  return start > 0 ? lines.slice(start).join('\r\n') : lines.join('\r\n');
 }
+
+/** RFC 5322 header field syntax: printable characters except ":" and space, then ":". */
+const HEADER_LINE = /^[\x21-\x39\x3b-\x7e]+:/;
 
 export function looksLikeEmail(raw: string): boolean {
   const head = raw.slice(0, 64 * 1024);

@@ -9,9 +9,9 @@ import { APP_NAMES, downloadCandidates } from '../core/links';
 import { sampleEmail, sampleFileUrl } from '../core/sample';
 import type { DeliveryAppId, EmailAnalysis, FoundLink, LinkResult, Placement } from '../core/types';
 import { newId } from '../lib/repository';
-import { byNewest, type CheckRow, type ShopRow, type Stores } from '../store/stores';
+import { byNewest, HISTORY_LIMIT, type CheckRow, type ShopRow, type Stores } from '../store/stores';
 import { clear, h, when } from './dom';
-import { NeedsSignIn } from './linkclient';
+import { LinkTestSkipped } from './linkclient';
 import { PLACEMENT_TEXT, renderReport, VERDICT_TEXT } from './report';
 
 export interface AppDeps {
@@ -157,7 +157,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
 
   async function renderHistory(): Promise<void> {
     clear(history);
-    const rows = shop ? byNewest((await stores.checks.list()).filter((c) => c.shop_id === shop?.id)) : [];
+    const rows = shop ? await stores.checks.summaries(shop.id) : [];
     if (!rows.length) {
       history.append(h('p', { class: 'empty' }, stores.saved ? 'No checks yet. Your checks will be listed here.' : 'Checks made while signed out are listed here until you leave the page.'));
       return;
@@ -167,10 +167,23 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
       const view = h('button', { type: 'button', class: 'link', 'data-view': c.id }, 'View');
       const del = h('button', { type: 'button', class: 'link danger', 'data-delete': c.id, 'aria-label': `Delete the check of ${when(c.created_at)}` }, 'Delete');
       view.addEventListener('click', () => {
-        current = null;
-        clear(result);
-        result.append(renderReport(c.report, { verdict: c.verdict, checkedAt: c.created_at }));
-        result.focus();
+        void (async () => {
+          let full: CheckRow | undefined;
+          try {
+            full = await stores.checks.get(c.id);
+          } catch (e) {
+            say(`Could not open the check: ${(e as Error).message}`);
+            return;
+          }
+          if (!full) {
+            say('That check is no longer saved.');
+            return;
+          }
+          current = null;
+          clear(result);
+          result.append(renderReport(full.report, { verdict: full.verdict, checkedAt: full.created_at }));
+          result.focus();
+        })();
       });
       del.addEventListener('click', () => {
         void (async () => {
@@ -197,6 +210,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
       );
     }
     history.append(list);
+    if (rows.length >= HISTORY_LIMIT) history.append(h('p', { class: 'hint' }, `Showing the latest ${HISTORY_LIMIT} checks.`));
   }
 
   async function load(): Promise<void> {
@@ -276,7 +290,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
       say('Testing the download link…');
       current.link = await deps.checkLink(url);
     } catch (e) {
-      current.linkSkipped = e instanceof NeedsSignIn ? e.message : 'The link test could not run.';
+      current.linkSkipped = e instanceof LinkTestSkipped ? e.message : 'The link test could not run.';
     }
   }
 

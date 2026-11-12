@@ -119,6 +119,21 @@ describe('links', () => {
     expect(links.find((l) => l.url.endsWith('TOKEN123'))?.text).toBe('dl.example');
     expect(hostsOnly('see https://[bad and https://ok.example/x')).toBe('see  and ok.example');
   });
+  it('keeps file-host links that only look like social or pixel URLs', () => {
+    expect(scoreLink('https://www.dropbox.com/s/abc/pattern.pdf?dl=1', 'Download')).toBeGreaterThan(3);
+    expect(scoreLink('https://app.box.com/s/abc', 'Download your files')).toBeGreaterThan(3);
+    expect(scoreLink('https://cdn.example/pixel-art-pack.zip', 'Download')).toBeGreaterThan(3);
+    expect(scoreLink('https://x.com/shop', 'Follow us')).toBe(-1);
+    expect(scoreLink('https://www.instagram.com/shop', 'Instagram')).toBe(-1);
+    expect(scoreLink('https://t.example/track/open?id=1', 'x')).toBe(-1);
+    expect(scoreLink('https://t.example/pixel.gif', 'x')).toBe(-1);
+    expect(scoreLink('https://[bad', 'Download')).toBe(-1);
+  });
+  it('decodes out-of-range and double-escaped entities safely', () => {
+    expect(decodeEntities('&#99999999;&#x110000;&#xD800;&#0;')).toBe('\uFFFD\uFFFD\uFFFD\uFFFD');
+    expect(decodeEntities('&amp;lt;')).toBe('&lt;');
+    expect(extractLinks('<a href="https://a.example/download/x.pdf">Get &#99999999; download</a>', '')).toHaveLength(1);
+  });
   it('recognises shorteners', () => {
     expect(isShortener('bit.ly')).toBe(true);
     expect(isShortener('example.com')).toBe(false);
@@ -190,6 +205,12 @@ describe('email', () => {
     expect(a.listUnsubscribe).toBe(true);
     expect(a.links[0].url).toBe('https://shop.example/download/x.pdf');
   });
+  it('keeps headers above the first Received, and Takeout labels', async () => {
+    const a = await analyseEmail('From: Shop <a@shop.example>\r\nSubject: Hi\r\nReceived: by mx; Thu, 12 Nov 2026 10:00:00 +0000\r\n\r\nbody');
+    expect(a.from.address).toBe('a@shop.example');
+    const b = await analyseEmail('From 1@x Thu Nov 12 10:00:00 +0000 2026\nX-Gmail-Labels: Spam\nFrom: x@y.example\nSubject: s\n\nbody');
+    expect(b.labelPlacement).toBe('spam');
+  });
   it('handles a missing From', async () => {
     const a = await analyseEmail('Subject: x\r\n\r\nbody');
     expect(a.from).toEqual({ name: '', address: '' });
@@ -203,7 +224,12 @@ describe('email', () => {
   it("trims the summary of Gmail's Show original page", () => {
     const raw = 'Original message\nMessage ID\t<x>\nCreated at:\tThu\n\nDelivered-To: a@b\nFrom: x@y\n\nbody';
     expect(trimShowOriginal(raw).startsWith('Delivered-To: a@b')).toBe(true);
-    expect(trimShowOriginal('From: x\n\nb')).toBe('From: x\n\nb');
+    expect(trimShowOriginal('From: x\n\nb')).toBe('From: x\r\n\r\nb');
+    const eml = 'From: Shop <a@shop.example>\nSubject: Hi\nReceived: by mx; Thu, 12 Nov 2026 10:00:00 +0000\n\nbody';
+    expect(trimShowOriginal(eml).startsWith('From: Shop')).toBe(true);
+    const mbox = 'From 1234@xxx Thu Nov 12 10:00:00 +0000 2026\nX-Gmail-Labels: Spam\nDelivered-To: a@b\nFrom: x@y\n\nbody';
+    expect(trimShowOriginal(mbox).startsWith('X-Gmail-Labels: Spam')).toBe(true);
+    expect(trimShowOriginal('just words')).toBe('just words');
     expect(looksLikeEmail('From: x\n\nb')).toBe(true);
     expect(looksLikeEmail('hello')).toBe(false);
   });

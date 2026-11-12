@@ -111,7 +111,8 @@ const PAGE_BYTES = 512 * 1024;
 export async function fetchFile(rawUrl: string, opts: FetchFileOptions = {}): Promise<LinkResult> {
   const fetchImpl = opts.fetchImpl ?? pinnedFetch();
   const now = opts.now ?? Date.now;
-  const deadline = now() + (opts.budgetMs ?? 8000);
+  const budgetMs = opts.budgetMs ?? 8000;
+  const deadline = now() + budgetMs;
   const maxBytes = opts.maxBytes ?? MAX_FILE_BYTES;
   let url: URL;
   try {
@@ -159,8 +160,15 @@ export async function fetchFile(rawUrl: string, opts: FetchFileOptions = {}): Pr
           hash.update(part);
           if (page) chunks.push(part);
           size += take;
-          if (size >= limit) {
+          if (take < value.byteLength) {
             truncated = true;
+            await reader.cancel();
+            break;
+          }
+          if (size >= limit) {
+            // Exactly at the cap: truncated only if more data follows.
+            const next = await reader.read();
+            truncated = !next.done && next.value.byteLength > 0;
             await reader.cancel();
             break;
           }
@@ -177,7 +185,7 @@ export async function fetchFile(rawUrl: string, opts: FetchFileOptions = {}): Pr
   } catch (e) {
     const finalUrl = url.href;
     if (e instanceof BlockedError) return { ...emptyResult(rawUrl, e.message), finalUrl, redirects };
-    if ((e as Error).name === 'AbortError') return { ...emptyResult(rawUrl, 'The download took longer than 8 seconds to answer.'), finalUrl, redirects };
+    if ((e as Error).name === 'AbortError') return { ...emptyResult(rawUrl, `The download took longer than ${Math.max(1, Math.round(budgetMs / 1000))} seconds to answer.`), finalUrl, redirects };
     return { ...emptyResult(rawUrl, 'The download server did not answer.'), finalUrl, redirects };
   } finally {
     clearTimeout(timer);

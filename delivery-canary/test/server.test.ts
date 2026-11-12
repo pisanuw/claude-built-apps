@@ -105,6 +105,13 @@ describe('fetchFile', () => {
     const r = await fetchFile('https://a.example.com/x.bin', { lookup: publicLookup, maxBytes: 10, fetchImpl: async () => resp(200, { 'content-type': 'application/octet-stream' }, big) });
     expect(r).toMatchObject({ size: 10, truncated: true, sha256: createHash('sha256').update(big.subarray(0, 10)).digest('hex') });
   });
+  it('does not call a file of exactly the cap truncated', async () => {
+    const exact = new Uint8Array(8).fill(1);
+    const r = await fetchFile('https://a.example.com/x.bin', { lookup: publicLookup, maxBytes: 8, fetchImpl: async () => resp(200, {}, exact) });
+    expect(r).toMatchObject({ size: 8, truncated: false });
+    const more = await fetchFile('https://a.example.com/x.bin', { lookup: publicLookup, maxBytes: 8, fetchImpl: async () => resp(200, {}, new Uint8Array(12)) });
+    expect(more).toMatchObject({ size: 8, truncated: true });
+  });
   it('handles an empty body', async () => {
     const r = await fetchFile('https://a.example.com/x.bin', { lookup: publicLookup, fetchImpl: async () => resp(200, {}) });
     expect(r).toMatchObject({ size: 0, sha256: '', contentType: '' });
@@ -124,7 +131,7 @@ describe('fetchFile', () => {
           (init?.signal as AbortSignal).addEventListener('abort', () => rej(Object.assign(new Error('a'), { name: 'AbortError' })));
         }),
     });
-    expect(r.error).toMatch(/longer than 8 seconds/);
+    expect(r.error).toMatch(/longer than 1 seconds/);
   });
 });
 

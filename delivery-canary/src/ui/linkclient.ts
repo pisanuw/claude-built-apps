@@ -15,7 +15,9 @@ export interface LinkClientDeps {
   apiBase?: string;
 }
 
-export class NeedsSignIn extends Error {}
+/** The link test did not run (the tester itself failed, or a limit was hit): never a verdict on the shop's link. */
+export class LinkTestSkipped extends Error {}
+export class NeedsSignIn extends LinkTestSkipped {}
 
 export function sameOrigin(url: string, origin: string): boolean {
   try {
@@ -59,7 +61,7 @@ export async function checkOnServer(url: string, token: string, deps: Pick<LinkC
       body: JSON.stringify({ url }),
     });
   } catch {
-    return emptyResult(url, 'Could not reach the link tester. Check your connection and try again.');
+    throw new LinkTestSkipped('Could not reach the link tester. Check your connection and try again.');
   }
   let data: unknown = null;
   try {
@@ -70,7 +72,7 @@ export async function checkOnServer(url: string, token: string, deps: Pick<LinkC
   if (!res.ok) {
     const msg = data && typeof (data as { error?: unknown }).error === 'string' ? ((data as { error: string }).error).slice(0, 300) : `The link tester answered ${res.status}.`;
     if (res.status === 401) throw new NeedsSignIn(msg);
-    return emptyResult(url, msg);
+    throw new LinkTestSkipped(`The link was not tested: ${msg}`);
   }
   return parseLinkResult(data, url);
 }
