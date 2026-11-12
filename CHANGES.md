@@ -520,3 +520,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-12 [decision] delivery-canary: owner answered 1 yes (DELIVERY_CANARY_KEY repo secret), 2 and 3 defaults; deploy.yml maps the secret for envPassthrough.
 
 2026-11-12 [note] delivery-canary: owner added the DELIVERY_CANARY_KEY repo secret (not readable from here; the first deploy with envPassthrough confirms it).
+
+2026-11-12 [code] platform: photo2pgn (own repo photo2png, owner) added to EXTERNAL_APP_LABELS for sign-in-link and delete-account; functions not redeployed yet (needs the owner yes).

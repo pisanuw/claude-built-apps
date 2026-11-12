@@ -15,7 +15,7 @@ const LABEL = /^[a-z0-9-]{1,63}$/;
 const EMAIL = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i;
 
 /** HintWise apps that use the shared sign-in but are deployed from other repos. */
-export const EXTERNAL_APP_LABELS: readonly string[] = ['stepwise'];
+export const EXTERNAL_APP_LABELS: readonly string[] = ['stepwise', 'photo2pgn'];
 /** hintwise.org names that are not apps: a link never goes there, even if a target.yml named one. */
 export const NON_APP_LABELS: readonly string[] = ['auth', 'www', 'api', 'mail', 'admin', 'builder', 'sign-in'];
 

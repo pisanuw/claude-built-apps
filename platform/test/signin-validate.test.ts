@@ -24,7 +24,8 @@ describe('the app allow-list', () => {
     expect(DEPLOYED_APP_LABELS.length).toBeGreaterThan(10);
     expect(isAppLabel('pluck-lab')).toBe(true);
     expect(isAppLabel('qualified-overtime-checker')).toBe(true);
-    expect(EXTERNAL_APP_LABELS).toEqual(['stepwise']);
+    expect(EXTERNAL_APP_LABELS).toEqual(['stepwise', 'photo2pgn']);
+    expect(isAppLabel('photo2pgn')).toBe(true);
     expect(isAppLabel('stepwise')).toBe(true);
     for (const label of NON_APP_LABELS) expect(isAppLabel(label), label).toBe(false);
     expect(DEPLOYED_APP_LABELS).not.toContain('auth');
