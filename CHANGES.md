@@ -551,3 +551,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-12 [code] photo2pgn live on hintwise.org (cert OK, footer 1). Its 0002_games.sql copied (4c74dc6), waits for owner yes; max_tokens stays 8000.
 
 2026-11-12 [note] photo2pgn: PGN_WORKER_TOKEN active; CLI reader switch on its branch (2cb5ff3), waits for the owner's merge. Sign-in CORS OK.
+
+2026-11-12 [note] photo2pgn main fc30b1c deployed (owner merge): CLI reader on with gateway fallback, netlify.app 301, manifest type; verified live. Chess TD asked for a reading API: undecided.
