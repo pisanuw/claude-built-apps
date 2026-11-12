@@ -19,7 +19,7 @@ Written 12 Nov 2026, from the photo2pgn hand-off.
 
 | | **A. A folder in this repo (the default)** | **B. Its own repository** |
 |---|---|---|
-| Examples | the 60+ apps here, Qualified Overtime Checker, Delivery Canary | UpvoteMe (pisanuw/upvote), PasteMD (pisanuw/pastemd), StepWise (pisan-labs/visualizing-data-structures), photo2pgn (pisan-labs/photo2png, to be renamed photo2pgn before its first deploy) |
+| Examples | the 60+ apps here, Qualified Overtime Checker, Delivery Canary | UpvoteMe (pisanuw/upvote), PasteMD (pisanuw/pastemd), StepWise (pisan-labs/visualizing-data-structures), photo2pgn (pisan-labs/photo2pgn, created as photo2png and renamed before its first deploy) |
 | Netlify site, `<slug>.hintwise.org`, Cloudflare DNS | the Deploy workflow creates them from `<slug>/deploy/target.yml` | the owner imports the repo in Netlify once; then the Plabs session runs "Attach custom domain" |
 | Footer | injected at deploy time | embedded in the app's HTML, byte for byte, with a sha256 test (section 6) |
 | Database migrations | applied by the Deploy workflow (`supabase: true`) | copied byte for byte into `<slug>/supabase/migrations/` here and applied by the Plabs session, the way StepWise's were done (`stepwise/README.md`) |
