@@ -23,6 +23,7 @@ export const DEPLOYED_APP_LABELS: readonly string[] = [
   'elevator-algorithm-lab',
   'emoji-lingua',
   'fork-count',
+  'four-ghosts',
   'game-palette-inspector',
   'gpu-parallel-puzzler',
   'har-detective',
