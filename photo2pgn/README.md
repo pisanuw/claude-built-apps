@@ -1,8 +1,8 @@
 # photo2pgn: database migrations only
 
 photo2pgn (https://photo2pgn.hintwise.org) lives in its own repository,
-pisan-labs/photo2pgn. It stores nothing per user in Supabase; its only
-migration registers it with the LLM gateway. Migrations are applied from here
+pisan-labs/photo2pgn. Its first migration registers it with the LLM gateway;
+the second keeps signed-in visitors' saved games ("My games"; no photos). Migrations are applied from here
 with the Supabase admin workflow (`migrate photo2pgn`), so they are recorded in
 `platform.migrations` like every other app's (the StepWise pattern,
 `stepwise/README.md`).
@@ -19,6 +19,14 @@ sha256), never edit an applied file, and put later changes in a new
   (`platform/supabase/ops/photo2pgn-llm-caps.sql`, 12 Nov), so applying it
   changes nothing but the migration record. Applied 12 Nov 2026 on the
   owner's yes (Supabase admin run 43257164982).
+
+- `0002_games.sql`: from pisan-labs/photo2pgn main at fae34d9a, sha256
+  eed2943bfacdf8f5103d651b3eab8cd96a7726de648428a065c53931563f14e9. Creates
+  schema `app_photo2pgn` with one table, `games` (own-row RLS for
+  `authenticated`, nothing for `anon`, rows deleted with the account), the
+  template's grants. **Not applied yet:** waits for the owner's yes, then
+  `migrate photo2pgn`, `expose-schema app_photo2pgn` and
+  `check-schema app_photo2pgn`. Until then the app keeps games on the device.
 
 The app's own caps are set by the owner, never in its migrations
 (docs/new-app-guide.md, "Spending limits").
