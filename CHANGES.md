@@ -541,3 +541,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-12 [code] platform: shared/0006 applied, gateway redeployed with per-app user caps, photo2pgn row set ($1/$5/$10; $0.10/day and $0.40/week per person). Runs 43253879189, 43254024843, 43254164148, 43254295194.
 
 2026-11-12 [doc] new-app-guide: "Spending limits" (the six cap scopes, defaults, an app's own limits with photo2pgn as the example, choosing numbers, what the app shows on a 429).
+
+2026-11-12 [code] photo2pgn: its 0001_init.sql (llm_apps insert only; sha256 1832745b...) copied byte for byte into photo2pgn/supabase/migrations; not applied yet (no-op: the row exists).
