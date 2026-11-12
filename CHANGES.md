@@ -533,3 +533,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-12 [code] platform gateway: optional per-app caps for one user (day, week) via shared/0006 and llm_spend_app_user, for apps with their own stricter limits (owner: photo2pgn). Not applied or deployed yet.
 
 2026-11-12 [note] photo2pgn: owner renamed the repo to pisan-labs/photo2pgn before any deploy.
+
+2026-11-12 [code] photo2pgn: Netlify project created by the owner; Attach custom domain run 43252288065 set photo2pgn.hintwise.org (CNAME DNS only, primary domain); 404 until the app is deployed; certificate to recheck after the first deploy.
