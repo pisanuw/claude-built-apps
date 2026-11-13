@@ -207,9 +207,12 @@ person's one email a day.
    warnings saying "RLS on, no policy", as for the other service-role
    tables. **Done 13 Nov** (0011; 0012 after it). Check with `sql`
    `platform/supabase/ops/notify-ready.sql`.
-2. Set the function secret `APP_NOTIFY_SECRET`: 64 random hex characters,
-   generated once. `set-sign-in-secrets` does not set it yet; adding it
-   there is a small workflow change. The other secrets the function needs
+2. `notify-schedule on` (Supabase admin): enables pg_cron and pg_net,
+   generates `APP_NOTIFY_SECRET` (64 hex characters, rotated on every "on"),
+   sets it as the function secret and in Vault (`app_notify_secret`), and
+   schedules job `app-notify-daily` at 15:17 UTC. `notify-schedule status`
+   shows the job, its last runs and the last HTTP answers; `off` removes
+   the job and the function secret. The other secrets the function needs
    (`RESEND_API`, `SIGN_IN_HASH_KEY`, `EMAIL_OPTOUT_SECRET`,
    `EMAIL_LOGO_URL`) are project-wide and already set.
 3. `deploy-function app-notify`.
@@ -217,9 +220,7 @@ person's one email a day.
    one-click. The `v1` behaviour is unchanged.
 5. Register the app (see above), then call the function once with
    `{"dryRun": true}`, then once for real. The real call only seeds.
-6. Later: a daily schedule with pg_cron and pg_net, posting to the function
-   with the secret header from Vault. Until then, a run happens only when
-   someone calls the function.
+6. The daily run is step 2's cron job. With no enabled app it does nothing.
 
 ## Not verified yet
 

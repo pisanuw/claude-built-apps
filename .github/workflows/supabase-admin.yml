@@ -37,6 +37,11 @@
 #                            (RESEND_API, ADMIN_EMAIL, TURNSTILE_SECRET, TURNSTILE_SITE_KEY,
 #                            HOOK_EXTERNAL_HOSTS, EMAIL_LOGO_URL once the logo is served) and generate
 #                            SIGN_IN_HASH_KEY, SEND_EMAIL_HOOK_SECRET and EMAIL_OPTOUT_SECRET once
+#   notify-schedule <arg: status | on | off>  app-notify's daily run (platform/src/notify/README.md):
+#                            "on" generates a fresh APP_NOTIFY_SECRET, sets it as the function secret and
+#                            in Vault (app_notify_secret), and schedules pg_cron job app-notify-daily
+#                            (15:17 UTC) posting to the function with it; "off" unschedules and deletes
+#                            the function secret (every call then 503); values are never printed
 #   email-hook <arg: status | check | on | off>  Supabase Auth's Send Email hook; "on" (owner's yes
 #                            first) sets a fresh SEND_EMAIL_HOOK_SECRET in the function and in Auth;
 #                            flag "--dry-run" with on
@@ -46,7 +51,7 @@ on:
   workflow_dispatch:
     inputs:
       command:
-        description: 'inspect | sql | apply-shared | migrate | expose-schema | unexpose-schema | check-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | external-hosts | brand-upload | email-optout | admin | optout-ready | account-deletion-test | deploy-function | deploy-gateway | set-gateway-key | set-sign-in-secrets | email-hook'
+        description: 'inspect | sql | apply-shared | migrate | expose-schema | unexpose-schema | check-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | external-hosts | brand-upload | email-optout | admin | optout-ready | account-deletion-test | deploy-function | deploy-gateway | set-gateway-key | set-sign-in-secrets | notify-schedule | email-hook'
         required: true
         default: 'inspect'
         type: string
@@ -83,7 +88,7 @@ jobs:
           node-version: '22'
 
       - name: Run
-        if: inputs.command != 'deploy-function' && inputs.command != 'deploy-gateway' && inputs.command != 'set-gateway-key' && inputs.command != 'set-sign-in-secrets' && inputs.command != 'email-hook' && inputs.command != 'email-optout' && inputs.command != 'admin'
+        if: inputs.command != 'deploy-function' && inputs.command != 'deploy-gateway' && inputs.command != 'set-gateway-key' && inputs.command != 'set-sign-in-secrets' && inputs.command != 'notify-schedule' && inputs.command != 'email-hook' && inputs.command != 'email-optout' && inputs.command != 'admin'
         run: node platform/supabase-admin.mjs "$CMD" $ARG $FLAGS
         env:
           CMD: ${{ inputs.command }}
@@ -163,7 +168,7 @@ jobs:
           echo "Committed platform/supabase.json."
 
       - uses: supabase/setup-cli@v1
-        if: inputs.command == 'deploy-function' || inputs.command == 'deploy-gateway' || inputs.command == 'set-gateway-key' || inputs.command == 'set-sign-in-secrets' || inputs.command == 'email-hook'
+        if: inputs.command == 'deploy-function' || inputs.command == 'deploy-gateway' || inputs.command == 'set-gateway-key' || inputs.command == 'set-sign-in-secrets' || inputs.command == 'notify-schedule' || inputs.command == 'email-hook'
         with:
           version: latest
 
@@ -317,6 +322,78 @@ jobs:
           TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET || secrets.TURNSTILE_SECRET_KEY }}
           TURNSTILE_SITE_KEY_REPO: ${{ vars.TURNSTILE_SITE_KEY || secrets.TURNSTILE_SITE_KEY }}
           EMAIL_LOGO_URL_REPO: ${{ vars.EMAIL_LOGO_URL }}
+
+      - name: App-notify daily schedule
+        if: inputs.command == 'notify-schedule'
+        # The secret is generated here, masked at once, and reaches the CLI
+        # through a private env file and the Management API through a private
+        # JSON file (umask 077, removed on exit); it is never an argument and
+        # never printed. "on" always rotates it (function secret and Vault
+        # together, so they cannot drift). The cron job reads it from Vault at
+        # run time; the function compares it in constant time.
+        working-directory: platform
+        run: |
+          set -euo pipefail
+          REF=$(printf '%s' "$SUPABASE_URL" | sed -nE 's#^https?://([a-z0-9]+)\.supabase\.co.*#\1#p')
+          [ -n "$REF" ] || { echo "::error::SUPABASE_URL does not look like https://<ref>.supabase.co"; exit 1; }
+          case "$ARG" in status|on|off) ;; *) echo "::error::notify-schedule needs arg status, on or off"; exit 1;; esac
+          umask 077
+          TMP=$(mktemp -d)
+          trap 'rm -rf "$TMP"' EXIT
+          q() { # run one SQL statement from file $1 through the Management API; print the JSON result
+            jq -Rs '{query: .}' < "$1" > "$TMP/body.json"
+            curl -fsS -X POST -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'content-type: application/json' \
+              --data-binary "@$TMP/body.json" "https://api.supabase.com/v1/projects/$REF/database/query"
+          }
+          status() {
+            cat > "$TMP/s.sql" <<'SQL'
+          select jsonb_build_object(
+            'pg_cron', exists (select 1 from pg_extension where extname = 'pg_cron'),
+            'pg_net', exists (select 1 from pg_extension where extname = 'pg_net'),
+            'vault_secret', exists (select 1 from vault.secrets where name = 'app_notify_secret'),
+            'job', (select jsonb_build_object('schedule', schedule, 'active', active) from cron.job where jobname = 'app-notify-daily'),
+            'last_runs', (select coalesce(jsonb_agg(r), '[]'::jsonb) from (select status, start_time from cron.job_run_details d join cron.job j using (jobid) where j.jobname = 'app-notify-daily' order by start_time desc limit 3) r),
+            'last_http', (select coalesce(jsonb_agg(h), '[]'::jsonb) from (select status_code, left(content, 300) as content, created from net._http_response order by created desc limit 3) h)
+          )::text as notify_schedule;
+          SQL
+            { q "$TMP/s.sql" | jq -r '.[0].notify_schedule // .'; } || echo "status query failed (pg_cron or pg_net not enabled yet?)"
+            NAMES=$(curl -fsS -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" "https://api.supabase.com/v1/projects/$REF/secrets" | jq -r '.[].name')
+            if printf '%s\n' "$NAMES" | grep -qx APP_NOTIFY_SECRET; then echo "function secret APP_NOTIFY_SECRET: set"; else echo "function secret APP_NOTIFY_SECRET: not set (app-notify answers 503)"; fi
+          }
+          if [ "$ARG" = on ]; then
+            printf 'create extension if not exists pg_cron;\ncreate extension if not exists pg_net;\nselect 1;\n' > "$TMP/ext.sql"
+            q "$TMP/ext.sql" >/dev/null
+            V=$(openssl rand -hex 32); echo "::add-mask::$V"
+            printf "APP_NOTIFY_SECRET='%s'\n" "$V" > "$TMP/env"
+            supabase secrets set --remote="$REF" --yes --env-file "$TMP/env" >/dev/null \
+              || supabase secrets set --project-ref "$REF" --yes --env-file "$TMP/env" >/dev/null
+            # Vault: replace the secret (delete + create keeps one row).
+            printf "delete from vault.secrets where name = 'app_notify_secret';\nselect vault.create_secret('%s', 'app_notify_secret', 'app-notify cron caller (notify-schedule on)');\n" "$V" > "$TMP/v.sql"
+            q "$TMP/v.sql" >/dev/null
+            cat > "$TMP/c.sql" <<'SQL'
+          select cron.schedule('app-notify-daily', '17 15 * * *', $job$
+            select net.http_post(
+              url := 'https://auth.hintwise.org/functions/v1/app-notify',
+              headers := jsonb_build_object('content-type', 'application/json',
+                'x-app-notify-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'app_notify_secret')),
+              body := '{}'::jsonb,
+              timeout_milliseconds := 300000);
+          $job$);
+          SQL
+            q "$TMP/c.sql" >/dev/null
+            echo "notify-schedule on: secret rotated (function and Vault), job app-notify-daily at 15:17 UTC daily."
+          elif [ "$ARG" = off ]; then
+            printf "select cron.unschedule('app-notify-daily') where exists (select 1 from cron.job where jobname = 'app-notify-daily');\n" > "$TMP/u.sql"
+            q "$TMP/u.sql" >/dev/null || echo "::warning::unschedule failed (is pg_cron enabled?)"
+            supabase secrets unset APP_NOTIFY_SECRET --remote="$REF" --yes >/dev/null 2>&1 \
+              || supabase secrets unset APP_NOTIFY_SECRET --project-ref "$REF" --yes >/dev/null 2>&1 || true
+            echo "notify-schedule off: job removed, function secret unset (app-notify answers 503)."
+          fi
+          status
+        env:
+          ARG: ${{ inputs.arg }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
 
       - name: Switch the Send Email hook
         if: inputs.command == 'email-hook'

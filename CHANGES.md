@@ -586,3 +586,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-13 [code] platform: app-notify 0011 applied (owner yes, sending off); live check found service_role cannot read auth.users, so 0012 makes notify_opted_in security definer.
 
 2026-11-13 [code] platform: app-notify prepared, sending off: 0011+0012 applied, email-optout and app-notify deployed; APP_NOTIFY_SECRET unset (503 to all), no app registered.
+
+2026-11-13 [code] ci: Supabase admin notify-schedule (status|on|off): APP_NOTIFY_SECRET in function and Vault, pg_cron job app-notify-daily 15:17 UTC.
