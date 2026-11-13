@@ -565,3 +565,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-13 [code] Gateway: per-app user caps in successful calls (shared/0007, scopes app-user-*-calls) and a check mode ({app, check: true} -> allowance()); photo2pgn 3 readings a day, 9 a week.
 
 2026-11-13 [code] Credits slice 1 (owner "1 yes"): shared/0008 (credits, ledger, admins, paid_with_credit), gateway pays with a credit after the free allowance, credits-grant function, workflow admin command.
+
+2026-11-13 [decision] photo2pgn: public readings through the gateway only (owner, via its session); the halflife CLI reader gets no jobs.
