@@ -58,12 +58,10 @@ Still open / waiting on the owner:
    - Code merged 0de473e.
    - shared/0011 and 0012 applied: 0012 makes notify_opted_in security definer, because the live service role cannot read auth.users. check-schema passed.
    - email-optout and app-notify deployed. 0 apps registered.
-   - **APP_NOTIFY_SECRET deliberately unset**, so app-notify answers 503 to every call. The readiness check is `sql` with platform/supabase/ops/notify-ready.sql.
-   - Still to do, at StepWise go-live:
-     - StepWise's session publishes releases.json in the feed format and grants select on its opt-in table;
-     - add APP_NOTIFY_SECRET generation, plus a Vault copy for pg_cron, to set-sign-in-secrets;
-     - register StepWise (SQL in platform/src/notify/README.md), run a dry run, then the real (seeding) run;
-     - set up the pg_cron daily schedule.
+   - **Daily schedule on** (13 Nov): `notify-schedule on` enabled pg_cron and pg_net, set APP_NOTIFY_SECRET (function secret and Vault `app_notify_secret`) and created job app-notify-daily at 15:17 UTC. Calls without the secret get 401. Check it with `notify-schedule status` (last runs, last HTTP answers); `off` undoes it.
+   - **StepWise go-live in progress:** asked StepWise's session (session_01JyJzMZ3W1yMJWwuFJ1PTXM, repo pisan-labs/visualizing-data-structures) for https://stepwise.hintwise.org/notify-feed.json in the feed format. Its releases.json is a bare array, so it is kept as is.
+   - Then register with opt_in_user_column **owner** (not user_id): app_stepwise.preferences(owner, notify_new_pages). 0002 already grants select.
+   - Get the owner's final yes before setting enabled = true, since that starts real email.
    - Unverified: Resend accepting the List-Unsubscribe headers, and Deno's redirect: manual.
 4. **Logo rollout** in the shared footer reaches apps on each deploy; don't redeploy all (credits). Favicons and social images later.
 5. **Watch the build routine** (11:49 CET daily): Delivery Canary day 3 next. It must use the platform template's sign-in.
