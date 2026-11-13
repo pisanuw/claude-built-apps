@@ -3,7 +3,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { allowance, decide, funding, type Limits, type Spend } from '../src/gateway/caps.ts';
-import { grantError, MAX_GRANT, MAX_NOTE, parseGrant } from '../src/credits/grant.ts';
+import { grantError, MAX_GRANT, MAX_LIST, MAX_NOTE, parseAdminRequest, parseGrant } from '../src/credits/grant.ts';
+import { listUsers, type ReportRow } from '../src/credits/list.ts';
 
 process.env.SUPABASE_ADMIN_NO_RUN = '1';
 const m = await import('../supabase-admin.mjs');
@@ -194,5 +195,97 @@ describe('0008_credits.sql', () => {
     expect(sql).toMatch(/where user_id = p_user and app = p_app and balance > 0\s+returning balance into b;/);
     expect(sql.match(/not u\.paid_with_credit/g)?.length).toBe(5);
     expect(sql).toMatch(/add column if not exists paid_with_credit boolean not null default false;/);
+  });
+});
+
+describe('parseAdminRequest (credits-grant: list or grant)', () => {
+  it('takes a list request with an optional limit', () => {
+    expect(parseAdminRequest(JSON.stringify({ app: 'photo2pgn', list: true }))).toEqual({ ok: true, kind: 'list', app: 'photo2pgn', limit: 500 });
+    expect(parseAdminRequest(JSON.stringify({ app: 'photo2pgn', list: true, limit: 50 }))).toMatchObject({ kind: 'list', limit: 50 });
+  });
+  it('refuses a bad list request', () => {
+    for (const body of [{ list: true }, { app: 'Bad App', list: true }, { app: 'photo2pgn', list: true, limit: 0 }, { app: 'photo2pgn', list: true, limit: MAX_LIST + 1 }, { app: 'photo2pgn', list: true, limit: 2.5 }]) {
+      expect(parseAdminRequest(JSON.stringify(body))).toMatchObject({ ok: false, status: 400 });
+    }
+    expect(parseAdminRequest(JSON.stringify({ app: 'photo2pgn', list: true, pad: 'x'.repeat(5000) }))).toMatchObject({ ok: false, status: 413 });
+  });
+  it('treats anything else as a grant', () => {
+    expect(parseAdminRequest(JSON.stringify({ app: 'photo2pgn', email: 'a@b.co', credits: 2 }))).toEqual({
+      ok: true,
+      kind: 'grant',
+      grant: { app: 'photo2pgn', email: 'a@b.co', credits: 2, note: null },
+    });
+    expect(parseAdminRequest(JSON.stringify({ app: 'photo2pgn', list: 'yes', email: 'a@b.co', credits: 1 }))).toMatchObject({ kind: 'grant' });
+    expect(parseAdminRequest('{oops')).toMatchObject({ ok: false, status: 400 });
+  });
+});
+
+describe('listUsers (the admin list)', () => {
+  const row = (over: Partial<ReportRow> = {}): ReportRow => ({
+    email: 'ann@example.com',
+    first_seen: '2026-11-12T10:00:00Z',
+    last_seen: '2026-11-13T07:00:00Z',
+    user_day: 0,
+    app_user_day: 0,
+    app_user_week: 0,
+    app_user_day_calls: 0,
+    app_user_week_calls: 0,
+    readings_total: 0,
+    credits: 0,
+    ...over,
+  });
+  const appSpend: Spend = { app_day: 0.2, app_week: 1, app_month: 2, user_day: 0 };
+  it('gives free readings left from the same rules as the gateway, and paid credits', () => {
+    const [a, b, c] = listUsers(
+      [
+        row(),
+        row({ email: 'bo@example.com', app_user_day_calls: '2', app_user_week_calls: '8', readings_total: '11', credits: '4' }),
+        row({ email: 'cy@example.com', app_user_day_calls: 3, app_user_week_calls: 3, readings_total: 3 }),
+      ],
+      appSpend,
+      readings,
+      now,
+    );
+    expect(a).toEqual({
+      email: 'ann@example.com',
+      first_seen: '2026-11-12T10:00:00Z',
+      last_seen: '2026-11-13T07:00:00Z',
+      free_left: 3,
+      free_resets_at: null,
+      credits: 0,
+      readings_today: 0,
+      readings_total: 0,
+    });
+    expect(b).toMatchObject({ email: 'bo@example.com', free_left: 1, free_resets_at: null, credits: 4, readings_today: 2, readings_total: 11 });
+    expect(c).toMatchObject({ free_left: 0, free_resets_at: '2026-11-14T00:00:00.000Z', credits: 0 });
+  });
+  it('shows no free readings for anyone when the app itself is closed', () => {
+    const [a] = listUsers([row({ credits: 5 })], { ...appSpend, app_day: 1 }, readings, now);
+    expect(a).toMatchObject({ free_left: 0, free_resets_at: '2026-11-14T00:00:00.000Z', credits: 5 });
+  });
+  it('copes with an app without call caps and a missing email', () => {
+    const [a] = listUsers([row({ email: null })], appSpend, { ...readings, cap_app_user_day_calls: null, cap_app_user_week_calls: null }, now);
+    expect(a).toMatchObject({ email: '(no email)', free_left: null, free_resets_at: null });
+    expect(listUsers([row()], appSpend, readings)[0].free_left).toBe(3);
+  });
+});
+
+describe('0009_app_users.sql', () => {
+  const sql = fs.readFileSync(path.join(here, '..', 'supabase', 'shared', '0009_app_users.sql'), 'utf8').replace(/--.*$/gm, '');
+  it('keeps app_users for the service role only, deleted with the account', () => {
+    expect(sql).toMatch(/user_id uuid not null references auth\.users\(id\) on delete cascade,\s+app text not null references platform\.llm_apps\(slug\)/);
+    expect(sql).toMatch(/revoke all on table platform\.app_users from public, anon, authenticated;/);
+    expect(sql).not.toMatch(/to authenticated/);
+  });
+  it('defines app_seen and app_users_report for the service role only, with a fixed search_path', () => {
+    for (const sig of ['app_seen(text, uuid)', 'app_users_report(text, integer)']) {
+      expect(sql).toContain(`revoke all on function platform.${sig} from public;`);
+      expect(sql).toContain(`grant execute on function platform.${sig} to service_role;`);
+    }
+    expect(sql.match(/security definer\s+set search_path = platform, pg_temp/g)?.length).toBe(2);
+  });
+  it('counts like the gateway: no paid calls in the free counts, at most 2000 people', () => {
+    expect(sql.match(/not x\.paid_with_credit/g)?.length).toBe(5);
+    expect(sql).toMatch(/limit greatest\(1, least\(coalesce\(p_limit, 500\), 2000\)\)/);
   });
 });

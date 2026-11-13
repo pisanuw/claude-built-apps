@@ -7,7 +7,9 @@
  */
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { jsonHeaders, preflight } from '../../../src/gateway/cors.ts';
-import { grantError, parseGrant } from '../../../src/credits/grant.ts';
+import { grantError, parseAdminRequest } from '../../../src/credits/grant.ts';
+import { listUsers, type ReportRow } from '../../../src/credits/list.ts';
+import type { Limits, Spend } from '../../../src/gateway/caps.ts';
 
 const admin = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '', {
   db: { schema: 'platform' },
@@ -37,8 +39,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (adminError) return json(origin, 500, { error: 'database', message: adminError.message });
   if (!isAdmin) return json(origin, 403, { error: 'admin', message: 'Only a HintWise admin can grant credits.' });
 
-  const parsed = parseGrant(await req.text());
+  const parsed = parseAdminRequest(await req.text());
   if (!parsed.ok) return json(origin, parsed.status, { error: 'request', message: parsed.error });
+
+  if (parsed.kind === 'list') {
+    const { data: app, error: appError } = await admin.from('llm_apps').select('*').eq('slug', parsed.app).maybeSingle();
+    if (appError) return json(origin, 500, { error: 'database', message: appError.message });
+    if (!app) return json(origin, 404, { error: 'not_found', message: `No app "${parsed.app}".` });
+    // The app's own totals: the user argument is unused for them.
+    const [{ data: totals, error: totalsError }, { data: rows, error: rowsError }] = await Promise.all([
+      admin.rpc('llm_spend_and_calls', { p_app: parsed.app, p_user: user.id }),
+      admin.rpc('app_users_report', { p_app: parsed.app, p_limit: parsed.limit }),
+    ]);
+    if (totalsError || rowsError) return json(origin, 500, { error: 'database', message: (totalsError ?? rowsError)?.message });
+    const appSpend = ((Array.isArray(totals) ? totals[0] : totals) ?? { app_day: 0, app_week: 0, app_month: 0, user_day: 0 }) as Spend;
+    const users = listUsers((rows ?? []) as ReportRow[], appSpend, app as Limits, new Date());
+    return json(origin, 200, { app: parsed.app, count: users.length, users });
+  }
+
   const g = parsed.grant;
 
   const { data, error } = await admin.rpc('credit_grant', {

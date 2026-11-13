@@ -5,8 +5,11 @@
  *
  * Request:  POST with Authorization: Bearer <admin's session token> and
  *           { app, email, credits, note? }; credits 0 only reads the balance.
- * Response: 200 { email, balance }, or a JSON error: 401 auth, 403 admin,
- *           400 request or below_zero, 404 not_found, 500 database.
+ *           Or { app, list: true, limit? }: everyone who used the app, with
+ *           their free readings left and paid credits (src/credits/list.ts).
+ * Response: 200 { email, balance } (or { users } for a list), or a JSON
+ *           error: 401 auth, 403 admin, 400 request or below_zero,
+ *           404 not_found, 500 database.
  */
 
 export const MAX_GRANT = 10000;
@@ -53,4 +56,36 @@ export function grantError(err: { code?: string; message?: string } | null): { s
     return { status: 400, body: { error: 'below_zero', message: 'That would take the balance below 0; nothing changed.' } };
   }
   return { status: 500, body: { error: 'database', message: err?.message || 'The grant failed.' } };
+}
+
+export const MAX_LIST = 2000;
+
+export type AdminRequest =
+  | { ok: true; kind: 'grant'; grant: Grant }
+  | { ok: true; kind: 'list'; app: string; limit: number }
+  | { ok: false; status: number; error: string };
+
+/** A list request ({ app, list: true, limit? }) or a grant (parseGrant). */
+export function parseAdminRequest(text: string): AdminRequest {
+  let body: unknown = null;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    /* parseGrant reports it */
+  }
+  if (typeof body === 'object' && body !== null && !Array.isArray(body) && (body as Record<string, unknown>).list === true) {
+    if (text.length > 4096) return { ok: false, status: 413, error: 'The request body is too large.' };
+    const b = body as Record<string, unknown>;
+    if (typeof b.app !== 'string' || !SLUG.test(b.app)) return { ok: false, status: 400, error: '"app" must be the app slug, e.g. "photo2pgn".' };
+    let limit = 500;
+    if (b.limit !== undefined) {
+      if (typeof b.limit !== 'number' || !Number.isInteger(b.limit) || b.limit < 1 || b.limit > MAX_LIST) {
+        return { ok: false, status: 400, error: `"limit" must be a whole number from 1 to ${MAX_LIST}.` };
+      }
+      limit = b.limit;
+    }
+    return { ok: true, kind: 'list', app: b.app, limit };
+  }
+  const g = parseGrant(text);
+  return g.ok ? { ok: true, kind: 'grant', grant: g.grant } : g;
 }

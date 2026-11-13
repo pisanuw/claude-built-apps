@@ -96,6 +96,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (appError) return json(origin, 500, { error: 'database', message: appError.message });
   if (!app || !app.enabled) return json(origin, 403, { error: 'app', message: `App "${slug.slug}" is not enabled for the HintWise key.` });
 
+  // Who has used this app (platform.app_users, shared/0009); best effort.
+  const { error: seenError } = await admin.rpc('app_seen', { p_app: slug.slug, p_user: user.id });
+  if (seenError) console.error('app_seen failed:', seenError.message);
+
   if (parsed.body.check === true) {
     const found = await spendFor(slug.slug, user.id);
     if ('error' in found) return json(origin, 500, { error: 'database', message: found.error });
