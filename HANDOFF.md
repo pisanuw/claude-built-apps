@@ -54,7 +54,15 @@ Still open / waiting on the owner:
 
 1. **photo2pgn:** "List users" with names and games counts deployed by its session (photo2pgn main 6f8fb46, 14:46 UTC 13 Nov; 0003 copied byte for byte, sha256-pinned). Not verified as a signed-in admin; the owner checks. Verify a real grant and reading when the owner tests.
 2. **Older photo2pgn asks** carried from the platform side are all done; nothing Plabs owns is blocked.
-3. **app-notify sender** (approved 10 Nov, transactional only, no postal address): a daily Edge Function reading each app's releases feed and opt-in rows, from `<slug>@hintwise.org` with one-click unsubscribe. Not started; StepWise's side needs a new StepWise session the owner starts by hand.
+3. **app-notify sender:** built and merged to main on 13 Nov (0de473e; shared/0011, src/notify/, function app-notify, per-app opt-out a1/w1 tokens, one-click unsubscribe; docs/platform.md "App-notify", src/notify/README.md). **Not applied, not deployed.** Go-live, on the owner's yes:
+   - apply-shared 0011, check-schema platform;
+   - add APP_NOTIFY_SECRET to set-sign-in-secrets;
+   - deploy-function email-optout and app-notify;
+   - register StepWise and set up the pg_cron schedule.
+   StepWise's side (releases.json in the feed format, grant select on its opt-in table) needs a StepWise session the owner starts by hand. Unverified:
+   - whether the service role can read auth.users from the security-invoker notify_opted_in (fallback: make that one function security definer);
+   - whether Resend accepts the List-Unsubscribe headers;
+   - Deno's redirect: manual.
 4. **Logo rollout** in the shared footer reaches apps on each deploy; don't redeploy all (credits). Favicons and social images later.
 5. **Watch the build routine** (11:49 CET daily): Delivery Canary day 3 next. It must use the platform template's sign-in.
 
