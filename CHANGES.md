@@ -561,3 +561,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-12 [decision] photo2pgn per-person caps $0.25/day, $1.00/week (owner "Yes caps"), applied. Studio listing prepared, waits for owner.
 
 2026-11-13 [note] photo2pgn: owner wants no truncated PGNs (guess, backtrack, flag); relayed. Credits design reviewed for photo2pgn, nothing built; owner decides.
+
+2026-11-13 [code] Gateway: per-app user caps in successful calls (shared/0007, scopes app-user-*-calls) and a check mode ({app, check: true} -> allowance()); photo2pgn 3 readings a day, 9 a week.

@@ -11,12 +11,15 @@
  * Response: the Messages API response unchanged (200), or a JSON error:
  *           401 auth, 403 app, 400/413 request, 429 cap {scope, resets_at},
  *           502 upstream {name, status, message}.
+ * Check:    body { app, check: true } makes no model call and costs nothing:
+ *           200 with allowance() from src/gateway/caps.ts (allowed, scope,
+ *           resets_at, app_open, the person's own limits, calls_left).
  */
 import Anthropic from 'npm:@anthropic-ai/sdk';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { jsonHeaders, preflight } from '../../../src/gateway/cors.ts';
 import { appSlug, parseBody, validateRequest, type AppRow } from '../../../src/gateway/validate.ts';
-import { decide, type Limits, type Spend } from '../../../src/gateway/caps.ts';
+import { allowance, decide, type Limits, type Spend } from '../../../src/gateway/caps.ts';
 import { buildAnthropicParams, describeError, errorRow, usageRow, type UsageRow } from '../../../src/gateway/request.ts';
 
 // Supabase injects SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY into every
@@ -27,7 +30,22 @@ const admin = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUP
 });
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '' });
 
-const NO_SPEND: Spend = { app_day: 0, app_week: 0, app_month: 0, user_day: 0, app_user_day: 0, app_user_week: 0 };
+const NO_SPEND: Spend = {
+  app_day: 0,
+  app_week: 0,
+  app_month: 0,
+  user_day: 0,
+  app_user_day: 0,
+  app_user_week: 0,
+  app_user_day_calls: 0,
+  app_user_week_calls: 0,
+};
+
+async function spendFor(app: string, userId: string): Promise<{ spend: Spend } | { error: string }> {
+  const { data, error } = await admin.rpc('llm_spend_and_calls', { p_app: app, p_user: userId });
+  if (error) return { error: error.message };
+  return { spend: ((Array.isArray(data) ? data[0] : data) as Spend | undefined) ?? NO_SPEND };
+}
 
 function json(origin: string | null, status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: jsonHeaders(origin) });
@@ -62,14 +80,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (appError) return json(origin, 500, { error: 'database', message: appError.message });
   if (!app || !app.enabled) return json(origin, 403, { error: 'app', message: `App "${slug.slug}" is not enabled for the HintWise key.` });
 
+  if (parsed.body.check === true) {
+    const found = await spendFor(slug.slug, user.id);
+    if ('error' in found) return json(origin, 500, { error: 'database', message: found.error });
+    return json(origin, 200, allowance(found.spend, app as Limits, new Date()));
+  }
+
   const valid = validateRequest(parsed.body, app as AppRow);
   if (!valid.ok) return json(origin, valid.status, { error: 'request', message: valid.error });
   const request = valid.request;
 
-  const { data: spendRows, error: spendError } = await admin.rpc('llm_spend_app_user', { p_app: request.app, p_user: user.id });
-  if (spendError) return json(origin, 500, { error: 'database', message: spendError.message });
-  const spend = (Array.isArray(spendRows) ? spendRows[0] : spendRows) as Spend | undefined;
-  const decision = decide(spend ?? NO_SPEND, app as Limits, new Date());
+  const found = await spendFor(request.app, user.id);
+  if ('error' in found) return json(origin, 500, { error: 'database', message: found.error });
+  const decision = decide(found.spend, app as Limits, new Date());
   if (!decision.allowed) {
     return json(origin, 429, {
       error: 'cap',

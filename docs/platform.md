@@ -424,8 +424,9 @@ model wherever deterministic code does the job.
      and calendar month, for the user over the day (all apps), and for the
      user in this app over the day and week; refuses with HTTP 429 and
      `{ error: 'cap', scope: 'app-day' | 'app-week' | 'app-month' |
-     'app-user-day' | 'app-user-week' | 'user-day', resets_at }` when any cap
-     is reached;
+     'app-user-week-calls' | 'app-user-week' | 'app-user-day-calls' |
+     'app-user-day' | 'user-day', resets_at }` when any cap is reached
+     (since 0007 the user's successful calls in the app are counted too);
   3. calls Anthropic with the `ANTHROPIC_API_KEY` function secret,
      `max_tokens` capped at the app's `max_tokens` (default 4096), adaptive
      thinking left at the model default;
@@ -448,6 +449,16 @@ model wherever deterministic code does the job.
   `deploy-gateway`. Example:
   `update platform.llm_apps set cap_day_usd = 1, cap_app_user_day_usd = 0.10,
   cap_app_user_week_usd = 0.40 where slug = 'photo2pgn';`
+- **Caps in readings and check mode** (owner, 13 Nov: "1 check, 2 yes 3/9").
+  Since `shared/0007_llm_app_user_call_caps.sql` an app can cap one user's
+  successful calls in that app per UTC day (`cap_app_user_day_calls`) and per
+  ISO week (`cap_app_user_week_calls`); scopes `app-user-day-calls` and
+  `app-user-week-calls`, checked before the dollar caps of the same window.
+  The gateway reads sums and counts from `platform.llm_spend_and_calls`
+  (the older functions stay). A body `{ app, check: true }` makes no model
+  call and returns `allowance()` from `platform/src/gateway/caps.ts`: allowed,
+  scope, resets_at, app_open, the person's own limits and `calls_left`.
+  photo2pgn: 3 a day, 9 a week (`ops/photo2pgn-llm-caps.sql`).
 - **Default model:** `claude-opus-5-5` ($4 in, $20 out per million tokens,
   cache reads $0.20, cache writes 1.25x input), about 100 typical calls per
   $2 day. Apps may allow `claude-sonnet-5-5` ($2 / $10) or `claude-haiku-5-5`

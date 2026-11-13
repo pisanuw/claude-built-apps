@@ -162,14 +162,16 @@ Details: docs/platform.md section 3.
 
 ### Spending limits
 
-Every call on the owner's key is checked against caps in US dollars before it reaches Anthropic. The cost of each call is recorded in `platform.llm_usage` from the pricing table (`platform/src/gateway/pricing.ts`). Windows are UTC: the day starts at 00:00 UTC, the week on Monday 00:00 UTC, the month on the 1st. A call is refused once the spend has reached a cap.
+Every call on the owner's key is checked against caps before it reaches Anthropic: in US dollars, or for one person in an app optionally in readings (successful calls). The cost of each call is recorded in `platform.llm_usage` from the pricing table (`platform/src/gateway/pricing.ts`). Windows are UTC: the day starts at 00:00 UTC, the week on Monday 00:00 UTC, the month on the 1st. A call is refused once the spend has reached a cap.
 
 | Scope in the 429 answer | What it counts | Column in `platform.llm_apps` | Default |
 |---|---|---|---|
 | `app-month` | everyone's spend in this app, this month | `cap_month_usd` | $20 |
 | `app-week` | everyone's spend in this app, this week | `cap_week_usd` | $10 |
 | `app-day` | everyone's spend in this app, today | `cap_day_usd` | $2 |
+| `app-user-week-calls` | one person's successful calls in this app, this week | `cap_app_user_week_calls` | none (null) |
 | `app-user-week` | one person's spend in this app, this week | `cap_app_user_week_usd` | none (null) |
+| `app-user-day-calls` | one person's successful calls in this app, today | `cap_app_user_day_calls` | none (null) |
 | `app-user-day` | one person's spend in this app, today | `cap_app_user_day_usd` | none (null) |
 | `user-day` | one person's spend across all HintWise apps, today | `cap_user_day_usd` | $0.25 |
 
@@ -177,23 +179,32 @@ Notes:
 - The caps are checked in that order, so the answer names the scope that takes longest to clear.
 - `cap_user_day_usd` is a column on each app's row, but it is compared with the person's spend in every app, so one account can't drain the key by hopping between apps.
 - A cap of 0 blocks every call, and so does a cap that can't be read. A null per-person-in-app cap means none.
+- A call cap counts successful calls only (`llm_usage.ok`), since `shared/0007`. Use it when the app sells or gives readings: "3 free readings a day" is then exact, while a dollar cap can only be estimated. Keep the app caps in dollars as the ceiling, and set `cap_user_day_usd` high enough not to cut the readings short.
 - Behind all of this sits a monthly spend limit in the Anthropic console (owner, 9 Nov).
 
 **An app's own, stricter limits** (owner, 12 Nov; the per-person-in-app caps since `shared/0006`):
 - **The owner decides the numbers.** The app's session doesn't put caps in its migration: its `llm_apps` insert stays `on conflict do nothing`.
 - **The Plabs session sets them** with a small SQL file in `platform/supabase/ops/`, run with the Supabase admin `sql` command after the owner's yes. `ops/photo2pgn-llm-caps.sql` is the pattern: an upsert of the app's row, then a select that prints it.
-- **photo2pgn** (the first app with its own limits): the app as a whole $1 a day, $5 a week, $10 a month; each person in photo2pgn $0.10 a day and $0.40 a week; and the default $0.25 a day across apps.
+- **photo2pgn** (the first app with its own limits): the app as a whole $1 a day, $5 a week, $10 a month; each person in photo2pgn 3 readings a day and 9 a week (owner, 13 Nov), with no per-person dollar cap in the app; across apps $1.00 a day for calls through photo2pgn.
 - **To choose numbers,** measure first. Run the app's typical call on real input and read `usage` from the response: input and output tokens, priced in `pricing.ts`. Then work out how many calls a person should get per day. For example, at $0.03 a call, $0.10 a day is 3 calls.
 - **Changing them later** is one SQL update. It takes effect on the next call, with no deploy.
 
 **What the app shows on a 429:**
 - The body is `{ error: 'cap', scope, resets_at, message }`; the template's `llm.ts` throws `CapReached` with `scope` and `resetsAt`.
 - Say it in plain words:
-  - `app-user-day` / `app-user-week`: "your daily (weekly) allowance in this app is used up";
+  - `app-user-day` / `app-user-week`, and the `-calls` versions: "your daily (weekly) allowance in this app is used up";
   - `user-day`: "your daily HintWise allowance is used up";
   - `app-*`: "this app's shared allowance is used up".
 - Show `resets_at` in the person's local time.
 - Offer "use your own key" (BYOK), which no cap touches.
+
+**Showing what is left before a call (check mode):**
+- POST to the gateway with the person's session token and `{ "app": "<slug>", "check": true }`. It makes no model call and costs nothing.
+- The answer (200) is what the gateway would decide now:
+  `{ allowed, scope, resets_at, app_open, limits: [{ scope, unit: 'calls' | 'usd', used, cap, resets_at }], calls_left }`.
+- `calls_left` is exact for an app with call caps (0 when any cap refuses), and null for an app without them.
+- `app_open` is false when one of the app's own caps is reached; the app's totals are never shown.
+- For example: "3 free readings left today; new ones at 01:00" from `calls_left` and the day limit's `resets_at` in local time.
 
 **Seeing the spend:** the "LLM usage report" email goes to the owner each day any app used the key, plus a Monday summary. On demand, run `usage` in the Supabase admin workflow.
 

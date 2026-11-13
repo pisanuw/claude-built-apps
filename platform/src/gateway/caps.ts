@@ -1,11 +1,19 @@
 /**
  * Spending caps for the LLM gateway (docs/platform.md, section 3). Pure:
- * takes the sums from platform.llm_spend and the app's limits, returns a
+ * takes the sums from platform.llm_spend_and_calls and the app's limits, returns a
  * decision. Windows are the UTC day, the ISO week (Monday 00:00 UTC) and the
  * calendar month, matching date_trunc(..., 'UTC') in the SQL.
  */
 
-export type Scope = 'app-day' | 'app-week' | 'app-month' | 'app-user-week' | 'app-user-day' | 'user-day';
+export type Scope =
+  | 'app-day'
+  | 'app-week'
+  | 'app-month'
+  | 'app-user-week-calls'
+  | 'app-user-week'
+  | 'app-user-day-calls'
+  | 'app-user-day'
+  | 'user-day';
 
 /** Row returned by platform.llm_spend; PostgREST may deliver numerics as strings. */
 export interface Spend {
@@ -16,6 +24,9 @@ export interface Spend {
   /** The user's spend in this app (platform.llm_spend_app_user, 0006); absent from the older llm_spend. */
   app_user_day?: number | string;
   app_user_week?: number | string;
+  /** The user's successful calls in this app (platform.llm_spend_and_calls, 0007); absent before. */
+  app_user_day_calls?: number | string;
+  app_user_week_calls?: number | string;
 }
 
 /** The cap columns of platform.llm_apps. */
@@ -27,6 +38,9 @@ export interface Limits {
   /** Optional per-app caps for one user (0006); null or absent means no such cap. */
   cap_app_user_day_usd?: number | string | null;
   cap_app_user_week_usd?: number | string | null;
+  /** Optional per-app caps for one user counted in successful calls (0007); null or absent means none. */
+  cap_app_user_day_calls?: number | string | null;
+  cap_app_user_week_calls?: number | string | null;
 }
 
 export type Decision =
@@ -58,6 +72,7 @@ export function resetsAt(scope: Scope, now: Date): string {
   switch (scope) {
     case 'app-week':
     case 'app-user-week':
+    case 'app-user-week-calls':
       return nextUtcWeek(now).toISOString();
     case 'app-month':
       return nextUtcMonth(now).toISOString();
@@ -71,23 +86,80 @@ function optionalCap(v: number | string | null | undefined): number | null {
   return v === null || v === undefined || v === '' ? null : amount(v);
 }
 
-/**
- * A call is refused once the spend has reached the cap (spent >= cap). The
- * widest app window is checked first so the message names the scope that
- * will take longest to clear; then the user's caps in this app (week, day),
- * if the app has them; the per-user cap across all apps comes last.
- */
-export function decide(spend: Spend, limits: Limits, now: Date = new Date()): Decision {
-  const checks: Array<[Scope, number, number | null]> = [
+const APP_SCOPES: ReadonlySet<Scope> = new Set(['app-month', 'app-week', 'app-day']);
+const CALL_SCOPES: ReadonlySet<Scope> = new Set(['app-user-week-calls', 'app-user-day-calls']);
+
+/** Every check, in the order decide() applies them; cap null means the app has no such cap. */
+function checks(spend: Spend, limits: Limits): Array<[Scope, number, number | null]> {
+  return [
     ['app-month', amount(spend.app_month), amount(limits.cap_month_usd)],
     ['app-week', amount(spend.app_week), amount(limits.cap_week_usd)],
     ['app-day', amount(spend.app_day), amount(limits.cap_day_usd)],
+    ['app-user-week-calls', amount(spend.app_user_week_calls), optionalCap(limits.cap_app_user_week_calls)],
     ['app-user-week', amount(spend.app_user_week), optionalCap(limits.cap_app_user_week_usd)],
+    ['app-user-day-calls', amount(spend.app_user_day_calls), optionalCap(limits.cap_app_user_day_calls)],
     ['app-user-day', amount(spend.app_user_day), optionalCap(limits.cap_app_user_day_usd)],
     ['user-day', amount(spend.user_day), amount(limits.cap_user_day_usd)],
   ];
-  for (const [scope, spent, cap] of checks) {
+}
+
+/**
+ * A call is refused once the spend (or the call count) has reached the cap
+ * (spent >= cap). The widest app window is checked first so the message
+ * names the scope that will take longest to clear; then the user's caps in
+ * this app (week, day; calls before dollars), if the app has them; the
+ * per-user cap across all apps comes last.
+ */
+export function decide(spend: Spend, limits: Limits, now: Date = new Date()): Decision {
+  for (const [scope, spent, cap] of checks(spend, limits)) {
     if (cap !== null && spent >= cap) return { allowed: false, scope, spent, cap, resets_at: resetsAt(scope, now) };
   }
   return { allowed: true };
+}
+
+/** One of the signed-in person's own limits, as the check mode reports it. */
+export interface PersonLimit {
+  scope: Scope;
+  unit: 'calls' | 'usd';
+  used: number;
+  cap: number;
+  resets_at: string;
+}
+
+/** The gateway's check mode ({app, check: true}): what decide() would say now, without a model call. */
+export interface Allowance {
+  allowed: boolean;
+  /** The scope that refuses, when allowed is false. */
+  scope: Scope | null;
+  resets_at: string | null;
+  /** False when one of the app's own caps (day, week, month) is reached. App totals are not shown. */
+  app_open: boolean;
+  /** The person's caps in this app and across apps; only those the app sets. */
+  limits: PersonLimit[];
+  /** Calls left before a calls cap refuses: 0 when refused; null when the app counts no calls. */
+  calls_left: number | null;
+}
+
+export function allowance(spend: Spend, limits: Limits, now: Date = new Date()): Allowance {
+  const all = checks(spend, limits);
+  const decision = decide(spend, limits, now);
+  const app_open = all.every(([scope, spent, cap]) => !APP_SCOPES.has(scope) || cap === null || spent < cap);
+  const person: PersonLimit[] = all
+    .filter(([scope, , cap]) => !APP_SCOPES.has(scope) && cap !== null)
+    .map(([scope, used, cap]) => ({
+      scope,
+      unit: CALL_SCOPES.has(scope) ? 'calls' : 'usd',
+      used,
+      cap: cap as number,
+      resets_at: resetsAt(scope, now),
+    }));
+  const callLimits = person.filter((l) => l.unit === 'calls');
+  const calls_left = callLimits.length === 0
+    ? null
+    : decision.allowed
+      ? Math.max(0, Math.min(...callLimits.map((l) => Math.ceil(l.cap - l.used))))
+      : 0;
+  return decision.allowed
+    ? { allowed: true, scope: null, resets_at: null, app_open, limits: person, calls_left }
+    : { allowed: false, scope: decision.scope, resets_at: decision.resets_at, app_open, limits: person, calls_left };
 }
