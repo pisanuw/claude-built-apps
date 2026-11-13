@@ -568,3 +568,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 
 2026-11-13 [decision] photo2pgn: public readings through the gateway only (owner, via its session); the halflife CLI reader gets no jobs.
 2026-11-13 [code] delivery-canary day 2: late download order scan from the Shopify Orders CSV (allowlist import, saved and compared scans, migration 0002); reviews fixed; deployed.
+
+2026-11-13 [note] Ideas routine stalled at 10:19 UTC after a model fallback; resumed by Plabs at 11:07 (owner silent past the 15-min check-in); ideas pushed 02b2135 at 11:11.
