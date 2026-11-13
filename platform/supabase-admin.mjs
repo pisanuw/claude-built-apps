@@ -422,6 +422,14 @@ export function queryResult(resp) {
 }
 
 /**
+ * Tables every signed-in user is meant to read, so a stranger seeing their
+ * rows is by design, not a leak. Keep this list short and say why.
+ */
+export const SHARED_TABLES = {
+  'platform.llm_apps': 'which apps use the gateway, with their models and caps; no secrets (policy llm_apps_select_authenticated, shared/0001)',
+};
+
+/**
  * Pure: findings from the facts, the stranger's view and the advisor lints.
  * Errors fail the check; notes say what could not be exercised.
  */
@@ -434,7 +442,11 @@ export function schemaFindings(schema, facts, visible, lints) {
     else if (!t.policies) warnings.push(`${schema}.${t.name}: RLS is on but has no policy, so the app cannot use it`);
     if (t.anon_access) errors.push(`${schema}.${t.name}: the anon role has table access (share rows through a security definer function instead)`);
     const seen = visible?.[t.name];
-    if (typeof seen === 'number' && seen > 0) errors.push(`${schema}.${t.name}: a signed-in stranger sees ${seen} of ${t.rows} row(s)`);
+    const shared = SHARED_TABLES[`${schema}.${t.name}`];
+    if (typeof seen === 'number' && seen > 0) {
+      if (shared) notes.push(`${schema}.${t.name}: a signed-in stranger sees ${seen} of ${t.rows} row(s), by design: ${shared}`);
+      else errors.push(`${schema}.${t.name}: a signed-in stranger sees ${seen} of ${t.rows} row(s)`);
+    }
     if (!t.rows) notes.push(`${schema}.${t.name}: no rows yet, so the stranger check had nothing to see`);
   }
   for (const fn of facts?.definers ?? []) errors.push(`${schema}.${fn}(): security definer without a fixed search_path`);

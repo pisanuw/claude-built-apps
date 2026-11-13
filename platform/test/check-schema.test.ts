@@ -5,6 +5,7 @@ let schemaFactsSql: Admin['schemaFactsSql'];
 let strangerSql: Admin['strangerSql'];
 let queryResult: Admin['queryResult'];
 let schemaFindings: Admin['schemaFindings'];
+let SHARED_TABLES: Admin['SHARED_TABLES'];
 beforeAll(async () => {
   process.env.SUPABASE_ADMIN_NO_RUN = '1';
   const m = await import('../supabase-admin.mjs');
@@ -12,6 +13,7 @@ beforeAll(async () => {
   strangerSql = m.strangerSql;
   queryResult = m.queryResult;
   schemaFindings = m.schemaFindings;
+  SHARED_TABLES = m.SHARED_TABLES;
 });
 
 const table = (over: Record<string, unknown> = {}) => ({ name: 'files', rls: true, policies: 4, anon_access: false, rows: 3, ...over });
@@ -53,6 +55,16 @@ describe('schemaFindings', () => {
   it('passes a schema with RLS, no anon access and nothing visible to a stranger', () => {
     const f = schemaFindings('app_x', { tables: [table()], definers: [] }, { files: 0 }, []);
     expect(f).toEqual({ errors: [], warnings: [], notes: [] });
+  });
+
+  it('notes, without failing, a table shared with every signed-in user by design (platform.llm_apps)', () => {
+    const t = { ...table(), name: 'llm_apps', rows: 1 };
+    const f = schemaFindings('platform', { tables: [t], definers: [] }, { llm_apps: 1 }, []);
+    expect(f.errors).toEqual([]);
+    expect(f.notes).toEqual([expect.stringMatching(/^platform\.llm_apps: a signed-in stranger sees 1 of 1 row\(s\), by design: /)]);
+    // The same name in another schema is not shared.
+    expect(schemaFindings('app_x', { tables: [t], definers: [] }, { llm_apps: 1 }, []).errors).toEqual(['app_x.llm_apps: a signed-in stranger sees 1 of 1 row(s)']);
+    expect(Object.keys(SHARED_TABLES)).toEqual(['platform.llm_apps']);
   });
 
   it('fails on RLS off, anon access, a leak to a stranger and an unpinned definer', () => {
