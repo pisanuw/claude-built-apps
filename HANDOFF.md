@@ -54,15 +54,17 @@ Still open / waiting on the owner:
 
 1. **photo2pgn:** done. "List users" (photo2pgn main 6f8fb46) and a real grant, reading and "My games" on two devices were confirmed working by the owner, 13 Nov. The halflife reading charge is the owner's to handle (he said drop it, 13 Nov); Plabs builds no charge or refund mode.
 2. **Older photo2pgn asks** carried from the platform side are all done; nothing Plabs owns is blocked.
-3. **app-notify sender:** built and merged to main on 13 Nov (0de473e; shared/0011, src/notify/, function app-notify, per-app opt-out a1/w1 tokens, one-click unsubscribe; docs/platform.md "App-notify", src/notify/README.md). **Not applied, not deployed.** Go-live, on the owner's yes:
-   - apply-shared 0011, check-schema platform;
-   - add APP_NOTIFY_SECRET to set-sign-in-secrets;
-   - deploy-function email-optout and app-notify;
-   - register StepWise and set up the pg_cron schedule.
-   StepWise's side (releases.json in the feed format, grant select on its opt-in table) needs a StepWise session the owner starts by hand. Unverified:
-   - whether the service role can read auth.users from the security-invoker notify_opted_in (fallback: make that one function security definer);
-   - whether Resend accepts the List-Unsubscribe headers;
-   - Deno's redirect: manual.
+3. **app-notify sender: platform prepared, sending off** (owner's yes, 13 Nov).
+   - Code merged 0de473e.
+   - shared/0011 and 0012 applied: 0012 makes notify_opted_in security definer, because the live service role cannot read auth.users. check-schema passed.
+   - email-optout and app-notify deployed. 0 apps registered.
+   - **APP_NOTIFY_SECRET deliberately unset**, so app-notify answers 503 to every call. The readiness check is `sql` with platform/supabase/ops/notify-ready.sql.
+   - Still to do, at StepWise go-live:
+     - StepWise's session publishes releases.json in the feed format and grants select on its opt-in table;
+     - add APP_NOTIFY_SECRET generation, plus a Vault copy for pg_cron, to set-sign-in-secrets;
+     - register StepWise (SQL in platform/src/notify/README.md), run a dry run, then the real (seeding) run;
+     - set up the pg_cron daily schedule.
+   - Unverified: Resend accepting the List-Unsubscribe headers, and Deno's redirect: manual.
 4. **Logo rollout** in the shared footer reaches apps on each deploy; don't redeploy all (credits). Favicons and social images later.
 5. **Watch the build routine** (11:49 CET daily): Delivery Canary day 3 next. It must use the platform template's sign-in.
 
