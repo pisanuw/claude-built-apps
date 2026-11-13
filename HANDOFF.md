@@ -52,7 +52,7 @@ Still open / waiting on the owner:
 
 ## 5. Next, in order
 
-1. **photo2pgn:** "List users" with names and games counts deployed by its session (photo2pgn main 6f8fb46, 14:46 UTC 13 Nov; 0003 copied byte for byte, sha256-pinned). Not verified as a signed-in admin; the owner checks. Verify a real grant and reading when the owner tests.
+1. **photo2pgn:** done. "List users" (photo2pgn main 6f8fb46) and a real grant, reading and "My games" on two devices were confirmed working by the owner, 13 Nov. The halflife reading charge is the owner's to handle (he said drop it, 13 Nov); Plabs builds no charge or refund mode.
 2. **Older photo2pgn asks** carried from the platform side are all done; nothing Plabs owns is blocked.
 3. **app-notify sender:** built and merged to main on 13 Nov (0de473e; shared/0011, src/notify/, function app-notify, per-app opt-out a1/w1 tokens, one-click unsubscribe; docs/platform.md "App-notify", src/notify/README.md). **Not applied, not deployed.** Go-live, on the owner's yes:
    - apply-shared 0011, check-schema platform;
@@ -68,8 +68,7 @@ Still open / waiting on the owner:
 
 ## 6. Waiting on the owner
 
-1. **Test photo2pgn from a real account** (section 4): a grant + reading, and "My games" on two devices.
-2. **Check photo2pgn's live "List users"** as admin (deployed 14:46 UTC 13 Nov): it should show you with your name, credits and games count.
+1. Nothing open for photo2pgn: the admin list and the real-account test were confirmed working 13 Nov.
 3. Older, not confirmed since 8 Nov: test Google sign-in on MeetMe, Chess TD and Digital Yusuf; re-run `scripts/pisan_labs_setup.py` locally for pisan-labs homepages; post launch drafts 1–7 (docs/launch-drafts.md), one at a time.
 4. Qualified Overtime Checker follow-ups: qualified-overtime-checker/HANDOFF.md.
 

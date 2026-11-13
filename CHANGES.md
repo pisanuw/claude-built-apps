@@ -580,3 +580,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-13 [note] photo2pgn deployed "List users" with names and games counts (its main 6f8fb46); 0003 copied byte for byte. Not yet checked as a signed-in admin.
 
 2026-11-13 [code] platform: app-notify sender on feat/app-notify (registry, per-app opt-out, one-click unsubscribe); not applied or deployed.
+
+2026-11-13 [note] Owner confirmed photo2pgn admin list and real-account grant/reading/My games work. Halflife reading charge dropped from Plabs (owner handles it).
