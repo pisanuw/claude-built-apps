@@ -48,6 +48,8 @@ export interface UsageRow {
   cost_usd: number;
   ok: boolean;
   error: string | null;
+  /** Paid with one of the person's credits (shared/0008); counted for the app caps only. */
+  paid_with_credit: boolean;
 }
 
 const count = (v: number | null | undefined): number => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0);
@@ -77,6 +79,7 @@ export function usageRow(req: GatewayRequest, userId: string | null, response: {
     }),
     ok: true,
     error: null,
+    paid_with_credit: false,
   };
 }
 
@@ -104,5 +107,6 @@ export function errorRow(req: GatewayRequest, userId: string | null, err: unknow
     cost_usd: 0,
     ok: false,
     error: `${d.name}${d.status ? ` ${d.status}` : ''}: ${d.message}`.slice(0, 500),
+    paid_with_credit: false,
   };
 }

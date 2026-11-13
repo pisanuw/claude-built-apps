@@ -126,25 +126,54 @@ export interface PersonLimit {
   resets_at: string;
 }
 
-/** The gateway's check mode ({app, check: true}): what decide() would say now, without a model call. */
+/** How a call is paid: within the free allowance, with one of the person's credits, or not at all. */
+export type Funding = 'free' | 'credit' | 'refuse';
+
+/**
+ * Credits (shared/0008) pay for a call only once the free allowance is used
+ * up, that is when decide() refuses on one of the person's own scopes. The
+ * app's own caps are the ceiling: a credit never gets past them.
+ */
+export function funding(decision: Decision, credits: number): Funding {
+  if (decision.allowed) return 'free';
+  if (APP_SCOPES.has(decision.scope)) return 'refuse';
+  return credits > 0 ? 'credit' : 'refuse';
+}
+
+/** The gateway's check mode ({app, check: true}): what the next call would get, without a model call. */
 export interface Allowance {
+  /** The next call goes through, free or with a credit. */
   allowed: boolean;
-  /** The scope that refuses, when allowed is false. */
+  /** The next call would spend a credit (the free allowance is used up). */
+  uses_credit: boolean;
+  /** The scope that refuses free calls (an app scope refuses credits too); null while free calls are left. */
   scope: Scope | null;
   resets_at: string | null;
   /** False when one of the app's own caps (day, week, month) is reached. App totals are not shown. */
   app_open: boolean;
   /** The person's caps in this app and across apps; only those the app sets. */
   limits: PersonLimit[];
-  /** Calls left before a calls cap refuses: 0 when refused; null when the app counts no calls. */
+  /** Free calls left before a calls cap refuses: 0 when free calls are refused; null when the app counts no calls. */
   calls_left: number | null;
+  /** The person's credits in this app (shared/0008). */
+  credits: number;
+  /** The person is a HintWise admin (may grant credits). */
+  admin: boolean;
 }
 
-export function allowance(spend: Spend, limits: Limits, now: Date = new Date()): Allowance {
+export function allowance(
+  spend: Spend,
+  limits: Limits,
+  now: Date = new Date(),
+  person: { credits?: number; admin?: boolean } = {},
+): Allowance {
   const all = checks(spend, limits);
   const decision = decide(spend, limits, now);
+  const credits = Math.max(0, Math.floor(amount(person.credits)));
+  const admin = person.admin === true;
+  const paid = funding(decision, credits);
   const app_open = all.every(([scope, spent, cap]) => !APP_SCOPES.has(scope) || cap === null || spent < cap);
-  const person: PersonLimit[] = all
+  const own: PersonLimit[] = all
     .filter(([scope, , cap]) => !APP_SCOPES.has(scope) && cap !== null)
     .map(([scope, used, cap]) => ({
       scope,
@@ -153,13 +182,14 @@ export function allowance(spend: Spend, limits: Limits, now: Date = new Date()):
       cap: cap as number,
       resets_at: resetsAt(scope, now),
     }));
-  const callLimits = person.filter((l) => l.unit === 'calls');
+  const callLimits = own.filter((l) => l.unit === 'calls');
   const calls_left = callLimits.length === 0
     ? null
     : decision.allowed
       ? Math.max(0, Math.min(...callLimits.map((l) => Math.ceil(l.cap - l.used))))
       : 0;
+  const base = { app_open, limits: own, calls_left, credits, admin };
   return decision.allowed
-    ? { allowed: true, scope: null, resets_at: null, app_open, limits: person, calls_left }
-    : { allowed: false, scope: decision.scope, resets_at: decision.resets_at, app_open, limits: person, calls_left };
+    ? { allowed: true, uses_credit: false, scope: null, resets_at: null, ...base }
+    : { allowed: paid === 'credit', uses_credit: paid === 'credit', scope: decision.scope, resets_at: decision.resets_at, ...base };
 }

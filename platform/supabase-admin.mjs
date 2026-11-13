@@ -77,6 +77,13 @@
  *                           EMAIL_LOGO_URL=...; idempotent. No SVG (a public
  *                           SVG can run script on auth.hintwise.org). Needs
  *                           SUPABASE_SERVICE_ROLE_KEY, not the access token
+ *   admin add|remove|list [email]
+ *                           HintWise admins (platform.admins: may grant
+ *                           credits): the address comes from
+ *                           ADMIN_EMAIL_INPUT (the workflow's masked "email"
+ *                           input); the account must have signed in to a
+ *                           HintWise app. The log shows only the action and
+ *                           the count. Needs SUPABASE_SERVICE_ROLE_KEY
  *   email-optout status|add|remove [email]
  *                           support for the email opt-out: the address comes
  *                           from OPTOUT_EMAIL (the workflow's masked "email"
@@ -1100,6 +1107,54 @@ async function emailOptout(action) {
   if (answer?.ok !== true) process.exit(1);
 }
 
+// ---- HintWise admins (platform.admins, shared/0008) --------------------------
+
+export const ADMIN_ACTIONS = ['add', 'remove', 'list'];
+
+/** Pure: POST <project>/rest/v1/rpc/admin_set (schema platform) with the service-role key. */
+export function adminSetRequest(base, key, action, email) {
+  return {
+    url: `${String(base).replace(/\/+$/, '')}/rest/v1/rpc/admin_set`,
+    init: {
+      method: 'POST',
+      headers: { apikey: key, authorization: `Bearer ${key}`, 'content-type': 'application/json', 'content-profile': 'platform' },
+      body: JSON.stringify({ p_action: action, p_email: email }),
+    },
+  };
+}
+
+/** Pure: what to print. The logs are public: the count and the action, never the address. */
+export function adminSummary(action, status, answer, when) {
+  const at = when.toISOString();
+  if (!answer || typeof answer !== 'object') return [`admin ${action} at ${at}: failed, HTTP ${status} (no answer from the database)`];
+  if (answer.ok !== true) {
+    const why = /no account/.test(String(answer.error)) ? 'no account with that email: sign in to a HintWise app with it first' : 'refused';
+    return [`admin ${action} at ${at}: ${why}`];
+  }
+  if (action === 'list') return [`admin list at ${at}: ${answer.admins} admin(s)`];
+  const did = answer.changed ? (action === 'add' ? 'added' : 'removed') : action === 'add' ? 'was already an admin' : 'was not an admin';
+  return [`admin ${action} at ${at}: ${did}; ${answer.admins} admin(s) now`];
+}
+
+/** admin add|remove|list: the address comes from ADMIN_EMAIL_INPUT (the workflow's masked "email" input). */
+async function adminCommand(action) {
+  if (!ADMIN_ACTIONS.includes(action)) fail('admin: give add, remove or list');
+  const email = String(process.env.ADMIN_EMAIL_INPUT || arg2 || '').trim();
+  if (action !== 'list' && (!email || !email.includes('@'))) fail('admin: give the address (the workflow input "email")');
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) fail('admin needs SUPABASE_SERVICE_ROLE_KEY (the workflow passes the repo secret)');
+  const req = adminSetRequest(url || `https://${ref}.supabase.co`, key, action, email);
+  let status = 0;
+  let answer = null;
+  try {
+    const res = await fetch(req.url, req.init);
+    status = res.status;
+    answer = JSON.parse(await res.text());
+  } catch { /* reported below */ }
+  for (const line of adminSummary(action, status, answer, new Date())) console.log(line);
+  if (answer?.ok !== true) process.exit(1);
+}
+
 // ---- Deploy guard: the opt-out list must exist ------------------------------
 
 /** A mailbox hash no address has: the guard's probe. */
@@ -1250,12 +1305,13 @@ const commands = {
   },
   'brand-upload': () => brandUpload(),
   'email-optout': () => emailOptout(arg),
+  admin: () => adminCommand(arg),
   'optout-ready': () => optOutReady(),
   'account-deletion-test': () => accountDeletionTest(),
 };
 
 /** Commands that use only SUPABASE_URL and the service-role key, never the Management API token. */
-export const NO_ACCESS_TOKEN = ['brand-upload', 'email-optout', 'optout-ready'];
+export const NO_ACCESS_TOKEN = ['brand-upload', 'email-optout', 'optout-ready', 'admin'];
 
 // SUPABASE_ADMIN_NO_RUN=1 lets tests import the pure helpers without running.
 if (process.env.SUPABASE_ADMIN_NO_RUN !== '1') {

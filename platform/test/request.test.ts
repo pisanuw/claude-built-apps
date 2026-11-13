@@ -38,7 +38,7 @@ describe('usageRow', () => {
     expect(row).toEqual({
       app: 'demo-app', user_id: 'user-1', model: 'claude-opus-5-5',
       input_tokens: 1000, output_tokens: 500, cache_read_tokens: 0, cache_write_tokens: 0,
-      cost_usd: 0.014, ok: true, error: null,
+      cost_usd: 0.014, ok: true, error: null, paid_with_credit: false,
     });
   });
   it('uses the response model when a fallback answered, and copes with missing usage', () => {
@@ -71,7 +71,7 @@ describe('errors', () => {
     expect(row).toEqual({
       app: 'demo-app', user_id: 'user-1', model: 'claude-opus-5-5',
       input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0,
-      cost_usd: 0, ok: false, error: 'RateLimitError 429: Rate limited',
+      cost_usd: 0, ok: false, error: 'RateLimitError 429: Rate limited', paid_with_credit: false,
     });
     expect(errorRow(req, null, new Error('x')).error).toBe('Error: x');
   });

@@ -206,6 +206,15 @@ Notes:
 - `app_open` is false when one of the app's own caps is reached; the app's totals are never shown.
 - For example: "3 free readings left today; new ones at 01:00" from `calls_left` and the day limit's `resets_at` in local time.
 
+**Credits** (since `shared/0008`, owner, 13 Nov; photo2pgn first):
+- One credit is one successful gateway call in one app. A person's credits are spent only once their free allowance (the per-person caps) is used up, never past the app's own caps.
+- The gateway takes the credit before the call and gives it back if the call fails. A call paid with a credit counts for the app caps but not for the person's.
+- The check answer also gives `credits` (this app's balance), `uses_credit` (the next call would spend one) and `admin`.
+- A person reads their own balance and history through PostgREST (`platform.credits`, `platform.credit_ledger`, row level security).
+- **Granting:** a HintWise admin calls the `credits-grant` function with their session token and `{ app, email, credits, note? }`. A negative number removes credits; 0 only reads the balance; a grant that would go below 0 is refused. The answer is `{ email, balance }`, or 401, 403 (not an admin), 400, 404 (no such account).
+- **Admins** are in `platform.admins`, changed only with the Supabase admin workflow: command `admin`, arg `add`, `remove` or `list`, the address in the `email` input (masked in the log). The account must have signed in to a HintWise app first.
+- **Buying credits** (Paddle) is not built yet: it needs the owner's account and prices.
+
 **Seeing the spend:** the "LLM usage report" email goes to the owner each day any app used the key, plus a Monday summary. On demand, run `usage` in the Supabase admin workflow.
 
 

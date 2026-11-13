@@ -18,6 +18,8 @@
 #   external-hosts           print HOOK_EXTERNAL_HOSTS (auth allow-list and site URL hosts minus hintwise.org)
 #   brand-upload             create the public Storage bucket "brand" if missing and upload platform/brand
 #                            (PNG and favicon.ico, no SVG; one-day cache); prints EMAIL_LOGO_URL; idempotent
+#   admin <arg: add | remove | list>  HintWise admins (may grant credits, shared/0008): the address goes
+#                            in the "email" input, masked like email-optout's; the log shows only the count
 #   email-optout <arg: status | add | remove>  support for "Stop all email from HintWise": the address
 #                            goes in the "email" input and is masked in the log before any step can show
 #                            it; the log shows only the action, the time and the hash prefix. add on any
@@ -44,17 +46,17 @@ on:
   workflow_dispatch:
     inputs:
       command:
-        description: 'inspect | sql | apply-shared | migrate | expose-schema | unexpose-schema | check-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | external-hosts | brand-upload | email-optout | optout-ready | account-deletion-test | deploy-function | deploy-gateway | set-gateway-key | set-sign-in-secrets | email-hook'
+        description: 'inspect | sql | apply-shared | migrate | expose-schema | unexpose-schema | check-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | external-hosts | brand-upload | email-optout | admin | optout-ready | account-deletion-test | deploy-function | deploy-gateway | set-gateway-key | set-sign-in-secrets | email-hook'
         required: true
         default: 'inspect'
         type: string
       arg:
-        description: 'sql: file path; migrate: app slug; expose-schema, unexpose-schema, check-schema: schema; usage: days; check-google: return URL; domain-setup: host; deploy-function: function name; email-hook: status, check, on or off; email-optout: status, add or remove'
+        description: 'sql: file path; migrate: app slug; expose-schema, unexpose-schema, check-schema: schema; usage: days; check-google: return URL; domain-setup: host; deploy-function: function name; email-hook: status, check, on or off; email-optout: status, add or remove; admin: add, remove or list'
         required: false
         default: ''
         type: string
       email:
-        description: 'email-optout only: the address (masked in the log, never printed)'
+        description: 'email-optout and admin only: the address (masked in the log, never printed)'
         required: false
         default: ''
         type: string
@@ -81,7 +83,7 @@ jobs:
           node-version: '22'
 
       - name: Run
-        if: inputs.command != 'deploy-function' && inputs.command != 'deploy-gateway' && inputs.command != 'set-gateway-key' && inputs.command != 'set-sign-in-secrets' && inputs.command != 'email-hook' && inputs.command != 'email-optout'
+        if: inputs.command != 'deploy-function' && inputs.command != 'deploy-gateway' && inputs.command != 'set-gateway-key' && inputs.command != 'set-sign-in-secrets' && inputs.command != 'email-hook' && inputs.command != 'email-optout' && inputs.command != 'admin'
         run: node platform/supabase-admin.mjs "$CMD" $ARG $FLAGS
         env:
           CMD: ${{ inputs.command }}
@@ -98,7 +100,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.command == 'brand-upload' || inputs.command == 'optout-ready' || inputs.command == 'account-deletion-test') && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
 
       - name: Mask the address
-        if: inputs.command == 'email-optout'
+        if: inputs.command == 'email-optout' || inputs.command == 'admin'
         # Before any step can show it (a step's env is printed in the log, and
         # this repo's logs are public): the inputs are read from the event
         # file, not from expressions in the script. arg must be status, add or
@@ -107,10 +109,15 @@ jobs:
         # trimmed and lower-cased, each with %, CR and LF escaped (%25, %0D,
         # %0A) as workflow commands require, so the mask is the exact value.
         run: |
+          CMD=$(jq -r '.inputs.command // ""' "$GITHUB_EVENT_PATH")
           ARG=$(jq -r '.inputs.arg // ""' "$GITHUB_EVENT_PATH")
-          case "$ARG" in status|add|remove) ;; *) echo "::error::email-optout takes arg status, add or remove (the address goes in the email input)"; exit 1;; esac
+          if [ "$CMD" = admin ]; then
+            case "$ARG" in add|remove|list) ;; *) echo "::error::admin takes arg add, remove or list (the address goes in the email input)"; exit 1;; esac
+          else
+            case "$ARG" in status|add|remove) ;; *) echo "::error::email-optout takes arg status, add or remove (the address goes in the email input)"; exit 1;; esac
+          fi
           RAW=$(jq -r '.inputs.email // ""' "$GITHUB_EVENT_PATH")
-          [ -n "$RAW" ] || { echo "::error::email-optout needs the email input"; exit 1; }
+          [ -n "$RAW" ] || [ "$ARG" = list ] || { echo "::error::$CMD needs the email input"; exit 1; }
           jq -r '.inputs.email // "" | (., gsub("^\\s+|\\s+$"; ""), (gsub("^\\s+|\\s+$"; "") | ascii_downcase)) | select(length > 0) | gsub("%"; "%25") | gsub("\r"; "%0D") | gsub("\n"; "%0A")' "$GITHUB_EVENT_PATH" \
             | sort -u | while IFS= read -r V; do echo "::add-mask::$V"; done
 
@@ -124,6 +131,18 @@ jobs:
         env:
           ARG: ${{ inputs.arg }}
           OPTOUT_EMAIL: ${{ inputs.email }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Admins (platform.admins)
+        if: inputs.command == 'admin'
+        # The address is masked by the step above; platform.admin_set answers
+        # only the action and the count, and the script prints nothing else.
+        # No access token: this command uses only the service-role key.
+        run: node platform/supabase-admin.mjs admin "$ARG"
+        env:
+          ARG: ${{ inputs.arg }}
+          ADMIN_EMAIL_INPUT: ${{ inputs.email }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 

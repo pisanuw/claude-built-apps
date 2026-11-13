@@ -64,8 +64,9 @@ describe('the Supabase admin workflow', () => {
   const wf = fs.readFileSync(path.join(here, '..', '..', '.github', 'workflows', 'supabase-admin.yml'), 'utf8');
   it('offers brand-upload and email-optout, with an email input', () => {
     expect(wf).toMatch(/description: '[^']*\| brand-upload \| email-optout \|[^']*'/);
-    expect(wf).toContain("email-optout: status, add or remove'");
-    expect(wf).toMatch(/\n {6}email:\n {8}description: 'email-optout only: the address \(masked in the log, never printed\)'/);
+    expect(wf).toContain("email-optout: status, add or remove; admin: add, remove or list'");
+    expect(wf).toMatch(/description: '[^']*\| email-optout \| admin \|[^']*'/);
+    expect(wf).toMatch(/\n {6}email:\n {8}description: 'email-optout and admin only: the address \(masked in the log, never printed\)'/);
   });
   it('masks the address before the only step that holds it, and never puts it in a script', () => {
     const mask = wf.indexOf('- name: Mask the address');
@@ -75,20 +76,26 @@ describe('the Supabase admin workflow', () => {
     const step = wf.slice(mask, support);
     expect(step).toContain(`ARG=$(jq -r '.inputs.arg // ""' "$GITHUB_EVENT_PATH")`);
     expect(step).toContain('case "$ARG" in status|add|remove) ;; *) echo "::error::');
+    expect(step).toContain('case "$ARG" in add|remove|list) ;; *) echo "::error::');
+    expect(step).toContain(`CMD=$(jq -r '.inputs.command // ""' "$GITHUB_EVENT_PATH")`);
     expect(step).toContain(`gsub("%"; "%25") | gsub("\\r"; "%0D") | gsub("\\n"; "%0A")`);
     expect(step).toContain('ascii_downcase');
     expect(step).toContain('while IFS= read -r V; do echo "::add-mask::$V"; done');
     expect(step).not.toContain('${{');
     // The support step uses no Management API token.
     expect(wf.slice(support, wf.indexOf('- name: Commit platform/supabase.json'))).not.toContain('SUPABASE_ACCESS_TOKEN');
-    expect(wf.match(/\$\{\{ inputs\.email \}\}/g)).toHaveLength(1);
+    // Two steps hold the address, both after the mask: the opt-out and the admins step.
+    expect(wf.match(/\$\{\{ inputs\.email \}\}/g)).toHaveLength(2);
     expect(wf.indexOf('OPTOUT_EMAIL: ${{ inputs.email }}')).toBeGreaterThan(support);
+    expect(wf.indexOf('ADMIN_EMAIL_INPUT: ${{ inputs.email }}')).toBeGreaterThan(support);
     expect(wf).not.toContain('github.event.inputs.email');
-    expect(wf).toMatch(/inputs\.command != 'email-hook' && inputs\.command != 'email-optout'\n/);
+    expect(wf).toMatch(/inputs\.command != 'email-hook' && inputs\.command != 'email-optout' && inputs\.command != 'admin'\n/);
+    expect(wf).toMatch(/- name: Mask the address\n {8}if: inputs\.command == 'email-optout' \|\| inputs\.command == 'admin'\n/);
   });
   it('gives the service-role key to the generic step only for brand-upload, optout-ready and account-deletion-test', () => {
     expect(wf).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.command == 'brand-upload' || inputs.command == 'optout-ready' || inputs.command == 'account-deletion-test') && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}");
-    expect(wf.match(/SUPABASE_SERVICE_ROLE_KEY: \$\{\{ secrets\.SUPABASE_SERVICE_ROLE_KEY \}\}/g)).toHaveLength(1);
+    // The opt-out step and the admins step, nothing else.
+    expect(wf.match(/SUPABASE_SERVICE_ROLE_KEY: \$\{\{ secrets\.SUPABASE_SERVICE_ROLE_KEY \}\}/g)).toHaveLength(2);
   });
   it('deploys sign-in-link and auth-email-hook only after optout-ready passes', () => {
     const deploy = wf.slice(wf.indexOf('- name: Deploy an edge function'), wf.indexOf('- name: Set the ANTHROPIC_API_KEY function secret'));
@@ -110,7 +117,7 @@ describe('the Supabase admin workflow', () => {
 describe('email-optout (support)', () => {
   it('takes status, add or remove', () => {
     expect(m.OPTOUT_ACTIONS).toEqual(['status', 'add', 'remove']);
-    expect(m.NO_ACCESS_TOKEN).toEqual(['brand-upload', 'email-optout', 'optout-ready']);
+    expect(m.NO_ACCESS_TOKEN).toEqual(['brand-upload', 'email-optout', 'optout-ready', 'admin']);
   });
   it('asks the email-optout function with the service-role key; the address goes only in the body', () => {
     const r = m.optOutSupportRequest('https://ref.supabase.co/', 'eyJ.a.b', 'remove', 'ann@example.com');

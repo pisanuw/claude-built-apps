@@ -39,3 +39,9 @@ entrypoint = "./functions/email-optout/index.ts"
 # sign-in from the last 15 minutes.
 verify_jwt = false
 entrypoint = "./functions/delete-account/index.ts"
+
+[functions.credits-grant]
+# A HintWise admin grants credits (shared/0008). Like llm-gateway, the
+# platform checks the JWT first; the function then verifies the user and
+# that they are in platform.admins.
+verify_jwt = true
