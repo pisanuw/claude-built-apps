@@ -34,6 +34,7 @@ Since 9 Nov the build routine builds one substantial project a week on a shared 
   - photo2pgn's no-truncation engine, gateway-only public readings, credits screen and admin panel (all by its session, on the owner's yes);
   - fixed a flaky popup-check test (fc1e1b6) and check-schema's treatment of platform.llm_apps as shared by design (a4a13f7);
   - resumed the stalled ideas routine (pushed 02b2135); read-only credits-status ops query.
+  - **GitHub Actions off Node 20** (owner's yes): checkout/setup-node/setup-python v7, supabase/setup-cli v2 (e035174); every CI job, the deploy job (production builds) and 13 domain/env workflows on Node 22, one commit per app (cb09594..831fa2f); all CI green, nothing deployed.
 
 ## 4. photo2pgn (its own session drives it; Plabs does the platform)
 
