@@ -10,6 +10,12 @@ export interface EmailMessage {
   subject: string;
   text: string;
   html: string;
+  /**
+   * Extra headers (Resend's `headers`), e.g. List-Unsubscribe on app-notify
+   * email. Values must be one line: the caller builds them from checked
+   * parts only (src/notify/message.ts).
+   */
+  headers?: Record<string, string>;
 }
 
 export type SendResult = { ok: true; id: string } | { ok: false; status: number; message: string };

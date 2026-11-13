@@ -19,6 +19,13 @@
  *                            the stop button. A stop token never undoes and
  *                            an undo token never stops; after the hour, only
  *                            support turns email back on.
+ *   The same three steps for one app's update emails ("Turn off <App>
+ *   emails", app-notify, scope app:<slug>) with the app tokens a1 (stop) and
+ *   w1 (undo) of optout.ts; the pages name the app's host. Plus RFC 8058
+ *   one-click: POST ?t=<a1 token> with the body List-Unsubscribe=One-Click
+ *   (form-urlencoded or multipart) stops that app's email at once. A v1
+ *   token is never taken by one-click, and a multipart body is taken only
+ *   for one-click, so the v1/u1 pages answer exactly as before.
  *   POST application/json with Authorization: Bearer <service-role key>
  *        { action: 'status' | 'add' | 'remove', email }
  *                            support: the address is hashed here, under
@@ -41,7 +48,18 @@
 import { restDb, type Db } from './db.ts';
 import { BRAND_INDIGO, DARK_BRAND, DARK_LINK, emailLogoUrl, escapeHtml, SUPPORT_EMAIL } from './email.ts';
 import { hashKeys, shortHash } from './keys.ts';
-import { OPTOUT_SCOPE_ALL, optOutToken, undoToken, verifyOptOutToken, verifyUndoToken } from './optout.ts';
+import {
+  appOptOutToken,
+  appScope,
+  appUndoToken,
+  OPTOUT_SCOPE_ALL,
+  optOutToken,
+  undoToken,
+  verifyAppOptOutToken,
+  verifyAppUndoToken,
+  verifyOptOutToken,
+  verifyUndoToken,
+} from './optout.ts';
 import { errorText, readBody } from './util.ts';
 import { normalizeEmail } from './validate.ts';
 
@@ -73,7 +91,9 @@ export const OPTOUT_PATH = '/functions/v1/email-optout';
 /** A form or a support command is a few hundred bytes. */
 export const MAX_OPTOUT_BODY = 4096;
 
-export type PageKind = 'confirm' | 'stopped' | 'restored' | 'expired' | 'invalid' | 'error' | 'unavailable';
+export type PageKind = 'confirm' | 'stopped' | 'restored' | 'expired' | 'invalid' | 'error' | 'unavailable' | AppPageKind;
+/** The per-app pages ("Turn off <App> emails", app-notify): the same steps, about one app's update emails. */
+export type AppPageKind = 'app-confirm' | 'app-stopped' | 'app-restored' | 'app-expired';
 export type SupportAction = 'status' | 'add' | 'remove';
 export const SUPPORT_ACTIONS: readonly SupportAction[] = ['status', 'add', 'remove'];
 
@@ -132,10 +152,25 @@ function form(token: string, action: 'stop' | 'undo', label: string, quiet = fal
  * stop token on confirm and restored, a fresh undo token on stopped; each one
  * either verified or was made here.
  */
-export function optOutPage(kind: PageKind, token = '', logoUrl: string | null = null): { title: string; html: string } {
+export function optOutPage(kind: PageKind, token = '', logoUrl: string | null = null, app = ''): { title: string; html: string } {
   let title: string;
   let body: string;
-  if (kind === 'confirm') {
+  // The app's own host names it: the slug came from a verified token (a-z, 0-9, -).
+  const host = escapeHtml(`${app}.hintwise.org`);
+  const STILL = 'Sign-in links and other HintWise email still come.';
+  if (kind === 'app-confirm') {
+    title = `Turn off emails from ${app}.hintwise.org?`;
+    body = `<p>This stops the update emails from ${host} (its new pages and releases) to this address. ${STILL}</p>${form(token, 'stop', 'Turn off these emails')}`;
+  } else if (kind === 'app-stopped') {
+    title = 'Done';
+    body = `<p>${host} will send no more update emails to this address. ${STILL}</p>${form(token, 'undo', 'Undo', true)}<p>The Undo button works for an hour. To turn them back on later, write to ${supportLink} from this address.</p>`;
+  } else if (kind === 'app-restored') {
+    title = `Emails from ${app}.hintwise.org are on again`;
+    body = `<p>This address gets the update emails from ${host} again.</p>${form(token, 'stop', 'Turn off these emails', true)}`;
+  } else if (kind === 'app-expired') {
+    title = 'This Undo button has expired';
+    body = `<p>It works for an hour after the emails were turned off, so the update emails from ${host} to this address are still off. To turn them back on, write to ${supportLink} from this address.</p>`;
+  } else if (kind === 'confirm') {
     title = 'Stop all email from HintWise to this address?';
     body = `<p>This stops every email from HintWise apps to this address, sign-in links included. You can still sign in with Google.</p>${form(token, 'stop', 'Stop all email')}`;
   } else if (kind === 'stopped') {
@@ -167,7 +202,19 @@ export function optOutPage(kind: PageKind, token = '', logoUrl: string | null = 
   return { title, html };
 }
 
-const STATUS: Record<PageKind, number> = { confirm: 200, stopped: 200, restored: 200, expired: 400, invalid: 400, error: 500, unavailable: 503 };
+const STATUS: Record<PageKind, number> = {
+  confirm: 200,
+  stopped: 200,
+  restored: 200,
+  expired: 400,
+  invalid: 400,
+  error: 500,
+  unavailable: 503,
+  'app-confirm': 200,
+  'app-stopped': 200,
+  'app-restored': 200,
+  'app-expired': 400,
+};
 
 const json = (status: number, body: unknown): Response =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
@@ -192,8 +239,8 @@ export function mayBeServiceKey(key: string): boolean {
 export async function handleOptOut(req: Request, deps: OptOutDeps): Promise<Response> {
   const log = deps.log ?? ((m: string) => console.warn(m));
   const logo = emailLogoUrl(deps.env.EMAIL_LOGO_URL);
-  const page = (kind: PageKind, token = '', head = false): Response =>
-    new Response(head ? null : optOutPage(kind, token, logo).html, { status: STATUS[kind], headers: pageHeaders(logo) });
+  const page = (kind: PageKind, token = '', head = false, app = ''): Response =>
+    new Response(head ? null : optOutPage(kind, token, logo, app).html, { status: STATUS[kind], headers: pageHeaders(logo) });
   try {
     if (req.method === 'GET' || req.method === 'HEAD') return await showPage(req, deps, page);
     if (req.method === 'POST') {
@@ -207,13 +254,15 @@ export async function handleOptOut(req: Request, deps: OptOutDeps): Promise<Resp
   }
 }
 
-type PageFn = (kind: PageKind, token?: string, head?: boolean) => Response;
+type PageFn = (kind: PageKind, token?: string, head?: boolean, app?: string) => Response;
 
 /** GET and HEAD: verify the token and show the question. No database, so nothing can change. */
 async function showPage(req: Request, deps: OptOutDeps, page: PageFn): Promise<Response> {
   const head = req.method === 'HEAD';
   if (!deps.env.EMAIL_OPTOUT_SECRET) return page('unavailable', '', head);
   const token = new URL(req.url).searchParams.get('t');
+  const app = await verifyAppOptOutToken(deps.env.EMAIL_OPTOUT_SECRET, token);
+  if (app.ok) return page('app-confirm', token as string, head, app.app);
   const check = await verifyOptOutToken(deps.env.EMAIL_OPTOUT_SECRET, token);
   return check.ok ? page('confirm', token as string, head) : page('invalid', '', head);
 }
@@ -233,10 +282,24 @@ async function submit(req: Request, deps: OptOutDeps, log: (m: string) => void, 
   const now = (deps.now ?? (() => new Date()))();
   const text = await readBody(req, MAX_OPTOUT_BODY);
   if (text === null) return page('invalid');
-  const fields = new URLSearchParams(text);
-  const token = fields.get('t') ?? '';
-  const action = fields.get('action');
+  const type = req.headers.get('content-type') ?? '';
+  const multipart = type.toLowerCase().startsWith('multipart/form-data');
+  const fields = multipart ? await multipartFields(text, type) : new URLSearchParams(text);
+  let token = fields.get('t') ?? '';
+  let action = fields.get('action');
+  // RFC 8058 one-click: the mail client POSTs List-Unsubscribe=One-Click to
+  // the List-Unsubscribe URL, whose query holds the token. Only app-notify
+  // email carries that header, so only an app stop token is taken this way.
+  const oneClick = action === null && fields.get('List-Unsubscribe') === 'One-Click';
+  if (oneClick) {
+    token = new URL(req.url).searchParams.get('t') ?? '';
+    action = 'stop';
+  } else if (multipart) return page('invalid');
   if (action !== 'stop' && action !== 'undo') return page('invalid');
+  const app = action === 'stop' ? await verifyAppOptOutToken(secret, token) : await verifyAppUndoToken(secret, token, now);
+  if (app.ok) return await submitApp(deps, log, page, action, app.emailHash, app.app, now);
+  if (app.reason === 'expired') return page('app-expired', '', false, app.app);
+  if (oneClick) return page('invalid');
   const check = action === 'stop' ? await verifyOptOutToken(secret, token) : await verifyUndoToken(secret, token, now);
   if (!check.ok) return page(check.reason === 'expired' ? 'expired' : 'invalid');
   const db = deps.db ?? restDb(deps.fetch, env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
@@ -248,6 +311,38 @@ async function submit(req: Request, deps: OptOutDeps, log: (m: string) => void, 
     return page('error');
   }
   return action === 'stop' ? page('stopped', await undoToken(secret, check.emailHash, now)) : page('restored', await optOutToken(secret, check.emailHash));
+}
+
+/** The fields of a multipart/form-data body (a one-click POST may use it), or none when it does not parse. */
+async function multipartFields(text: string, type: string): Promise<URLSearchParams> {
+  const out = new URLSearchParams();
+  try {
+    const form = await new Response(text, { headers: { 'content-type': type } }).formData();
+    form.forEach((v, k) => {
+      if (typeof v === 'string') out.append(k, v);
+    });
+  } catch {
+    /* refused by the caller: no fields */
+  }
+  return out;
+}
+
+/** Stop or undo one app's update emails for the address a verified app token names. */
+async function submitApp(deps: OptOutDeps, log: (m: string) => void, page: PageFn, action: 'stop' | 'undo', emailHash: string, app: string, now: Date): Promise<Response> {
+  const env = deps.env as Required<Pick<OptOutEnv, 'SUPABASE_URL' | 'SUPABASE_SERVICE_ROLE_KEY' | 'EMAIL_OPTOUT_SECRET'>>;
+  const db = deps.db ?? restDb(deps.fetch, env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
+  const scope = appScope(app);
+  try {
+    if (action === 'stop') await db.rpc('email_optout_set', { p_email_hash: emailHash, p_scope: scope, p_via: 'link' });
+    else await db.rpc('email_optout_clear', { p_email_hash: emailHash, p_scope: scope });
+  } catch (e) {
+    log(`email-optout: ${action} ${scope} failed for ${shortHash(emailHash)}: ${errorText(e)}`);
+    return page('error');
+  }
+  const secret = env.EMAIL_OPTOUT_SECRET;
+  return action === 'stop'
+    ? page('app-stopped', await appUndoToken(secret, app, emailHash, now), false, app)
+    : page('app-restored', await appOptOutToken(secret, app, emailHash), false, app);
 }
 
 export interface OptOutEntry {

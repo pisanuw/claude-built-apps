@@ -32,6 +32,15 @@ entrypoint = "./functions/auth-email-hook/index.ts"
 verify_jwt = false
 entrypoint = "./functions/email-optout/index.ts"
 
+[functions.app-notify]
+# The daily app-notify run (shared/0011, src/notify). Not deployed yet. The
+# check is a shared secret header (x-app-notify-secret = APP_NOTIFY_SECRET,
+# at least 32 characters, compared in constant time), not the platform's JWT
+# check: the anon key is public, so verify_jwt alone would let anyone start a
+# run, and the service-role key does not belong in the scheduler.
+verify_jwt = false
+entrypoint = "./functions/app-notify/index.ts"
+
 [functions.delete-account]
 # A signed-in person deletes their own account. verify_jwt is off so the CORS
 # preflight (no token) gets through; the function verifies the session token
