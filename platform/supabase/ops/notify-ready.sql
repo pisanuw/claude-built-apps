@@ -11,4 +11,4 @@ select jsonb_build_object(
   'enabled_apps', (select count(*) from platform.notify_apps where enabled),
   'anon_reads_notify_apps', has_table_privilege('anon', 'platform.notify_apps', 'select'),
   'authenticated_runs_opted_in', has_function_privilege('authenticated', 'platform.notify_opted_in(text)', 'execute')
-) as notify_ready;
+)::text as notify_ready;
