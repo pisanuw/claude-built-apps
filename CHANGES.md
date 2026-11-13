@@ -559,3 +559,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-12 [code] photo2pgn: 0002_games applied, app_photo2pgn exposed, check-schema passed; max_tokens 12000 (owner yes).
 
 2026-11-12 [decision] photo2pgn per-person caps $0.25/day, $1.00/week (owner "Yes caps"), applied. Studio listing prepared, waits for owner.
+
+2026-11-13 [note] photo2pgn: owner wants no truncated PGNs (guess, backtrack, flag); relayed. Credits design reviewed for photo2pgn, nothing built; owner decides.
