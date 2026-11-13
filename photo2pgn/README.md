@@ -30,3 +30,16 @@ sha256), never edit an applied file, and put later changes in a new
 
 The app's own caps are set by the owner, never in its migrations
 (docs/new-app-guide.md, "Spending limits").
+
+## The reader on halflife
+
+`halflife/install-pgn-worker-agent.sh` installs a launchd agent that keeps
+photo2pgn's CLI reader (`cli/pgn-worker.mjs` in pisan-labs/photo2pgn) running
+on the owner's Mac: started at login, restarted after an error exit (every 5
+minutes at most), logging to `~/Library/Logs/photo2pgn-worker.log`. It checks
+the site and the token (`--list`) before installing. Run on halflife:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pisanuw/claude-built-apps/main/photo2pgn/halflife/install-pgn-worker-agent.sh -o ~/install-pgn-worker-agent.sh
+bash ~/install-pgn-worker-agent.sh            # or: bash ~/install-pgn-worker-agent.sh uninstall
+```
