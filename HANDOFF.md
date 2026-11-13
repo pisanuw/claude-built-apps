@@ -152,10 +152,12 @@ The build routine (BUILD_ROUTINE.md) picks a substantial idea (small business fi
 | Merge rule | push to main after `node --test scripts/site-footer.test.mjs` passes |
 
 ### Scheduling
-- Previous session: session_01JyJzMZ1aBTZCRkUXLJnRG4 ("Plabs: Nov 8"), lineage depth 2 of 8, handed over 11 November.
-- **Current session: session_01JyJzMXxeHu9P7By5BXRNJv ("Plabs: Nov 11")**, took over 11 November 2026 (created 13:53 UTC by the start routine), lineage **depth 3 of limit 8**. Handed over on **13 November 2026 at 57% context** (573,007 of 1,000,000 tokens). The scheduler ran ~90 minutes late that day, so on the owner's "do handoff now" this session ran the start routine's steps itself (create_session, depth 4 of 8).
+- Previous session before that: session_01JyJzMZ1aBTZCRkUXLJnRG4 ("Plabs: Nov 8"), depth 2 of 8, handed over 11 November.
+- Previous session: session_01JyJzMXxeHu9P7By5BXRNJv ("Plabs: Nov 11"), depth 3 of 8. Handed over on 13 November 2026 at 57% context (573,007 of 1,000,000 tokens); the scheduler ran ~90 minutes late, so on the owner's "do handoff now" it ran the start routine's steps itself.
+- **Current session: session_01JyJzMWixW7SqcHTri4Umng ("Plabs: Nov 13")**, took over 13 November 2026 (created 14:42 UTC by the previous session's create_session), lineage **depth 4 of limit 8**.
 - Relay routines (aimed at the current session; the next session re-aims them at itself and deletes these):
-  - trig_01DF97CqMqhDtJLS2LiVwjc5: Plabs hourly status report, `46 * * * *`
-  - trig_01Wxj14aKZPbxNMZZ4cFqDy5: Plabs handoff check, `CRON_TZ=Europe/Berlin 56 13 * * *`
-  - trig_01FBwDwP9XRuBfkaCzyRPVg4: Plabs session start, `CRON_TZ=Europe/Berlin 52 14 * * *`
+  - trig_01Ha16psPae9zfPmEzUyXpbf: Plabs hourly status report, `46 * * * *`
+  - trig_01D4x4ngY3WRG9wZYV3dA5j6: Plabs handoff check, `CRON_TZ=Europe/Berlin 56 13 * * *`
+  - trig_017bkQRUNEsvvyRBTV36EasF: Plabs session start, `CRON_TZ=Europe/Berlin 52 14 * * *`
+- The previous session's three routines (trig_01DF97CqMqhDtJLS2LiVwjc5, trig_01Wxj14aKZPbxNMZZ4cFqDy5, trig_01FBwDwP9XRuBfkaCzyRPVg4) are **switched off, not deleted**: delete_trigger was refused by this session's permission mode on 13 Nov. They are harmless while disabled; the owner can delete them in the scheduled-tasks list.
 - Not relay, leave alone: the owner's ideas (trig_01K986yzFbf3noGkLA6RgZkn) and build (trig_01BAP9nsXTtxTdpMiwk5GdXE) routines; the Chess TD, Chess Analyzer and DSA relays (other sessions); the StepWise relay has ended; TPT daily product builder; research-map; SIGCSE poster reminder.
