@@ -61,7 +61,10 @@ Still open / waiting on the owner:
    - **Daily schedule on** (13 Nov): `notify-schedule on` enabled pg_cron and pg_net, set APP_NOTIFY_SECRET (function secret and Vault `app_notify_secret`) and created job app-notify-daily at 15:17 UTC. Calls without the secret get 401. Check it with `notify-schedule status` (last runs, last HTTP answers); `off` undoes it.
    - **StepWise feed live:** https://stepwise.hintwise.org/notify-feed.json (visualizing-data-structures 2228ae7, 13 Nov 19:48 UTC). It passes the platform's fetchFeed: 3 items, 0 skipped. The toggle label is updated.
    - Opt-ins on 13 Nov: 0 of 1 preferences row (ops/notify-stepwise-optins.sql).
-   - **Waiting for the owner's yes** to run `sql` platform/supabase/ops/notify-register-stepwise.sql, which registers StepWise with enabled = true (opt_in_user_column owner). The first run then seeds and emails nobody. Card sent 13 Nov.
+   - **StepWise registered and switched on** (owner's "1", 13 Nov ~20:50 UTC; ops/notify-register-stepwise.sql): enabled true, seeded_at null.
+     - The first daily run (14 Nov 15:17 UTC) seeds the 3 existing releases and emails nobody. A check is scheduled for 15:35 UTC that day.
+     - The first real email goes out after the next StepWise release (the AI and LLMs pages).
+     - Undo: `update platform.notify_apps set enabled = false where slug = 'stepwise';`
    - Unverified: Resend accepting the List-Unsubscribe headers, and Deno's redirect: manual.
 4. **Logo rollout** in the shared footer reaches apps on each deploy; don't redeploy all (credits). Favicons and social images later.
 5. **Watch the build routine** (11:49 CET daily): Delivery Canary day 3 next. It must use the platform template's sign-in.
@@ -75,6 +78,7 @@ Still open / waiting on the owner:
 ## 7. Dated tasks
 
 - Each day 11:49 CET: the build routine advances the weekly project (Delivery Canary); check it uses the platform's sign-in.
+- 14 Nov 15:35 UTC (one-shot scheduled task on this session): check app-notify's first StepWise run seeded (notify-schedule status; seeded_at set, 3 items seen, 0 sends).
 
 ## 8. Decisions and why
 
