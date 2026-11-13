@@ -59,9 +59,9 @@ Still open / waiting on the owner:
    - shared/0011 and 0012 applied: 0012 makes notify_opted_in security definer, because the live service role cannot read auth.users. check-schema passed.
    - email-optout and app-notify deployed. 0 apps registered.
    - **Daily schedule on** (13 Nov): `notify-schedule on` enabled pg_cron and pg_net, set APP_NOTIFY_SECRET (function secret and Vault `app_notify_secret`) and created job app-notify-daily at 15:17 UTC. Calls without the secret get 401. Check it with `notify-schedule status` (last runs, last HTTP answers); `off` undoes it.
-   - **StepWise go-live in progress:** asked StepWise's session (session_01JyJzMZ3W1yMJWwuFJ1PTXM, repo pisan-labs/visualizing-data-structures) for https://stepwise.hintwise.org/notify-feed.json in the feed format. Its releases.json is a bare array, so it is kept as is.
-   - Then register with opt_in_user_column **owner** (not user_id): app_stepwise.preferences(owner, notify_new_pages). 0002 already grants select.
-   - Get the owner's final yes before setting enabled = true, since that starts real email.
+   - **StepWise feed live:** https://stepwise.hintwise.org/notify-feed.json (visualizing-data-structures 2228ae7, 13 Nov 19:48 UTC). It passes the platform's fetchFeed: 3 items, 0 skipped. The toggle label is updated.
+   - Opt-ins on 13 Nov: 0 of 1 preferences row (ops/notify-stepwise-optins.sql).
+   - **Waiting for the owner's yes** to run `sql` platform/supabase/ops/notify-register-stepwise.sql, which registers StepWise with enabled = true (opt_in_user_column owner). The first run then seeds and emails nobody. Card sent 13 Nov.
    - Unverified: Resend accepting the List-Unsubscribe headers, and Deno's redirect: manual.
 4. **Logo rollout** in the shared footer reaches apps on each deploy; don't redeploy all (credits). Favicons and social images later.
 5. **Watch the build routine** (11:49 CET daily): Delivery Canary day 3 next. It must use the platform template's sign-in.
