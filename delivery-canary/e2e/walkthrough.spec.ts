@@ -15,8 +15,22 @@ test('the sample email is checked, its file saved as the baseline', async ({ pag
   await expect(report).toContainText('The download link works');
   await expect(page.getByRole('radio', { name: 'Promotions' })).toBeChecked();
   await page.getByRole('button', { name: 'Save this file as the baseline' }).click();
-  await expect(page.getByRole('status')).toContainText('Checked. Sign in to keep this check.');
+  await expect(page.locator('#check-status')).toContainText('Checked. Sign in to keep this check.');
   await expect(report).toContainText('Same file as the baseline');
   await expect(page.locator('#baseline-line')).toContainText('canary-pattern.pdf');
-  await expect(page.locator('.history-list li')).toHaveCount(1);
+  await expect(page.locator('#history .history-list li')).toHaveCount(1);
+});
+
+test('the sample orders export flags the late download orders', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Try a sample export' }).click();
+  const report = page.getByRole('article', { name: 'Order scan result' });
+  await expect(report.locator('.verdict')).toHaveText('3 download orders look undelivered');
+  await expect(report.locator('tbody th')).toHaveText(['#1001', '#1005', '#1006']);
+  await expect(page.locator('#dropped')).toContainText('Email');
+  await expect(page.locator('#orders-status')).toHaveText('Scanned. Sign in to keep this scan.');
+  await expect(page.locator('#scan-list li')).toHaveCount(1);
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download this list (CSV)' }).click();
+  expect((await download).suggestedFilename()).toMatch(/^late-download-orders-\d{4}-\d{2}-\d{2}\.csv$/);
 });

@@ -72,6 +72,15 @@ table.details th { width: 11rem; font-weight: 600; color: var(--muted); }
 .history-list li.verdict-warn .v { color: var(--warn); font-weight: 600; }
 .history-list li.verdict-pass .v { color: var(--ok); font-weight: 600; }
 .baseline { color: var(--muted); }
+.table-wrap { overflow-x: auto; margin: 0.5rem 0; }
+table.orders { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+p.table-title { font-weight: 600; margin: 0.5rem 0 0; }
+table.orders th, table.orders td { text-align: left; vertical-align: top; padding: 0.35rem 0.5rem; border-top: 1px solid var(--line); }
+table.orders thead th { color: var(--muted); border-top: none; white-space: nowrap; }
+table.orders tbody th { white-space: nowrap; }
+.tag { color: var(--muted); font-size: 0.9rem; }
+#scans-h { margin-top: 1rem; }
+p.fix { margin: 0.5rem 0; }
 @media (max-width: 40rem) {
   .grid2 { grid-template-columns: 1fr; }
   .finding { grid-template-columns: 1fr; gap: 0.1rem; }
@@ -79,4 +88,5 @@ table.details th { width: 11rem; font-weight: 600; color: var(--muted); }
   .history-list li { grid-template-columns: 1fr auto; }
   .history-list li .s { grid-column: 1; }
   .history-list li .row-actions { grid-column: 2; grid-row: 1 / span 4; }
+  table.orders th, table.orders td { padding: 0.3rem; }
 }

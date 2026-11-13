@@ -1,5 +1,6 @@
 /**
- * The page: the shop, the delivery-email check, and the shop's history.
+ * The page: the delivery-email check, the late-order scan, the shop, and the
+ * shop's history.
  * Everything the page needs from outside comes through AppDeps, so the
  * tests run it under jsdom with memory stores and fake link tests.
  */
@@ -12,12 +13,17 @@ import { newId } from '../lib/repository';
 import { byNewest, HISTORY_LIMIT, type CheckRow, type ShopRow, type Stores } from '../store/stores';
 import { clear, h, when } from './dom';
 import { LinkTestSkipped } from './linkclient';
+import { mountOrders } from './orders';
 import { PLACEMENT_TEXT, renderReport, VERDICT_TEXT } from './report';
 
 export interface AppDeps {
   /** Stores for the current sign-in state. */
   stores: Stores;
   checkLink: (url: string) => Promise<LinkResult>;
+  /** Hashes an orders export (tests pass a fake; the page uses Web Crypto). */
+  digest?: (data: ArrayBuffer) => Promise<ArrayBuffer>;
+  /** Offers a file to the visitor (tests capture it). */
+  download?: (name: string, text: string) => void;
   /** Mounts the sign-in panel and calls back with the stores to use whenever the user changes; absent without Supabase. */
   mountAuth?: (el: HTMLElement, onStores: (stores: Stores) => void) => void;
   origin: string;
@@ -44,7 +50,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
   let current: Current | null = null;
   let busy = false;
 
-  const status = h('p', { class: 'status', role: 'status', 'aria-live': 'polite' });
+  const status = h('p', { class: 'status', role: 'status', 'aria-live': 'polite', id: 'check-status' });
   const say = (text: string) => {
     status.textContent = text;
   };
@@ -83,6 +89,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
   const result = h('div', { id: 'result', tabindex: '-1' });
   const history = h('div', { id: 'history' });
   const authEl = h('section', { id: 'signin', 'aria-label': 'Sign in' });
+  const orders = mountOrders({ stores: () => stores, ensureShop: () => ensureShop(), shop: () => shop, now, digest: deps.digest, download: deps.download });
 
   root.replaceChildren(
     h(
@@ -115,6 +122,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
         status,
         result,
       ),
+      orders.el,
       h(
         'section',
         { class: 'card', 'aria-labelledby': 'shop-h' },
@@ -227,6 +235,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
     } catch (e) {
       say(`Could not load your history: ${(e as Error).message}`);
     }
+    await orders.refresh();
   }
 
   /** Re-evaluates the current check (after a new link test or a new baseline) and shows it. */
