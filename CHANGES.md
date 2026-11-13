@@ -590,3 +590,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-13 [code] ci: Supabase admin notify-schedule (status|on|off): APP_NOTIFY_SECRET in function and Vault, pg_cron job app-notify-daily 15:17 UTC.
 
 2026-11-13 [code] fide-lookup.hintwise.org live (owner): DNS-only CNAME to fide-lookup.onrender.com, Render custom domain verified, TLS valid, /api/health 200.
+
+2026-11-13 [note] StepWise notify-feed.json live (visualizing-data-structures 2228ae7); passes the platform parser (3 items, 0 skipped). Registration SQL ready, waits for the owner yes.
