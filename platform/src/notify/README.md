@@ -200,11 +200,13 @@ characters, compared in constant time. Without it, every call is refused.
 A stolen secret could only start a run, and a run sends nothing beyond each
 person's one email a day.
 
-## Deploy order (each step after the owner's yes; none done yet)
+## Deploy order (owner's yes 13 Nov: platform prepared, sending off)
 
-1. `apply-shared`, which runs `0011_app_notify.sql`. Then
-   `check-schema platform`. Expect warnings saying "RLS on, no policy", as
-   for the other service-role tables.
+1. `apply-shared`, which runs `0011_app_notify.sql` and
+   `0012_notify_opted_in_definer.sql`. Then `check-schema platform`. Expect
+   warnings saying "RLS on, no policy", as for the other service-role
+   tables. **Done 13 Nov** (0011; 0012 after it). Check with `sql`
+   `platform/supabase/ops/notify-ready.sql`.
 2. Set the function secret `APP_NOTIFY_SECRET`: 64 random hex characters,
    generated once. `set-sign-in-secrets` does not set it yet; adding it
    there is a small workflow change. The other secrets the function needs
@@ -221,11 +223,8 @@ person's one email a day.
 
 ## Not verified yet
 
-- Supabase's `service_role` reading `auth.users` from a security-invoker
-  function. 0009 reads it from security-definer functions instead. If the
-  live project refuses, nothing is sent (the call fails). The fallback is to
-  make `notify_opted_in` alone security definer, owned by `postgres`, with
-  `search_path = ''`. Its identifiers are already constrained and quoted.
+(Settled 13 Nov: the live service role cannot read `auth.users`, so 0012 makes `notify_opted_in` alone security definer.)
+
 - Resend accepting the `headers` field with `List-Unsubscribe`, and the
   `<slug>@hintwise.org` From addresses. The domain is verified for
   `sign-in@`.

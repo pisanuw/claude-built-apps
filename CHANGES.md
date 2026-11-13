@@ -582,3 +582,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-13 [code] platform: app-notify sender on feat/app-notify (registry, per-app opt-out, one-click unsubscribe); not applied or deployed.
 
 2026-11-13 [note] Owner confirmed photo2pgn admin list and real-account grant/reading/My games work. Halflife reading charge dropped from Plabs (owner handles it).
+
+2026-11-13 [code] platform: app-notify 0011 applied (owner yes, sending off); live check found service_role cannot read auth.users, so 0012 makes notify_opted_in security definer.

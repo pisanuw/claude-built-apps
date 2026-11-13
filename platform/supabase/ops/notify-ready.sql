@@ -10,5 +10,6 @@ select jsonb_build_object(
   'registered_apps', (select count(*) from platform.notify_apps),
   'enabled_apps', (select count(*) from platform.notify_apps where enabled),
   'anon_reads_notify_apps', has_table_privilege('anon', 'platform.notify_apps', 'select'),
+  'opted_in_is_definer', (select p.prosecdef from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'platform' and p.proname = 'notify_opted_in'),
   'authenticated_runs_opted_in', has_function_privilege('authenticated', 'platform.notify_opted_in(text)', 'execute')
 )::text as notify_ready;

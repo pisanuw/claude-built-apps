@@ -61,3 +61,21 @@ describe('0011_app_notify.sql', () => {
     expect(sql).toContain('NOT APPLIED YET');
   });
 });
+
+describe('0012_notify_opted_in_definer.sql', () => {
+  const sql12 = fs.readFileSync(path.join(here, '..', 'supabase', 'shared', '0012_notify_opted_in_definer.sql'), 'utf8').replace(/--.*$/gm, '');
+  it('makes only notify_opted_in security definer, with an empty search_path, executable by service_role alone', () => {
+    const fns = [...sql12.matchAll(/create or replace function (platform\.\w+)\(/g)].map((m) => m[1]);
+    expect(fns).toEqual(['platform.notify_opted_in']);
+    expect(sql12).toMatch(/security definer\s+set search_path = ''/);
+    expect(sql12).toContain('revoke all on function platform.notify_opted_in(text) from public, anon, authenticated;');
+    expect(sql12).toContain('grant execute on function platform.notify_opted_in(text) to service_role;');
+    expect(sql12).not.toMatch(/grant [^;]* to (anon|authenticated|public)/);
+  });
+  it('keeps 0011\'s query: enabled apps only, %I-quoted identifiers, confirmed live accounts', () => {
+    expect(sql12).toContain("where a.slug = p_app and a.enabled");
+    expect(sql12).toContain("'select u.id, u.email::text from %I.%I t join auth.users u on u.id = t.%I '");
+    expect(sql12).toContain('u.email_confirmed_at is not null');
+    expect(sql12).not.toMatch(/%s/);
+  });
+});
