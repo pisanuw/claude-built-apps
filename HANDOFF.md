@@ -17,7 +17,7 @@ Since 9 Nov the build routine builds one substantial project a week on a shared 
   - Supabase project `arktxlrlyceffyozdwhq` on **auth.hintwise.org**. Schema `platform`; per-app schemas `app_<slug>` with RLS. Migrations through `supabase-admin.mjs migrate <slug>` then `expose-schema` and `check-schema`.
   - Google and email sign-in (sign-in-link Edge Function, branded button, wait ladder, limits, hashed log). Send Email hook ON since 11 Nov.
   - **llm-gateway** Edge Function (owner's Anthropic key behind caps; BYOK always offered). Since 13 Nov it also: counts a person's successful calls per app (reading caps, `shared/0007`); answers a **check mode** `{app, check: true}` with `allowance()` (no model call, no cost); **spends credits** once the free allowance is used up, reserving before the call and refunding on failure (`shared/0008`); and records who used each app on every check and call (`platform.app_users`, `shared/0009`).
-  - **credits-grant** Edge Function: a HintWise admin grants credits by email `{app, email, credits, note?}`, or lists an app's people `{app, list: true, limit?}` (email, first/last seen, free_left, free_resets_at, credits, readings). Non-admins 403. Admins are in `platform.admins`, changed only by the Supabase admin `admin add|remove|list` command (address masked in the log). **The owner is the first and only admin** (13 Nov 09:13 UTC).
+  - **credits-grant** Edge Function: a HintWise admin grants credits by email `{app, email, credits, note?}`, or lists an app's people `{app, list: true, limit?}` (email, name, first/last seen, free_left, free_resets_at, credits, readings, and per-app `counts` from an optional `app_<slug>.admin_user_counts()`; since 13 Nov 14:34 UTC, shared/0010 and photo2pgn 0003, 1b6fc57). Non-admins 403. Admins are in `platform.admins`, changed only by the Supabase admin `admin add|remove|list` command (address masked in the log). **The owner is the first and only admin** (13 Nov 09:13 UTC).
 - **photo2pgn** (pisan-labs/photo2pgn, own repo; its own relay session_01JyJzMW9Bz6EAJvfv2NPJQd): live at **photo2pgn.hintwise.org** (main 3f3f41c and later), listed on HintWise Studio (Photo to PGN). See section 4.
 - **delivery-canary** (delivery-canary.hintwise.org): the weekly build in progress, day 2 done 13 Nov (unfulfilled digital-order scan). Footer present. Its own handoff: delivery-canary/HANDOFF.md.
 - **Own-repo apps on the platform:** UpvoteMe (pisanuw/upvote), PasteMD (pisanuw/pastemd), StepWise (stepwise.hintwise.org; its relay ended, new work by hand) — all with Supabase sign-in, compliant Google button and the footer.
@@ -46,7 +46,7 @@ Live and listed. The owner's choices this cycle, all applied:
 
 Still open / waiting on the owner:
 - **Test from a real account:** a check, a reading, and a grant (grant self 1 credit → "Check balance" → read a sheet); and **"My games"** on a second device. The owner confirmed the credits screen and admin panel show, but not a grant's resulting balance or a saved-game round trip.
-- **Deploy photo2pgn's "List users"** (d1fd765) — its session waits for the owner's yes.
+- **Deploy photo2pgn's "List users"** (d1fd765) — its session waits for the owner's yes; it deploys with a layout change the owner asked for first. Names and games counts are in the list answer (owner's yes, 13 Nov); photo2pgn was asked to copy `photo2pgn/supabase/migrations/0003_admin_counts.sql` (sha256 4af07300…0abf, already applied) into its repo byte for byte and to show the two columns.
 - **Paddle (slice 2):** needs the owner's account and prices (proposed 20 credits/$5, 50/$10, never expire). Before selling, raise the $1/day app cap, since paid readings count against it.
 - Chess TD asked photo2pgn for a scoresheet-reading API; photo2pgn recommends sharing its reading code instead (a server-side reading would need a key in a function). Undecided; if Chess TD reads through the gateway it needs its own llm_apps row and caps (owner's numbers).
 
@@ -153,7 +153,7 @@ The build routine (BUILD_ROUTINE.md) picks a substantial idea (small business fi
 
 ### Scheduling
 - Previous session: session_01JyJzMZ1aBTZCRkUXLJnRG4 ("Plabs: Nov 8"), lineage depth 2 of 8, handed over 11 November.
-- **Current session: session_01JyJzMXxeHu9P7By5BXRNJv ("Plabs: Nov 11")**, took over 11 November 2026 (created 13:53 UTC by the start routine), lineage **depth 3 of limit 8**. Handed over on **13 November 2026 at 57% context** (573,007 of 1,000,000 tokens). The 14:52 Europe/Berlin start routine creates the next session (depth 4 of 8; depth + 1 = 4 ≤ 8, so create_session will not refuse).
+- **Current session: session_01JyJzMXxeHu9P7By5BXRNJv ("Plabs: Nov 11")**, took over 11 November 2026 (created 13:53 UTC by the start routine), lineage **depth 3 of limit 8**. Handed over on **13 November 2026 at 57% context** (573,007 of 1,000,000 tokens). The scheduler ran ~90 minutes late that day, so on the owner's "do handoff now" this session ran the start routine's steps itself (create_session, depth 4 of 8).
 - Relay routines (aimed at the current session; the next session re-aims them at itself and deletes these):
   - trig_01DF97CqMqhDtJLS2LiVwjc5: Plabs hourly status report, `46 * * * *`
   - trig_01Wxj14aKZPbxNMZZ4cFqDy5: Plabs handoff check, `CRON_TZ=Europe/Berlin 56 13 * * *`
