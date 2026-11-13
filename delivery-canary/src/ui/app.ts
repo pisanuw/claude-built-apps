@@ -410,6 +410,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
       stores = next;
       current = null;
       clear(result);
+      orders.reset();
       void load();
     });
   } else {

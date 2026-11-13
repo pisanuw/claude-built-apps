@@ -5,7 +5,10 @@
  * dependency is pulled in. Blank lines are skipped; an unclosed quote at the
  * end keeps what it read (the caller checks the columns it needs).
  */
-export function parseCsv(text: string): string[][] {
+export class CsvTooWide extends Error {}
+
+export function parseCsv(text: string, opts: { maxColumns?: number } = {}): string[][] {
+  const maxColumns = opts.maxColumns ?? Infinity;
   const rows: string[][] = [];
   const n = text.length;
   let i = text.charCodeAt(0) === 0xfeff ? 1 : 0;
@@ -58,6 +61,8 @@ export function parseCsv(text: string): string[][] {
       i = k;
     }
     row.push(field);
+    // A hostile file of nothing but commas would otherwise build millions of fields in one row.
+    if (row.length > maxColumns) throw new CsvTooWide(`More than ${maxColumns} columns in a row.`);
     if (i >= n) {
       endRow();
       break;

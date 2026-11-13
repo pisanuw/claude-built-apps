@@ -115,6 +115,8 @@ export interface ScanStore {
   remove(id: string): Promise<void>;
 }
 
+const withoutIds = ({ id: _id, created_at: _created, ...rest }: ScanRow) => rest;
+
 const LIST_COLUMNS = 'id, shop_id, created_at, updated_at, file_sha256, file_name, grace_minutes, orders_total, flagged';
 
 function byUpdated<T extends { updated_at: string }>(rows: T[]): T[] {
@@ -171,8 +173,15 @@ export class SupabaseScanStore implements ScanStore {
     if (error) throw new Error(`order_scans: ${error.message}`);
     return (data ?? undefined) as ScanRow | undefined;
   }
-  put(row: ScanRow) {
-    return this.repo.put(row);
+  /**
+   * Upserts on the file, not the id: two tabs scanning the same file at once
+   * still end with one row. id and created_at are left to the database, so a
+   * new row gets fresh ones and an existing row keeps its own.
+   */
+  async put(row: ScanRow): Promise<ScanRow> {
+    const { data, error } = await this.client.from('order_scans').upsert(withoutIds(row), { onConflict: 'shop_id,file_sha256' }).select().single();
+    if (error) throw new Error(`order_scans: ${error.message}`);
+    return data as ScanRow;
   }
   remove(id: string) {
     return this.repo.remove(id);

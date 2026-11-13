@@ -335,3 +335,85 @@ describe('scan stores', () => {
     await expect(store.latest('s1')).rejects.toThrow('order_scans: denied');
   });
 });
+
+describe('order scan card, review fixes', () => {
+  it('measures to the file time, so the same file scanned later gives the same answer', async () => {
+    let clock = NOW;
+    const { $, upload } = setup({ now: () => new Date(clock) });
+    await tick();
+    const text = sampleOrdersCsv(new Date(NOW));
+    const input = $<HTMLInputElement>('#orders-file');
+    const bytes = new TextEncoder().encode(text);
+    const drop = () => {
+      Object.defineProperty(input, 'files', { value: [{ name: 'e.csv', lastModified: NOW, arrayBuffer: async () => bytes.buffer }], configurable: true });
+      $<HTMLFormElement>('#scan-form').dispatchEvent(new Event('submit', { cancelable: true }));
+    };
+    drop();
+    await tick();
+    expect($$late($)).toEqual(['#1001', '#1005', '#1006']);
+    clock = NOW + 3 * 3_600_000;
+    drop();
+    await tick();
+    expect($$late($)).toEqual(['#1001', '#1005', '#1006']);
+    expect($('[aria-label="Order scan result"] .summary').textContent).toContain(', export of ');
+    // Without a file time the scan time is used, and #1009 has aged past the grace period.
+    upload(text, 'no-time.csv');
+    await tick();
+    expect($$late($)).toEqual(['#1001', '#1005', '#1006', '#1009']);
+  });
+
+  it('clears the scan when the account changes', async () => {
+    let swap: ((s: Stores) => void) | undefined;
+    const { $ } = setup({ mountAuth: (_el, onStores) => (swap = onStores) });
+    await tick();
+    $<HTMLButtonElement>('#run-sample-scan').click();
+    await tick();
+    expect($('[aria-label="Order scan result"]')).not.toBeNull();
+    swap!(savedStores());
+    await tick();
+    expect($('[aria-label="Order scan result"]')).toBeNull();
+    expect($('#orders-status').textContent).toBe('');
+    expect($('#scan-list').textContent).toContain('No scans yet');
+  });
+
+  it('explains a failed fingerprint and a failed shop save', async () => {
+    const a = setup({ digest: () => Promise.reject(new Error('no subtle')) });
+    await tick();
+    a.$<HTMLButtonElement>('#run-sample-scan').click();
+    await tick();
+    expect(a.$('#orders-status').textContent).toMatch(/could not fingerprint the file/);
+    const stores = savedStores();
+    stores.shops.put = () => Promise.reject(new Error('denied'));
+    const b = setup({ stores });
+    await tick();
+    b.$<HTMLButtonElement>('#run-sample-scan').click();
+    await tick();
+    expect(b.$('#orders-status').textContent).toBe('Could not save your shop: denied');
+  });
+
+  it('marks partly refunded orders and counts undated ones', () => {
+    const csv = 'Name,Financial Status,Paid at,Created at,Lineitem name,Lineitem requires shipping\n#1,partially_refunded,2026-11-13 08:00:00 +0000,2026-11-13 08:00:00 +0000,PDF,false\n#2,paid,,11/13/2026 08:00,PDF,false\n';
+    const s = scanOrders(importShopifyOrders(csv), new Date(NOW), 60);
+    const el = renderScan(s, { fileName: '', deliveryApp: 'unknown' });
+    expect(el.textContent).toContain('partly refunded: check the refund was not for this item');
+    expect(countsText(s)).toContain('1 with no readable date');
+  });
+
+  it('upserts Supabase scans on the file, leaving id and created_at to the database', async () => {
+    const calls: unknown[][] = [];
+    const q: Record<string, (...a: unknown[]) => unknown> = {};
+    for (const k of ['upsert', 'select', 'single']) q[k] = (...a: unknown[]) => (calls.push([k, ...a]), q);
+    q.then = (res: unknown) => (res as (v: unknown) => unknown)({ data: { id: 'db' }, error: null });
+    const store = new SupabaseScanStore({ from: () => q } as unknown as AppClient);
+    const row = { id: 'local', shop_id: 's', created_at: 'c', updated_at: 'u', file_sha256: 'f', file_name: 'n', grace_minutes: 60, orders_total: 1, flagged: 0, summary: {} as ScanRow['summary'] };
+    expect(await store.put(row)).toEqual({ id: 'db' });
+    expect(calls[0]).toEqual(['upsert', { shop_id: 's', updated_at: 'u', file_sha256: 'f', file_name: 'n', grace_minutes: 60, orders_total: 1, flagged: 0, summary: {} }, { onConflict: 'shop_id,file_sha256' }]);
+    q.then = (res: unknown) => (res as (v: unknown) => unknown)({ data: null, error: { message: 'dup' } });
+    await expect(store.put(row)).rejects.toThrow('order_scans: dup');
+  });
+});
+
+function $$late($: <T extends Element = HTMLElement>(sel: string) => T): string[] {
+  const art = $('[aria-label="Order scan result"]');
+  return [...art.querySelectorAll('tbody th')].map((t) => t.textContent ?? '');
+}

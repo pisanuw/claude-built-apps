@@ -12,6 +12,7 @@ import {
   GRACE_CHOICES,
   graceText,
   importShopifyOrders,
+  itemsText,
   lateCsvRows,
   MAX_CSV_BYTES,
   OrdersError,
@@ -47,6 +48,7 @@ export function countsText(s: ScanSummary): string {
   const c = s.counts;
   const parts = [`${plural(c.orders, 'order')} in the file, ${c.digital} with downloads`];
   const digital = [`${c.delivered} delivered`, `${c.late} late`];
+  if (c.undated) digital.push(`${c.undated} with no readable date`);
   if (c.waiting) digital.push(`${c.waiting} within the ${graceText(s.graceMinutes)} grace period`);
   if (c.notPaid) digital.push(`${c.notPaid} not paid yet`);
   if (c.refunded) digital.push(`${c.refunded} refunded`);
@@ -54,6 +56,12 @@ export function countsText(s: ScanSummary): string {
   if (c.cancelled) other.push(`${plural(c.cancelled, 'cancelled order')}`);
   if (c.physical) other.push(`${plural(c.physical, 'order')} with parcels only`);
   return `${parts[0]}: ${digital.join(', ')}.${other.length ? ` Not checked: ${other.join(' and ')}.` : ''}`;
+}
+
+/** ", export of 12 Nov, 09:00" when the export is more than five minutes older than the scan. */
+function asOfText(s: ScanSummary): string {
+  if (!s.asOf || Date.parse(s.scannedAt) - Date.parse(s.asOf) < 5 * 60_000) return '';
+  return `, export of ${when(s.asOf)}`;
 }
 
 function resendHint(app: string): string {
@@ -69,7 +77,7 @@ export function renderScan(s: ScanSummary, opts: { fileName: string; deliveryApp
     'article',
     { class: `report verdict-${verdict}`, 'aria-label': 'Order scan result' },
     h('h3', { class: 'verdict' }, headline),
-    h('p', { class: 'summary' }, `Scanned ${when(s.scannedAt)}${opts.fileName ? ` from ${opts.fileName}` : ''}. ${countsText(s)}`),
+    h('p', { class: 'summary' }, `Scanned ${when(s.scannedAt)}${opts.fileName ? ` from ${opts.fileName}` : ''}${asOfText(s)}. ${countsText(s)}`),
   );
   const notes = h('ul', { class: 'findings' });
   for (const n of s.notes) {
@@ -87,7 +95,13 @@ export function renderScan(s: ScanSummary, opts: { fileName: string; deliveryApp
           h('th', { scope: 'row' }, l.name),
           h('td', {}, l.since ? when(l.since) : 'unknown'),
           h('td', {}, ageText(l.ageMinutes)),
-          h('td', {}, l.items.map((i) => (i.quantity > 1 ? `${i.quantity} × ${i.name}` : i.name)).join('; '), l.partial ? h('span', { class: 'tag' }, ' (rest of the order delivered or shipped)') : null),
+          h(
+            'td',
+            {},
+            itemsText(l),
+            l.partial ? h('span', { class: 'tag' }, ' (rest of the order delivered or shipped)') : null,
+            l.financial === 'partially_refunded' ? h('span', { class: 'tag' }, ' (partly refunded: check the refund was not for this item)') : null,
+          ),
           h('td', {}, l.flaggedSince ? `Also late on ${when(l.flaggedSince)}` : 'New'),
         ),
       );
@@ -147,10 +161,12 @@ function defaultDownload(name: string, text: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-export function mountOrders(deps: OrdersDeps): { el: HTMLElement; refresh: () => Promise<void> } {
+export function mountOrders(deps: OrdersDeps): { el: HTMLElement; refresh: () => Promise<void>; reset: () => void } {
   const digest = deps.digest ?? ((d: ArrayBuffer) => crypto.subtle.digest('SHA-256', d));
   const download = deps.download ?? defaultDownload;
   let busy = false;
+  /** Bumped on each refresh and reset, so an older, slower refresh never draws over a newer one. */
+  let generation = 0;
 
   const status = h('p', { class: 'status', role: 'status', 'aria-live': 'polite', id: 'orders-status' });
   const say = (t: string) => {
@@ -218,14 +234,20 @@ export function mountOrders(deps: OrdersDeps): { el: HTMLElement; refresh: () =>
   }
 
   async function refresh(): Promise<void> {
-    clear(list);
+    const mine = ++generation;
     const shop = deps.shop();
     const stores = deps.stores();
     let rows: Awaited<ReturnType<Stores['scans']['list']>> = [];
+    let failed = '';
     try {
       rows = shop ? await stores.scans.list(shop.id) : [];
     } catch (e) {
-      list.append(h('p', { class: 'empty' }, `Could not load your scans: ${(e as Error).message}`));
+      failed = (e as Error).message;
+    }
+    if (mine !== generation) return;
+    clear(list);
+    if (failed) {
+      list.append(h('p', { class: 'empty' }, `Could not load your scans: ${failed}`));
       return;
     }
     if (!rows.length) {
@@ -276,7 +298,16 @@ export function mountOrders(deps: OrdersDeps): { el: HTMLElement; refresh: () =>
     list.append(ul);
   }
 
-  async function run(bytes: ArrayBuffer, fileName: string): Promise<void> {
+  /** Forgets what is on screen (sign-in changes): another account's scan must not stay visible. */
+  function reset(): void {
+    generation++;
+    clear(result);
+    clear(list);
+    say('');
+    fileInput.value = '';
+  }
+
+  async function run(bytes: ArrayBuffer, fileName: string, asOf: Date | null): Promise<void> {
     if (busy) return;
     busy = true;
     scanBtn.disabled = true;
@@ -296,7 +327,13 @@ export function mountOrders(deps: OrdersDeps): { el: HTMLElement; refresh: () =>
         say(e instanceof OrdersError ? e.message : 'This file could not be read as a CSV export.');
         return;
       }
-      const sha = hex(await digest(bytes));
+      let sha: string;
+      try {
+        sha = hex(await digest(bytes));
+      } catch {
+        say('This browser could not fingerprint the file (it needs a secure https page). Reload the page and try again.');
+        return;
+      }
       const stores = deps.stores();
       const now = deps.now();
       let shop: ShopRow;
@@ -304,6 +341,11 @@ export function mountOrders(deps: OrdersDeps): { el: HTMLElement; refresh: () =>
       let previous: ScanRow | undefined;
       try {
         shop = await deps.ensureShop();
+      } catch (e) {
+        say(`Could not save your shop: ${(e as Error).message}`);
+        return;
+      }
+      try {
         same = await stores.scans.byFile(shop.id, sha);
         previous = await stores.scans.latest(shop.id, same?.id);
       } catch (e) {
@@ -311,7 +353,9 @@ export function mountOrders(deps: OrdersDeps): { el: HTMLElement; refresh: () =>
         return;
       }
       // Compare with the shop's latest other file, never with this file's own earlier scan.
-      const summary = scanOrders(imp, now, graceChosen(), previous?.summary ?? null);
+      // Ages run to the file's own time (when Shopify made the export), so a file scanned again later gives the same answer.
+      const at = asOf && asOf.getTime() <= now.getTime() ? asOf : now;
+      const summary = scanOrders(imp, now, graceChosen(), previous?.summary ?? null, at);
       const row: ScanRow = {
         id: same?.id ?? newId(),
         shop_id: shop.id,
@@ -348,8 +392,9 @@ export function mountOrders(deps: OrdersDeps): { el: HTMLElement; refresh: () =>
       say('Choose the orders export (.csv) from Shopify, or try the sample.');
       return;
     }
+    const modified = typeof file.lastModified === 'number' && file.lastModified > 0 ? new Date(file.lastModified) : null;
     void file.arrayBuffer().then(
-      (b) => run(b, file.name),
+      (b) => run(b, file.name, modified),
       () => say('The file could not be opened.'),
     );
   });
@@ -358,8 +403,8 @@ export function mountOrders(deps: OrdersDeps): { el: HTMLElement; refresh: () =>
     fileInput.value = '';
     // The sample's times follow the clock, so each run of it is a new file.
     const text = sampleOrdersCsv(deps.now());
-    void run(new TextEncoder().encode(text).buffer as ArrayBuffer, 'sample-orders-export.csv');
+    void run(new TextEncoder().encode(text).buffer as ArrayBuffer, 'sample-orders-export.csv', null);
   });
 
-  return { el, refresh };
+  return { el, refresh, reset };
 }

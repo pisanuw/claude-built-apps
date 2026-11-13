@@ -15,7 +15,7 @@
  * needs no shipping and is still unfulfilled after a grace period therefore
  * means the buyer probably never got the file.
  */
-import { parseCsv } from './csv';
+import { CsvTooWide, parseCsv } from './csv';
 
 /** The columns kept. Anything else in the file is dropped as it is read. */
 export const KEPT_COLUMNS = [
@@ -42,6 +42,10 @@ export const MAX_CSV_BYTES = 50 * 1024 * 1024;
 export const MAX_ORDERS = 100_000;
 /** Late orders kept in a saved scan; the count above it is still reported. */
 export const MAX_LATE_SAVED = 500;
+/** Undelivered items listed per late order; the rest are counted. */
+export const MAX_ITEMS_PER_ORDER = 20;
+/** The saved summary stays under this many characters of JSON (the database allows 256 KB). */
+export const MAX_SUMMARY_CHARS = 200_000;
 
 export const GRACE_CHOICES = [15, 60, 360, 1440] as const;
 export const DEFAULT_GRACE = 60;
@@ -83,13 +87,14 @@ export interface ImportResult {
 
 /**
  * Shopify writes "2026-11-08 14:03:22 -0800"; spreadsheets re-save as ISO or
- * without the seconds. A time with no offset is read as UTC.
+ * without the seconds. A time with no offset is read in the browser's own
+ * time zone, which is the shop's in nearly every case.
  */
 export function parseShopifyTime(s: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?\s*(Z|[+-]\d{2}:?\d{2})?$/i.exec(s.trim());
   if (!m) return '';
-  const [, y, mo, d, hh, mm, ss = '00', zone = 'Z'] = m;
-  const z = zone.toUpperCase() === 'Z' ? 'Z' : `${zone.slice(0, 3)}:${zone.slice(-2)}`;
+  const [, y, mo, d, hh, mm, ss = '00', zone = ''] = m;
+  const z = !zone ? '' : zone.toUpperCase() === 'Z' ? 'Z' : `${zone.slice(0, 3)}:${zone.slice(-2)}`;
   const t = Date.parse(`${y}-${mo}-${d}T${hh}:${mm}:${ss}${z}`);
   return Number.isNaN(t) ? '' : new Date(t).toISOString();
 }
@@ -112,7 +117,13 @@ function otherExport(header: string[]): string {
 
 /** Reads the export text. Throws OrdersError with a plain-words message when it is not an orders export. */
 export function importShopifyOrders(text: string): ImportResult {
-  const rows = parseCsv(text);
+  let rows: string[][];
+  try {
+    rows = parseCsv(text, { maxColumns: 1000 });
+  } catch (e) {
+    if (e instanceof CsvTooWide) throw new OrdersError('This file has rows with more than 1,000 columns, so it is not a Shopify orders export.');
+    throw e;
+  }
   if (!rows.length) throw new OrdersError('This file is empty.');
   const header = rows[0].map((c) => c.trim());
   const other = otherExport(header);
@@ -169,7 +180,7 @@ export function importShopifyOrders(text: string): ImportResult {
   return { orders: [...byName.values()], rows: count, droppedPersonal, droppedCount };
 }
 
-export type OrderBucket = 'late' | 'waiting' | 'delivered' | 'physical' | 'not-paid' | 'refunded' | 'cancelled';
+export type OrderBucket = 'late' | 'undated' | 'waiting' | 'delivered' | 'physical' | 'not-paid' | 'refunded' | 'cancelled';
 
 export interface LateOrder {
   name: string;
@@ -177,8 +188,10 @@ export interface LateOrder {
   since: string;
   /** Minutes from `since` to the scan; null when the export gave no time. */
   ageMinutes: number | null;
-  /** The download items not yet delivered. */
+  /** The download items not yet delivered (at most MAX_ITEMS_PER_ORDER). */
   items: Array<{ name: string; quantity: number }>;
+  /** Undelivered items beyond those listed. */
+  moreItems?: number;
   /** Some of the order was delivered or shipped: only part of it is missing. */
   partial: boolean;
   financial: string;
@@ -198,6 +211,8 @@ export interface ScanCounts {
   /** Orders with at least one download item. */
   digital: number;
   late: number;
+  /** Paid, undelivered download orders whose dates could not be read. */
+  undated: number;
   waiting: number;
   delivered: number;
   physical: number;
@@ -209,6 +224,8 @@ export interface ScanCounts {
 /** What a saved scan keeps: counts, dates and the late orders (no customer data). */
 export interface ScanSummary {
   scannedAt: string;
+  /** The time ages are measured to: when the export was made (the file's time), else the scan. */
+  asOf?: string;
   graceMinutes: number;
   firstOrderAt: string;
   lastOrderAt: string;
@@ -228,9 +245,13 @@ const REFUNDED = new Set(['refunded', 'voided']);
 
 /** A download line still waiting: needs no shipping and is not marked fulfilled (or restocked). */
 function undelivered(order: ImportedOrder, line: OrderLine): boolean {
-  if (line.requiresShipping !== false) return false;
+  return line.requiresShipping === false && !isDone(order, line);
+}
+
+/** A line is done when marked fulfilled or restocked; a blank line status falls back to the order's. */
+function isDone(order: ImportedOrder, line: OrderLine): boolean {
   const f = line.fulfillment || (order.fulfillment === 'fulfilled' ? 'fulfilled' : '');
-  return f !== 'fulfilled' && f !== 'restocked';
+  return f === 'fulfilled' || f === 'restocked';
 }
 
 export function bucketOf(order: ImportedOrder, now: Date, graceMinutes: number): { bucket: OrderBucket; late?: LateOrder } {
@@ -242,19 +263,22 @@ export function bucketOf(order: ImportedOrder, now: Date, graceMinutes: number):
   const missing = digital.filter((l) => undelivered(order, l));
   if (!missing.length) return { bucket: 'delivered' };
   const since = order.paidAt || order.createdAt;
-  const ageMinutes = since ? Math.max(0, Math.floor((now.getTime() - Date.parse(since)) / 60_000)) : null;
-  if (ageMinutes !== null && ageMinutes < graceMinutes) return { bucket: 'waiting' };
-  return {
-    bucket: 'late',
-    late: {
-      name: order.name,
-      since,
-      ageMinutes,
-      items: missing.map((l) => ({ name: l.name, quantity: l.quantity })),
-      partial: missing.length < order.lines.length,
-      financial: order.financial,
-    },
+  // No readable time: never guess "late" (a re-saved spreadsheet loses Shopify's dates).
+  if (!since) return { bucket: 'undated' };
+  const ageMinutes = Math.max(0, Math.floor((now.getTime() - Date.parse(since)) / 60_000));
+  if (ageMinutes < graceMinutes) return { bucket: 'waiting' };
+  // "Partial" only when another line really went out (delivered, shipped or restocked), not just any other line.
+  const done = (l: OrderLine) => !missing.includes(l) && isDone(order, l);
+  const late: LateOrder = {
+    name: order.name,
+    since,
+    ageMinutes,
+    items: missing.slice(0, MAX_ITEMS_PER_ORDER).map((l) => ({ name: l.name, quantity: l.quantity })),
+    partial: order.lines.some(done),
+    financial: order.financial,
   };
+  if (missing.length > MAX_ITEMS_PER_ORDER) late.moreItems = missing.length - MAX_ITEMS_PER_ORDER;
+  return { bucket: 'late', late };
 }
 
 /** Orders sort by number when they are numbered (#1001), else by name. */
@@ -274,8 +298,8 @@ function byOrderName(a: { name: string }, b: { name: string }): number {
  * scan: late orders it flagged keep their first-flagged time, and those now
  * delivered, refunded or cancelled are listed as resolved.
  */
-export function scanOrders(imp: ImportResult, now: Date, graceMinutes: number, previous: ScanSummary | null = null): ScanSummary {
-  const counts: ScanCounts = { orders: imp.orders.length, digital: 0, late: 0, waiting: 0, delivered: 0, physical: 0, notPaid: 0, refunded: 0, cancelled: 0 };
+export function scanOrders(imp: ImportResult, now: Date, graceMinutes: number, previous: ScanSummary | null = null, asOf: Date = now): ScanSummary {
+  const counts: ScanCounts = { orders: imp.orders.length, digital: 0, late: 0, undated: 0, waiting: 0, delivered: 0, physical: 0, notPaid: 0, refunded: 0, cancelled: 0 };
   const late: LateOrder[] = [];
   const bucketByName = new Map<string, OrderBucket>();
   let first = '';
@@ -287,11 +311,12 @@ export function scanOrders(imp: ImportResult, now: Date, graceMinutes: number, p
       if (!last || o.createdAt > last) last = o.createdAt;
     }
     const digital = o.lines.some((l) => l.requiresShipping === false);
-    if (digital) counts.digital++;
+    if (digital && !o.cancelledAt) counts.digital++;
     digitalLines += o.lines.filter((l) => l.requiresShipping === false).length;
-    const { bucket, late: l } = bucketOf(o, now, graceMinutes);
+    const { bucket, late: l } = bucketOf(o, asOf, graceMinutes);
     bucketByName.set(o.name, bucket);
     if (bucket === 'late' && l) late.push(l);
+    else if (bucket === 'undated') counts.undated++;
     else if (bucket === 'waiting') counts.waiting++;
     else if (bucket === 'delivered') counts.delivered++;
     else if (bucket === 'physical') counts.physical++;
@@ -310,16 +335,17 @@ export function scanOrders(imp: ImportResult, now: Date, graceMinutes: number, p
     }
     const resolved = previous.late.map((l) => l.name).filter((n) => {
       const b = bucketByName.get(n);
-      return b !== undefined && b !== 'late';
+      return b !== undefined && b !== 'late' && b !== 'undated';
     });
     compared = { at: previous.scannedAt, resolved: resolved.sort((a, b) => byOrderName({ name: a }, { name: b })) };
   }
 
-  late.sort((a, b) => (a.since && b.since && a.since !== b.since ? (a.since < b.since ? -1 : 1) : byOrderName(a, b)));
-  const kept = late.slice(0, MAX_LATE_SAVED);
-
-  return {
+  // Late orders always have a time (undated ones are their own bucket): oldest first, then by number.
+  late.sort((a, b) => (a.since !== b.since ? (a.since < b.since ? -1 : 1) : byOrderName(a, b)));
+  let kept = late.slice(0, MAX_LATE_SAVED);
+  const summary = (): ScanSummary => ({
     scannedAt: now.toISOString(),
+    asOf: asOf.toISOString(),
     graceMinutes,
     firstOrderAt: first,
     lastOrderAt: last,
@@ -329,7 +355,14 @@ export function scanOrders(imp: ImportResult, now: Date, graceMinutes: number, p
     notes: notesFor(imp, counts, digitalLines, graceMinutes),
     droppedPersonal: imp.droppedPersonal,
     compared,
-  };
+  });
+  // Long product names can still make the summary too big to save: keep fewer late orders until it fits.
+  let out = summary();
+  while (kept.length && JSON.stringify(out).length > MAX_SUMMARY_CHARS) {
+    kept = kept.slice(0, Math.floor(kept.length * 0.8));
+    out = summary();
+  }
+  return out;
 }
 
 export function graceText(minutes: number): string {
@@ -365,6 +398,14 @@ function notesFor(imp: ImportResult, c: ScanCounts, digitalLines: number, graceM
     });
     return notes;
   }
+  if (c.undated) {
+    notes.push({
+      id: 'undated',
+      severity: 'warn',
+      title: `${c.undated} unfulfilled download order${c.undated === 1 ? ' has' : 's have'} no readable date`,
+      detail: 'Their paid and created times could not be read, so the scan cannot tell whether they are late. This happens when a spreadsheet re-saves the file and changes the dates; export the orders from Shopify again and drop the file in without opening it.',
+    });
+  }
   const settled = c.late + c.delivered;
   if (c.late >= 5 && c.late / settled >= 0.8) {
     notes.push({
@@ -378,12 +419,12 @@ function notesFor(imp: ImportResult, c: ScanCounts, digitalLines: number, graceM
       id: 'late',
       severity: 'fail',
       title: c.late === 1 ? '1 paid download order is still unfulfilled' : `${c.late} paid download orders are still unfulfilled`,
-      detail: `They were paid more than ${graceText(graceMinutes)} before this scan and their download items are not marked fulfilled, so the buyer probably did not get the file.`,
+      detail: `They were paid more than ${graceText(graceMinutes)} before the export and their download items are not marked fulfilled, so the buyer probably did not get the file.`,
     });
   } else {
     notes.push({ id: 'all-delivered', severity: 'ok', title: 'Every paid download order is fulfilled', detail: `No paid order older than ${graceText(graceMinutes)} is waiting for its download.` });
   }
-  if (c.waiting) notes.push({ id: 'waiting', severity: 'info', title: `${c.waiting} recent order${c.waiting === 1 ? ' is' : 's are'} within the grace period`, detail: `Paid less than ${graceText(graceMinutes)} before this scan; scan again later to see whether they were delivered.` });
+  if (c.waiting) notes.push({ id: 'waiting', severity: 'info', title: `${c.waiting} recent order${c.waiting === 1 ? ' is' : 's are'} within the grace period`, detail: `Paid less than ${graceText(graceMinutes)} before the export; scan a newer export later to see whether ${c.waiting === 1 ? 'it was' : 'they were'} delivered.` });
   if (c.notPaid) notes.push({ id: 'not-paid', severity: 'info', title: `${c.notPaid} download order${c.notPaid === 1 ? ' is' : 's are'} not paid yet`, detail: 'Pending or authorized payments are left out: most delivery apps wait for the payment before sending the file.' });
   return notes;
 }
@@ -392,6 +433,13 @@ function notesFor(imp: ImportResult, c: ScanCounts, digitalLines: number, graceM
 export function lateCsvRows(s: ScanSummary): Array<Array<string | number>> {
   return [
     ['Order', 'Paid at', 'Waiting', 'Items not delivered', 'Flagged since'],
-    ...s.late.map((l) => [l.name, l.since, ageText(l.ageMinutes), l.items.map((i) => (i.quantity > 1 ? `${i.quantity} x ${i.name}` : i.name)).join('; '), l.flaggedSince ?? '']),
+    ...s.late.map((l) => [l.name, l.since, ageText(l.ageMinutes), itemsText(l, 'x'), l.flaggedSince ?? '']),
   ];
+}
+
+/** "2 x Ebook; PDF; and 3 more" */
+export function itemsText(l: LateOrder, times = '×'): string {
+  const list = l.items.map((i) => (i.quantity > 1 ? `${i.quantity} ${times} ${i.name}` : i.name));
+  if (l.moreItems) list.push(`and ${l.moreItems} more`);
+  return list.join('; ');
 }

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { csvField, parseCsv, toCsv } from '../src/core/csv';
+import { csvField, CsvTooWide, parseCsv, toCsv } from '../src/core/csv';
 import {
   ageText,
   bucketOf,
   graceText,
+  itemsText,
+  MAX_SUMMARY_CHARS,
   importShopifyOrders,
   lateCsvRows,
   MAX_LATE_SAVED,
@@ -50,7 +52,8 @@ describe('Shopify times', () => {
   it('reads Shopify, ISO and spreadsheet forms', () => {
     expect(parseShopifyTime('2026-11-08 14:03:22 -0800')).toBe('2026-11-08T22:03:22.000Z');
     expect(parseShopifyTime('2026-11-08T14:03:22+05:30')).toBe('2026-11-08T08:33:22.000Z');
-    expect(parseShopifyTime('2026-11-08 14:03')).toBe('2026-11-08T14:03:00.000Z');
+    // No offset: the browser's own time zone.
+    expect(parseShopifyTime('2026-11-08 14:03')).toBe(new Date(2026, 10, 8, 14, 3).toISOString());
     expect(parseShopifyTime('2026-11-08T14:03:22.123Z')).toBe('2026-11-08T14:03:22.000Z');
     expect(parseShopifyTime('')).toBe('');
     expect(parseShopifyTime('8/11/2026')).toBe('');
@@ -154,13 +157,13 @@ describe('rules', () => {
     expect(bucketOf(order({ fulfillment: 'fulfilled', lines: [{ name: 'PDF', sku: '', quantity: 1, requiresShipping: false, fulfillment: '' }] }), NOW, 60).bucket).toBe('delivered');
     expect(bucketOf(order({ lines: [{ name: 'PDF', sku: '', quantity: 1, requiresShipping: false, fulfillment: 'restocked' }] }), NOW, 60).bucket).toBe('delivered');
   });
-  it('times from paid at, else created at, and reports an order with no time as late', () => {
+  it('times from paid at, else created at, and never calls an order with no time late', () => {
     const late = bucketOf(order({ paidAt: '' }), NOW, 60).late!;
     expect(late.since).toBe('2026-11-13T09:00:00.000Z');
     expect(late.ageMinutes).toBe(180);
     const none = bucketOf(order({ paidAt: '', createdAt: '' }), NOW, 60);
-    expect(none.bucket).toBe('late');
-    expect(none.late?.ageMinutes).toBeNull();
+    expect(none.bucket).toBe('undated');
+    expect(none.late).toBeUndefined();
     // A clock behind the export never gives a negative age.
     expect(bucketOf(order({ paidAt: '2026-11-14T00:00:00Z' }), NOW, 0).late?.ageMinutes).toBe(0);
   });
@@ -186,7 +189,7 @@ describe('scan', () => {
   it('flags exactly the three late orders of the sample', () => {
     const s = scanOrders(importShopifyOrders(sampleOrdersCsv(NOW)), NOW, 60);
     expect(s.late.map((l) => l.name)).toEqual(SAMPLE_LATE);
-    expect(s.counts).toEqual({ orders: 9, digital: 8, late: 3, waiting: 1, delivered: 1, physical: 1, notPaid: 1, refunded: 1, cancelled: 1 });
+    expect(s.counts).toEqual({ orders: 9, digital: 7, late: 3, undated: 0, waiting: 1, delivered: 1, physical: 1, notPaid: 1, refunded: 1, cancelled: 1 });
     expect(s.notes.map((n) => n.id)).toEqual(['late', 'waiting', 'not-paid']);
     expect(s.notes[0].title).toBe('3 paid download orders are still unfulfilled');
     expect(s.compared).toBeNull();
@@ -218,7 +221,10 @@ describe('scan', () => {
   });
   it('sorts late orders oldest first, then by number', () => {
     const s = scanOrders(imp([order({ name: '#10' }), order({ name: '#9' }), order({ name: 'B' }), order({ name: 'A' }), order({ name: '#2', paidAt: '2026-11-12T00:00:00Z' }), order({ name: '#3', paidAt: '', createdAt: '' })]), NOW, 60);
-    expect(s.late.map((l) => l.name)).toEqual(['#2', '#3', '#9', '#10', 'A', 'B']);
+    expect(s.late.map((l) => l.name)).toEqual(['#2', '#9', '#10', 'A', 'B']);
+    expect(s.counts.undated).toBe(1);
+    expect(s.notes.map((n) => n.id)).toEqual(['undated', 'app-does-not-fulfill']);
+    expect(s.notes[0].title).toBe('1 unfulfilled download order has no readable date');
     const r = scanOrders(imp([order({ name: 'B', fulfillment: 'fulfilled', lines: [] }), order({ name: '#5', financial: 'refunded' }), order({ name: 'A', cancelledAt: 'x' })]), NOW, 60, {
       ...s,
       late: [{ name: 'B', since: '', ageMinutes: 1, items: [], partial: false, financial: 'paid' }, { name: '#5', since: '', ageMinutes: 1, items: [], partial: false, financial: 'paid' }, { name: 'A', since: '', ageMinutes: 1, items: [], partial: false, financial: 'paid' }],
@@ -273,5 +279,49 @@ describe('words', () => {
     expect(rows[1]).toEqual(['#1001', expect.any(String), '3 days', 'Fox Mittens Knitting Pattern (PDF)', '2026-11-12T00:00:00.000Z']);
     expect(rows[2][3]).toBe('2 x Colourwork Basics eBook');
     expect(rows[3][4]).toBe('');
+  });
+});
+
+describe('review fixes', () => {
+  it('tags only orders where another line really went out as partial', () => {
+    const s = scanOrders(importShopifyOrders(sampleOrdersCsv(NOW)), NOW, 60);
+    expect(s.late.map((l) => [l.name, l.partial])).toEqual([
+      ['#1001', false],
+      ['#1005', true],
+      ['#1006', false],
+    ]);
+    const shipped = bucketOf(order({ lines: [{ name: 'Book', sku: '', quantity: 1, requiresShipping: true, fulfillment: 'fulfilled' }, { name: 'PDF', sku: '', quantity: 1, requiresShipping: false, fulfillment: 'pending' }] }), NOW, 60);
+    expect(shipped.late?.partial).toBe(true);
+  });
+  it('lists at most 20 items per order and counts the rest', () => {
+    const lines = Array.from({ length: 23 }, (_, i) => ({ name: `File ${i}`, sku: '', quantity: i === 0 ? 2 : 1, requiresShipping: false, fulfillment: 'pending' }));
+    const l = bucketOf(order({ lines }), NOW, 60).late!;
+    expect(l.items).toHaveLength(20);
+    expect(l.moreItems).toBe(3);
+    expect(itemsText(l)).toMatch(/^2 × File 0; File 1;.*; and 3 more$/);
+    expect(itemsText(l, 'x')).toMatch(/^2 x File 0/);
+  });
+  it('keeps the saved summary small enough for the database', () => {
+    const long = 'L'.repeat(200);
+    const many = Array.from({ length: MAX_LATE_SAVED }, (_, i) => order({ name: `#${i}`, lines: Array.from({ length: 5 }, (_x, j) => ({ name: `${long}${j}`, sku: '', quantity: 1, requiresShipping: false, fulfillment: 'pending' })) }));
+    const s = scanOrders(imp(many), NOW, 60);
+    expect(JSON.stringify(s).length).toBeLessThanOrEqual(MAX_SUMMARY_CHARS);
+    expect(s.late.length).toBeLessThan(MAX_LATE_SAVED);
+    expect(s.late.length + s.lateNotKept).toBe(MAX_LATE_SAVED);
+    expect(s.counts.late).toBe(MAX_LATE_SAVED);
+  });
+  it('refuses absurdly wide rows', () => {
+    expect(() => parseCsv('a,b,c', { maxColumns: 2 })).toThrow(CsvTooWide);
+    expect(() => importShopifyOrders(','.repeat(1001))).toThrow(/more than 1,000 columns/);
+  });
+  it('measures ages to the export time when given, and leaves cancelled orders out of the download count', () => {
+    const csv = importShopifyOrders(sampleOrdersCsv(NOW));
+    const later = new Date(NOW.getTime() + 2 * 3_600_000);
+    const same = scanOrders(csv, later, 60, null, NOW);
+    expect(same.late.map((l) => l.name)).toEqual(SAMPLE_LATE);
+    expect(same.asOf).toBe(NOW.toISOString());
+    expect(same.scannedAt).toBe(later.toISOString());
+    expect(scanOrders(csv, later, 60).late.map((l) => l.name)).toEqual([...SAMPLE_LATE, '#1009']);
+    expect(same.counts.digital).toBe(7);
   });
 });

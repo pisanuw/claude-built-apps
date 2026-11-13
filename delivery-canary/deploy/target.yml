@@ -16,7 +16,8 @@
 #
 # Code-only pushes do not trigger a deploy: the workflow watches this file, so
 # touch it (or run the workflow manually) to ship UI changes.
-# Deploys: milestone 1 (delivery email check), 2026-11-12.
+# Deploys: milestone 1 (delivery email check), 2026-11-12; milestone 2
+# (late download order scan, migration 0002), 2026-11-13.
 
 provider: netlify
 projectName: delivery-canary
