@@ -96,6 +96,26 @@ export interface EmailParts {
   outro: string[];
   /** The footer's first line: why this address got the email. Visitor emails only; without it there is no footer. */
   why?: string;
+  /** A list of links after the intro (app-notify's new pages); each title links to its page. */
+  items?: EmailItem[];
+  /** Footer variations (app-notify); without them the footer is the sign-in emails' own. */
+  footer?: FooterOptions;
+}
+
+/** One entry of an email's list: a linked title, an optional date and summary. All plain text, escaped here. */
+export interface EmailItem {
+  title: string;
+  url: string;
+  date?: string;
+  summary?: string;
+}
+
+/** What a footer may change: the support line's opening words, and a per-app stop link above the global one. */
+export interface FooterOptions {
+  /** Replaces "Questions or trouble signing in?" before the support address. */
+  supportPrefix?: string;
+  /** "Turn off <App> emails" and its link (optout.ts appOptOutUrl); shown only with a link. */
+  appStop?: { label: string; url: string | null } | null;
 }
 
 const STYLE = 'margin:0;padding:24px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5';
@@ -105,7 +125,8 @@ const HEAD_STYLE =
   `@media (prefers-color-scheme:dark){.hw-brand{color:${DARK_BRAND} !important}.hw-link{color:${DARK_LINK} !important}}`;
 const FOOT_P = 'margin:0 0 8px';
 
-export const SUPPORT_LINE = `Questions or trouble signing in? ${SUPPORT_EMAIL} (or just reply).`;
+export const SUPPORT_PREFIX = 'Questions or trouble signing in?';
+export const SUPPORT_LINE = `${SUPPORT_PREFIX} ${SUPPORT_EMAIL} (or just reply).`;
 export const ABOUT_LINE = 'HintWise builds tools for small businesses, startups and educators.';
 export const STOP_LABEL = 'Stop all email from HintWise';
 export const STOP_NOTE = '(sign-in links too)';
@@ -126,21 +147,25 @@ export function headerHtml(logoUrl: string | null | undefined): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;border-collapse:separate"><tr><td bgcolor="#ffffff" style="background-color:#ffffff;padding:4px 6px;border-radius:6px">${img}</td></tr></table>`;
 }
 
-/** The footer as text lines: why, support, about, stop. */
-export function footerText(why: string, optOutUrl: string | null | undefined): string[] {
-  return [why, SUPPORT_LINE, `${ABOUT_LINE} More apps: ${STUDIO_URL}`, optOutUrl ? `${STOP_LABEL} ${STOP_NOTE}: ${optOutUrl}` : STOP_BY_EMAIL];
+/** The footer as text lines: why, support, about, (the app's stop,) stop. */
+export function footerText(why: string, optOutUrl: string | null | undefined, opts: FooterOptions = {}): string[] {
+  const support = opts.supportPrefix ? `${opts.supportPrefix} ${SUPPORT_EMAIL} (or just reply).` : SUPPORT_LINE;
+  const app = opts.appStop?.url ? [`${opts.appStop.label}: ${opts.appStop.url}`] : [];
+  return [why, support, `${ABOUT_LINE} More apps: ${STUDIO_URL}`, ...app, optOutUrl ? `${STOP_LABEL} ${STOP_NOTE}: ${optOutUrl}` : STOP_BY_EMAIL];
 }
 
 /** The footer as HTML: small text under a rule, underlined links with real text, in the same order as the text. */
-export function footerHtml(why: string, optOutUrl: string | null | undefined): string {
+export function footerHtml(why: string, optOutUrl: string | null | undefined, opts: FooterOptions = {}): string {
   const mail = anchor(`mailto:${SUPPORT_EMAIL}`, SUPPORT_EMAIL);
   const stop = optOutUrl ? `${anchor(optOutUrl, STOP_LABEL)} ${STOP_NOTE}` : `To stop all email from HintWise ${STOP_NOTE}, write to ${mail}.`;
+  const app = opts.appStop?.url ? [`<p style="${FOOT_P}">${anchor(opts.appStop.url, opts.appStop.label)}</p>`] : [];
   return [
     '<hr style="border:0;border-top:1px solid #8c8c8c;margin:28px 0 12px">',
     '<div style="font-size:13px;line-height:1.5">',
     `<p style="${FOOT_P}">${escapeHtml(why)}</p>`,
-    `<p style="${FOOT_P}">Questions or trouble signing in? ${mail} (or just reply).</p>`,
+    `<p style="${FOOT_P}">${escapeHtml(opts.supportPrefix ?? SUPPORT_PREFIX)} ${mail} (or just reply).</p>`,
     `<p style="${FOOT_P}">${ABOUT_LINE} More apps: ${anchor(STUDIO_URL, 'studio.hintwise.org')}</p>`,
+    ...app,
     `<p style="margin:0">${stop}</p>`,
     '</div>',
   ].join('');
@@ -154,6 +179,13 @@ export function footerHtml(why: string, optOutUrl: string | null | undefined): s
 export function renderEmail(p: EmailParts, from = SIGN_IN_FROM, look: EmailLook = {}): EmailMessage {
   const text: string[] = [...p.intro];
   const html: string[] = p.intro.map((s) => `<p>${escapeHtml(s)}</p>`);
+  for (const it of p.items ?? []) {
+    text.push([`${it.title}${it.date ? ` (${it.date})` : ''}`, it.url, ...(it.summary ? [it.summary] : [])].join('\n'));
+    const title = `<a class="hw-link" href="${escapeHtml(it.url)}" style="${LINK_STYLE};font-weight:600">${escapeHtml(it.title)}</a>`;
+    const date = it.date ? ` <span style="font-size:13px">${escapeHtml(it.date)}</span>` : '';
+    const summary = it.summary ? `<br>${escapeHtml(it.summary)}` : '';
+    html.push(`<p>${title}${date}${summary}</p>`);
+  }
   if (p.link) {
     text.push(p.link.href);
     const href = escapeHtml(p.link.href);
@@ -171,8 +203,8 @@ export function renderEmail(p: EmailParts, from = SIGN_IN_FROM, look: EmailLook 
   html.push(...p.outro.map((s) => `<p>${escapeHtml(s)}</p>`));
   let body = text.join('\n\n');
   if (p.why) {
-    body += `\n\n----\n${footerText(p.why, look.optOutUrl).join('\n')}`;
-    html.push(footerHtml(p.why, look.optOutUrl));
+    body += `\n\n----\n${footerText(p.why, look.optOutUrl, p.footer).join('\n')}`;
+    html.push(footerHtml(p.why, look.optOutUrl, p.footer));
   }
   const head =
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +

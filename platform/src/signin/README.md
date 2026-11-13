@@ -32,9 +32,9 @@ to the handlers here. Tests: `platform/test/signin-*.test.ts`.
 | `turnstile.ts` | `verifyTurnstile` (siteverify) and the hostname allowlist; `TURNSTILE_SITE_KEY` |
 | `link.ts` | `createLinkToken` (`generate_link`, creating the user once if Auth says it does not exist), `signInLink` |
 | `email.ts` | the sign-in email and the hook's emails, as text and HTML: header (logo or wordmark), footer, Reply-To; `emailLogoUrl` reads `EMAIL_LOGO_URL` |
-| `optout.ts` | the opt-out token (`optOutToken`, `verifyOptOutToken`), the footer link (`optOutUrl`), `emailLook`, `isSuppressed`, the suppressed messages |
-| `optout-service.ts` | `handleOptOut`: the opt-out page (GET, form POST) and the support commands (JSON POST) |
-| `resend.ts` | `sendEmail` |
+| `optout.ts` | the opt-out token (`optOutToken`, `verifyOptOutToken`), the footer link (`optOutUrl`), the per-app tokens (`appOptOutToken`, `appUndoToken`, `verifyAppOptOutToken`, `verifyAppUndoToken`, `appOptOutUrl`), `emailLook`, `isSuppressed`, the suppressed messages |
+| `optout-service.ts` | `handleOptOut`: the opt-out page (GET, form POST, per-app pages, RFC 8058 one-click) and the support commands (JSON POST) |
+| `resend.ts` | `sendEmail` (optional extra `headers`, used by app-notify) |
 | `alerts.ts` | the alert rules and the owner's alert emails |
 | `db.ts` | `restDb`: PostgREST RPCs in schema `platform` with the service-role key |
 | `service.ts` | `handleSignInLink`: the whole sign-in-link request |
@@ -280,6 +280,12 @@ spelling only, over a text that names their purpose:
 |---|---|---|---|
 | stop, `v1.<mailbox hash>.<sig>` | the footer link `https://auth.hintwise.org/functions/v1/email-optout?t=<token>`, the same in every email to the address | `hintwise-email-optout:stop:v1:all:<hash>` | stops email only; never expires |
 | undo, `u1.<mailbox hash>.<expiry>.<sig>` | only in the "Done" page's Undo form (a POST body, never a URL) | `hintwise-email-optout:undo:u1:all:<hash>:<expiry>` | turns email back on only, until `<expiry>` (Unix seconds), one hour after the stop |
+| app stop, `a1.<slug>.<mailbox hash>.<sig>` | app-notify email only: the footer's "Turn off <App> emails" link and the `List-Unsubscribe` header (`src/notify`) | `hintwise-email-optout:stop:a1:app:<slug>:<hash>` | stops that app's notify email only (scope `app:<slug>`); never expires |
+| app undo, `w1.<slug>.<mailbox hash>.<expiry>.<sig>` | only in the per-app "Done" page's Undo form | `hintwise-email-optout:undo:w1:app:<slug>:<hash>:<expiry>` | turns that app's email back on only, for an hour |
+
+The version and the scope are in the signed text, so no token can stand in
+for another kind, another scope or another app. (Not deployed yet: the app
+tokens come with app-notify, branch `feat/app-notify`.)
 
 So anyone who sees one email can stop that address's email (as with any
 unsubscribe link), but nobody can turn it back on with that link. The
@@ -298,6 +304,8 @@ on `*.supabase.co`.
 | `POST t=<stop token>&action=stop` (form) | `email_optout_set`, idempotent; 200 "Done" with an Undo button carrying a fresh undo token, and "write to support@hintwise.org from this address" for later |
 | `POST t=<undo token>&action=undo` (form) | while the undo token is valid: `email_optout_clear`, idempotent; 200 "Email from HintWise is on again" with a Stop button (the stop token). Expired: 400 "This Undo button has expired", nothing changed |
 | a stop token with `action=undo`, an undo token with `action=stop` | 400 "This link does not work", nothing changed |
+| the same three with an app token (`a1`, `w1`) | the same steps for scope `app:<slug>` only: "Turn off emails from <slug>.hintwise.org?", "Done" (with an app Undo), "Emails from <slug>.hintwise.org are on again", or 400 "This Undo button has expired" naming the app; each page says sign-in links and other HintWise email still come |
+| `POST ?t=<app stop token>` with body `List-Unsubscribe=One-Click` (form-urlencoded or multipart, RFC 8058) | stops that app's email at once (`email_optout_set`, scope `app:<slug>`), 200 "Done". A `v1` or undo token, or any other body, is refused (400); a multipart body is read only for one-click, so the `v1` pages answer exactly as before |
 | `POST application/json` `{ action: 'status' \| 'add' \| 'remove', email }` with the service-role key (`Authorization: Bearer`, or `apikey` for a `sb_secret_` key) | support: the function hashes the address and runs the RPC with the caller's key, so Postgres grants decide; answers with the 16-character hash prefix, never the address. `remove` clears every scope |
 | without `EMAIL_OPTOUT_SECRET` | 503 "This page is not ready yet" |
 
@@ -325,9 +333,9 @@ prefix):
   which is known to work).
 
 **The list** is `platform.email_optouts` (`0003_email_optout.sql`): one row
-per mailbox hash and scope (`all` now; `app:<slug>` reserved for per-app
-opt-outs with the app-notify sender, which `email_optout_check(hash,
-scopes)` already takes), with `via` (`link` or `support`) and `created_at`.
+per mailbox hash and scope (`all`; `app:<slug>` for per-app opt-outs,
+written by the app tokens above and read by app-notify through
+`email_optout_check(hash, ['app:<slug>'])`), with `via` (`link` or `support`) and `created_at`.
 RLS on, no policies, service role only, RPCs `email_optout_check`,
 `email_optout_set`, `email_optout_clear`, `email_optout_status`.
 

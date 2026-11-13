@@ -23,10 +23,11 @@
  * address, nobody without that key can make one for a guessed address, and a
  * Gmail dot variant or a +tag is the same address.
  *
- * Scopes: only `all` (every HintWise email, sign-in links included) is built.
- * A per-app opt-out (`app:<slug>`, with the app-notify sender) gets its own
- * token version that carries the scope; the signed text already names the
- * scope, so a v1 token can never be turned into another scope's.
+ * Scopes: `all` (every HintWise email, sign-in links included) with the v1
+ * and u1 tokens above, and per app (`app:<slug>`, the app-notify sender's
+ * "Turn off <App> emails") with their own versions a1 and w1 that carry the
+ * slug (below). The signed text names the version and the scope, so a v1
+ * token can never be turned into another scope's, nor an app's into v1.
  *
  * The list itself is platform.email_optouts (shared/0003_email_optout.sql),
  * keyed by the same hash and a scope, read and written through RPCs.
@@ -153,6 +154,100 @@ export interface LookEnv {
 /** One recipient's look: their opt-out link and the header logo (EMAIL_LOGO_URL, read only through emailLogoUrl). */
 export async function emailLook(env: LookEnv, emailHash: string | null | undefined): Promise<EmailLook> {
   return { optOutUrl: await optOutUrl(env.EMAIL_OPTOUT_SECRET, emailHash), logoUrl: emailLogoUrl(env.EMAIL_LOGO_URL) };
+}
+
+// ---------------------------------------------------------------------------
+// Per-app opt-out, "Turn off <App> emails" (app-notify, src/notify/README.md)
+// ---------------------------------------------------------------------------
+//
+// Same secret, same label, same rules as the global tokens, but a version of
+// their own whose signed text carries the scope `app:<slug>`:
+//
+// - the app stop token, `a1.<slug>.<mailbox hash>.<signature>`, signs
+//   signedText('stop', 'a1', 'app:<slug>', hash): in the footer's
+//   "Turn off <App> emails" link and the List-Unsubscribe header. It stops
+//   only that app's notify email, never all email, never turns anything on;
+//   it does not expire.
+// - the app undo token, `w1.<slug>.<mailbox hash>.<expiry>.<signature>`,
+//   signs signedText('undo', 'w1', 'app:<slug>', hash, expiry): on the
+//   "Done" page only, for an hour.
+//
+// The slug is in the token and in the signed text, so a token for one app
+// cannot stop another, a v1 or u1 signature (scope `all`) never verifies as
+// an app token and an app signature never verifies as v1 or u1, and the
+// version is part of the text, so a1 and w1 cannot stand in for each other
+// either.
+
+/** The per-app stop token's version. */
+export const APP_OPTOUT_TOKEN_VERSION = 'a1';
+/** The per-app undo token's version. */
+export const APP_UNDO_TOKEN_VERSION = 'w1';
+/** An app token is longer: it names the slug (up to 63 characters). */
+export const MAX_APP_TOKEN_CHARS = 200;
+/** The app slug, as platform.email_optouts' scope check allows it after `app:`. */
+export const OPTOUT_APP_SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
+const APP_STOP_TOKEN = /^(a[0-9]{1,3})\.([a-z0-9][a-z0-9-]{0,62})\.([0-9a-f]{64})\.([A-Za-z0-9_-]{43})$/;
+const APP_UNDO_TOKEN = /^(w[0-9]{1,3})\.([a-z0-9][a-z0-9-]{0,62})\.([0-9a-f]{64})\.([1-9][0-9]{0,11})\.([A-Za-z0-9_-]{43})$/;
+
+/** The scope of one app's notify email. */
+export const appScope = (slug: string): string => `app:${slug}`;
+
+export type AppTokenCheck =
+  | { ok: true; emailHash: string; app: string; scope: string }
+  | { ok: false; reason: 'no secret' | 'format' | 'version' | 'signature' | 'expired'; app?: string };
+
+function checkApp(secret: string, slug: string, emailHash: string, who: string): void {
+  check(secret, emailHash, who);
+  if (!OPTOUT_APP_SLUG.test(slug)) throw new Error(`${who}: not an app slug`);
+}
+
+/** The "Turn off <App> emails" token for one app and mailbox hash. Throws without a secret, or with a bad slug or hash. */
+export async function appOptOutToken(secret: string, slug: string, emailHash: string): Promise<string> {
+  checkApp(secret, slug, emailHash, 'appOptOutToken');
+  const v = APP_OPTOUT_TOKEN_VERSION;
+  return `${v}.${slug}.${emailHash}.${await sign(secret, signedText('stop', v, appScope(slug), emailHash))}`;
+}
+
+/** The per-app "Done" page's undo token, valid for UNDO_SECONDS from `now`. */
+export async function appUndoToken(secret: string, slug: string, emailHash: string, now: Date): Promise<string> {
+  checkApp(secret, slug, emailHash, 'appUndoToken');
+  const v = APP_UNDO_TOKEN_VERSION;
+  const expiry = Math.floor(now.getTime() / 1000) + UNDO_SECONDS;
+  return `${v}.${slug}.${emailHash}.${expiry}.${await sign(secret, signedText('undo', v, appScope(slug), emailHash, expiry))}`;
+}
+
+/** Checks an app stop token: shape, version, signature over its own slug's scope. Never throws. */
+export async function verifyAppOptOutToken(secret: string | null | undefined, token: unknown): Promise<AppTokenCheck> {
+  if (!secret) return { ok: false, reason: 'no secret' };
+  const t = typeof token === 'string' ? token : '';
+  const m = t.length <= MAX_APP_TOKEN_CHARS ? APP_STOP_TOKEN.exec(t) : null;
+  if (!m) return { ok: false, reason: 'format' };
+  const [, version, app, emailHash, signature] = m;
+  if (version !== APP_OPTOUT_TOKEN_VERSION) return { ok: false, reason: 'version' };
+  const good = await verified(secret, signedText('stop', version, appScope(app), emailHash), signature);
+  if (good === 'format') return { ok: false, reason: 'format' };
+  return good ? { ok: true, emailHash, app, scope: appScope(app) } : { ok: false, reason: 'signature' };
+}
+
+/** Checks an app undo token: shape, version, signature, then that `now` is before its expiry. Never throws. */
+export async function verifyAppUndoToken(secret: string | null | undefined, token: unknown, now: Date): Promise<AppTokenCheck> {
+  if (!secret) return { ok: false, reason: 'no secret' };
+  const t = typeof token === 'string' ? token : '';
+  const m = t.length <= MAX_APP_TOKEN_CHARS ? APP_UNDO_TOKEN.exec(t) : null;
+  if (!m) return { ok: false, reason: 'format' };
+  const [, version, app, emailHash, exp, signature] = m;
+  if (version !== APP_UNDO_TOKEN_VERSION) return { ok: false, reason: 'version' };
+  const expiry = Number(exp);
+  const good = await verified(secret, signedText('undo', version, appScope(app), emailHash, expiry), signature);
+  if (good === 'format') return { ok: false, reason: 'format' };
+  if (!good) return { ok: false, reason: 'signature' };
+  return now.getTime() < expiry * 1000 ? { ok: true, emailHash, app, scope: appScope(app) } : { ok: false, reason: 'expired', app };
+}
+
+/** The "Turn off <App> emails" link, or null without a secret, a good slug or a hash. */
+export async function appOptOutUrl(secret: string | null | undefined, slug: string, emailHash: string | null | undefined, base: string = OPTOUT_URL): Promise<string | null> {
+  if (!secret || !emailHash || !HASH.test(emailHash) || !OPTOUT_APP_SLUG.test(slug)) return null;
+  return `${base}?t=${await appOptOutToken(secret, slug, emailHash)}`;
 }
 
 /** True when the address asked for no HintWise email (any scope in `scopes`, and always `all`). Throws when the database does. */
