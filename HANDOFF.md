@@ -2,7 +2,7 @@
 
 Rolling handoff for the Plabs relay (session-relay skill). Rewritten at each handover; the last section has the owner's standing instructions, the relay parameters and Scheduling.
 
-Written 11 November 2026 by session_01JyJzMZ1aBTZCRkUXLJnRG4 and fact-checked the same day by a separate agent against git, the Actions runs, the routines list and the live hosts (4 errors fixed: branch CI, the Chess TD head, the host count, the disabled one-shots). Not verified: the owner's ask times, the other apps on the Supabase project, the halflife sync time.
+Written 13 November 2026 by session_01JyJzMXxeHu9P7By5BXRNJv and fact-checked the same day by a separate agent against git, the Actions runs, the routines list and the live hosts. Not verified: signed-in gateway calls (check, reading, grant) and photo2pgn "My games" from a real account — the owner tests those; the halflife sync time.
 
 ## 1. Goal
 
@@ -10,199 +10,134 @@ Owner's words (2026-11-02): "Get people using these projects, advertise these pr
 
 Since 9 Nov the build routine builds one substantial project a week on a shared platform (section 14); this relay session runs the platform, the status reports and the owner's requests.
 
-## 2. What is live (11 November)
+## 2. What is live (13 November)
 
-- **Apps:** claude-built-apps has 63 deploy targets (*/deploy/target.yml); 65 hosts answer 200 (the 62 in platform/src/signin/app-hosts.ts plus upvoteme, paste-md and stepwise, which live in their own repos). Every app has the shared footer (scripts/site-footer.mjs) except the own-repo apps, which embed the same markup (below). 61 pisan-labs mirrors (.github/mirrors.txt), synced on push and daily by halflife (04:13).
-- **Newest app:** Qualified Overtime Checker (qualified-overtime-checker.hintwise.org), the first weekly build, finished 11 Nov (all 7 milestones, final deploy b46ccf1 at 11:13 UTC with its migration 0004). Its own handoff: qualified-overtime-checker/HANDOFF.md ("Remaining").
-- **Shared platform** (docs/platform.md; platform/):
-  - Supabase project `arktxlrlyceffyozdwhq` (also hosts UpvoteMe, WCV Live Together, how-of-happiness, a quiz app, chess_kv) on the custom domain **auth.hintwise.org** (add-on bought 9 Nov). Schema `platform` (profiles, llm_usage, sign-in log); per-app schemas `app_<slug>` with RLS: app_qualified_overtime_checker, app_stepwise. Migrations go through `supabase-admin.mjs migrate <slug>` (sha256-checked) then `expose-schema` and `check-schema` (the Deploy workflow runs them too).
-  - Google sign-in through Supabase on the HintWise Google client; redirect allow-list `https://*.hintwise.org/**`.
-  - **sign-in-link** Edge Function: email sign-in links from `HintWise <sign-in@hintwise.org>` via Resend, with a per-mailbox wait ladder (1, 3, 5, 8, 13, 21… min), per-IP and per-browser limits, Turnstile after 10 requests, a hard 100/hour per-IP stop, a project brake, a hashed log and alerts to ADMIN_EMAIL.
-  - **Send Email hook ON since 11 Nov 08:56 UTC** (owner's yes; run 42990951896): Supabase Auth's own magic-link, sign-up, email and recovery mail is refused, except for the two external hosts in HOOK_EXTERNAL_HOSTS (how-of-happiness.netlify.app, wcv-live-together.netlify.app), which go through the same ladder. Undo: Supabase admin `email-hook` arg `off`. Owner confirmed email sign-in end to end on Qualified Overtime Checker and StepWise after the switch.
-  - **llm-gateway** Edge Function (owner's Anthropic key behind per-app caps $2/day, $10/week, $20/month; BYOK always offered); no app registered yet.
-  - Auth email limit 200 an hour (10 Nov).
-- **Own-repo apps on the platform:**
-  - UpvoteMe (pisanuw/upvote, Next.js on Netlify): Google through Supabase (#4), Google-compliant buttons and the shared footer (#5, 335af9e).
-  - PasteMD (pisanuw/pastemd): Google through Supabase (#2), compliant buttons and the footer on every page (#3, 904fe66).
-  - StepWise (pisan-labs/visualizing-data-structures, stepwise.hintwise.org): schema app_stepwise (migrations 0001–0003 applied from claude-built-apps/stepwise/), sign-in-link, compliant button and the footer on all 204 pages (b418072); final deploy 70155fe (11 Nov 10:32 Lisbon). **Its session relay ended at the owner's request**: new StepWise work starts by hand from HANDOFF.md on its `next` branch. Don't message that session.
-- **backend-hub** on a paid Render instance (0.5c-512mb, owner set it 10 Nov).
-- **Brand:** the HintWise logo (owner's choice 11 Nov): lowercase "hintwise", Outfit Regular + Bold, deep indigo #312E81 with coral #FF7A45 four-point sparks over dotless i's; files in platform/brand/ (4331076) with a usage guide. Not yet used anywhere live.
-- **Routines (owner's, not relay):** ideas trig_01K986yzFbf3noGkLA6RgZkn 01:51 Pacific (10:51 CET); build trig_01BAP9nsXTtxTdpMiwk5GdXE 02:49 Pacific (11:49 CET). 11 Nov's ideas (cacc9cb) were saved after a CHANGES.md clash; ROUTINE.md now keeps both lines of an append-only CHANGES.md conflict (781948f, owner's default).
-- **Heads at handoff:** claude-built-apps main 40b2c04 (before this commit), daily-project-ideas 781948f, upvote 335af9e, pastemd 904fe66, chess-tournament-director 68f844d.
+- **Apps:** claude-built-apps has 65 deploy targets (*/deploy/target.yml); the apps answer 200 under `<app>.hintwise.org`. Every monorepo app has the shared footer (scripts/site-footer.mjs) injected at deploy; own-repo apps embed the same markup with a sha256 test. pisan-labs mirrors sync on push and daily by halflife (04:13).
+- **Shared platform** (docs/platform.md; platform/): all tests green, 404 at this handoff.
+  - Supabase project `arktxlrlyceffyozdwhq` on **auth.hintwise.org**. Schema `platform`; per-app schemas `app_<slug>` with RLS. Migrations through `supabase-admin.mjs migrate <slug>` then `expose-schema` and `check-schema`.
+  - Google and email sign-in (sign-in-link Edge Function, branded button, wait ladder, limits, hashed log). Send Email hook ON since 11 Nov.
+  - **llm-gateway** Edge Function (owner's Anthropic key behind caps; BYOK always offered). Since 13 Nov it also: counts a person's successful calls per app (reading caps, `shared/0007`); answers a **check mode** `{app, check: true}` with `allowance()` (no model call, no cost); **spends credits** once the free allowance is used up, reserving before the call and refunding on failure (`shared/0008`); and records who used each app on every check and call (`platform.app_users`, `shared/0009`).
+  - **credits-grant** Edge Function: a HintWise admin grants credits by email `{app, email, credits, note?}`, or lists an app's people `{app, list: true, limit?}` (email, first/last seen, free_left, free_resets_at, credits, readings). Non-admins 403. Admins are in `platform.admins`, changed only by the Supabase admin `admin add|remove|list` command (address masked in the log). **The owner is the first and only admin** (13 Nov 09:13 UTC).
+- **photo2pgn** (pisan-labs/photo2pgn, own repo; its own relay session_01JyJzMW9Bz6EAJvfv2NPJQd): live at **photo2pgn.hintwise.org** (main 3f3f41c and later), listed on HintWise Studio (Photo to PGN). See section 4.
+- **delivery-canary** (delivery-canary.hintwise.org): the weekly build in progress, day 2 done 13 Nov (unfulfilled digital-order scan). Footer present. Its own handoff: delivery-canary/HANDOFF.md.
+- **Own-repo apps on the platform:** UpvoteMe (pisanuw/upvote), PasteMD (pisanuw/pastemd), StepWise (stepwise.hintwise.org; its relay ended, new work by hand) — all with Supabase sign-in, compliant Google button and the footer.
+- **Brand:** the HintWise logo and kit in platform/brand/; the footer mark reaches apps on each deploy.
+- **Heads at handoff:** claude-built-apps main 52f0bfa (before this commit), daily-project-ideas 02b2135, upvote f4bcacb, pastemd 111fd72, chess-tournament-director (its relay).
 
-## 3. Landed 9 to 11 November (this session, session_01JyJzMZ1aBTZCRkUXLJnRG4)
+## 3. Landed 12–13 November (this session, session_01JyJzMXxeHu9P7By5BXRNJv)
 
-- **9 Nov:**
-  - weekly build model;
-  - BUILD_ROUTINE.md rewrite and templates;
-  - platform scaffolding (shared SQL, Supabase admin workflow, llm-gateway, usage report);
-  - apply-shared, expose-schema, configure-auth (Resend SMTP, hintwise.org redirects);
-  - Google provider moved to the HintWise client;
-  - auth.hintwise.org;
-  - PasteMD on Supabase sign-in;
-  - research-map.hintwise.org.
-- **10 Nov:**
-  - UpvoteMe on Supabase sign-in and its netlify.app redirect;
-  - BUILD_ROUTINE.md: the usual architecture, same-day continue, apps free, security review, Google branding rules;
-  - StepWise schema and migrations;
-  - check-schema in deploys;
-  - email limit 200 an hour;
-  - backend-hub paid;
-  - sign-in-link and auth-email-hook built, reviewed twice, deployed (hook off), secrets set;
-  - Google-compliant buttons and the shared footer for UpvoteMe and PasteMD (and StepWise via its session).
-- **11 Nov:**
-  - the email hook on (owner's yes), verified end to end;
-  - Qualified Overtime Checker days 3–7 (by the build routine's sessions);
-  - the HintWise logo and brand kit;
-  - the email footer, logo header and opt-out built and reviewed (not shipped, section 4);
-  - ideas saved and the ROUTINE.md conflict rule.
+- **12 Nov:** photo2pgn platform support (sign-in functions redeployed, domain attached, its own gateway caps, migration applied, max_tokens 8000→12000); gateway per-app **user caps** (shared/0006, caps.ts); the **new-app guide** (docs/new-app-guide.md) with its Spending-limits section; Delivery Canary key wiring and day 1; Chess TD footer (its session); Photo to PGN added to HintWise Studio (daily-project-ideas 0181ff9); the launchd-agent installer for photo2pgn's CLI reader; Four Ghosts (11 Nov, finished).
+- **13 Nov:**
+  - gateway **reading caps + check mode** (shared/0007, `app-user-day-calls`/`app-user-week-calls`, `allowance()`); photo2pgn set to 3 readings/day, 9/week, cross-app $1/day;
+  - **credits slice 1** (shared/0008): platform.credits, credit_ledger, platform.admins, `paid_with_credit`; the gateway spends/reserves/refunds credits; credits-grant function; the Supabase admin `admin` command; owner made first admin;
+  - **admin list of an app's people** (shared/0009 platform.app_users, recorded by the gateway + backfill; credits-grant `{list: true}`);
+  - photo2pgn's no-truncation engine, gateway-only public readings, credits screen and admin panel (all by its session, on the owner's yes);
+  - fixed a flaky popup-check test (fc1e1b6) and check-schema's treatment of platform.llm_apps as shared by design (a4a13f7);
+  - resumed the stalled ideas routine (pushed 02b2135); read-only credits-status ops query.
 
-## 4. Branches not merged
+## 4. photo2pgn (its own session drives it; Plabs does the platform)
 
-- **Shipped 11 Nov 14:39 Lisbon** (squash 2d27dec on main; Supabase admin runs 49–56; live test link sent 14:40, owner to check Stop/Done/Undo). Was: claude-built-apps **`feat/email-footer-optout`** (head 23fef9e, 18 commits ahead, up to date with main; CI green through 23fef9e, run 43014081744). Ready to ship; **waits for the owner's yes** (section 6).
-  - What it is:
-    - every HintWise email gets a footer (why you got it, support@hintwise.org, the HintWise line with studio.hintwise.org, "Stop all email from HintWise");
-    - Reply-To support@hintwise.org;
-    - the logo header from EMAIL_LOGO_URL, with an indigo text header when unset;
-    - indigo button and links;
-    - the "HintWise" sign-off line removed (23fef9e, a separate commit: owner's default at 11:42, undo by dropping it);
-    - a global opt-out: a stop-only signed footer link opens the `email-optout` Edge Function page on auth.hintwise.org (GET asks, POST stops, the "Done" page has an Undo valid one hour); sign-in-link answers `suppressed`, and the hook answers opted-out mail as sent and sends nothing;
-    - support commands `email-optout status|add|remove` (remove only on a DMARC-passing request from that address or after a confirming reply);
-    - `brand-upload` (public bucket `brand`, PNG/ICO only, one-day cache);
-    - `optout-ready` deploy guard.
-  - Independent security review: no blockers; all 12 points fixed (stop-only and undo tokens, deploy guard, hash-only logs, arg masking, quiet hook answers, no SVG upload, docs).
-  - Tests: platform 347 tests, 99.8% coverage; qualified-overtime-checker 254; template 84.
-  - Ship order, each a Supabase admin dispatch from main after a squash-merge:
-    1. `apply-shared` (0003_email_optout.sql);
-    2. `check-schema` with arg `platform`;
-    3. `brand-upload` (prints EMAIL_LOGO_URL);
-    4. `set-sign-in-secrets` (generates EMAIL_OPTOUT_SECRET once and sets EMAIL_LOGO_URL);
-    5. `deploy-function` with arg `email-optout`;
-    6. `deploy-function` with arg `sign-in-link` (the guard runs first);
-    7. `deploy-function` with arg `auth-email-hook` (the guard runs first);
-    8. `email-hook` with arg `check`;
-    9. live test: a sign-in link to pisan@uw.edu (logo, footer, Reply-To), Stop, Done, Undo within the hour; `email-optout` with arg `status` and the `email` input, then check the log shows only the hash.
-  - Not verified live:
-    - Storage's bucket create/upload shapes;
-    - the `sb_secret_` key passthrough on the functions gateway;
-    - GitHub's masking of the `email` input in a real run.
-  - Never rotate EMAIL_OPTOUT_SECRET or SIGN_IN_HASH_KEY: that drops every opt-out and breaks every link already sent.
-- Older branches not from this session (`claude/fix-mobile-overflow`, `claude/magical-cray-*`, `claude/wonderful-tesla-lgdegm`): not reviewed. `feat/sign-in-link` and `platform-scaffold` are merged (the git proxy refused to delete them).
+Live and listed. The owner's choices this cycle, all applied:
+- **max_tokens 12000** (readings no longer truncate; 8000 failed past ~75 moves; measured ~$0.12 a sheet on Opus).
+- **Caps:** per person 3 readings/day, 9/week (reading caps, not dollars); cross-app per-person $1.00/day so a long game can't cut the 3 short; app ceiling $1/day, $5/week, $10/month unchanged.
+- **Saved games** (`app_photo2pgn.games`, own-row RLS) applied and exposed; check-schema passed; anon refused (42501).
+- **Public readings gateway-only** (VITE_FREE_READER=gateway, main 3f3f41c): the halflife CLI reader gets no jobs (keep it, or `bash ~/install-pgn-worker-agent.sh uninstall`); the subscription-terms question no longer applies to public traffic.
+- **Credits:** 1 credit = 1 sheet, photo2pgn only; its credits screen ("Use my N credits") and admin panel are live; the "List users" button is built on its branch (d1fd765), waiting for the owner's yes to deploy.
+
+Still open / waiting on the owner:
+- **Test from a real account:** a check, a reading, and a grant (grant self 1 credit → "Check balance" → read a sheet); and **"My games"** on a second device. The owner confirmed the credits screen and admin panel show, but not a grant's resulting balance or a saved-game round trip.
+- **Deploy photo2pgn's "List users"** (d1fd765) — its session waits for the owner's yes.
+- **Paddle (slice 2):** needs the owner's account and prices (proposed 20 credits/$5, 50/$10, never expire). Before selling, raise the $1/day app cap, since paid readings count against it.
+- Chess TD asked photo2pgn for a scoresheet-reading API; photo2pgn recommends sharing its reading code instead (a server-side reading would need a key in a function). Undecided; if Chess TD reads through the gateway it needs its own llm_apps row and caps (owner's numbers).
 
 ## 5. Next, in order
 
-1. **On the owner's yes, ship the email work** (section 4's order), then mark platform/brand/README.md "Where it is used" and CHANGES.md.
-2. **Self-service account deletion** (platform). Owner approved it for after this week's build, and the build finished 11 Nov. Asked 11:36 whether to start once the email work ships (recommended yes). Design: a signed-in "Delete my account" that deletes the auth user (rows cascade per app schema), with confirmation; StepWise already has `delete_my_data()` for its own rows.
-3. **app-notify sender** (approved 10 Nov "1-3 yes", after account deletion):
-   - a daily Edge Function that reads each registered app's releases feed (StepWise `releases.json`, stable ids) and its opt-in rows (StepWise grants service_role select on app_stepwise.preferences and update of notify_new_pages);
-   - it sends from `<slug>@hintwise.org` with a one-click unsubscribe (List-Unsubscribe) and the per-app level of the opt-out, and records sends.
-   - **Transactional only, no postal address** (owner, 11 Nov, option 1): it sends only what the person opted into about the app they use (that app's new pages or releases, their own activity). No promotion of other apps or offers as the email's purpose; the footer's "More apps" line stays incidental. If promotional email is ever wanted, a PO box or virtual mailbox goes in the footer first (CAN-SPAM).
-   - StepWise's side now needs a new StepWise session, which the owner starts by hand.
-4. **Logo rollout:** a small mark in the shared site footer (scripts/site-footer.mjs). It reaches each app on its next deploy; don't redeploy all (each Netlify deploy costs credits). Favicons and social images later.
-5. **Watch the build routine's next run:** 12 Nov 11:49 CET is day 1 of a new project. It must use the platform template's sign-in (sign-in-link, the branded button), because direct signInWithOtp mail is refused while the hook is on.
-
-6. **photo2pgn support** (owner, 12 Nov: "help it along"). Session session_01JyJzMW9Bz6EAJvfv2NPJQd builds photo2pgn.hintwise.org in its own repo `pisan-labs/photo2pgn` (created as photo2png; the owner renamed it 12 Nov before any deploy); instructions sent 12 Nov (scratchpad copy given to the owner). Plabs side: `photo2pgn` added to EXTERNAL_APP_LABELS (048dacc); sign-in-link and delete-account redeployed 12 Nov 14:44 UTC on the owner's yes (runs 43240247361, 43240356141; CORS answers photo2pgn.hintwise.org); its migration (llm_apps insert only) applied 12 Nov (run 43257164982); max_tokens 8000 (owner; run 43257279804); the owner asked to turn on the CLI reader (photos in Netlify Blobs up to a day, read by `cli/pgn-worker.mjs` with Claude Code on the owner's subscription; the photo2pgn session sets `VITE_FREE_READER = "local-then-gateway"`; the owner sets `PGN_WORKER_TOKEN` in Netlify and runs the worker; Plabs raised, unanswered, whether the subscription's terms allow serving public visitors); its own gateway limits are live (owner "yes limits", "yes those numbers", 12 Nov 16:00 UTC: shared/0006 applied, run 43253879189; check-schema platform passed; deploy-gateway 43254164148; `ops/photo2pgn-llm-caps.sql` run 43254295194 set app $1/$5/$10 and per person in photo2pgn $0.10/day, $0.40/week; across apps $0.25/day); the owner created the Netlify project photo2pgn (12 Nov); "Attach custom domain" run 43252288065 created the CNAME photo2pgn.hintwise.org -> photo2pgn.netlify.app (DNS only) and set the primary domain; the certificate request got 422 "bad dns" right after the CNAME was made (Netlify retries), and the site answers Netlify's 404 until the app is on main. **Live since 12 Nov ~16:30 UTC** (its main at fae34d9a, merged by the owner): rerun of "Attach custom domain" 43260907393 got HTTP 200 over real TLS from the runner (Netlify: a certificate already exists); footer count 1; manifest, sw.js, scoresheet.html answer 200. CLI reader: `PGN_WORKER_TOKEN` is active on Netlify (POST /api/convert answers sign_in, which is checked after reader_off); `VITE_FREE_READER = "local-then-gateway"` is on its branch claude/chess-pgn-converter-app-rdsh9n at 1f92dc1 (726ed21: queue off -> gateway at once; gateway max_tokens 8000; 1f92dc1: the reader checks in every 20 s poll and jobs queue only if it checked in within 60 s, else gateway at once; netlify.app 301 and manifest type), merged to main by the owner ("yes merge", 12 Nov ~16:48 UTC; main fc30b1c, fast-forward; fc30b1c clearer CLI 401/404 messages; verified live 16:52 UTC: netlify.app 301 to hintwise.org with the path, manifest application/manifest+json, footer 1, bundle has local-then-gateway and onlyIfReaderRunning; next: the owner runs the worker on halflife). Measured by photo2pgn (5 real sheets, Opus medium): ~$0.12 a sheet (6k in, 3.6-6.2k out, ~90 out tokens a move + ~1k thinking); 8000 fails past ~75 moves. The owner said yes to 12000; still open: whether to loosen caps (now: 1 gateway sheet a day per person, ~4 a week; app ~9 a day, ~84 a month; CLI reader readings don't count). The gateway checks spend so far, no reservation.; open question to the owner: function-call credits from a 20 s poll around the clock (unmeasured); then the owner runs the worker. Sign-in: sign-in-link preflight allows the origin; allow-list `https://*.hintwise.org/**`; no real email sent. Its `0002_games.sql` (schema app_photo2pgn, table games, own-row RLS, template grants; sha256 eed2943b...14e9) copied in 4c74dc6, applied on the owner's "yes 0002" (17:02-17:13 UTC: migrate 43265085254, expose-schema 43266956563, check-schema 43267054372 passed; anon refused 42501). max_tokens 12000 on the owner's "yes 12000" (sql run 43265078039); photo2pgn sends 12000 from its branch commit 0a65da9 (with a review screen and a browser-only Chess TD hand-off), merged by the owner (main c674c67), verified live 17:3x UTC: bundle has 12e3, footer 1, netlify.app 301, Cburnett pieces with /piece-images-license.txt (BSD 3-clause notice). Caps: per person in photo2pgn $0.25/day (3 sheets), $1.00/week (~9) on the owner's "Yes caps" here (12 Nov 20:07 UTC, eb7215f, sql run 43297183571; row 1 | 5 | 10 | 0.25 | 0.25 | 1.00 | 12000). Studio listing live on the owner's "Yes studio" (daily-project-ideas 0181ff9: studio.json entry "Photo to PGN", web/media/photo2pgn.jpg; studio_media.js skips placeholders); checked https://studio.hintwise.org/apps/photo2pgn/ 200. 13 Nov: owner asked that unreadable moves never truncate the PGN (best guess, backtrack, flag unconfirmed guesses with choices); the engine (src/lib/repair.ts) stops when stopping is cheaper, e.g. the demo's forced 16...Nxb8; relayed to photo2pgn; already built on its branch (73042ac, 11d0bef: no stopping, forced moves taken, "guess" status with ranked choices, warning at 25% changed moves), not merged: the owner decides the deploy. Credits (photo2pgn proposal, undecided): Plabs advised per-app call credits, reserve before the call with refund, app caps stay a ceiling, a platform.admins table (no admin concept exists today), ledger kept on account deletion. "Use my N credits" display: Plabs proposed a gateway check mode ({app, check: true}, reusing decide()) rather than a SQL copy of the rules, and per-person caps counted in readings (new optional cap_app_user_day_calls / _week_calls) with app caps in dollars; owner said "1 check, 2 yes 3/9" (13 Nov): live 07:29 UTC (1dfb17d; apply-shared 43385977829 applied shared/0007, deploy-gateway 43386040140, sql 43386134920: photo2pgn 1 | 5 | 10 | cross-app 1.00 | null | null | 3 | 9 | 12000). Gateway boots (401 JSON to a non-user token); a signed-in check call and reading not verified. photo2pgn told. Credits (photo2pgn relayed the owner: 1 credit = 1 sheet, photo2pgn only; Paddle, 20 for $5 and 50 for $10, never expire): slice 1 live on the owner's "1 yes" (13 Nov 08:03-08:07 UTC: 2366ac7; apply-shared 43390202593 (shared/0008), deploy-gateway 43390267038, deploy-function credits-grant 43390351859; check-schema platform passed 43390708899 after a4a13f7 marked platform.llm_apps as shared by design); the owner is the first admin (13 Nov 09:13 UTC, run 43399485184; address masked, none in the log); his live test: check shows "Use my 3 credits" and the admin panel; ops/credits-status.sql (totals only) showed 1 grant of 10, 1 balance of 10, 1 free reading $0.135; admin list of an app's people live 12:09 UTC (owner's ask; 6381e9e, shared/0009 app_users recorded by the gateway + backfill: 2 photo2pgn users; credits-grant {app, list: true}); photo2pgn asked to show it and add a privacy line; signed-in calls not verified; photo2pgn main 3f3f41c (08:03 UTC): the owner chose gateway only for public readings (VITE_FREE_READER = "gateway"), so the CLI reader gets no jobs (keep or uninstall the halflife agent: `bash ~/install-pgn-worker-agent.sh uninstall`), and the subscription-terms question no longer applies to public traffic; slice 2 (Paddle) needs his account, and the app caps ($1/day) would also cap paid readings. My games: the owner was asked to test a save on two devices. Suggested to it: a 301 from photo2pgn.netlify.app and Content-Type application/manifest+json (both in 1f92dc1). Chess TD (session_01JyJzMYRvrnAv1czbmoG1Kk) asked photo2pgn for an HTTP API to read scoresheets; photo2pgn recommends sharing its reading code instead (a server-side reading would need a key in a function). Undecided; if Chess TD reads through the gateway it needs its own llm_apps row and caps (owner's numbers).
+1. **photo2pgn:** on the owner's yes, its session deploys "List users"; then confirm the live list shows the owner with his credits. Verify a real grant and reading when the owner tests.
+2. **Older photo2pgn asks** carried from the platform side are all done; nothing Plabs owns is blocked.
+3. **app-notify sender** (approved 10 Nov, transactional only, no postal address): a daily Edge Function reading each app's releases feed and opt-in rows, from `<slug>@hintwise.org` with one-click unsubscribe. Not started; StepWise's side needs a new StepWise session the owner starts by hand.
+4. **Logo rollout** in the shared footer reaches apps on each deploy; don't redeploy all (credits). Favicons and social images later.
+5. **Watch the build routine** (11:49 CET daily): Delivery Canary day 3 next. It must use the platform template's sign-in.
 
 ## 6. Waiting on the owner
 
-(Email ship and account deletion: both answered and shipped 11 Nov.)
-
-1. Older, not confirmed since 8 Nov:
-   - test Google sign-in on MeetMe, Chess TD and Digital Yusuf;
-   - re-run `python3 scripts/pisan_labs_setup.py` locally so pisan-labs repo homepages show hintwise.org;
-   - post launch drafts 1–7 (docs/launch-drafts.md), one at a time, days apart.
-2. Qualified Overtime Checker follow-ups: qualified-overtime-checker/HANDOFF.md "Owner actions" and "Remaining"; its pisan-labs mirror comes from the halflife job or `scripts/pisan_labs_setup.py` then the Mirror workflow.
+1. **Test photo2pgn from a real account** (section 4): a grant + reading, and "My games" on two devices.
+2. **Yes to deploy photo2pgn's "List users"** (d1fd765) — relayed to its session, not to Plabs; no Plabs action.
+3. Older, not confirmed since 8 Nov: test Google sign-in on MeetMe, Chess TD and Digital Yusuf; re-run `scripts/pisan_labs_setup.py` locally for pisan-labs homepages; post launch drafts 1–7 (docs/launch-drafts.md), one at a time.
+4. Qualified Overtime Checker follow-ups: qualified-overtime-checker/HANDOFF.md.
 
 ## 7. Dated tasks
 
-- 12 Nov 11:49 CET: the build routine starts a new weekly project (day 1); check it uses the platform's sign-in (section 5 item 5).
+- Each day 11:49 CET: the build routine advances the weekly project (Delivery Canary); check it uses the platform's sign-in.
 
 ## 8. Decisions and why
 
-- Monorepo stays the source of truth; pisan-labs repos are `git subtree split` mirrors (mirror.yml + .github/mirrors.txt).
-- Each mirrored app folder carries its own LICENSE and `.github/workflows/ci.yml` (inert in the monorepo, active in the mirror).
-- tetromino-arcade not mirrored or promoted: Tetris trademark/trade-dress risk.
-- Subdomains are named after the package folder, not the Netlify site name.
-- **Netlify deploys cost credits.** A push deploys only targets whose target.yml changed (plus shortcut-sprint and code-analogy-forge source changes); runner and footer changes need a manual Deploy run. Docs-only commits carry [skip netlify].
-- Every app's primary address is `<app>.hintwise.org`; target.yml keeps `customDomain: <app>.pisan.me` and the runner swaps in APP_DOMAIN (scripts/domains.mjs).
-- Footer text and line breaks are the owner's (8 Nov). Own-repo apps embed the exact `footerHtml('<netlify-project-name>')` output with a sha256 test (UpvoteMe, PasteMD, StepWise).
+- Monorepo is the source of truth; pisan-labs repos are `git subtree split` mirrors (mirror.yml + .github/mirrors.txt). Each mirrored folder carries its own LICENSE and inert ci.yml.
+- **Netlify deploys cost credits.** A push deploys only targets whose target.yml changed (plus shortcut-sprint and code-analogy-forge source); runner/footer changes need a manual Deploy run. Docs-only commits carry `[skip netlify]`.
+- Every app's primary address is `<app>.hintwise.org`; target.yml keeps `customDomain: <app>.pisan.me` and the runner swaps in APP_DOMAIN.
 - Public pages are written for customers: no scores, competitors, build time or test counts.
-- Small business first for new ideas and builds (owner, 2 Nov).
-- **One substantial project a week** (owner, 9 Nov), on the usual architecture (BUILD_ROUTINE.md table): Netlify, Render via backend-hub only when a long-running server is unavoidable, the shared Supabase project (schema per app, RLS), Resend, Google via Supabase. All are paid accounts. Apps are free unless the owner says otherwise. A security review runs on auth, RLS, functions and email milestones.
-- **No Resend sending subdomains** (each counts against the plan's domain limit, owner 10 Nov): app mail comes from `<slug>@hintwise.org`; sign-in mail from sign-in@hintwise.org.
-- **Google sign-in buttons follow Google's branding guidelines** (owner, 10 Nov): "Continue with Google"/"Sign in with Google", Google's unmodified G (signin-assets.zip, cropped to its 20×20 G), light #FFFFFF/#747775/#1F1F1F or dark #131314/#8E918F/#E3E3E3, Google Sans Medium 14/20, 40px, and the email option no more prominent. The template's button is correct.
-- **The email hook is on**; apps send email sign-in through sign-in-link, never `signInWithOtp`.
-- **Email footer and opt-out** (owner, 11 Nov):
-  - a short footer on every HintWise email, with support@hintwise.org, which reaches the owner through Cloudflare catch-all routing;
-  - two levels of opt-out: per app later with app-notify, and "Stop all email from HintWise" now, which includes sign-in links;
-  - no postal address: app-notify stays transactional only (owner, 11 Nov); a PO box is needed only if promotional email is ever sent;
-  - logo hosted in a public Supabase bucket on auth.hintwise.org.
-- **Logo** (owner, 11 Nov): A1 in deep indigo #312E81 with coral sparks, sparks on tiny icons too (platform/brand/).
-- The JWT secret exposure of 9 Nov: the owner accepts the risk; **do not raise rotation again**.
+- Small business first for ideas and builds. One substantial project a week on the usual architecture (BUILD_ROUTINE.md); all accounts paid; a security review on auth/RLS/functions/email.
+- No Resend sending subdomains; app mail from `<slug>@hintwise.org`, sign-in mail from sign-in@hintwise.org.
+- Google sign-in buttons follow Google's branding guidelines; the template's button is correct.
+- The email hook is on; apps send sign-in through sign-in-link, never `signInWithOtp`.
+- **Gateway spending** (owner, 12–13 Nov): each app has dollar caps (day/week/month) as a ceiling and optional per-person caps in dollars or **readings** (successful calls). **Credits** pay once the free allowance is used up, never past the app ceiling; taken before the call, refunded on failure; calls paid with a credit don't count against the free allowance. The gateway checks spend-so-far (no reservation of an estimate), so one call can overshoot a dollar cap. `platform.llm_apps` is readable by any signed-in user by design (apps and caps, no secrets); check-schema treats it as shared (SHARED_TABLES).
+- **Admins** (`platform.admins`) may grant credits and list an app's people; changed only by the Supabase admin workflow, never by apps; the email never leaves the database in a grant/list (looked up server-side).
+- The JWT secret exposure of 9 Nov: the owner accepts the risk; **do not raise rotation again**. Never rotate EMAIL_OPTOUT_SECRET or SIGN_IN_HASH_KEY. Never replace DELIVERY_CANARY_KEY once stored.
 - A deploy needs no yes when the owner asked for the change; any other production deploy, database change or Netlify build waits for a yes.
 
 ## 9. Tried and rejected
 
-- GIF of emoji-lingua via a mocked API: it would show output live visitors never get.
-- Proxied Cloudflare records for Netlify hosts: Netlify cannot issue certificates through the proxy (a moved `<x>.pisan.me` record is proxied on purpose so the redirect rule answers it).
+- A second SQL copy of the cap rules for the check mode: rejected; the gateway's check mode reuses `decide()`/`allowance()` so the list and the page can't drift from what the gateway enforces.
+- A separate `seen()` RPC for photo2pgn to call on sign-in (photo2pgn's proposal): not needed; the gateway records each visit on every check and reading from the verified token.
 - Redeploying all apps on every deploy.mjs edit: ran Netlify out of credits on 2 Nov.
 - A database trigger on auth.users: Supabase refuses it; apps call `platform.ensure_profile()` after sign-in.
-- Resend subdomains per app: rejected for plan limits (above).
 
 ## 10. Constraints and gotchas
 
-- User preferences: ask before spending money (Netlify deploys and builds, paid APIs), deploying to production unless asked, writing production data, publishing outside the session, deleting the unrestorable, rotating secrets. Push to main is fine. Number questions with a recommendation; with no answer in 15 minutes take the recommendation and say how to undo it (never for the explicit-yes actions).
-- Conventional Commits enforced by `.git-hooks/commit-msg` (`git config core.hooksPath .git-hooks`); merge commits need a conventional message too.
-- Other machines and sessions push to main (the build routine daily, the ideas routine): `git fetch` before work and before pushing; merge, never force-push.
-- Supabase admin workflow: dispatch one run at a time (the concurrency group replaces a pending run with a newer one); don't dispatch in parallel with the push it depends on. Its logs are public, so nothing secret or personal may be printed.
-- Repo settings (description, topics, homepage) can't be written from a cloud session.
-- Secrets (names only): NETLIFY_AUTH_TOKEN, RENDER_API_KEY, MIRROR_TOKEN, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ZONE_ID, ANTHROPIC_API_KEY, RESEND_API, ADMIN_EMAIL, COOKIE_SECRET, SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD, SUPABASE_SERVICE_ROLE_KEY, TURNSTILE_SECRET (and TURNSTILE_SITE_KEY variable).
-- Netlify: a new domain gets its certificate only after POST /sites/{id}/ssl/renew. Cloudflare free plan: wildcard_replace only. Netlify env PATCH can't set the `all` context.
-- Render's API refuses free-to-paid plan changes; the owner changes plans in the dashboard.
-- Supabase serves HTML from Edge Functions only on the custom domain (auth.hintwise.org), not on *.supabase.co.
-- Known small issues not fixed: cron-cartographer's "last day of the month", summit-navigator's now/next bar far east of ET, pull-the-pin's re-render.
+- User preferences: ask before spending money, deploying to production unless asked, writing production data, publishing outside the session, deleting the unrestorable, rotating secrets, rewriting shared history. Push to main is fine. Number questions with a recommendation; with no answer in 15 minutes take it and say how to undo it (never for the explicit-yes actions).
+- Conventional Commits enforced by `.git-hooks/commit-msg` (`git config core.hooksPath .git-hooks`).
+- Other machines and sessions push to main (build and ideas routines): `git fetch` before work and before pushing; merge, never force-push.
+- Supabase admin workflow: dispatch one run at a time; its logs are public, so nothing secret or personal may be printed. The `sql` command prints only the **last** statement's result (combine with UNION, as credits-status.sql does).
+- Repo settings can't be written from a cloud session. Secrets are set in the repo, never pasted in chat.
+- Netlify: a new domain gets its certificate after the ssl request (Netlify retries; the runner's HTTP 200 over real TLS is the live check). Supabase serves Edge Function HTML only on auth.hintwise.org.
 
 ## 11. How to run and verify
 
 - Per app (from its folder): `npm ci && npm run lint && npm run typecheck && npm run coverage && npm run build`.
 - Platform (platform/): `npm run lint && npm run typecheck && npm run coverage` (plus `npm run check-scripts`, `npm run check-app-hosts`).
 - Footer tests: `node --test scripts/site-footer.test.mjs`.
-- Supabase admin: Actions > Supabase admin > Run workflow (command, arg, flags, email); commands are listed at the top of .github/workflows/supabase-admin.yml.
-- Deploy named apps: Actions > Deploy > targets `app-a app-b`.
+- Supabase admin: Actions > Supabase admin > Run workflow (command, arg, flags, email); commands listed atop .github/workflows/supabase-admin.yml. Credits totals: `sql` with `platform/supabase/ops/credits-status.sql` (no names/emails).
 - Live check: `curl -s https://<app>.hintwise.org/ | grep -c data-site-footer`.
-- Ideas site: `node build.js && node scripts/smoke_pages.js` in daily-project-ideas.
+- Gateway check mode (a signed-in token): POST auth.hintwise.org/functions/v1/llm-gateway `{app, check: true}`.
 
 ## 12. Key files
 
-- README.md, PROJECTS.md: public pitch and catalog; BUILD_ROUTINE.md: the weekly build routine; docs/templates/.
-- docs/platform.md: the platform design and runbook; platform/README.md: first-time order; platform/supabase-admin.mjs + .github/workflows/supabase-admin.yml.
-- platform/src/signin/ (sign-in-link, hook, README), platform/supabase/functions/, platform/supabase/shared/*.sql, platform/templates/app/.
-- platform/brand/: the logo and usage guide.
-- scripts/site-footer.mjs; */deploy/target.yml; accessibility-lens/deploy/deploy.mjs.
-- stepwise/: StepWise's migrations and README (applied from here).
-- CHANGES.md, BRIEFING.md; daily-project-ideas: ROUTINE.md, studio.json, implemented.json.
+- README.md, PROJECTS.md, BUILD_ROUTINE.md, docs/new-app-guide.md (standard new-app instructions), docs/platform.md.
+- platform/supabase-admin.mjs + .github/workflows/supabase-admin.yml; platform/supabase/shared/*.sql (0006 user caps, 0007 reading caps + check, 0008 credits, 0009 app_users); platform/supabase/ops/ (photo2pgn caps, backfills, credits-status).
+- platform/src/gateway/ (caps.ts: decide/allowance/funding; request.ts; pricing.ts), platform/src/credits/ (grant.ts, list.ts), platform/supabase/functions/ (llm-gateway, credits-grant, sign-in-link, …).
+- photo2pgn/ (migrations copied here, README, halflife/install-pgn-worker-agent.sh).
+- scripts/site-footer.mjs; */deploy/target.yml; CHANGES.md, BRIEFING.md; daily-project-ideas: ROUTINE.md, studio.json.
 
 ## 13. Background jobs
 
-Relay routines (Scheduling below), the owner's ideas and build routines (section 2), and the notify-implemented email at 9:10am Pacific (GitHub Actions). No subagents are running at this handoff.
+Relay routines (Scheduling below), the owner's ideas (10:51 CET) and build (11:49 CET) routines, the halflife pisan-labs sync (04:13), and the notify-implemented email (9:10am Pacific). No subagents running at this handoff (the fact-check subagent for this handoff aside).
 
 ## 14. Weekly builds and platform
 
-The build routine (BUILD_ROUTINE.md) picks a substantial idea (small business first), builds one milestone a day for up to 7 days in fresh sessions resuming from `<slug>/HANDOFF.md`, and continues the same day when time allows. The first build, Qualified Overtime Checker, finished in 2 days of wall time (10–11 Nov). The relay session supports the builds: applying migrations for own-repo apps, platform features, and reviewing anything touching auth or email.
+The build routine (BUILD_ROUTINE.md) picks a substantial idea (small business first), builds one milestone a day for up to 7 days in fresh sessions resuming from `<slug>/HANDOFF.md`. The relay session supports the builds: applying migrations for own-repo apps, platform features, and reviewing anything touching auth or email.
 
-**Aborted builds (do not pick or resume):** daily-project-ideas `ideas/2026-11-10.json` #1, "Off-TPT Catalog Kit" (slug off-tpt-catalog-kit, folder `teacher-catalog-kit/`). The owner aborted it on 11 Nov after day 1 and then said "take it down": the Netlify site and its DNS, schema app_teacher_catalog_kit and its migration records, the CI job, the deploy target and the sign-in host were removed (tools: Supabase admin `unexpose-schema`, `platform/supabase/ops/retire-teacher-catalog-kit.sql`, the "Retire Netlify site" workflow). The folder stays as the record that keeps the idea from being picked again.
+**Aborted builds (do not pick or resume):** daily-project-ideas `ideas/2026-11-10.json` #1, "Off-TPT Catalog Kit" (folder `teacher-catalog-kit/`): aborted and taken down 11 Nov; the folder stays as the record that keeps the idea from being picked again.
 
 ## Notes for the next session
 
 ### Owner's standing instructions
-- Ask first, and wait for the answer, before: writing production data; deploying to production unless asked; spending money; deleting the unrestorable; rotating secrets; rewriting shared history; publishing outside the session. Push to main is fine.
+- Ask first, and wait for the answer, before: writing production data; deploying to production unless asked; spending money; deleting the unrestorable; rotating secrets; rewriting shared history; publishing outside the session. Push to main is fine; deleting already-merged branches is fine.
 - Number questions with a recommendation, in message text (no blocking dialogs). With a recommendation and no answer in 15 minutes, take it and say how to undo it (never for the explicit-yes list). Set a send_later check-in for 15 minutes when something waits on an answer.
-- **Times in Lisbon time** (Europe/Lisbon; owner, 9 Nov), in reports and chat. Routines keep their Europe/Berlin crons.
-- **Quiet hours are silent** (owner, 12 Nov): when an hourly check finds nothing new, print nothing at all, not even a one-line "nothing changed".
-- Hourly check with nothing new: send nothing (no file, no message).
-- Public pages are for customers (section 8). Never invent facts about the owner in his voice.
-- CHANGES.md is append-only, `YYYY-MM-DD [type] text` (≤200 chars); Conventional Commits; no model names in repo artifacts.
-- Never ask the owner to paste tokens or keys in chat; never print secret values.
+- **Times in Lisbon time** (Europe/Lisbon) in reports and chat. Routines keep their Europe/Berlin crons.
+- **Quiet hours are silent:** when an hourly check finds nothing new, print nothing at all — no file, no message, not even a "nothing changed" line.
+- Public pages are for customers. Never invent facts about the owner in his voice.
+- CHANGES.md is append-only, `YYYY-MM-DD [type] text` (≤200 chars); Conventional Commits; no model names in repo artifacts. Run the repo's lint/tests before committing.
+- Never ask the owner to paste tokens or keys in chat; never print secret values; never put a secret in a workflow input (inputs and logs are public).
+- The owner's key is used only through the gateway: no Anthropic key in Netlify or in apps.
 
 ### Relay parameters (session-relay skill)
 | Parameter | Value |
@@ -217,11 +152,10 @@ The build routine (BUILD_ROUTINE.md) picks a substantial idea (small business fi
 | Merge rule | push to main after `node --test scripts/site-footer.test.mjs` passes |
 
 ### Scheduling
-- Previous session: session_01JyJzMZ1aBTZCRkUXLJnRG4 ("Plabs: Nov 8"), created 8 Nov 2026 by create_session from session_01JyJzMYaEBiQ8ixgKSDb4Lu, lineage depth 2 of limit 8. Handed over on 11 November 2026 at 66% context (657,961 of 1,000,000 tokens). The 14:52 Europe/Berlin start routine creates the next session (depth 3 of 8).
-- **Current session: session_01JyJzMXxeHu9P7By5BXRNJv ("Plabs: Nov 11")**, took over on 11 November 2026 (created 13:53 UTC by the start routine from session_01JyJzMZ1aBTZCRkUXLJnRG4), lineage depth 3 of limit 8.
-- Relay routines (aimed at the current session since the 11 Nov takeover):
+- Previous session: session_01JyJzMZ1aBTZCRkUXLJnRG4 ("Plabs: Nov 8"), lineage depth 2 of 8, handed over 11 November.
+- **Current session: session_01JyJzMXxeHu9P7By5BXRNJv ("Plabs: Nov 11")**, took over 11 November 2026 (created 13:53 UTC by the start routine), lineage **depth 3 of limit 8**. Handed over on **13 November 2026 at 57% context** (573,007 of 1,000,000 tokens). The 14:52 Europe/Berlin start routine creates the next session (depth 4 of 8; depth + 1 = 4 ≤ 8, so create_session will not refuse).
+- Relay routines (aimed at the current session; the next session re-aims them at itself and deletes these):
   - trig_01DF97CqMqhDtJLS2LiVwjc5: Plabs hourly status report, `46 * * * *`
   - trig_01Wxj14aKZPbxNMZZ4cFqDy5: Plabs handoff check, `CRON_TZ=Europe/Berlin 56 13 * * *`
   - trig_01FBwDwP9XRuBfkaCzyRPVg4: Plabs session start, `CRON_TZ=Europe/Berlin 52 14 * * *`
-- The old routines (trig_01NAfm62…, trig_01DDT69p…, trig_01GfNe88…) and the two disabled 9 Nov one-shots were deleted at the takeover.
-- Not relay, leave alone: the owner's ideas (trig_01K986yzFbf3noGkLA6RgZkn) and build (trig_01BAP9nsXTtxTdpMiwk5GdXE) routines; the Chess TD, Chess Analyzer and DSA relays (other sessions); the StepWise relay has ended (its session said its routines are deleted and the owner is archiving it; not checked); TPT daily product builder; research-map; SIGCSE poster reminder.
+- Not relay, leave alone: the owner's ideas (trig_01K986yzFbf3noGkLA6RgZkn) and build (trig_01BAP9nsXTtxTdpMiwk5GdXE) routines; the Chess TD, Chess Analyzer and DSA relays (other sessions); the StepWise relay has ended; TPT daily product builder; research-map; SIGCSE poster reminder.
