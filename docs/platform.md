@@ -320,7 +320,8 @@ The contract is `platform/src/signin/README.md`.
     only, that expires after an hour. No JavaScript needed.
   - The list, `platform.email_optouts`, holds the keyed hash of the
     canonical mailbox and a scope (`all`); level 1 (per app, `app:<slug>`)
-    comes with the app-notify sender.
+    comes with the app-notify sender (see "App-notify", built on
+    `feat/app-notify`, not deployed).
   - sign-in-link answers `suppressed` instead of sending. auth-email-hook
     sends nothing to the address: sign-in emails and notices are answered as
     sent (so a recovery request does not reveal the opt-out, and a notice
@@ -362,6 +363,69 @@ Ship order, each a "Supabase admin" dispatch after the owner's yes:
 4. `deploy-function email-optout`, then `deploy-function sign-in-link`,
    then `deploy-function auth-email-hook`.
 5. `email-hook check`.
+
+## App-notify
+
+**Status: not applied, not deployed. It waits for the owner's yes.** The
+owner approved the design on 10 and 11 Nov 2026, and it was built on branch
+`feat/app-notify` (13 Nov). The contract and the full details are in
+`platform/src/notify/README.md`.
+
+- **What it does.** A daily edge function, `app-notify`, handles each
+  registered app. It reads the app's public feed
+  (`https://<slug>.hintwise.org/releases.json`, shaped as `{ app, items: [{
+  id, title, url, date, summary }] }` with stable ids) and the app's opt-in
+  rows. Then it emails each opted-in person the items they have not been
+  sent yet. Several items go out bundled in one email, and nobody gets more
+  than one email per app per day (UTC). Each run sends at most 200 emails.
+- **Email.** It comes from `<App name> <<slug>@hintwise.org>` with Reply-To
+  `support@hintwise.org`, and has the same header and footer as the other
+  emails. The footer has two links: "Turn off <App> emails" (per app) and
+  "Stop all email from HintWise". The email also carries the headers
+  `List-Unsubscribe` (an https link and `mailto:support@hintwise.org`) and
+  `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058). It is
+  transactional, so it has no postal address.
+- **Opt-out level 1, per app.** It uses scope `app:<slug>` in
+  `platform.email_optouts`. The token versions `a1` (stop) and `w1` (undo,
+  one hour) carry the slug in the signed text, so a token for one app
+  cannot stop another, and a token for one scope cannot be used for another
+  scope. `email-optout` handles them alongside the unchanged `v1`/`u1`
+  pages, and accepts the one-click POST only for `a1`. A person who opted
+  out of `all` or out of `app:<slug>` is skipped.
+- **Registry.** `platform.notify_apps` (`0011_app_notify.sql`) holds the
+  slug, the display name and the feed URL (https on the app's own host
+  only). It also names where the opt-in flag lives: a table in the app's own
+  schema `app_<slug>`, a uuid user column and a boolean flag column. These
+  identifiers are limited by regex check constraints and quoted with
+  `format('%I')` in `platform.notify_opted_in`. Only the Supabase admin
+  writes the registry; the service role reads it and sets `seeded_at`. The
+  app grants `service_role` `select` on its opt-in table. StepWise's entry
+  will be `app_stepwise.preferences` with the flag `notify_new_pages`.
+- **First run.** The first run after an app is enabled only records what is
+  already in the feed (seed). Only items first seen after that are emailed,
+  and only within 14 days.
+- **Records.** `platform.notify_items_seen` stores each item id and when it
+  was first seen. `platform.notify_sends` has one row per person, app and
+  day, holding the item ids, the status and Resend's id or the error.
+- **Caller.** The function has `verify_jwt = false` and requires the header
+  `x-app-notify-secret` (`APP_NOTIFY_SECRET`, at least 32 characters,
+  checked in constant time). The anon key is public, and the service-role
+  key does not belong in a scheduler.
+- **Feeds.** Each feed is fetched with a 10 s timeout and a 256 KB cap.
+  Redirects are followed only on the app's own host, and at most 100 items
+  are read. Titles and summaries are cleaned to one line and escaped in the
+  HTML.
+
+Ship order, each step a "Supabase admin" dispatch after the owner's yes:
+
+1. `apply-shared` (`0011_app_notify.sql`), then `check-schema platform`.
+2. Set the function secret `APP_NOTIFY_SECRET`, generated once.
+   `set-sign-in-secrets` does not set it yet.
+3. `deploy-function app-notify`.
+4. `deploy-function email-optout` (per-app pages and one-click).
+5. Register the app with SQL (in `platform/src/notify/README.md`). Then run
+   once with `{"dryRun": true}`, and once for real, which only seeds.
+6. Later, schedule it daily with pg_cron and pg_net.
 
 ## Account deletion
 
@@ -628,7 +692,12 @@ Added with the sign-in links (10 Nov), not exercised live yet:
   set-gateway-key and set-sign-in-secrets.
 - `platform/supabase/shared/0001_platform.sql`: schema `platform`;
   `0002_sign_in.sql`: the sign-in log, alerts and their RPCs;
-  `0003_email_optout.sql`: the email opt-out list and its RPCs.
+  `0003_email_optout.sql`: the email opt-out list and its RPCs;
+  `0011_app_notify.sql`: the app-notify registry, seen items and sends (not
+  applied yet).
+- `platform/supabase/functions/app-notify/index.ts`, `platform/src/notify/`:
+  the app-notify sender and its tested logic, `platform/src/notify/README.md`
+  the contract (not deployed yet).
 - `platform/supabase/config.toml`, `platform/supabase/functions/llm-gateway/index.ts`:
   the edge function; `platform/src/gateway/` (pricing, caps, validate, cors,
   request) its tested logic, `platform/src/gateway/README.md` the contract.
