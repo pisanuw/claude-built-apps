@@ -147,8 +147,8 @@ describe('site', () => {
     const root = document.createElement('div');
     document.body.append(root);
     mount(root, { bookmarkletCode: 'alert(1%2)', storage, copy: async (t) => void copied.push(t), print: () => printed++ });
-    await tick();
-    await tick();
+    // Decoding the report from the address is async; two fixed ticks were flaky on CI (13 Nov).
+    await waitFor(() => (root.querySelector('#report') as HTMLElement | null)?.hidden === false, 'report shown');
     const link = root.querySelector('a.bookmarklet') as HTMLAnchorElement;
     expect(link.getAttribute('href')).toBe('javascript:alert(1%252)');
     const rep = root.querySelector('#report') as HTMLElement;
