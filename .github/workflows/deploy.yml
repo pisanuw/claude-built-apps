@@ -126,7 +126,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '22'
       - name: Install deploy runner dependencies
         run: npm install
         working-directory: accessibility-lens/deploy
