@@ -28,6 +28,12 @@ sha256), never edit an applied file, and put later changes in a new
   (migrate run 43265085254, expose-schema 43266956563, check-schema
   43267054372 passed; anon gets 42501 permission denied).
 
+- `0003_admin_counts.sql`: written here (13 Nov 2026, owner: add a games
+  count to the admin list), sha256
+  4af07300acb6a6fbdd48a55f4e707a7b1dbc9ae5e22d89ce172c492c61710abf, to be
+  copied byte for byte into pisan-labs/photo2pgn. `app_photo2pgn.admin_user_counts()`
+  (service role only) gives saved games per person to the credits-grant list.
+
 The app's own caps are set by the owner, never in its migrations
 (docs/new-app-guide.md, "Spending limits").
 

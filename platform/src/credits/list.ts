@@ -7,9 +7,11 @@
  */
 import { allowance, type Limits, type Spend } from '../gateway/caps.ts';
 
-/** One row of platform.app_users_report (PostgREST may send numbers as strings). */
+/** One row of platform.app_people (0010; PostgREST may send numbers as strings). */
 export interface ReportRow {
+  user_id?: string;
   email: string | null;
+  name?: string | null;
   first_seen: string;
   last_seen: string;
   user_day: number | string;
@@ -23,6 +25,8 @@ export interface ReportRow {
 
 export interface ListedUser {
   email: string;
+  /** Display name from the HintWise profile, when there is one. */
+  name: string | null;
   first_seen: string;
   last_seen: string;
   /** Free readings left now (null when the app counts no readings, only dollars). */
@@ -33,6 +37,29 @@ export interface ListedUser {
   credits: number;
   readings_today: number;
   readings_total: number;
+  /** App-specific counts from app_<slug>.admin_user_counts(), e.g. { games: 3 }; {} when the app has none. */
+  counts: Record<string, number>;
+}
+
+/** One row of an app's optional admin_user_counts(). */
+export interface CountsRow {
+  user_id: string;
+  counts: Record<string, unknown> | null;
+}
+
+/** Pure: an app's count rows by person, keeping only whole, non-negative numbers. */
+export function countsByUser(rows: CountsRow[] | null | undefined): Map<string, Record<string, number>> {
+  const out = new Map<string, Record<string, number>>();
+  for (const r of rows ?? []) {
+    if (!r || typeof r.user_id !== 'string') continue;
+    const clean: Record<string, number> = {};
+    for (const [k, v] of Object.entries(r.counts ?? {})) {
+      const n = typeof v === 'string' ? Number(v) : v;
+      if (typeof n === 'number' && Number.isFinite(n) && n >= 0) clean[k] = Math.floor(n);
+    }
+    out.set(r.user_id, clean);
+  }
+  return out;
 }
 
 const whole = (v: number | string | null | undefined): number => {
@@ -41,7 +68,13 @@ const whole = (v: number | string | null | undefined): number => {
 };
 
 /** The app's own totals (app_day, app_week, app_month) are the same for everyone; take them once. */
-export function listUsers(rows: ReportRow[], appSpend: Spend, limits: Limits, now: Date = new Date()): ListedUser[] {
+export function listUsers(
+  rows: ReportRow[],
+  appSpend: Spend,
+  limits: Limits,
+  now: Date = new Date(),
+  counts: Map<string, Record<string, number>> = new Map(),
+): ListedUser[] {
   return rows.map((r) => {
     const spend: Spend = {
       app_day: appSpend.app_day,
@@ -56,6 +89,7 @@ export function listUsers(rows: ReportRow[], appSpend: Spend, limits: Limits, no
     const a = allowance(spend, limits, now, { credits: whole(r.credits) });
     return {
       email: r.email ?? '(no email)',
+      name: typeof r.name === 'string' && r.name.trim() ? r.name.trim() : null,
       first_seen: r.first_seen,
       last_seen: r.last_seen,
       free_left: a.calls_left,
@@ -64,6 +98,7 @@ export function listUsers(rows: ReportRow[], appSpend: Spend, limits: Limits, no
       credits: a.credits,
       readings_today: whole(r.app_user_day_calls),
       readings_total: whole(r.readings_total),
+      counts: (r.user_id && counts.get(r.user_id)) || {},
     };
   });
 }

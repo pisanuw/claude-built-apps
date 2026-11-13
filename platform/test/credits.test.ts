@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { allowance, decide, funding, type Limits, type Spend } from '../src/gateway/caps.ts';
 import { grantError, MAX_GRANT, MAX_LIST, MAX_NOTE, parseAdminRequest, parseGrant } from '../src/credits/grant.ts';
-import { listUsers, type ReportRow } from '../src/credits/list.ts';
+import { countsByUser, listUsers, type ReportRow } from '../src/credits/list.ts';
 
 process.env.SUPABASE_ADMIN_NO_RUN = '1';
 const m = await import('../supabase-admin.mjs');
@@ -248,6 +248,7 @@ describe('listUsers (the admin list)', () => {
     );
     expect(a).toEqual({
       email: 'ann@example.com',
+      name: null,
       first_seen: '2026-11-12T10:00:00Z',
       last_seen: '2026-11-13T07:00:00Z',
       free_left: 3,
@@ -255,6 +256,7 @@ describe('listUsers (the admin list)', () => {
       credits: 0,
       readings_today: 0,
       readings_total: 0,
+      counts: {},
     });
     expect(b).toMatchObject({ email: 'bo@example.com', free_left: 1, free_resets_at: null, credits: 4, readings_today: 2, readings_total: 11 });
     expect(c).toMatchObject({ free_left: 0, free_resets_at: '2026-11-14T00:00:00.000Z', credits: 0 });
@@ -287,5 +289,68 @@ describe('0009_app_users.sql', () => {
   it('counts like the gateway: no paid calls in the free counts, at most 2000 people', () => {
     expect(sql.match(/not x\.paid_with_credit/g)?.length).toBe(5);
     expect(sql).toMatch(/limit greatest\(1, least\(coalesce\(p_limit, 500\), 2000\)\)/);
+  });
+});
+
+describe('names and app counts in the admin list (0010)', () => {
+  const base = {
+    first_seen: '2026-11-12T10:00:00Z',
+    last_seen: '2026-11-13T07:00:00Z',
+    user_day: 0,
+    app_user_day: 0,
+    app_user_week: 0,
+    app_user_day_calls: 0,
+    app_user_week_calls: 0,
+    readings_total: 0,
+    credits: 0,
+  };
+  const appSpend: Spend = { app_day: 0, app_week: 0, app_month: 0, user_day: 0 };
+  it('shows the display name, trimmed, or null', () => {
+    const rows: ReportRow[] = [
+      { ...base, user_id: 'u1', email: 'a@x.co', name: '  Ann  ' },
+      { ...base, user_id: 'u2', email: 'b@x.co', name: '   ' },
+      { ...base, user_id: 'u3', email: 'c@x.co', name: null },
+    ];
+    expect(listUsers(rows, appSpend, readings, now).map((u) => u.name)).toEqual(['Ann', null, null]);
+  });
+  it("joins the app's counts by person, {} for someone without any", () => {
+    const counts = countsByUser([
+      { user_id: 'u1', counts: { games: 3 } },
+      { user_id: 'u2', counts: { games: '2', bad: -1, junk: 'x', frac: 2.7 } },
+    ]);
+    const rows: ReportRow[] = [
+      { ...base, user_id: 'u1', email: 'a@x.co' },
+      { ...base, user_id: 'u2', email: 'b@x.co' },
+      { ...base, user_id: 'u3', email: 'c@x.co' },
+      { ...base, email: 'd@x.co' },
+    ];
+    expect(listUsers(rows, appSpend, readings, now, counts).map((u) => u.counts)).toEqual([{ games: 3 }, { games: 2, frac: 2 }, {}, {}]);
+  });
+  it('ignores missing or malformed count rows', () => {
+    expect(countsByUser(null).size).toBe(0);
+    expect(countsByUser(undefined).size).toBe(0);
+    expect(countsByUser([{ user_id: 'u1', counts: null }]).get('u1')).toEqual({});
+    expect(countsByUser([null as unknown as { user_id: string; counts: null }, { user_id: 7 as unknown as string, counts: {} }]).size).toBe(0);
+  });
+});
+
+describe('0010_app_people.sql and photo2pgn 0003_admin_counts.sql', () => {
+  const people = fs.readFileSync(path.join(here, '..', 'supabase', 'shared', '0010_app_people.sql'), 'utf8').replace(/--.*$/gm, '');
+  const counts = fs.readFileSync(path.join(here, '..', '..', 'photo2pgn', 'supabase', 'migrations', '0003_admin_counts.sql'), 'utf8').replace(/--.*$/gm, '');
+  it('adds app_people beside app_users_report, for the service role only', () => {
+    expect(people).toMatch(/create or replace function platform\.app_people\(p_app text, p_limit integer\)/);
+    expect(people).toMatch(/from platform\.app_users_report\(p_app, p_limit\) r\s+left join platform\.profiles pr on pr\.id = r\.user_id/);
+    expect(people).not.toMatch(/drop function/i);
+    expect(people).toContain('revoke all on function platform.app_people(text, integer) from public;');
+    expect(people).toContain('grant execute on function platform.app_people(text, integer) to service_role;');
+    expect(people).toMatch(/security definer\s+set search_path = platform, pg_temp/);
+  });
+  it("gives the admin list photo2pgn's games per person, counts only, service role only", () => {
+    expect(counts).toMatch(/create or replace function app_photo2pgn\.admin_user_counts\(\)\s+returns table \(user_id uuid, counts jsonb\)/);
+    expect(counts).toMatch(/jsonb_build_object\('games', count\(\*\)\)/);
+    expect(counts).toMatch(/security definer\s+set search_path = app_photo2pgn, pg_temp/);
+    expect(counts).toContain('revoke all on function app_photo2pgn.admin_user_counts() from public;');
+    expect(counts).toContain('grant execute on function app_photo2pgn.admin_user_counts() to service_role;');
+    expect(counts).not.toMatch(/to (anon|authenticated)/);
   });
 });

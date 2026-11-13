@@ -574,3 +574,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-13 [code] Admin list of an app's people (owner): shared/0009 app_users (recorded by the gateway, backfilled), credits-grant {app, list: true} with free readings left and paid credits.
 
 2026-11-13 [note] Handover day: session_01JyJzMXxeHu9P7By5BXRNJv (Plabs: Nov 11, depth 3/8) hands over at 57% context; HANDOFF.md rewritten. The 14:52 CET start routine creates the next session.
+
+2026-11-13 [code] Admin list: names (shared/0010 app_people) and app counts (app_<slug>.admin_user_counts; photo2pgn 0003 games), owner "Yes, do what photos asked".

@@ -8,7 +8,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { jsonHeaders, preflight } from '../../../src/gateway/cors.ts';
 import { grantError, parseAdminRequest } from '../../../src/credits/grant.ts';
-import { listUsers, type ReportRow } from '../../../src/credits/list.ts';
+import { countsByUser, listUsers, type CountsRow, type ReportRow } from '../../../src/credits/list.ts';
 import type { Limits, Spend } from '../../../src/gateway/caps.ts';
 
 const admin = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '', {
@@ -49,11 +49,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // The app's own totals: the user argument is unused for them.
     const [{ data: totals, error: totalsError }, { data: rows, error: rowsError }] = await Promise.all([
       admin.rpc('llm_spend_and_calls', { p_app: parsed.app, p_user: user.id }),
-      admin.rpc('app_users_report', { p_app: parsed.app, p_limit: parsed.limit }),
+      admin.rpc('app_people', { p_app: parsed.app, p_limit: parsed.limit }),
     ]);
     if (totalsError || rowsError) return json(origin, 500, { error: 'database', message: (totalsError ?? rowsError)?.message });
     const appSpend = ((Array.isArray(totals) ? totals[0] : totals) ?? { app_day: 0, app_week: 0, app_month: 0, user_day: 0 }) as Spend;
-    const users = listUsers((rows ?? []) as ReportRow[], appSpend, app as Limits, new Date());
+    // Optional app-specific counts (e.g. photo2pgn's saved games); an app without the function has none.
+    const { data: extra, error: extraError } = await admin.schema(`app_${parsed.app.replace(/-/g, '_')}`).rpc('admin_user_counts');
+    if (extraError) console.log('no admin_user_counts for', parsed.app, extraError.code ?? '');
+    const users = listUsers((rows ?? []) as ReportRow[], appSpend, app as Limits, new Date(), countsByUser(extraError ? [] : (extra as CountsRow[])));
     return json(origin, 200, { app: parsed.app, count: users.length, users });
   }
 
