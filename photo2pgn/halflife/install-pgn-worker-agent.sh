@@ -9,7 +9,13 @@
 # Override the defaults with REPO=..., TOKEN_FILE=... or SITE=... in front.
 set -euo pipefail
 
-REPO="${REPO:-$HOME/photo2pgn}"
+# The clone: REPO if set, else the first of these that exists.
+if [ -z "${REPO:-}" ]; then
+  for d in "$HOME/bitbucket/pisanuw/photo2pgn" "$HOME/photo2pgn"; do
+    [ -f "$d/cli/pgn-worker.mjs" ] && REPO="$d" && break
+  done
+  REPO="${REPO:-$HOME/bitbucket/pisanuw/photo2pgn}"
+fi
 TOKEN_FILE="${TOKEN_FILE:-$HOME/.config/photo2pgn/worker-token}"
 SITE="${SITE:-https://photo2pgn.hintwise.org}"
 LABEL="org.hintwise.photo2pgn-worker"
@@ -32,12 +38,12 @@ NODE="$(command -v node)" || fail "node is not on PATH."
 CLAUDE="$(command -v claude)" || fail "claude (Claude Code) is not on PATH."
 "$NODE" -e 'process.exit(+process.versions.node.split(".")[0] >= 22 ? 0 : 1)' \
   || fail "Node 22 or later is needed ($("$NODE" --version) found)."
-[ -f "$REPO/cli/pgn-worker.mjs" ] || fail "$REPO/cli/pgn-worker.mjs is missing: clone the repo first."
+[ -f "$REPO/cli/pgn-worker.mjs" ] || fail "$REPO/cli/pgn-worker.mjs is missing: clone the repo there, or set REPO=."
 [ -s "$TOKEN_FILE" ] || fail "$TOKEN_FILE is missing or empty."
 chmod 600 "$TOKEN_FILE"
 
 # The same check as by hand: the site answers and accepts the token.
-echo "Checking the site and the token..."
+echo "Using $REPO. Checking the site and the token..."
 "$NODE" "$REPO/cli/pgn-worker.mjs" --site "$SITE" --token-file "$TOKEN_FILE" --claude "$CLAUDE" --list \
   || fail "the check above failed."
 

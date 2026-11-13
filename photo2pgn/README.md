@@ -34,7 +34,8 @@ The app's own caps are set by the owner, never in its migrations
 ## The reader on halflife
 
 `halflife/install-pgn-worker-agent.sh` installs a launchd agent that keeps
-photo2pgn's CLI reader (`cli/pgn-worker.mjs` in pisan-labs/photo2pgn) running
+photo2pgn's CLI reader (`cli/pgn-worker.mjs` in pisan-labs/photo2pgn, cloned at
+`~/bitbucket/pisanuw/photo2pgn` or `~/photo2pgn`, or set `REPO=`) running
 on the owner's Mac: started at login, restarted after an error exit (every 5
 minutes at most), logging to `~/Library/Logs/photo2pgn-worker.log`. It checks
 the site and the token (`--list`) before installing. Run on halflife:
