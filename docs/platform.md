@@ -541,7 +541,7 @@ model wherever deterministic code does the job.
   https://platform.claude.com/docs/en/about-claude/pricing when a model is
   added.
 - Deploying the gateway: `deploy-gateway` in the Supabase admin workflow
-  (Supabase CLI via `supabase/setup-cli@v1`, `supabase functions deploy
+  (Supabase CLI via `supabase/setup-cli@v2`, `supabase functions deploy
   llm-gateway`), and `set-gateway-key` writes the `ANTHROPIC_API_KEY` function
   secret from the repo secret of the same name. The gateway's pure logic
   (caps, pricing, request validation) is in plain TypeScript modules with

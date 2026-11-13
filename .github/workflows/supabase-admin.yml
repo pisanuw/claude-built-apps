@@ -82,8 +82,8 @@ jobs:
       # keys --write commits platform/supabase.json (public URL and anon key).
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
 
@@ -167,7 +167,7 @@ jobs:
           git push origin "HEAD:$GITHUB_REF_NAME"
           echo "Committed platform/supabase.json."
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@v2
         if: inputs.command == 'deploy-function' || inputs.command == 'deploy-gateway' || inputs.command == 'set-gateway-key' || inputs.command == 'set-sign-in-secrets' || inputs.command == 'notify-schedule' || inputs.command == 'email-hook'
         with:
           version: latest

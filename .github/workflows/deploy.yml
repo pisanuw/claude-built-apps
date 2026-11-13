@@ -48,7 +48,7 @@ jobs:
     outputs:
       configs: ${{ steps.find.outputs.configs }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Full history so the push's before..after diff is always computable.
           fetch-depth: 0
@@ -123,8 +123,8 @@ jobs:
       matrix:
         config: ${{ fromJSON(needs.discover.outputs.configs) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '20'
       - name: Install deploy runner dependencies

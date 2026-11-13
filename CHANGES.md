@@ -594,3 +594,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-13 [note] StepWise notify-feed.json live (visualizing-data-structures 2228ae7); passes the platform parser (3 items, 0 skipped). Registration SQL ready, waits for the owner yes.
 
 2026-11-13 [decision] StepWise app-notify switched on (owner, option 1): registered with enabled=true; first run 14 Nov 15:17 UTC seeds, emails nobody (0 opted in).
+
+2026-11-13 [code] GitHub actions moved off Node 20: checkout v4→v7, setup-node v4→v7, setup-python v5→v7, supabase/setup-cli v1→v2 (root and per-app CI); owner asked.
