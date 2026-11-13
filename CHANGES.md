@@ -567,3 +567,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-13 [code] Credits slice 1 (owner "1 yes"): shared/0008 (credits, ledger, admins, paid_with_credit), gateway pays with a credit after the free allowance, credits-grant function, workflow admin command.
 
 2026-11-13 [decision] photo2pgn: public readings through the gateway only (owner, via its session); the halflife CLI reader gets no jobs.
+2026-11-13 [code] delivery-canary day 2: late download order scan from the Shopify Orders CSV (allowlist import, saved and compared scans, migration 0002); reviews fixed; deployed.
