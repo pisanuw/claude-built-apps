@@ -1,5 +1,5 @@
 # Multi-stage build: install, build client + server, then run a slim image.
-FROM node:22-slim AS build
+FROM node:24-slim AS build
 WORKDIR /app
 
 # Install all workspace deps using the lockfile for reproducibility.
@@ -15,7 +15,7 @@ RUN npm run build
 # Prune dev dependencies for the runtime image.
 RUN npm prune --omit=dev
 
-FROM node:22-slim AS runtime
+FROM node:24-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
