@@ -598,3 +598,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-13 [code] GitHub actions moved off Node 20: checkout v4→v7, setup-node v4→v7, setup-python v5→v7, supabase/setup-cli v1→v2 (root and per-app CI); owner asked.
 
 2026-11-13 [code] Node 22 everywhere in CI (owner yes, one commit per app): 24 app jobs, site-footer, deploy job (builds apps at next deploy), 13 ops workflows. All CI green.
+
+2026-11-14 [code] Node 20 leftovers set to 22: .env.example NODE_VERSION, accessibility-lens render.yaml and Dockerfile (both dormant; it deploys to Netlify).
