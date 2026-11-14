@@ -600,3 +600,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-13 [code] Node 22 everywhere in CI (owner yes, one commit per app): 24 app jobs, site-footer, deploy job (builds apps at next deploy), 13 ops workflows. All CI green.
 
 2026-11-14 [code] Node 20 leftovers set to 22: .env.example NODE_VERSION, accessibility-lens render.yaml and Dockerfile (both dormant; it deploys to Netlify).
+
+2026-11-14 [code] CI concurrency group ci-<ref> with cancel-in-progress: a newer push to a branch cancels its older CI run (owner asked).

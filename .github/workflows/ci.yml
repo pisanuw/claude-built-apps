@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: ['**']
 
+# A newer push to the same branch (or PR) cancels that branch's older run, so a
+# burst of pushes tests only the newest commit. On main this means an older
+# commit's run can show as cancelled; the newest commit's run covers it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   accessibility-lens:
     name: accessibility-lens
