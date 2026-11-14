@@ -5,16 +5,19 @@
 -- go to: its address, the sender and subject words to look for, the outcome
 -- of the last check, and, only when the shop asked to keep it, the app
 -- password sealed by the Netlify function (AES-256-GCM with
--- DELIVERY_CANARY_KEY, bound to the user, shop and address). The database
--- never sees the password itself, and the browser cannot read the sealed
--- column: authenticated has column-level SELECT on the other columns only.
+-- DELIVERY_CANARY_KEY, bound to the user, shop, address and sender). The
+-- database never sees the password itself. Column-level SELECT leaves the
+-- sealed column out of every table read; the function reads it through
+-- seed_inbox_secret with the user's token (so the user's own session could
+-- too, which reveals nothing without the key).
 -- Rows are written only through seed_inbox_save (called by the function with
 -- the user's own token), which checks the shop is the caller's.
 --
 -- seed_checks: rate-limit log of seed checks (one row per IMAP sign-in), with
--- a hash of the address, never the address: 12 an hour per user and 20 an
--- hour per seed address across all users, so the function cannot be used to
--- guess an app password.
+-- a keyed hash (HMAC with the server key) of the address, never the
+-- address: 12 an hour per user and 20 an hour per seed address across all
+-- users, so the function cannot be used to guess an app password, and a
+-- stranger cannot compute a shop's tag to use up its checks.
 
 create table if not exists app_delivery_canary.seed_inboxes (
   shop_id uuid primary key references app_delivery_canary.shops(id) on delete cascade,
@@ -134,10 +137,10 @@ begin
     address = excluded.address,
     sender = excluded.sender,
     subject_hint = excluded.subject_hint,
-    -- A kept password belongs to one address: a new address drops it.
+    -- A kept password belongs to one address and sender: changing either drops it.
     secret = case
       when p_secret_mode = 'set' then excluded.secret
-      when p_secret_mode = 'clear' or t.address <> excluded.address then null
+      when p_secret_mode = 'clear' or t.address <> excluded.address or t.sender <> excluded.sender then null
       else t.secret
     end,
     last_checked_at = coalesce(excluded.last_checked_at, t.last_checked_at),

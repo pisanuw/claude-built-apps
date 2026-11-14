@@ -169,6 +169,11 @@ describe('seed inbox card, signed in', () => {
     t.submit();
     await tick();
     expect(t.requests[0]).toMatchObject({ shopId: 's1', password: '', remember: true });
+    t.fill({ sender: 'other.example' });
+    t.submit();
+    await tick();
+    expect(t.$('#seed-status').textContent).toMatch(/paste it again/);
+    expect(t.requests).toHaveLength(1);
     t.$('#seed-forget').click();
     await tick();
     expect(seeds.rows.size).toBe(0);

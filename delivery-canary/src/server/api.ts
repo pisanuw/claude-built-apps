@@ -108,7 +108,7 @@ export async function handleApi(method: string, path: string, bodyText: string |
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Codes that mean Gmail refused the sign-in itself (a typed password is then not kept). */
-const LOGIN_CODES: SeedErrorCode[] = ['login-failed', 'needs-app-password', 'web-login', 'imap-off'];
+const LOGIN_CODES: SeedErrorCode[] = ['login-failed'];
 
 export interface SeedCheckBody {
   shopId: string;
@@ -143,7 +143,7 @@ export function parseSeedBody(bodyText: string | null): SeedCheckBody | string {
     days: b.days === undefined ? DEFAULT_DAYS : typeof b.days === 'number' ? b.days : NaN,
   };
   if (!UUID_RE.test(out.shopId)) return 'Save the shop first, then check its seed inbox.';
-  const problem = seedQueryProblem({ ...out, password: out.password || 'kept-password' });
+  const problem = seedQueryProblem({ ...out, password: out.password || 'keptkeptkeptkept' });
   return problem || out;
 }
 
@@ -163,16 +163,16 @@ export async function handleSeedCheck(bodyText: string | null, headers: Record<s
     if (!password) {
       if (!seed.key) return json(400, { error: 'Paste the app password: this server does not keep passwords yet.', outcome: 'no-password' });
       const sealed = await seed.secret(token, body.shopId);
-      const opened = sealed ? open(seed.key, sealed, seedAad(user, body.shopId, body.address)) : null;
+      const opened = sealed ? open(seed.key, sealed, seedAad(user, body.shopId, body.address, body.sender)) : null;
       if (!opened) {
         return json(400, {
-          error: sealed ? 'The kept app password is for another address, or can no longer be read. Paste the app password again.' : 'No app password is kept for this shop. Paste it to check.',
+          error: sealed ? 'The kept app password was saved for another address or sender, or can no longer be read. Paste the app password again.' : 'No app password is kept for this shop. Paste it to check.',
           outcome: 'no-password',
         });
       }
       password = opened;
     }
-    if ((await seed.record(token, addressTag(body.address))) === 'limited') {
+    if ((await seed.record(token, addressTag(body.address, seed.key))) === 'limited') {
       return json(429, { error: 'Too many seed inbox checks in the last hour (12 per account, 20 per seed address). Try again later.' });
     }
   } catch {
@@ -196,7 +196,7 @@ export async function handleSeedCheck(bodyText: string | null, headers: Record<s
     if (!body.remember || !seed.key) mode = 'clear';
     else if (result) {
       mode = 'set';
-      sealed = seal(seed.key, body.password, seedAad(userId, body.shopId, body.address));
+      sealed = seal(seed.key, body.password, seedAad(userId, body.shopId, body.address, body.sender));
     }
   }
   let kept = false;

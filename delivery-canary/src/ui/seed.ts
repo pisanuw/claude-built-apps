@@ -125,7 +125,7 @@ export function mountSeed(deps: SeedCardDeps): { el: HTMLElement; refresh: () =>
     } else if (!sender.value) {
       sender.value = deps.suggestSender();
     }
-    passwordHint.textContent = row?.has_secret ? 'A password is kept for this inbox: leave this empty to use it.' : 'Spaces are fine. Never your normal Google password.';
+    passwordHint.textContent = row?.has_secret ? 'A password is kept for this inbox: leave this empty to use it (paste it again if you change the address or sender).' : 'Spaces are fine. Never your normal Google password.';
     remember.disabled = !canKeep;
     if (!canKeep) remember.checked = false;
     else if (row?.has_secret) remember.checked = true;
@@ -171,8 +171,9 @@ export function mountSeed(deps: SeedCardDeps): { el: HTMLElement; refresh: () =>
       sender.focus();
       return;
     }
-    if (!req.password.trim() && !row?.has_secret) {
-      say('Paste the app password of the seed account.');
+    const keptFits = !!row?.has_secret && row.address === req.address.toLowerCase() && row.sender === req.sender.toLowerCase();
+    if (!req.password.trim() && !keptFits) {
+      say(row?.has_secret ? 'The kept app password only works with the address and sender it was kept with: paste it again for the new ones.' : 'Paste the app password of the seed account.');
       password.focus();
       return;
     }

@@ -12,6 +12,7 @@
 import { connect as tlsConnect } from 'node:tls';
 import type { Duplex } from 'node:stream';
 import { WHERE_PLACEMENT, type SeedWhere } from '../core/seedwhere';
+import { FREE_MAILBOXES } from '../core/headers';
 import type { Placement } from '../core/types';
 import { fetchItems, ImapClient, ImapError, internalDate, listEntries, quote, searchIds, str, type Token } from './imap';
 
@@ -55,7 +56,7 @@ export interface SeedNotFound {
 
 export type SeedResult = SeedFound | SeedNotFound;
 
-export type SeedErrorCode = 'login-failed' | 'needs-app-password' | 'web-login' | 'imap-off' | 'unreachable' | 'timeout' | 'mailbox' | 'protocol';
+export type SeedErrorCode = 'login-failed' | 'unreachable' | 'timeout' | 'mailbox' | 'protocol';
 
 /** A seed check that could not finish, with a plain-words message for the shop owner. */
 export class SeedError extends Error {
@@ -67,6 +68,9 @@ export class SeedError extends Error {
   }
 }
 
+/** Domains whose every sender would match: Google's own mail and the big providers. */
+const BROAD_DOMAINS = new Set(['google.com', 'accounts.google.com']);
+
 const SENDER_RE = /^(?:[A-Za-z0-9._%+-]{1,64}@)?[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?)+$/;
 const ADDRESS_RE = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
 const SUBJECT_RE = /^[A-Za-z0-9 .,:;!?'&#$%*/+=@_-]{0,100}$/;
@@ -75,8 +79,12 @@ const SUBJECT_RE = /^[A-Za-z0-9 .,:;!?'&#$%*/+=@_-]{0,100}$/;
 export function seedQueryProblem(q: SeedQuery): string {
   if (!ADDRESS_RE.test(q.address) || q.address.length > 254) return 'Enter the seed Gmail address (for example canary.myshop@gmail.com).';
   if (!SENDER_RE.test(q.sender) || q.sender.length > 254) return 'Enter the address or domain your download emails come from (for example orders@myshop.com or myshop.com).';
+  // A whole mail provider's domain would match anyone's mail (and Google's own security mail): not a shop's sender.
+  const domain = q.sender.slice(q.sender.indexOf('@') + 1).toLowerCase();
+  if (!q.sender.includes('@') && (FREE_MAILBOXES.has(domain) || BROAD_DOMAINS.has(domain))) return `Enter the full sender address: all of ${domain} would match anyone's mail.`;
   if (!SUBJECT_RE.test(q.subject)) return 'Subject words may use letters, digits, spaces and simple punctuation only (no quotes or brackets), at most 100 characters.';
-  if (!/^[\x21-\x7e]{8,64}$/.test(q.password)) return 'Paste the 16-letter app password from your Google Account (spaces are fine).';
+  // Only the shape of a Google app password: a normal account password never reaches Gmail from here.
+  if (!/^[A-Za-z]{16}$/.test(q.password)) return 'Paste the 16-letter app password from your Google Account (spaces are fine). Never the account\'s normal password.';
   if (!Number.isInteger(q.days) || q.days < 1 || q.days > 60) return 'Look back between 1 and 60 days.';
   return '';
 }
@@ -92,19 +100,17 @@ export function gmailSearch(q: Pick<SeedQuery, 'sender' | 'subject' | 'days'>): 
   return [`from:${q.sender}`, `newer_than:${q.days}d`, words.length ? `subject:(${words.join(' ')})` : ''].filter(Boolean).join(' ');
 }
 
-/** Maps a refused LOGIN to what the shop owner should do. */
-export function loginError(e: ImapError): SeedError {
-  const text = `${e.response?.code ?? ''} ${e.response?.text ?? e.message}`;
-  if (/application-specific password|app password/i.test(text)) {
-    return new SeedError('needs-app-password', 'Gmail wants an app password, not the account\'s normal password. Turn on 2-Step Verification for the seed account, then create an app password at myaccount.google.com/apppasswords and paste it here.');
-  }
-  if (/web ?browser|WEBALERT/i.test(text)) {
-    return new SeedError('web-login', 'Google blocked this sign-in as unusual. Sign in to the seed account once in a browser, confirm it was you, then check again.');
-  }
-  if (/not enabled for IMAP|IMAP access/i.test(text)) {
-    return new SeedError('imap-off', 'IMAP is turned off for the seed account. In Gmail, open Settings, "Forwarding and POP/IMAP", turn on IMAP, then check again.');
-  }
-  return new SeedError('login-failed', 'Gmail did not accept this address and app password. Check the address, create a new app password at myaccount.google.com/apppasswords, and paste it here.');
+/**
+ * A refused LOGIN, always as one outcome with every hint (security review):
+ * Gmail's different refusals (app password required, sign in through the web)
+ * come only for a right normal password, so telling them apart would make
+ * this endpoint a password checker for someone else's account.
+ */
+export function loginError(_e: ImapError): SeedError {
+  return new SeedError(
+    'login-failed',
+    'Gmail did not accept this address and app password. Check the address; make sure 2-Step Verification is on for the seed account and paste a new app password from myaccount.google.com/apppasswords; if Google flagged the sign-in, sign in to the seed account once in a browser; and check IMAP is on in Gmail settings ("Forwarding and POP/IMAP").',
+  );
 }
 
 interface Mailboxes {

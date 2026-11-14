@@ -3,13 +3,14 @@
  * (AES-256-GCM), with the key only the Netlify function holds
  * (DELIVERY_CANARY_KEY, a repository secret passed through deploy/target.yml).
  *
- * The additional data binds a sealed value to its user, shop and address, so
- * a value copied to another row, another account or another address does
- * not open. The key must never be replaced once values are stored: they
+ * The additional data binds a sealed value to its user, shop, address and
+ * sender, so a value copied to another row, another account or another
+ * address does not open, and a kept password only ever looks for the sender
+ * it was kept with. The key must never be replaced once values are stored: they
  * could not be opened again (the shop would only need to re-enter the app
  * password, but every shop would).
  */
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'node:crypto';
 
 const VERSION = 'v1';
 
@@ -24,8 +25,9 @@ export function keyFrom(secret: string | undefined): Buffer | null {
   return createHash('sha256').update(s, 'utf8').digest();
 }
 
-export function seedAad(userId: string, shopId: string, address: string): string {
-  return `delivery-canary/seed-inbox/${VERSION}/${userId}/${shopId}/${address.toLowerCase()}`;
+/** Binds a kept password to its user, shop, address and sender: a changed sender needs the password again, so a stolen session cannot point a kept password at other mail. */
+export function seedAad(userId: string, shopId: string, address: string, sender: string): string {
+  return `delivery-canary/seed-inbox/${VERSION}/${userId}/${shopId}/${address.toLowerCase()}/${sender.toLowerCase()}`;
 }
 
 export function seal(key: Buffer, plain: string, aad: string): string {
@@ -52,7 +54,24 @@ export function open(key: Buffer, sealed: string, aad: string): string | null {
   }
 }
 
-/** A stable, non-reversible tag for an address, for the per-address rate limit (the address itself is not logged). */
-export function addressTag(address: string): string {
-  return createHash('sha256').update(`delivery-canary/seed-address/${address.toLowerCase()}`, 'utf8').digest('hex');
+/** The mailbox an address signs in to: Gmail ignores dots and anything after + in the name, and googlemail.com is gmail.com. */
+export function canonicalAddress(address: string): string {
+  const a = address.trim().toLowerCase();
+  const at = a.lastIndexOf('@');
+  if (at < 0) return a;
+  let name = a.slice(0, at);
+  let domain = a.slice(at + 1);
+  if (domain === 'googlemail.com') domain = 'gmail.com';
+  if (domain === 'gmail.com') name = name.split('+')[0].replace(/\./g, '');
+  return `${name}@${domain}`;
+}
+
+/**
+ * The per-address rate-limit tag: an HMAC with the server key when there is
+ * one, so nobody else can compute a shop's tag and use up its hourly checks
+ * (plain SHA-256 otherwise). The address itself is never logged.
+ */
+export function addressTag(address: string, key: Buffer | null = null): string {
+  const text = `delivery-canary/seed-address/${canonicalAddress(address)}`;
+  return key ? createHmac('sha256', key).update(text, 'utf8').digest('hex') : createHash('sha256').update(text, 'utf8').digest('hex');
 }

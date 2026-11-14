@@ -5,7 +5,7 @@ import { sampleEmail } from '../src/core/sample';
 import { handleApi, parseSeedBody, resetReachCache, type ApiDeps, type SeedDeps } from '../src/server/api';
 import { fetchItems, ImapClient, ImapError, internalDate, listEntries, parseStatus, Quoted, quote, ResponseSplitter, searchIds, str, tokenize } from '../src/server/imap';
 import { liveDeps } from '../src/server/netlify';
-import { addressTag, keyFrom, open, seal, seedAad } from '../src/server/secretbox';
+import { addressTag, canonicalAddress, keyFrom, open, seal, seedAad } from '../src/server/secretbox';
 import { cleanPassword, findMailboxes, greetingOnly, gmailSearch, loginError, runSeedCheck, SeedError, seedQueryProblem, type SeedFound, type SeedQuery } from '../src/server/seed';
 import { recordSeedCheck, saveSeed, seedSecret, type SeedSave } from '../src/server/supabase-rest';
 import { fakeGmail, type FakeMessage } from './gmail-fake';
@@ -141,6 +141,10 @@ describe('seed query rules', () => {
     expect(seedQueryProblem({ ...query, sender: 'localhost' })).toMatch(/download emails come from/);
     expect(seedQueryProblem({ ...query, subject: 'say "hi"' })).toMatch(/Subject words/);
     expect(seedQueryProblem({ ...query, password: 'short' })).toMatch(/app password/);
+    expect(seedQueryProblem({ ...query, password: 'MyNormalPassw0rd' })).toMatch(/Never the account's normal password/);
+    expect(seedQueryProblem({ ...query, sender: 'gmail.com' })).toMatch(/full sender address/);
+    expect(seedQueryProblem({ ...query, sender: 'google.com' })).toMatch(/full sender address/);
+    expect(seedQueryProblem({ ...query, sender: 'myshop@gmail.com' })).toBe('');
     expect(seedQueryProblem({ ...query, password: 'abcd\nabcdabcdabcd' })).toMatch(/app password/);
     expect(seedQueryProblem({ ...query, days: 0 })).toMatch(/between 1 and 60/);
     expect(seedQueryProblem({ ...query, days: 1.5 })).toMatch(/between 1 and 60/);
@@ -152,11 +156,12 @@ describe('seed query rules', () => {
   });
   it('maps refused sign-ins to what to do', () => {
     const no = (code: string, text: string) => new ImapError(text, 'no', { status: 'NO', code, text });
-    expect(loginError(no('ALERT', 'Application-specific password required: https://support.google.com/accounts/answer/185833 (Failure)')).code).toBe('needs-app-password');
-    expect(loginError(no('ALERT', 'Please log in via your web browser: https://support.google.com/mail/accounts/answer/78754 (Failure)')).code).toBe('web-login');
-    expect(loginError(no('ALERT', 'Your account is not enabled for IMAP use. (Failure)')).code).toBe('imap-off');
-    expect(loginError(no('AUTHENTICATIONFAILED', 'Invalid credentials (Failure)')).code).toBe('login-failed');
-    expect(loginError(new ImapError('x', 'no')).code).toBe('login-failed');
+    // One outcome and one message for every refusal: telling them apart would confirm a right normal password.
+    const app = loginError(no('ALERT', 'Application-specific password required: https://support.google.com/accounts/answer/185833 (Failure)'));
+    const bad = loginError(no('AUTHENTICATIONFAILED', 'Invalid credentials (Failure)'));
+    expect([app.code, app.message]).toEqual([bad.code, bad.message]);
+    expect(loginError(no('ALERT', 'Please log in via your web browser (Failure)')).message).toBe(bad.message);
+    expect(bad.message).toMatch(/2-Step Verification.*browser.*IMAP/);
   });
   it('finds All Mail and Spam by flag, then by name', () => {
     expect(findMailboxes([{ flags: ['\\All'], name: '[Google Mail]/Alle Nachrichten' }, { flags: ['\\Junk'], name: '[Google Mail]/Spam' }])).toEqual({ all: '[Google Mail]/Alle Nachrichten', spam: '[Google Mail]/Spam' });
@@ -209,7 +214,7 @@ describe('runSeedCheck against a recorded Gmail session', () => {
     const g = fakeGmail({ login: 'TAG NO [AUTHENTICATIONFAILED] Invalid credentials (Failure)\r\n' });
     await expect(runSeedCheck(g.socket, query, later())).rejects.toMatchObject({ code: 'login-failed', message: expect.stringMatching(/did not accept/) });
     const h = fakeGmail({ login: 'TAG NO [ALERT] Application-specific password required: https://support.google.com/accounts/answer/185833 (Failure)\r\n' });
-    await expect(runSeedCheck(h.socket, query, later())).rejects.toMatchObject({ code: 'needs-app-password' });
+    await expect(runSeedCheck(h.socket, query, later())).rejects.toMatchObject({ code: 'login-failed' });
   });
   it('refuses a mailbox that is not Gmail, or a folder it cannot open', async () => {
     await expect(runSeedCheck(fakeGmail({ list: ['* LIST (\\HasNoChildren) "/" "INBOX"'] }).socket, query, later())).rejects.toMatchObject({ code: 'mailbox' });
@@ -250,21 +255,27 @@ describe('secretbox', () => {
     expect(keyFrom(undefined)).toBeNull();
   });
   it('seals and opens only with the same key and binding', () => {
-    const aad = seedAad('u1', 's1', 'Canary@Gmail.com');
-    expect(aad).toBe(seedAad('u1', 's1', 'canary@gmail.com'));
+    const aad = seedAad('u1', 's1', 'Canary@Gmail.com', 'Shop.example');
+    expect(aad).toBe(seedAad('u1', 's1', 'canary@gmail.com', 'shop.example'));
+    expect(aad).not.toBe(seedAad('u1', 's1', 'canary@gmail.com', 'google.com'));
     const sealed = seal(key, 'abcdabcdabcdabcd', aad);
     expect(sealed).toMatch(/^v1\./);
     expect(sealed).not.toContain('abcd');
     expect(open(key, sealed, aad)).toBe('abcdabcdabcdabcd');
-    expect(open(key, sealed, seedAad('u2', 's1', 'canary@gmail.com'))).toBeNull();
+    expect(open(key, sealed, seedAad('u2', 's1', 'canary@gmail.com', 'shop.example'))).toBeNull();
+    expect(open(key, sealed, seedAad('u1', 's1', 'canary@gmail.com', 'other.example'))).toBeNull();
     expect(open(keyFrom('y'.repeat(40))!, sealed, aad)).toBeNull();
     expect(open(key, `${sealed.slice(0, -2)}AA`, aad)).toBeNull();
     expect(open(key, 'v2.nope', aad)).toBeNull();
     expect(seal(key, 'abcdabcdabcdabcd', aad)).not.toBe(sealed);
   });
-  it('tags an address without keeping it', () => {
-    expect(addressTag('A@gmail.com')).toBe(addressTag('a@gmail.com'));
-    expect(addressTag('a@gmail.com')).toMatch(/^[0-9a-f]{64}$/);
+  it('tags an address without keeping it, the same for every spelling of one Gmail mailbox', () => {
+    expect(addressTag('A.Bc+shop@googlemail.com')).toBe(addressTag('abc@gmail.com'));
+    expect(addressTag('a.bc@shop.example')).not.toBe(addressTag('abc@shop.example'));
+    expect(addressTag('abc@gmail.com')).toMatch(/^[0-9a-f]{64}$/);
+    expect(addressTag('abc@gmail.com', key)).not.toBe(addressTag('abc@gmail.com'));
+    expect(addressTag('abc@gmail.com', key)).toMatch(/^[0-9a-f]{64}$/);
+    expect(canonicalAddress('nodomain')).toBe('nodomain');
   });
 });
 
@@ -330,10 +341,10 @@ describe('POST /api/seed-check', () => {
     expect(r.status).toBe(200);
     expect(r.body).toMatchObject({ found: true, where: 'promotions', outcome: 'found', kept: true, saved: true, raw: 'aGVsbG8=' });
     expect(s.checked[0]).toEqual({ address: 'canary.shop@gmail.com', password: 'abcdefghijklmnop', sender: 'orders@juniperstitch.example', subject: '', days: 14 });
-    expect(s.tags).toEqual([addressTag('canary.shop@gmail.com')]);
+    expect(s.tags).toEqual([addressTag('canary.shop@gmail.com', KEY)]);
     const saved = s.saves[0];
     expect(saved).toMatchObject({ shopId: SHOP, address: 'canary.shop@gmail.com', secretMode: 'set', outcome: 'found' });
-    expect(open(KEY, saved.secret!, seedAad('user-1', SHOP, 'canary.shop@gmail.com'))).toBe('abcdefghijklmnop');
+    expect(open(KEY, saved.secret!, seedAad('user-1', SHOP, 'canary.shop@gmail.com', 'orders@juniperstitch.example'))).toBe('abcdefghijklmnop');
     expect(JSON.stringify(r.body)).not.toContain('abcdefghijklmnop');
   });
   it('clears a kept password when not asked to keep it, or without a key', async () => {
@@ -345,7 +356,7 @@ describe('POST /api/seed-check', () => {
     expect(n.saves[0].secretMode).toBe('clear');
   });
   it('uses the kept password when none is typed', async () => {
-    const sealed = seal(KEY, 'keptkeptkeptkept', seedAad('user-1', SHOP, 'canary.shop@gmail.com'));
+    const sealed = seal(KEY, 'keptkeptkeptkept', seedAad('user-1', SHOP, 'canary.shop@gmail.com', 'orders@juniperstitch.example'));
     const s = seedDeps({ secret: async () => sealed });
     const r = await post(api(s), body({ password: '' }));
     expect(r.status).toBe(200);
@@ -355,7 +366,7 @@ describe('POST /api/seed-check', () => {
   it('asks for the password when none can be used', async () => {
     expect((await post(api(seedDeps({ key: null })), body({ password: '' }))).body).toMatchObject({ outcome: 'no-password', error: expect.stringMatching(/does not keep/) });
     expect((await post(api(seedDeps()), body({ password: '' }))).body).toMatchObject({ error: expect.stringMatching(/No app password is kept/) });
-    const other = seal(KEY, 'keptkeptkeptkept', seedAad('user-1', SHOP, 'old@gmail.com'));
+    const other = seal(KEY, 'keptkeptkeptkept', seedAad('user-1', SHOP, 'old@gmail.com', 'orders@juniperstitch.example'));
     const r = await post(api(seedDeps({ secret: async () => other })), body({ password: '' }));
     expect(r.status).toBe(400);
     expect(r.body).toMatchObject({ error: expect.stringMatching(/another address/) });
