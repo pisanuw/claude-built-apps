@@ -2037,7 +2037,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Test
         run: node --test scripts/site-footer.test.mjs scripts/domains.test.mjs accessibility-lens/deploy/cloudflare-dns.test.mjs accessibility-lens/deploy/redirect-rule.test.mjs accessibility-lens/deploy/migrate-domains.test.mjs accessibility-lens/deploy/retire-netlify-site.test.mjs
