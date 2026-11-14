@@ -171,6 +171,9 @@ jobs:
         if: inputs.command == 'deploy-function' || inputs.command == 'deploy-gateway' || inputs.command == 'set-gateway-key' || inputs.command == 'set-sign-in-secrets' || inputs.command == 'notify-schedule' || inputs.command == 'email-hook'
         with:
           version: latest
+          # Resolving "latest" without a token hits GitHub's unauthenticated rate limit
+          # (failed run 43611572630, 14 Nov); the run's own token lifts it.
+          github-token: ${{ github.token }}
 
       - name: Deploy an edge function
         if: inputs.command == 'deploy-function' || inputs.command == 'deploy-gateway'
