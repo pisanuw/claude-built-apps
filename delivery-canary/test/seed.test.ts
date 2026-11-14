@@ -2,11 +2,11 @@ import { Duplex } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import { analyseEmail } from '../src/core/email';
 import { sampleEmail } from '../src/core/sample';
-import { handleApi, parseSeedBody, type ApiDeps, type SeedDeps } from '../src/server/api';
+import { handleApi, parseSeedBody, resetReachCache, type ApiDeps, type SeedDeps } from '../src/server/api';
 import { fetchItems, ImapClient, ImapError, internalDate, listEntries, parseStatus, Quoted, quote, ResponseSplitter, searchIds, str, tokenize } from '../src/server/imap';
 import { liveDeps } from '../src/server/netlify';
 import { addressTag, keyFrom, open, seal, seedAad } from '../src/server/secretbox';
-import { cleanPassword, findMailboxes, gmailSearch, loginError, runSeedCheck, SeedError, seedQueryProblem, type SeedFound, type SeedQuery } from '../src/server/seed';
+import { cleanPassword, findMailboxes, greetingOnly, gmailSearch, loginError, runSeedCheck, SeedError, seedQueryProblem, type SeedFound, type SeedQuery } from '../src/server/seed';
 import { recordSeedCheck, saveSeed, seedSecret, type SeedSave } from '../src/server/supabase-rest';
 import { fakeGmail, type FakeMessage } from './gmail-fake';
 
@@ -290,6 +290,7 @@ function seedDeps(over: Partial<SeedDeps> = {}): SeedDeps & { saves: SeedSave[];
       saves.push(s);
       return s.secretMode === 'set';
     },
+    reachable: async () => true,
     check: async (q) => {
       checked.push(q);
       return { found: true, where: 'promotions', placement: 'promotions', receivedAt: '2026-11-14T09:12:40.000Z', labels: [], size: 5, truncated: false, raw: 'aGVsbG8=' };
@@ -380,6 +381,17 @@ describe('POST /api/seed-check', () => {
     expect(r).toEqual({ status: 200, body: { found: false, outcome: 'not-found', kept: true, saved: true } });
     const unsaved = await post(api(seedDeps({ save: async () => { throw new Error('403'); } })));
     expect(unsaved.body).toMatchObject({ found: true, saved: false, kept: false });
+  });
+  it('probes Gmail reachability publicly, once a minute', async () => {
+    resetReachCache();
+    let calls = 0;
+    const d = api(seedDeps({ reachable: async () => (calls++, false) }));
+    expect((await handleApi('GET', '/api/seed-reach', null, {}, d)).body).toEqual({ gmailImap: false });
+    expect((await handleApi('GET', '/api/seed-reach', null, {}, d)).body).toEqual({ gmailImap: false });
+    expect(calls).toBe(1);
+    resetReachCache();
+    expect(await greetingOnly(fakeGmail().socket, later())).toBe(true);
+    expect(await greetingOnly(fakeGmail({ greeting: '* BYE no\r\n' }).socket, later())).toBe(false);
   });
   it('tells the page whether passwords can be kept', async () => {
     expect((await handleApi('GET', '/api/health', null, {}, api(seedDeps()))).body).toMatchObject({ seedKeep: true });

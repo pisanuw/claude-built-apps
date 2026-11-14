@@ -6,7 +6,7 @@
 import { handleApi, type ApiDeps } from './api';
 import { fetchFile } from './fetchfile';
 import { keyFrom } from './secretbox';
-import { seedCheckLive } from './seed';
+import { gmailReachableLive, seedCheckLive } from './seed';
 import { recordSeedCheck, recordTest, saveSeed, seedSecret, verifyUser, type RestConfig } from './supabase-rest';
 
 declare const __SUPABASE_URL__: string;
@@ -33,6 +33,7 @@ export function liveDeps(cfg: RestConfig, key: string | undefined): ApiDeps {
       secret: (t, shop) => seedSecret(cfg, t, shop),
       save: (t, s) => saveSeed(cfg, t, s),
       check: (q) => seedCheckLive(q),
+      reachable: () => gmailReachableLive(),
     },
   };
 }

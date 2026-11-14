@@ -145,7 +145,7 @@ function deps(over: Partial<ApiDeps> = {}): ApiDeps & { recorded: string[] } {
       return 'ok';
     },
     fetchFile: async (u) => ({ ...emptyResult(u), status: 200, size: 3 }),
-    seed: { key: null, record: async () => 'ok', secret: async () => null, save: async () => false, check: async () => ({ found: false }) },
+    seed: { key: null, record: async () => 'ok', secret: async () => null, save: async () => false, check: async () => ({ found: false }), reachable: async () => true },
     ...over,
   };
 }

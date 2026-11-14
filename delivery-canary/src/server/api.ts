@@ -44,6 +44,15 @@ export interface SeedDeps {
   secret(token: string, shopId: string): Promise<string | null>;
   save(token: string, s: SeedSave): Promise<boolean>;
   check(q: SeedQuery): Promise<SeedResult>;
+  /** Whether imap.gmail.com answers (greeting only, no sign-in). */
+  reachable(): Promise<boolean>;
+}
+
+/** The reachability probe is public, so its answer is reused for a minute per function instance. */
+const REACH_TTL_MS = 60_000;
+let reachCache: { at: number; ok: boolean } | null = null;
+export function resetReachCache(): void {
+  reachCache = null;
 }
 
 const json = (status: number, body: unknown): ApiResponse => ({ status, body });
@@ -57,6 +66,11 @@ export function bearer(headers: Record<string, string | undefined>): string {
 export async function handleApi(method: string, path: string, bodyText: string | null, headers: Record<string, string | undefined>, deps: ApiDeps): Promise<ApiResponse> {
   const route = path.replace(/^\/\.netlify\/functions\/api/, '/api').replace(/\/+$/, '');
   if (route === '/api/health') return json(200, { ok: true, status: 'ok', seedKeep: deps.seed.key !== null });
+  if (route === '/api/seed-reach') {
+    const now = Date.now();
+    if (!reachCache || now - reachCache.at > REACH_TTL_MS) reachCache = { at: now, ok: await deps.seed.reachable() };
+    return json(200, { gmailImap: reachCache.ok });
+  }
   if (route === '/api/seed-check') return method === 'POST' ? handleSeedCheck(bodyText, headers, deps) : json(405, { error: 'Use POST.' });
   if (route !== '/api/link-check') return json(404, { error: 'Not found.' });
   if (method !== 'POST') return json(405, { error: 'Use POST.' });

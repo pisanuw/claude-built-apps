@@ -223,11 +223,22 @@ export async function runSeedCheck(socket: Duplex, q: SeedQuery, deadline: numbe
   }
 }
 
+/** Reads the greeting only (no sign-in): proves the function can reach the IMAP server. */
+export async function greetingOnly(socket: Duplex, deadline: number, now: () => number = Date.now): Promise<boolean> {
+  const c = new ImapClient(socket, { deadline, now });
+  try {
+    await c.greeting();
+    return true;
+  } catch {
+    return false;
+  } finally {
+    socket.destroy();
+  }
+}
+
 /* v8 ignore start -- the live connection; tests drive runSeedCheck with a scripted server */
-/** Opens TLS to imap.gmail.com:993 and runs the check, within budgetMs. */
-export async function seedCheckLive(q: SeedQuery, budgetMs = 7500): Promise<SeedResult> {
-  const deadline = Date.now() + budgetMs;
-  const socket = await new Promise<Duplex>((resolve, reject) => {
+async function connectGmail(budgetMs: number): Promise<Duplex> {
+  return new Promise<Duplex>((resolve, reject) => {
     const s = tlsConnect({ host: GMAIL_IMAP_HOST, port: GMAIL_IMAP_PORT, servername: GMAIL_IMAP_HOST, timeout: budgetMs });
     s.once('secureConnect', () => resolve(s));
     s.once('timeout', () => {
@@ -236,6 +247,21 @@ export async function seedCheckLive(q: SeedQuery, budgetMs = 7500): Promise<Seed
     });
     s.once('error', () => reject(new SeedError('unreachable', 'Could not reach Gmail. Try again in a minute.')));
   });
-  return runSeedCheck(socket, q, deadline);
+}
+
+/** True when imap.gmail.com:993 answers with a greeting within budgetMs. */
+export async function gmailReachableLive(budgetMs = 4000): Promise<boolean> {
+  const deadline = Date.now() + budgetMs;
+  try {
+    return await greetingOnly(await connectGmail(budgetMs), deadline);
+  } catch {
+    return false;
+  }
+}
+
+/** Opens TLS to imap.gmail.com:993 and runs the check, within budgetMs. */
+export async function seedCheckLive(q: SeedQuery, budgetMs = 7500): Promise<SeedResult> {
+  const deadline = Date.now() + budgetMs;
+  return runSeedCheck(await connectGmail(budgetMs), q, deadline);
 }
 /* v8 ignore stop */
