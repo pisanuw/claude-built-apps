@@ -17,7 +17,13 @@
 # Code-only pushes do not trigger a deploy: the workflow watches this file, so
 # touch it (or run the workflow manually) to ship UI changes.
 # Deploys: milestone 1 (delivery email check), 2026-11-12; milestone 2
-# (late download order scan, migration 0002), 2026-11-13.
+# (late download order scan, migration 0002), 2026-11-13; milestone 3 (seed
+# inbox check over IMAP, migration 0003, DELIVERY_CANARY_KEY), 2026-11-14.
+#
+# envPassthrough: DELIVERY_CANARY_KEY (repository secret, added by the owner
+# on 12 Nov) reaches the function's runtime environment only, never the page
+# bundle. It seals the seed-inbox app passwords a shop asks to keep. Never
+# replace it once passwords are stored: they could not be opened again.
 
 provider: netlify
 projectName: delivery-canary
@@ -30,7 +36,8 @@ env:
   VITE_SUPABASE_URL: https://auth.hintwise.org
   VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFya3R4bHJseWNlZmZ5b3pkd2hxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4ODEwMTAsImV4cCI6MjA5MjQ1NzAxMH0.Vuku-irT3kAHZYibK23q6dpyOEqV_Eg5zB78I3dyshE
 
-envPassthrough: []
+envPassthrough:
+  - DELIVERY_CANARY_KEY
 
 netlify:
   functionsDir: netlify/functions

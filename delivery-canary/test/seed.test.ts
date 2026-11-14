@@ -2,7 +2,7 @@ import { Duplex } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import { analyseEmail } from '../src/core/email';
 import { sampleEmail } from '../src/core/sample';
-import { handleApi, parseSeedBody, resetReachCache, type ApiDeps, type SeedDeps } from '../src/server/api';
+import { handleApi, handleSeedCheck, parseSeedBody, resetReachCache, SEED_REQUEST_BUDGET_MS, type ApiDeps, type SeedDeps } from '../src/server/api';
 import { fetchItems, ImapClient, ImapError, internalDate, listEntries, parseStatus, Quoted, quote, ResponseSplitter, searchIds, str, tokenize } from '../src/server/imap';
 import { liveDeps } from '../src/server/netlify';
 import { addressTag, canonicalAddress, keyFrom, open, seal, seedAad } from '../src/server/secretbox';
@@ -195,6 +195,7 @@ describe('runSeedCheck against a recorded Gmail session', () => {
     const g = fakeGmail({ messages: [msg({ date: '13-Nov-2026 09:00:00 +0000' }), msg({ uid: 77, box: 'spam', labels: '()' })], chunk: 97 });
     const spam = (await runSeedCheck(g.socket, query, later())) as SeedFound;
     expect([spam.where, spam.placement]).toEqual(['spam', 'spam']);
+    expect(g.sent).toContain('UID SEARCH X-GM-RAW "from:orders@juniperstitch.example newer_than:14d in:spam"');
     expect(g.sent.filter((c) => c.startsWith('EXAMINE'))).toEqual(['EXAMINE "[Gmail]/Spam"', 'EXAMINE "[Gmail]/All Mail"', 'EXAMINE "[Gmail]/Spam"']);
     const older = (await runSeedCheck(fakeGmail({ messages: [msg(), msg({ uid: 77, box: 'spam', date: '01-Nov-2026 09:00:00 +0000' })] }).socket, query, later())) as SeedFound;
     expect(older.where).toBe('primary');
@@ -223,7 +224,9 @@ describe('runSeedCheck against a recorded Gmail session', () => {
   });
   it('maps timeouts, closed connections and odd answers', async () => {
     const silent = fakeGmail({ override: (c) => (c.startsWith('LIST') ? null : undefined) });
-    await expect(runSeedCheck(silent.socket, query, Date.now() + 40)).rejects.toMatchObject({ code: 'timeout' });
+    await expect(runSeedCheck(silent.socket, query, Date.now() + 40)).rejects.toMatchObject({ code: 'timeout', signedIn: true });
+    const early = fakeGmail({ override: (c) => (c.startsWith('LOGIN') ? null : undefined) });
+    await expect(runSeedCheck(early.socket, query, Date.now() + 40)).rejects.toMatchObject({ code: 'timeout', signedIn: false });
     const bye = fakeGmail({ override: (c) => (c.startsWith('LIST') ? '* BYE System error\r\n' : undefined) });
     setTimeout(() => bye.socket.destroy(), 30);
     await expect(runSeedCheck(bye.socket, query, later())).rejects.toMatchObject({ code: 'unreachable' });
@@ -376,6 +379,22 @@ describe('POST /api/seed-check', () => {
     const r = await post(api(s));
     expect(r.status).toBe(429);
     expect(s.checked).toEqual([]);
+  });
+  it('keeps a typed password once Gmail accepted it, even if the check then failed', async () => {
+    const s = seedDeps({ check: async () => { throw new SeedError('timeout', 'slow', true); } });
+    expect((await post(api(s))).status).toBe(502);
+    expect(s.saves[0].secretMode).toBe('set');
+  });
+  it('gives the IMAP check what is left of the request budget', async () => {
+    let budget = 0;
+    let t = 0;
+    const s = seedDeps({ check: async (_q, b) => ((budget = b), { found: false }) });
+    const d = api(s, async () => ((t += 3000), 'user-1'));
+    await handleSeedCheck(body(), auth, d, () => t);
+    expect(budget).toBe(SEED_REQUEST_BUDGET_MS - 800 - 3000);
+    t = 0;
+    await handleSeedCheck(body(), auth, api(s, async () => ((t += 9000), 'user-1')), () => t);
+    expect(budget).toBe(1500);
   });
   it('reports a refused sign-in (422) without keeping the typed password', async () => {
     const s = seedDeps({ check: async () => { throw new SeedError('login-failed', 'Gmail did not accept this.'); } });

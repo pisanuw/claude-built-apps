@@ -106,7 +106,11 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
     token: deps.seed?.token ?? (async () => null),
     check: deps.seed?.check ?? (async () => ({ found: false, kept: false, saved: false })),
     keepAvailable: deps.seed?.keepAvailable ?? (async () => false),
-    runEmail: (raw, placement, seed) => run(raw, { placement, seed }),
+    runEmail: async (raw, placement, seed) => {
+      // A check already running (its link test) would make run() drop this one: wait for it (code review).
+      while (busy) await new Promise((r) => setTimeout(r, 50));
+      return run(raw, { placement, seed });
+    },
     runSample: () => runSampleEmail({ placement: 'promotions', seed: { where: 'promotions', receivedAt: '' } }),
     suggestSender: () => current?.analysis.from.address ?? '',
   });

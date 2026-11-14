@@ -63,6 +63,8 @@ export class SeedError extends Error {
   constructor(
     readonly code: SeedErrorCode,
     message: string,
+    /** True when Gmail had accepted the sign-in before the check failed (so the password is right). */
+    readonly signedIn = false,
   ) {
     super(message);
   }
@@ -162,7 +164,8 @@ export async function findDelivery(c: ImapClient, q: SeedQuery): Promise<SeedRes
   const candidates: Candidate[] = [];
   if (boxes.spam) {
     await examine(c, boxes.spam);
-    const s = await newestIn(c, 'spam', search);
+    // Gmail's search leaves Spam out unless asked, even with the Spam folder open (code review).
+    const s = await newestIn(c, 'spam', `${search} in:spam`);
     if (s) candidates.push(s);
   }
   await examine(c, boxes.all);
@@ -210,6 +213,7 @@ export async function findDelivery(c: ImapClient, q: SeedQuery): Promise<SeedRes
 /** Signs in on a connected stream and runs the check; always logs out. */
 export async function runSeedCheck(socket: Duplex, q: SeedQuery, deadline: number, now: () => number = Date.now): Promise<SeedResult> {
   const c = new ImapClient(socket, { deadline, now });
+  let signedIn = false;
   try {
     await c.greeting();
     try {
@@ -218,12 +222,13 @@ export async function runSeedCheck(socket: Duplex, q: SeedQuery, deadline: numbe
       if (e instanceof ImapError && e.kind === 'no') throw loginError(e);
       throw e;
     }
+    signedIn = true;
     return await findDelivery(c, q);
   } catch (e) {
-    if (e instanceof SeedError) throw e;
-    if (e instanceof ImapError && e.kind === 'timeout') throw new SeedError('timeout', 'Gmail took too long to answer. Try again in a minute.');
-    if (e instanceof ImapError && e.kind === 'closed') throw new SeedError('unreachable', 'The connection to Gmail closed before the check finished. Try again in a minute.');
-    throw new SeedError('protocol', 'Gmail answered in a way this check did not expect. Try again in a minute.');
+    if (e instanceof SeedError) throw new SeedError(e.code, e.message, signedIn);
+    if (e instanceof ImapError && e.kind === 'timeout') throw new SeedError('timeout', 'Gmail took too long to answer. Try again in a minute.', signedIn);
+    if (e instanceof ImapError && e.kind === 'closed') throw new SeedError('unreachable', 'The connection to Gmail closed before the check finished. Try again in a minute.', signedIn);
+    throw new SeedError('protocol', 'Gmail answered in a way this check did not expect. Try again in a minute.', signedIn);
   } finally {
     await c.logout();
   }

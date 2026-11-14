@@ -131,10 +131,12 @@ describe('seed inbox card, signed in', () => {
     answer = async () => {
       throw new SeedCheckFailed('No app password is kept for this shop. Paste it to check.', 'no-password', 400);
     };
-    t.fill({ password: 'abcdabcdabcdabcd' });
+    t.fill({ password: 'abcdabcdabcdabcd', address: 'typed@gmail.com' });
     t.submit();
     await tick();
     expect(document.activeElement?.id).toBe('seed-password');
+    // A failed check leaves what was typed in place.
+    expect(t.$<HTMLInputElement>('#seed-address').value).toBe('typed@gmail.com');
     answer = async () => {
       throw new Error('weird');
     };
@@ -142,6 +144,31 @@ describe('seed inbox card, signed in', () => {
     t.submit();
     await tick();
     expect(t.$('#seed-status').textContent).toMatch(/could not run/);
+  });
+
+  it('waits for a running email check before showing the seed email', async () => {
+    let release: () => void = () => {};
+    const root = document.createElement('div');
+    document.body.replaceChildren(root);
+    let first = true;
+    mountApp(root, {
+      stores: savedStores(),
+      origin: ORIGIN,
+      basePath: '/',
+      checkLink: (url) => (first ? ((first = false), new Promise<LinkResult>((r) => (release = () => r(goodFile(url))))) : Promise.resolve(goodFile(url))),
+      seed: { token: async () => 'tok', keepAvailable: async () => false, check: async () => ({ found: true, where: 'spam', placement: 'spam', receivedAt: '', labels: [], truncated: false, raw: rawBuffer(), kept: false, saved: true }) },
+    });
+    await tick();
+    (root.querySelector('#run-sample') as HTMLButtonElement).click();
+    await tick();
+    for (const [k, v] of Object.entries({ address: 'c@gmail.com', sender: 'shop.example', password: 'abcdabcdabcdabcd' })) (root.querySelector(`#seed-${k}`) as HTMLInputElement).value = v;
+    root.querySelector('#seed-form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await tick();
+    expect(root.querySelector('[data-finding="placement-spam"]')).toBeNull();
+    release();
+    await new Promise((r) => setTimeout(r, 200));
+    await tick();
+    expect(root.querySelector('[data-finding="placement-spam"]')).not.toBeNull();
   });
 
   it('needs a session token', async () => {
@@ -177,6 +204,7 @@ describe('seed inbox card, signed in', () => {
     t.$('#seed-forget').click();
     await tick();
     expect(seeds.rows.size).toBe(0);
+    expect(t.$<HTMLInputElement>('#seed-remember').checked).toBe(false);
     expect(t.$('#seed-status').textContent).toMatch(/forgotten/);
     expect(t.$('#seed-forget').hidden).toBe(true);
   });

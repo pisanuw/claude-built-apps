@@ -43,7 +43,8 @@ export interface SeedDeps {
   record(token: string, addressTag: string): Promise<'ok' | 'limited'>;
   secret(token: string, shopId: string): Promise<string | null>;
   save(token: string, s: SeedSave): Promise<boolean>;
-  check(q: SeedQuery): Promise<SeedResult>;
+  /** Runs the IMAP check within budgetMs. */
+  check(q: SeedQuery, budgetMs: number): Promise<SeedResult>;
   /** Whether imap.gmail.com answers (greeting only, no sign-in). */
   reachable(): Promise<boolean>;
 }
@@ -147,7 +148,13 @@ export function parseSeedBody(bodyText: string | null): SeedCheckBody | string {
   return problem || out;
 }
 
-export async function handleSeedCheck(bodyText: string | null, headers: Record<string, string | undefined>, deps: ApiDeps): Promise<ApiResponse> {
+/** The whole request must finish inside Netlify's 10 s limit, Supabase calls included. */
+export const SEED_REQUEST_BUDGET_MS = 8000;
+/** Kept back from the IMAP budget for saving the outcome afterwards. */
+const SAVE_RESERVE_MS = 800;
+
+export async function handleSeedCheck(bodyText: string | null, headers: Record<string, string | undefined>, deps: ApiDeps, now: () => number = Date.now): Promise<ApiResponse> {
+  const startedAt = now();
   const token = bearer(headers);
   if (!token) return json(401, { error: 'Sign in to check your seed inbox.' });
   const body = parseSeedBody(bodyText);
@@ -182,7 +189,8 @@ export async function handleSeedCheck(bodyText: string | null, headers: Record<s
   let result: SeedResult | null = null;
   let failure: SeedError | null = null;
   try {
-    result = await seed.check({ address: body.address, password, sender: body.sender, subject: body.subject, days: body.days });
+    const budget = Math.max(1500, SEED_REQUEST_BUDGET_MS - SAVE_RESERVE_MS - (now() - startedAt));
+    result = await seed.check({ address: body.address, password, sender: body.sender, subject: body.subject, days: body.days }, budget);
   } catch (e) {
     failure = e instanceof SeedError ? e : new SeedError('protocol', 'The seed inbox check failed. Try again in a minute.');
   }
@@ -194,7 +202,8 @@ export async function handleSeedCheck(bodyText: string | null, headers: Record<s
   let sealed: string | null = null;
   if (body.password) {
     if (!body.remember || !seed.key) mode = 'clear';
-    else if (result) {
+    else if (result || failure?.signedIn) {
+      // Gmail accepted it: keep it even if the rest of the check then failed (code review).
       mode = 'set';
       sealed = seal(seed.key, body.password, seedAad(userId, body.shopId, body.address, body.sender));
     }

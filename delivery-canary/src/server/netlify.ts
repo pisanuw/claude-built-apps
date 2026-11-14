@@ -32,7 +32,7 @@ export function liveDeps(cfg: RestConfig, key: string | undefined): ApiDeps {
       record: (t, tag) => recordSeedCheck(cfg, t, tag),
       secret: (t, shop) => seedSecret(cfg, t, shop),
       save: (t, s) => saveSeed(cfg, t, s),
-      check: (q) => seedCheckLive(q),
+      check: (q, budgetMs) => seedCheckLive(q, budgetMs),
       reachable: () => gmailReachableLive(),
     },
   };

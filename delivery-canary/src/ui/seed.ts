@@ -112,13 +112,14 @@ export function mountSeed(deps: SeedCardDeps): { el: HTMLElement; refresh: () =>
     return deps.stores().saved;
   }
 
-  function render(): void {
+  /** fill: copy the saved row into the fields (on load); after a check the fields keep what was typed (code review). */
+  function render(fill = true): void {
     const on = signedIn();
     signedOutNote.hidden = on;
     form.hidden = !on;
     sampleBtn.hidden = on;
     forgetBtn.hidden = !row;
-    if (row) {
+    if (row && fill) {
       address.value = row.address;
       sender.value = row.sender;
       subject.value = row.subject_hint;
@@ -133,7 +134,7 @@ export function mountSeed(deps: SeedCardDeps): { el: HTMLElement; refresh: () =>
     last.textContent = row?.last_checked_at ? `Last checked ${when(row.last_checked_at)}: ${OUTCOME_TEXT[row.last_outcome ?? ''] ?? 'no result'}.` : '';
   }
 
-  async function refresh(): Promise<void> {
+  async function refresh(fill = true): Promise<void> {
     row = undefined;
     const shop = deps.shop();
     if (signedIn()) {
@@ -146,10 +147,11 @@ export function mountSeed(deps: SeedCardDeps): { el: HTMLElement; refresh: () =>
         }
       }
     }
-    render();
+    render(fill);
   }
 
   function reset(): void {
+    remember.checked = false;
     row = undefined;
     address.value = '';
     sender.value = '';
@@ -193,7 +195,7 @@ export function mountSeed(deps: SeedCardDeps): { el: HTMLElement; refresh: () =>
       } catch (e) {
         say(e instanceof SeedCheckFailed ? e.message : 'The seed inbox check could not run. Try again in a minute.');
         if (e instanceof SeedCheckFailed && e.outcome === 'no-password') password.focus();
-        await refresh();
+        await refresh(false);
         return;
       }
       password.value = '';
@@ -205,7 +207,7 @@ export function mountSeed(deps: SeedCardDeps): { el: HTMLElement; refresh: () =>
         say(`Found it: Gmail put the newest email from ${req.sender} in ${WHERE_TEXT[res.where]}${res.receivedAt ? ` (arrived ${when(res.receivedAt)})` : ''}. The full check is above.${res.truncated ? ' The email was very large, so only its start was read.' : ''}${keptNote}${savedNote}`);
         await deps.runEmail(res.raw, res.placement, { where: res.where, receivedAt: res.receivedAt });
       }
-      await refresh();
+      await refresh(false);
     } catch (e) {
       say(`Could not check the seed inbox: ${(e as Error).message}`);
     } finally {

@@ -89,6 +89,8 @@ export function fakeGmail(opts: FakeOptions = {}): { socket: Duplex; sent: strin
       const hit = inBox().find((x) => x.uid === uid && (x.categories ?? []).includes(m![2]));
       return `* SEARCH${hit ? ` ${uid}` : ''}\r\nTAG OK SEARCH completed (Success)\r\n`;
     }
+    // Like Gmail: its search leaves Spam out unless the query says in:spam, even in the Spam folder.
+    if (cmd.startsWith('UID SEARCH X-GM-RAW ') && box === 'spam' && !cmd.includes('in:spam')) return 'TAG OK SEARCH completed (Success)\r\n';
     if (cmd.startsWith('UID SEARCH X-GM-RAW ')) return `* SEARCH${inBox().map((x) => ` ${x.uid}`).join('')}\r\nTAG OK SEARCH completed (Success)\r\n`;
     m = /^UID FETCH (\d+) \(UID INTERNALDATE\)$/.exec(cmd);
     if (m) {
