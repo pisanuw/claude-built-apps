@@ -270,8 +270,15 @@ mailbox: IMAP with a Google app password.
   column or table in migration 0004), canary draft order to the seed
   address, then the seed check waits for the email. Check Shopify's
   current custom-app steps first (PLAN.md risks).
-- Seed inbox known limits: not yet run against real Gmail (open question
-  4); IMAP client memory caps are per literal, not per response (only a
+- Deploy run 181 (day 3): migration 0003 applied, check-schema passed with
+  two advisor warnings by design ("Signed-In Users Can Execute SECURITY
+  DEFINER Function" for seed_inbox_save and seed_inbox_secret: both check
+  auth.uid() and the shop's owner themselves). The stranger check skips
+  seed_inboxes because it has column-level SELECT only. Live: health
+  `seedKeep: true`, `/api/seed-reach` `{"gmailImap":true}` (the function
+  reaches imap.gmail.com:993), the signed-out sample verified in a browser.
+- Seed inbox known limits: not yet run against a real Gmail account (open
+  question 4); IMAP client memory caps are per literal, not per response (only a
   misbehaving imap.gmail.com could exploit it; security review L4); the
   found email's link is tested automatically even when it sits in Spam.
 - Milestone 5 needs the scheduled job to open kept passwords without a
