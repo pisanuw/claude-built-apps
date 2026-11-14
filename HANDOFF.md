@@ -290,7 +290,13 @@ The relay session supports the builds: migrations for own-repo apps, platform fe
   - It took over 13 Nov (created 14:42 UTC).
   - It handed over on **14 November 2026** on the owner's "do handoff". Context was 17% (172,317 of 1,000,000 tokens) after a compaction, about 40% just before it.
   - The next session is depth 5 of 8.
-- **Current session:** written in by the takeover.
+- **Current session: session_01JyJzMVhQhwQ7Ea3HMyJ3FN ("Plabs: Nov 14")**, depth 5 of limit 8, created by the session-start routine at 13:52 UTC; took over on **14 November 2026** (~14:55 Berlin). It moved the relay routines to itself:
+  - trig_01LvzA4YK1HANnbjfntihccc: Plabs hourly status report, `46 * * * *`
+  - trig_01DYgx6NLAWauCztLtCdzwBd: Plabs handoff check, `CRON_TZ=Europe/Berlin 56 13 * * *`
+  - trig_016QHHijGtC5VWcSzZUN4nuQ: Plabs session start, `CRON_TZ=Europe/Berlin 52 14 * * *`
+  - trig_01YQvQ3KNT6JZYj7ht5YGFCe: one-shot, 14 Nov 15:35 UTC, check app-notify's first StepWise run
+
+  The previous session's four routines below and its three switched-off one-shots were deleted at the takeover.
 - **Relay routines** aimed at the previous session. The new session re-aims them at itself and deletes these:
   - trig_01Ha16psPae9zfPmEzUyXpbf: Plabs hourly status report, `46 * * * *`
   - trig_01D4x4ngY3WRG9wZYV3dA5j6: "Plabs handoff check: hand over only when due", `CRON_TZ=Europe/Berlin 56 13 * * *`
