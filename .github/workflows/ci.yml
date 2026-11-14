@@ -744,7 +744,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           # pdfjs-dist 6 declares node >= 22.13.
-          node-version: '22'
+          node-version: '24'
           cache: npm
           cache-dependency-path: where-does-it-say/package-lock.json
 
