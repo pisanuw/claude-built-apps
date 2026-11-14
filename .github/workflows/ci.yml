@@ -1533,7 +1533,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
           cache-dependency-path: tiny-brains-league/package-lock.json
 
