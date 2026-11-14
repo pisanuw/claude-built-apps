@@ -602,3 +602,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-14 [code] Node 20 leftovers set to 22: .env.example NODE_VERSION, accessibility-lens render.yaml and Dockerfile (both dormant; it deploys to Netlify).
 
 2026-11-14 [code] CI concurrency group ci-<ref> with cancel-in-progress: a newer push to a branch cancels its older CI run (owner asked).
+
+2026-11-14 [code] Node 24 in all monorepo workflows (owner yes): 67 app commits, tooling, deploy job; 2 lockfiles regenerated for npm 11. upvote on Node 24; live-together CI fixed + actions v7.
