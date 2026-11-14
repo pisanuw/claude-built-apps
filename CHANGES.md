@@ -604,3 +604,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-14 [code] CI concurrency group ci-<ref> with cancel-in-progress: a newer push to a branch cancels its older CI run (owner asked).
 
 2026-11-14 [code] Node 24 in all monorepo workflows (owner yes): 67 app commits, tooling, deploy job; 2 lockfiles regenerated for npm 11. upvote on Node 24; live-together CI fixed + actions v7.
+2026-11-14 [code] delivery-canary day 3: seed inbox check (own IMAP client, Gmail placement incl. tabs and Spam, sealed app password, migration 0003); reviews fixed; deployed.

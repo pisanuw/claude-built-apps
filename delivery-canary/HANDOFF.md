@@ -1,4 +1,4 @@
-# Delivery Canary: handoff (day 2 of 7, 2026-11-13)
+# Delivery Canary: handoff (day 3 of 7, 2026-11-14)
 
 Rewritten at the end of every build day by the build routine
 (BUILD_ROUTINE.md). It is the only state the next day's session has, and the
@@ -45,7 +45,21 @@ Shape marks: stateful, connected, unattended, engine (PLAN.md "Shape").
   the same file again (same SHA-256) updates its row; a new file is compared
   with the shop's latest other scan ("Also late on ...", and earlier-late
   orders now sorted out). "Try a sample export" works signed out.
-- Not live yet: milestones 3 to 7.
+- Since day 3 (Deploy run 181, commit ddcab1a): the "Check your seed inbox"
+  card. Signed in, the shop enters its test Gmail address, the sender its
+  download emails come from (optional subject words) and a Google app
+  password; `/api/seed-check` signs in to imap.gmail.com (read-only:
+  EXAMINE, BODY.PEEK), finds the newest email from that sender in the last
+  14 days in All Mail and Spam, reads where Gmail put it (Primary,
+  Promotions, Social, Updates, Forums, archived, Spam) and returns the
+  message; the page runs the milestone 1 check on it with that placement and
+  saves it to history (report.seed = where). "Keep the app password" seals
+  it (AES-256-GCM, DELIVERY_CANARY_KEY, bound to user, shop, address and
+  sender) so later checks need no typing. Signed out, "See a sample seed
+  inbox check" shows the sample as found in Promotions.
+  `GET /api/seed-reach` answers `{"gmailImap": true}` when the function can
+  reach imap.gmail.com (greeting only; cached a minute).
+- Not live yet: milestones 4 to 7.
 
 ## Milestones (docs/PLAN.md)
 
@@ -53,8 +67,8 @@ Shape marks: stateful, connected, unattended, engine (PLAN.md "Shape").
 |---|---|---|---|---|
 | 1 | Delivery email check | done | 1 | code review (high) and security review run, all findings fixed |
 | 2 | Unfulfilled digital order scan | done | 2 | code review (high, 12 findings) and security review (no high/medium; 2 low) fixed |
-| 3 | Seed mailbox connection | next | | key secret exists (owner, 12 Nov); IMAP with app password |
-| 4 | Shopify connection and canary order | | | open question 2 |
+| 3 | Seed mailbox connection | done | 3 | code review (high, 6 real findings) and security review (1 medium, 4 low) fixed; not yet tried against a real Gmail account (open question 4) |
+| 4 | Shopify connection and canary order | next | | the shop's own Dev Dashboard app (answered 12 Nov) |
 | 5 | Schedule and alerts | | | needs open question 1; first Netlify Scheduled Function |
 | 6 | Polish | | | |
 | 7 | Finish | | | |
@@ -67,11 +81,19 @@ npm run dev          # http://localhost:5173 (memory stores, no sign-in)
 PW_CHROMIUM=/opt/pw-browsers/chromium npm run e2e   # walkthrough; PW_CHROMIUM only in the cloud sandbox
 ```
 
-Tests: 243 vitest (99% statements, 95% branches), 2 Playwright walkthroughs
-(sample email; sample orders export).
+Tests: 301 vitest (99% statements, 95% branches), 3 Playwright walkthroughs
+(sample email; sample orders export; sample seed inbox check). The IMAP
+client and Gmail logic run against a scripted Gmail session
+(`test/gmail-fake.ts`); this sandbox cannot open IMAP connections, so the
+live path is unproven until a real seed account is checked.
+Migration 0003 was also applied to a throwaway local Postgres 16 with a
+Supabase-like auth stub (roles anon/authenticated, auth.uid()) and its
+grants, definer functions and both rate limits exercised (day 3).
 Live checks:
 - `curl -s https://delivery-canary.hintwise.org/ | grep -c "Want something like this"` prints 1 (footer);
-- `curl -s https://delivery-canary.hintwise.org/api/health` prints `{"ok":true,"status":"ok"}`;
+- `curl -s https://delivery-canary.hintwise.org/api/health` prints `{"ok":true,"status":"ok","seedKeep":true}` (seedKeep false means DELIVERY_CANARY_KEY did not reach the function);
+- `curl -s https://delivery-canary.hintwise.org/api/seed-reach` prints `{"gmailImap":true}`;
+- `curl -s -X POST https://delivery-canary.hintwise.org/api/seed-check -d '{}'` answers 401;
 - `curl -s -X POST https://delivery-canary.hintwise.org/api/link-check -d '{"url":"https://example.com"}'` answers 401 (sign-in required).
 
 ## Platform use
@@ -97,11 +119,29 @@ Live checks:
   hop re-checked, at most 6, 8 seconds, 25 MB hashed, 512 KB for a page; the
   connection goes through an undici Agent whose lookup refuses private
   addresses, so DNS rebinding is refused at connect time).
+  Migration `0003_seed_inbox.sql` (day 3): `seed_inboxes` (one per shop:
+  address, sender, subject_hint, sealed `secret`, generated `has_secret`,
+  last outcome; the browser has column SELECT without `secret` and DELETE;
+  writes only through security definer `seed_inbox_save(shop, address,
+  sender, subject, mode keep|set|clear, secret, outcome)`, which checks the
+  shop is the caller's and drops the secret when the address or sender
+  changes; the function reads it through definer `seed_inbox_secret(shop)`),
+  `seed_checks` (rate-limit log, HMAC tag of the canonical address; definer
+  insert trigger: 12 an hour per user, 20 per seed address, rows over a day
+  pruned).
+- Function `POST /api/seed-check`: verify user, open the kept password if
+  none typed, record the check (limit), IMAP within what is left of an 8 s
+  request, then save settings and outcome. A typed password is kept only
+  when "Keep" is ticked, the key exists and Gmail accepted the sign-in.
+  Only 16-letter app passwords are sent; every refused sign-in is one
+  outcome (`login-failed`) with all the hints.
 - Sign-in: Google and email link (template panel, `sign-in-link`); the app
   host was added to `platform/src/signin/app-hosts.ts` in 80c3150.
 - LLM: none. Email: none yet (milestone 5). Files: none (the orders CSV is
   read in the browser and never uploaded).
-- Env names (values never here): VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY.
+- Env names (values never here): VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY;
+  DELIVERY_CANARY_KEY (repository secret, target.yml envPassthrough, the
+  function's runtime only; never replace it once passwords are kept).
 
 ## Decisions and why
 
@@ -144,6 +184,22 @@ Live checks:
   settled paid download orders are unfulfilled: some delivery apps never
   mark orders fulfilled, and then the scan cannot tell.
 
+- 2026-11-14: our own small IMAP client (src/server/imap.ts) instead of
+  imapflow: no dependencies to bundle (imapflow pulls pino and more), and
+  every byte is testable against a scripted Gmail session.
+- 2026-11-14: the server returns the raw message to the page, which runs
+  the existing check, so one engine serves .eml, seed inbox and (later) the
+  canary order; the server keeps nothing of the email.
+- 2026-11-14: placement comes from Gmail itself: Spam folder, the \\Inbox
+  label and `category:` searches; archived and the Social, Updates and
+  Forums tabs are stored as placement "other" with report.seed.where.
+- 2026-11-14 (security review): only 16-letter app passwords are sent, and
+  all refused sign-ins look the same, so the endpoint cannot confirm
+  someone's normal Google password; senders must not be a bare provider
+  domain; the kept password is bound to the sender.
+- 2026-11-14 (code review): the Spam search adds `in:spam` (Gmail's search
+  skips Spam otherwise, even in the Spam folder).
+
 ## Tried and rejected
 
 - Counting recent link tests, then inserting (two HTTP calls): racy under
@@ -154,6 +210,11 @@ Live checks:
   flagged orders that were inside the grace period at export (code review).
 - Comparing a re-scanned file with its own earlier scan: everything showed
   as "also late"; the comparison is with the shop's latest other file.
+- imapflow for IMAP: heavy to bundle (pino, iconv, mailsplit) for six
+  commands.
+- Distinct outcomes for "app password required" and "sign in through the
+  browser": Gmail sends them only for a right normal password, so they made
+  the check a password oracle (security review).
 - Gmail API for the seed mailbox: gmail.readonly is a restricted scope
   needing Google verification on the shared HintWise client, a shared
   setting; IMAP with an app password on the shop's own seed account is
@@ -161,7 +222,13 @@ Live checks:
 
 ## Open questions for the owner
 
-No new questions on day 2.
+4. (day 3) The seed inbox check is tested against a scripted Gmail session
+   only; this build sandbox cannot open IMAP connections. Recommendation:
+   when convenient, make a test Gmail account, create an app password, place
+   a 100%-off order in any test shop to it, and run "Check my seed inbox
+   now" on the live site; tell the build session what it says. Default: the
+   build continues with milestone 4 and treats the first real report as a
+   bug to fix.
 
 **Answered by the owner, 12 Nov 2026 (Lisbon midday):** 1 yes, 2 and 3 the
 defaults. The owner added the repository secret `DELIVERY_CANARY_KEY` to
@@ -197,11 +264,19 @@ mailbox: IMAP with a Google app password.
 
 ## Remaining and known issues
 
-- Milestones 3 to 7 (PLAN.md). Milestone 3 next: add
-  `envPassthrough: [DELIVERY_CANARY_KEY]` to deploy/target.yml, encrypt the
-  seed-mailbox app password (AES-GCM) in the function, IMAP client in the
-  function (check a Netlify function can open an outbound IMAPS connection
-  to imap.gmail.com:993 within its time limit first).
+- Milestones 4 to 7 (PLAN.md). Milestone 4 next: Shopify connection with
+  the shop's own Dev Dashboard app (read_orders, write_draft_orders),
+  credentials sealed like the app password (secretbox.ts; add a sealed
+  column or table in migration 0004), canary draft order to the seed
+  address, then the seed check waits for the email. Check Shopify's
+  current custom-app steps first (PLAN.md risks).
+- Seed inbox known limits: not yet run against real Gmail (open question
+  4); IMAP client memory caps are per literal, not per response (only a
+  misbehaving imap.gmail.com could exploit it; security review L4); the
+  found email's link is tested automatically even when it sits in Spam.
+- Milestone 5 needs the scheduled job to open kept passwords without a
+  user token: a signed call to a definer function (key-derived HMAC), as
+  open question 1 planned.
 - Order scan limits (known): which line of a partially refunded order was
   refunded is not in the export; delivery apps that never mark orders
   fulfilled make every order look late (the scan warns).
@@ -227,11 +302,14 @@ mailbox: IMAP with a Google app password.
 - `src/core/csv.ts` (parser, defused CSV writer), `orders.ts` (import
   allowlist, buckets, scan, compare, notes), `orders-sample.ts`;
   `src/ui/orders.ts` (the scan card); `ScanStore` in `src/store/stores.ts`.
-- `src/server/api.ts`, `fetchfile.ts` (SSRF guard, pinned lookup),
-  `supabase-rest.ts`, `netlify.ts`.
+- `src/server/api.ts` (routes, handleSeedCheck), `fetchfile.ts` (SSRF
+  guard, pinned lookup), `supabase-rest.ts`, `netlify.ts`; `imap.ts` (IMAP
+  client), `seed.ts` (Gmail seed check), `secretbox.ts` (sealing, address
+  tag); `src/core/seedwhere.ts`; `src/ui/seed.ts` (the card),
+  `seedclient.ts`; `test/gmail-fake.ts` (scripted Gmail).
 - `src/ui/app.ts` (the page), `report.ts`, `linkclient.ts`, `dom.ts`;
   `src/store/stores.ts` (shops, checks with summaries).
-- `supabase/migrations/0001_init.sql`, `0002_order_scans.sql`; `deploy/target.yml`;
+- `supabase/migrations/0001_init.sql`, `0002_order_scans.sql`, `0003_seed_inbox.sql`; `deploy/target.yml`;
   `e2e/walkthrough.spec.ts`.
 
 ## Log
@@ -243,3 +321,7 @@ mailbox: IMAP with a Google app password.
 - Day 2 (2026-11-13): milestone 2, the late download order scan (Shopify
   Orders CSV, allowlist import, saved and compared scans, migration 0002);
   code review (12) and security review (2 low) fixed; deployed (run 178).
+- Day 3 (2026-11-14): milestone 3, the seed inbox check (own IMAP client,
+  Gmail placement, sealed app password, migration 0003, reachability probe);
+  code review (6) and security review (1 medium, 4 low) fixed; deployed
+  (run 181).
