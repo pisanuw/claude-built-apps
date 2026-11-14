@@ -27,7 +27,7 @@ a { color: var(--accent); }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; margin: 0 0 1rem; }
 .block { display: block; font-weight: 600; margin: 0.5rem 0 0.25rem; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-input[type='text'], select, textarea { width: 100%; font: inherit; padding: 0.45rem 0.55rem; border: 1px solid #8a94a2; border-radius: 6px; background: #fff; color: var(--ink); }
+input[type='text'], input[type='email'], input[type='password'], select, textarea { width: 100%; font: inherit; padding: 0.45rem 0.55rem; border: 1px solid #8a94a2; border-radius: 6px; background: #fff; color: var(--ink); }
 textarea { margin-top: 0.5rem; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85rem; }
 input[type='file'] { font: inherit; max-width: 100%; }
 fieldset.placement { border: 1px solid var(--line); border-radius: 6px; margin: 0.75rem 0; padding: 0.5rem 0.75rem; display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; }
@@ -40,6 +40,8 @@ button.link.danger { color: var(--fail); }
 :focus-visible { outline: 3px solid #f2a900; outline-offset: 2px; }
 .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.5rem 0; }
 .status { min-height: 1.5rem; color: var(--muted); margin: 0.5rem 0; }
+label.check { display: flex; gap: 0.5rem; align-items: flex-start; margin: 0.75rem 0 0.25rem; }
+label.check input { margin-top: 0.3rem; flex: none; width: 1.1rem; height: 1.1rem; }
 .hint, .empty { color: var(--muted); font-size: 0.95rem; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
 .howto { margin: 0 0 0.75rem; }

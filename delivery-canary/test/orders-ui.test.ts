@@ -5,7 +5,7 @@ import { importShopifyOrders, scanOrders } from '../src/core/orders';
 import { SAMPLE_PEOPLE, SAMPLE_STREET, sampleOrdersCsv } from '../src/core/orders-sample';
 import type { AppClient } from '../src/lib/supabase';
 import { InMemoryRepository } from '../src/lib/repository';
-import { MemoryCheckStore, MemoryScanStore, SCAN_LIST_LIMIT, SupabaseScanStore, type ScanRow, type ShopRow, type Stores } from '../src/store/stores';
+import { MemoryCheckStore, MemoryScanStore, MemorySeedStore, SCAN_LIST_LIMIT, SupabaseScanStore, type ScanRow, type ShopRow, type Stores } from '../src/store/stores';
 import { mountApp, type AppDeps } from '../src/ui/app';
 import { countsText, renderScan } from '../src/ui/orders';
 
@@ -16,7 +16,7 @@ const tick = async (n = 30) => {
 };
 
 function savedStores(): Stores {
-  return { shops: new InMemoryRepository<ShopRow>(), checks: new MemoryCheckStore(), scans: new MemoryScanStore(), saved: true };
+  return { shops: new InMemoryRepository<ShopRow>(), checks: new MemoryCheckStore(), scans: new MemoryScanStore(), seeds: new MemorySeedStore(), saved: true };
 }
 
 /** A stand-in for SHA-256: the byte length and first bytes, enough to tell files apart. */
@@ -176,7 +176,7 @@ describe('order scan card', () => {
   });
 
   it('says signed-out scans are not kept', async () => {
-    const stores: Stores = { shops: new InMemoryRepository<ShopRow>(), checks: new MemoryCheckStore(), scans: new MemoryScanStore(), saved: false };
+    const stores: Stores = { shops: new InMemoryRepository<ShopRow>(), checks: new MemoryCheckStore(), scans: new MemoryScanStore(), seeds: new MemorySeedStore(), saved: false };
     const { $ } = setup({ stores });
     await tick();
     expect($('#scan-list').textContent).toContain('until you leave the page');

@@ -1,4 +1,5 @@
 /** Shared types of the delivery-email check. */
+import type { SeedOrigin } from './seedwhere';
 
 export type Placement = 'inbox' | 'promotions' | 'spam' | 'other' | 'unknown';
 export type Severity = 'fail' | 'warn' | 'ok' | 'info';
@@ -106,6 +107,8 @@ export interface Finding {
 export interface CheckReport {
   analysis: Omit<EmailAnalysis, 'links'> & { links: Array<{ host: string; text: string }> };
   placement: Placement;
+  /** Set when the email came from the seed inbox check (milestone 3): where Gmail put it. */
+  seed?: SeedOrigin;
   link: (Omit<LinkResult, 'url' | 'finalUrl'> & { host: string; finalHost: string }) | null;
   findings: Finding[];
 }

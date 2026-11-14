@@ -1,5 +1,6 @@
 /** Renders a check's report: the verdict, the findings with their fixes, and the details. */
 import { bytes } from '../core/findings';
+import { WHERE_TEXT } from '../core/seedwhere';
 import type { CheckReport, Finding, Placement, Verdict } from '../core/types';
 import { h, when } from './dom';
 
@@ -70,7 +71,7 @@ export function renderReport(report: CheckReport, opts: ReportOptions): HTMLElem
       row('Arrived', when(a.receivedAt)),
       row('Time between servers', seconds(a.transitSeconds)),
       row('Delivery app', a.app.id === 'unknown' ? 'Not recognised' : `${a.app.name} (${a.app.because})`),
-      row('Placement', PLACEMENT_TEXT[report.placement]),
+      row('Placement', report.seed ? `${PLACEMENT_TEXT[report.placement]} (seed inbox: ${WHERE_TEXT[report.seed.where] ?? 'unknown'})` : PLACEMENT_TEXT[report.placement]),
       row('SPF', authText(auth?.spf)),
       row('DKIM', auth?.dkim.length ? auth.dkim.map(authText).join(', ') : auth?.signedBy.length ? `signed by ${auth.signedBy.join(', ')}, result not recorded` : 'none'),
       row('DMARC', authText(auth?.dmarc)),

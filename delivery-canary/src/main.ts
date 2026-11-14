@@ -9,6 +9,7 @@ import { getSupabase, hasSupabase } from './lib/supabase';
 import { memoryStores, supabaseStores } from './store/stores';
 import { mountApp } from './ui/app';
 import { checkLink } from './ui/linkclient';
+import { checkSeedInbox, seedKeepAvailable } from './ui/seedclient';
 
 const root = document.getElementById('app');
 if (!root) throw new Error('index.html needs <div id="app">');
@@ -20,6 +21,7 @@ mountApp(root, {
   origin: location.origin,
   basePath: location.pathname.replace(/[^/]*$/, ''),
   checkLink: (url) => checkLink(url, { token: () => (live ? currentToken() : Promise.resolve(null)) }),
+  seed: live ? { token: () => currentToken(), check: (req, token) => checkSeedInbox(req, token), keepAvailable: () => seedKeepAvailable() } : undefined,
   mountAuth: live
     ? (el, onStores) => {
         mountSignIn(el);

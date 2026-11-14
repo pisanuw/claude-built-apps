@@ -188,20 +188,65 @@ export class SupabaseScanStore implements ScanStore {
   }
 }
 
+/** A shop's seed Gmail inbox as the page sees it: never the app password, sealed or not. */
+export interface SeedInboxRow {
+  shop_id: string;
+  address: string;
+  sender: string;
+  subject_hint: string;
+  /** True when an app password is kept (sealed by the server) for scheduled checks. */
+  has_secret: boolean;
+  last_checked_at: string | null;
+  last_outcome: string | null;
+}
+
+/** Seed inbox rows are written only by the server (/api/seed-check); the page reads them and may forget one. */
+export interface SeedStore {
+  get(shopId: string): Promise<SeedInboxRow | undefined>;
+  remove(shopId: string): Promise<void>;
+}
+
+const SEED_COLUMNS = 'shop_id, address, sender, subject_hint, has_secret, last_checked_at, last_outcome';
+
+/** Signed out there is no seed inbox: checks need the server and an account. */
+export class MemorySeedStore implements SeedStore {
+  readonly rows = new Map<string, SeedInboxRow>();
+  async get(shopId: string) {
+    return this.rows.get(shopId);
+  }
+  async remove(shopId: string) {
+    this.rows.delete(shopId);
+  }
+}
+
+export class SupabaseSeedStore implements SeedStore {
+  constructor(private readonly client: AppClient) {}
+  async get(shopId: string): Promise<SeedInboxRow | undefined> {
+    const { data, error } = await this.client.from('seed_inboxes').select(SEED_COLUMNS).eq('shop_id', shopId).maybeSingle();
+    if (error) throw new Error(`seed_inboxes: ${error.message}`);
+    return (data ?? undefined) as SeedInboxRow | undefined;
+  }
+  async remove(shopId: string): Promise<void> {
+    const { error } = await this.client.from('seed_inboxes').delete().eq('shop_id', shopId);
+    if (error) throw new Error(`seed_inboxes: ${error.message}`);
+  }
+}
+
 export interface Stores {
   shops: Repository<ShopRow>;
   checks: CheckStore;
   scans: ScanStore;
+  seeds: SeedStore;
   /** True when rows reach the account (signed in). */
   saved: boolean;
 }
 
 export function memoryStores(): Stores {
-  return { shops: new InMemoryRepository<ShopRow>(), checks: new MemoryCheckStore(), scans: new MemoryScanStore(), saved: false };
+  return { shops: new InMemoryRepository<ShopRow>(), checks: new MemoryCheckStore(), scans: new MemoryScanStore(), seeds: new MemorySeedStore(), saved: false };
 }
 
 export function supabaseStores(client: AppClient): Stores {
-  return { shops: new SupabaseRepository<ShopRow>(client, 'shops'), checks: new SupabaseCheckStore(client), scans: new SupabaseScanStore(client), saved: true };
+  return { shops: new SupabaseRepository<ShopRow>(client, 'shops'), checks: new SupabaseCheckStore(client), scans: new SupabaseScanStore(client), seeds: new SupabaseSeedStore(client), saved: true };
 }
 
 /** Newest first. */

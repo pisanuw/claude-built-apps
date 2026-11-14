@@ -5,7 +5,9 @@
  */
 import { handleApi, type ApiDeps } from './api';
 import { fetchFile } from './fetchfile';
-import { recordTest, verifyUser, type RestConfig } from './supabase-rest';
+import { keyFrom } from './secretbox';
+import { seedCheckLive } from './seed';
+import { recordSeedCheck, recordTest, saveSeed, seedSecret, verifyUser, type RestConfig } from './supabase-rest';
 
 declare const __SUPABASE_URL__: string;
 declare const __SUPABASE_ANON_KEY__: string;
@@ -19,11 +21,19 @@ export interface FnEvent {
   isBase64Encoded?: boolean;
 }
 
-export function liveDeps(cfg: RestConfig): ApiDeps {
+/** Server deps; `key` is DELIVERY_CANARY_KEY, read from the function's environment at run time (never bundled). */
+export function liveDeps(cfg: RestConfig, key: string | undefined): ApiDeps {
   return {
     verifyUser: (t) => verifyUser(cfg, t),
     record: (t, h) => recordTest(cfg, t, h),
     fetchFile: (u) => fetchFile(u, { budgetMs: 8000 }),
+    seed: {
+      key: keyFrom(key),
+      record: (t, tag) => recordSeedCheck(cfg, t, tag),
+      secret: (t, shop) => seedSecret(cfg, t, shop),
+      save: (t, s) => saveSeed(cfg, t, s),
+      check: (q) => seedCheckLive(q),
+    },
   };
 }
 
@@ -41,4 +51,4 @@ export function makeHandler(deps: () => ApiDeps) {
 
 /* v8 ignore next 2 -- wiring only; the build defines both constants */
 const config = (): RestConfig => ({ url: typeof __SUPABASE_URL__ === 'string' ? __SUPABASE_URL__ : '', anonKey: typeof __SUPABASE_ANON_KEY__ === 'string' ? __SUPABASE_ANON_KEY__ : '' });
-export const handler = makeHandler(() => liveDeps(config()));
+export const handler = makeHandler(() => liveDeps(config(), process.env.DELIVERY_CANARY_KEY));

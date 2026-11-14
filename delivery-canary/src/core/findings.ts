@@ -5,6 +5,7 @@
  */
 import { aligned, FREE_MAILBOXES, orgDomain } from './headers';
 import { downloadCandidates, hostOf, isShortener } from './links';
+import { WHERE_TEXT, type SeedOrigin } from './seedwhere';
 import type { Baseline, CheckReport, EmailAnalysis, Finding, LinkResult, Placement, Verdict } from './types';
 
 export const SLOW_WARN_SECONDS = 15 * 60;
@@ -18,6 +19,8 @@ export interface EvaluateInput {
   /** Why the link test did not run (for example "Sign in to test the link"). */
   linkSkipped?: string;
   baseline: Baseline | null;
+  /** Where the seed inbox found it, when the email came from there. */
+  seed?: SeedOrigin | null;
 }
 
 const f = (id: string, severity: Finding['severity'], title: string, detail: string, fix = ''): Finding => ({ id, severity, title, detail, fix });
@@ -36,7 +39,10 @@ export function bytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function placementFindings(p: Placement): Finding[] {
+function placementFindings(p: Placement, seed: SeedOrigin | null | undefined): Finding[] {
+  if (p === 'other' && seed) {
+    return [f('placement-other', 'warn', 'It was not in the inbox', `Gmail put it in ${WHERE_TEXT[seed.where]}, where buyers often do not look for a download.`, seed.where === 'archived' ? 'Check the seed account has no filter that moves your email; if not, Gmail skipped the inbox, so keep the delivery email plain and personal.' : 'Keep the delivery email plain and personal (one clear download link, no newsletter look), and say in your order confirmation where to look.')];
+  }
   switch (p) {
     case 'spam':
       return [f('placement-spam', 'fail', 'It landed in Spam', 'Gmail filed this delivery email as spam, so a buyer with Gmail may never see their download.', 'Fix the sender problems below first; then ask a few buyers to mark your email "Not spam". Check again next week to see whether it moves.')];
@@ -155,7 +161,7 @@ function linkFindings(input: EvaluateInput): Finding[] {
 }
 
 export function evaluate(input: EvaluateInput): Finding[] {
-  return [...placementFindings(input.placement), ...senderFindings(input.analysis), ...timingFindings(input.analysis), ...linkFindings(input)];
+  return [...placementFindings(input.placement, input.seed), ...senderFindings(input.analysis), ...timingFindings(input.analysis), ...linkFindings(input)];
 }
 
 export function verdictOf(findings: Finding[]): Verdict {
@@ -171,6 +177,7 @@ export function toReport(input: EvaluateInput, findings: Finding[]): CheckReport
   return {
     analysis: { ...rest, links: links.slice(0, 10).map((l) => ({ host: hostOf(l.url), text: l.text })) },
     placement: input.placement,
+    ...(input.seed ? { seed: { where: input.seed.where, receivedAt: input.seed.receivedAt } } : {}),
     link: r
       ? {
           host: hostOf(r.url),

@@ -4,7 +4,7 @@ import { emptyResult } from '../src/core/linkcheck';
 import { sampleEmail } from '../src/core/sample';
 import type { CheckReport, LinkResult } from '../src/core/types';
 import { InMemoryRepository } from '../src/lib/repository';
-import { byNewest, HISTORY_LIMIT, MemoryCheckStore, MemoryScanStore, memoryStores, SupabaseCheckStore, supabaseStores, type CheckRow, type ShopRow, type Stores } from '../src/store/stores';
+import { byNewest, HISTORY_LIMIT, MemoryCheckStore, MemoryScanStore, MemorySeedStore, memoryStores, SupabaseCheckStore, supabaseStores, type CheckRow, type ShopRow, type Stores } from '../src/store/stores';
 import { mountApp, type AppDeps } from '../src/ui/app';
 import { h, when } from '../src/ui/dom';
 import { checkInBrowser, checkLink, checkOnServer, LinkTestSkipped, NeedsSignIn, sameOrigin } from '../src/ui/linkclient';
@@ -28,7 +28,7 @@ const tick = async (n = 30) => {
 };
 
 function savedStores(): Stores {
-  return { shops: new InMemoryRepository<ShopRow>(), checks: new MemoryCheckStore(), scans: new MemoryScanStore(), saved: true };
+  return { shops: new InMemoryRepository<ShopRow>(), checks: new MemoryCheckStore(), scans: new MemoryScanStore(), seeds: new MemorySeedStore(), saved: true };
 }
 
 function setup(over: Partial<AppDeps> = {}) {
@@ -315,7 +315,7 @@ describe('the app', () => {
   });
   it('reports store failures in plain words', async () => {
     const fail = { list: async () => { throw new Error('offline'); }, get: async () => undefined, put: async () => { throw new Error('denied'); }, remove: async () => { throw new Error('nope'); } };
-    const stores: Stores = { shops: fail as unknown as Stores['shops'], checks: fail as unknown as Stores['checks'], scans: new MemoryScanStore(), saved: true };
+    const stores: Stores = { shops: fail as unknown as Stores['shops'], checks: fail as unknown as Stores['checks'], scans: new MemoryScanStore(), seeds: new MemorySeedStore(), saved: true };
     const { $ } = setup({ stores });
     await tick();
     expect($('.status').textContent).toMatch(/Could not load your (shop|history): offline/);

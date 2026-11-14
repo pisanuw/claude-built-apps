@@ -34,3 +34,17 @@ test('the sample orders export flags the late download orders', async ({ page })
   await page.getByRole('button', { name: 'Download this list (CSV)' }).click();
   expect((await download).suggestedFilename()).toMatch(/^late-download-orders-\d{4}-\d{2}-\d{2}\.csv$/);
 });
+
+test('the sample seed inbox check reads the Promotions placement', async ({ page }) => {
+  await page.goto('/');
+  const card = page.locator('#seed-card');
+  await expect(card.getByRole('heading', { name: 'Check your seed inbox' })).toBeVisible();
+  await expect(card.locator('#seed-form')).toBeHidden();
+  await card.getByRole('button', { name: 'See a sample seed inbox check' }).click();
+  await expect(card.locator('#seed-status')).toContainText('Promotions tab');
+  const report = page.getByRole('article', { name: 'Check result' });
+  await expect(report).toContainText('It landed in Promotions');
+  await report.getByText('Details').click();
+  await expect(report).toContainText('seed inbox: the Promotions tab');
+  await expect(page.locator('#history .history-list li')).toHaveCount(1);
+});
