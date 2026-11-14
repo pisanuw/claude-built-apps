@@ -117,7 +117,8 @@ Still open, none of it blocking Plabs:
 
 ## 5. Next, in order
 
-1. **app-notify's first StepWise run** (14 Nov 15:17 UTC). The check is the one-shot scheduled task at **15:35 UTC** (trig_015eWrrXcnGemydViFztasop; the takeover moves it). Expected:
+1. **Done 14 Nov:** app-notify's first StepWise run (15:17 UTC) answered 200, seeded 4 items, sent 0 (`ops/notify-status.sql`). Kept for the record:
+   app-notify's first StepWise run (14 Nov 15:17 UTC). The check is the one-shot scheduled task at **15:35 UTC** (trig_015eWrrXcnGemydViFztasop; the takeover moves it). Expected:
    - `notify-schedule status`: the cron job succeeded and app-notify answered HTTP 200;
    - `platform.notify_apps.seeded_at` is set for stepwise;
    - 4 rows in `notify_items_seen` and 0 in `notify_sends`. The feed gained the AI and LLMs release on 14 Nov; the scheduled task's prompt was updated from 3 to 4.
