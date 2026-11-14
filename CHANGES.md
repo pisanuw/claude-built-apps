@@ -605,3 +605,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 
 2026-11-14 [code] Node 24 in all monorepo workflows (owner yes): 67 app commits, tooling, deploy job; 2 lockfiles regenerated for npm 11. upvote on Node 24; live-together CI fixed + actions v7.
 2026-11-14 [code] delivery-canary day 3: seed inbox check (own IMAP client, Gmail placement incl. tabs and Spam, sealed app password, migration 0003); reviews fixed; deployed.
+
+2026-11-14 [note] MeetMe Resend webhook failed from 9 Nov (meetme.pisan.me 301s; Resend does not follow) and was disabled; owner moved it to meetme.hintwise.org, bounce test passed. Migration doc notes outside webhooks.

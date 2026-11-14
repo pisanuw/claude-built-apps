@@ -165,6 +165,7 @@ No Netlify deploys are needed in this phase. Everything is done through the API.
 - **Old `.netlify.app` links.** Until an app is next deployed, its `.netlify.app` address still 301s to pisan.me, which then 301s to hintwise.org: two redirect hops, not a DNS chain. Each app's next deploy makes it one hop.
 - **Footer.** The new footer appears app by app as each is deployed. A mix of old and new footers is expected for a while.
 - **Keep pisan.me registered** for as long as the redirects should work.
+- **Webhooks registered in outside services break.** A webhook sender (Resend, Stripe, GitHub and the like) doesn't follow the 301, so every delivery to a `<x>.pisan.me` address fails, and the sender eventually disables the endpoint. MeetMe's Resend webhook failed from 9 Nov and was disabled; on 14 Nov the owner changed it to `https://meetme.hintwise.org/api/webhooks/resend` (edited in place, so its signing secret stayed the same), and a bounce test to `bounced@resend.dev` passed. Any app with an inbound webhook: change the address in the sender's settings when its DNS moves.
 
 ## Open decisions
 1. **Academic page:** the URL for the footer link.
