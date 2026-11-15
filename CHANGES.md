@@ -642,3 +642,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-15 [code] lewis-alt-text: new app (alt text for Lewis structure images, skill v8 as cached system block, gateway or own key, CLI via claude); no per-user data
 
 2026-11-15 [decision] lewis-alt-text gateway limits (owner "3 ok"): 20 alt texts a person a day; app $3/day, $15/week, $40/month; Plabs sets them
+
+2026-11-15 [note] anonymous gateway use live for udebt (owner yes): 0013 applied, llm-gateway redeployed, anon-setup udebt (stand-in visitors+udebt banned from sign-in, key f1cdfee9...); shared $1/day; no Turnstile for now
