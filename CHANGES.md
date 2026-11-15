@@ -636,3 +636,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-15 [note] udebt: Netlify SUPABASE_ANON_KEY was a wrong value (database "Invalid API key"); owner set the anon key and redeployed ~17:00 UTC; functions now reach PostgREST correctly
 
 2026-11-15 [code] platform: anonymous gateway use per app (shared/0013 llm_app_anon, x-hintwise-app-key, anon-setup/anon-off); built for udebt (owner "1a"), not deployed
+
+2026-11-15 [code] platform: anon gateway review fixes: service_role grant on llm_app_anon (was a blocker), generic 500, stand-in banned from interactive sign-in, random-key rule in the guide

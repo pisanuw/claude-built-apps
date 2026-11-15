@@ -100,7 +100,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     slug = appSlug(parsed.body);
     if (!slug.ok) return json(origin, slug.status, { error: 'request', message: slug.error });
     const { data: anonRow, error: anonError } = await admin.from('llm_app_anon').select('user_id, key_sha256').eq('slug', slug.slug).maybeSingle();
-    if (anonError) return json(origin, 500, { error: 'database', message: anonError.message });
+    if (anonError) {
+      console.error('llm_app_anon read failed:', anonError.message);
+      return json(origin, 500, { error: 'database', anonymous: true, message: 'The gateway could not check the app key.' });
+    }
     if (!anonRow?.user_id || !(await appKeyMatches(appKey, anonRow.key_sha256))) {
       return json(origin, 401, { error: 'auth', anonymous: true, message: `The app key is not valid for app "${slug.slug}".` });
     }

@@ -69,3 +69,13 @@ describe('anon-setup SQL', () => {
     expect(() => anonSetupSql('udebt', uid, HASH.toUpperCase())).toThrow(/key-sha256/);
   });
 });
+
+describe('the 0013 migration', () => {
+  it('lets the gateway (service_role) read the table and nobody else', async () => {
+    const { readFileSync } = await import('node:fs');
+    const sql = readFileSync(new URL('../supabase/shared/0013_llm_app_anon.sql', import.meta.url), 'utf8');
+    expect(sql).toContain('grant select on platform.llm_app_anon to service_role;');
+    expect(sql).toContain('revoke all on platform.llm_app_anon from public, anon, authenticated;');
+    expect(sql).toContain('enable row level security');
+  });
+});

@@ -1300,6 +1300,13 @@ async function accountDeletionTest() {
 /** The stand-in sign-in for an app's visitors who are not signed in. */
 export const anonEmail = (slug) => `visitors+${slug}@hintwise.org`;
 
+/**
+ * The stand-in never signs in: banned from interactive sign-in (magic links,
+ * Google) for about 100 years. The gateway never uses its JWT, so the ban
+ * does not affect anonymous calls (security review, 15 Nov).
+ */
+export const STAND_IN_BAN = '876000h';
+
 /** Pure: the SQL that switches anonymous use on for an app (validated inputs only). */
 export function anonSetupSql(slug, userId, keySha256) {
   if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) throw new Error('anon-setup: bad slug');
@@ -1332,13 +1339,20 @@ async function anonSetup(slug) {
   if (!uid) {
     const base = (url || `https://${ref}.supabase.co`).replace(/\/+$/, '');
     const admin = { apikey: key, ...(key.startsWith('sb_') ? {} : { authorization: `Bearer ${key}` }), 'content-type': 'application/json' };
-    const res = await fetch(`${base}/auth/v1/admin/users`, { method: 'POST', headers: admin, body: JSON.stringify({ email, email_confirm: true, user_metadata: { stand_in_for: `${slug} visitors who are not signed in` } }) });
+    const res = await fetch(`${base}/auth/v1/admin/users`, { method: 'POST', headers: admin, body: JSON.stringify({ email, email_confirm: true, ban_duration: STAND_IN_BAN, user_metadata: { stand_in_for: `${slug} visitors who are not signed in` } }) });
     const body = await res.json().catch(() => null);
     if (res.status !== 200 || !body?.id) fail(`anon-setup: creating ${email} answered HTTP ${res.status}`);
     uid = body.id;
     console.log(`Created the stand-in sign-in ${email}.`);
   } else {
     console.log(`Reusing the stand-in sign-in ${email}.`);
+  }
+  {
+    const base = (url || `https://${ref}.supabase.co`).replace(/\/+$/, '');
+    const admin = { apikey: key, ...(key.startsWith('sb_') ? {} : { authorization: `Bearer ${key}` }), 'content-type': 'application/json' };
+    const res = await fetch(`${base}/auth/v1/admin/users/${uid}`, { method: 'PUT', headers: admin, body: JSON.stringify({ ban_duration: STAND_IN_BAN }) });
+    if (res.status !== 200) fail(`anon-setup: banning ${email} from interactive sign-in answered HTTP ${res.status}`);
+    console.log(`${email} is banned from interactive sign-in (the gateway does not need it to sign in).`);
   }
   const row = queryResult(await sql(anonSetupSql(slug, uid, hash)));
   console.log(`Anonymous use on for ${slug}: ${JSON.stringify(row)}`);

@@ -21,3 +21,6 @@ comment on table platform.llm_app_anon is 'Apps whose server may call the LLM ga
 
 alter table platform.llm_app_anon enable row level security;
 revoke all on platform.llm_app_anon from public, anon, authenticated;
+-- The gateway reads it as service_role, which skips RLS but still needs a
+-- grant (0001's blanket grant only covered the tables that existed then).
+grant select on platform.llm_app_anon to service_role;
