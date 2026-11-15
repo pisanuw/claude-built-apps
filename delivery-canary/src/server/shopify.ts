@@ -35,8 +35,10 @@ export const CANARY_NOTE = 'Test order placed by Delivery Canary to check that t
 /** The most orders read for one scan (pages of 100). */
 export const MAX_API_ORDERS = 1000;
 export const MAX_ORDER_DAYS = 60;
+/** Time that must be left before completing a canary's draft order, so Shopify's answer is heard. */
+export const MIN_COMPLETE_MS = 2500;
 
-export type ShopifyErrorCode = 'bad-domain' | 'bad-credentials' | 'not-permitted' | 'scopes' | 'not-found' | 'rate-limited' | 'timeout' | 'unreachable' | 'api' | 'not-free';
+export type ShopifyErrorCode = 'bad-domain' | 'bad-credentials' | 'not-permitted' | 'scopes' | 'not-found' | 'rate-limited' | 'timeout' | 'unreachable' | 'api' | 'not-free' | 'unknown';
 
 export class ShopifyError extends Error {
   constructor(
@@ -60,8 +62,11 @@ export function normalizeShopDomain(input: string): string {
   if (admin) s = admin[1];
   else s = s.replace(/[/?#].*$/, '');
   if (!s.includes('.')) s = `${s}.myshopify.com`;
-  return /^[a-z0-9][a-z0-9-]{0,59}\.myshopify\.com$/.test(s) ? s : '';
+  return SHOP_HOST_RE.test(s) ? s : '';
 }
+
+/** A shop's own myshopify.com host: the only kind of host the function ever calls. */
+export const SHOP_HOST_RE = /^[a-z0-9][a-z0-9-]{0,59}\.myshopify\.com$/;
 
 export const CLIENT_RE = /^[A-Za-z0-9_-]{16,128}$/;
 
@@ -105,7 +110,7 @@ function remaining(deps: ShopifyDeps): number {
 
 async function call(deps: ShopifyDeps, url: string, init: RequestInit): Promise<Response> {
   const host = new URL(url).hostname;
-  if (!/^[a-z0-9][a-z0-9-]{0,59}\.myshopify\.com$/.test(host)) throw new ShopifyError('bad-domain', 'Only myshopify.com shops can be connected.');
+  if (!SHOP_HOST_RE.test(host)) throw new ShopifyError('bad-domain', 'Only myshopify.com shops can be connected.');
   try {
     return await (deps.fetchImpl ?? fetch)(url, { ...init, redirect: 'manual', signal: AbortSignal.timeout(remaining(deps)) });
   } catch (e) {
@@ -209,20 +214,30 @@ export interface VariantHit {
   status: string;
 }
 
-/** Up to 10 variants whose product title matches the words (read_products). */
+/**
+ * Up to 10 variants of products whose title has words starting with the
+ * given ones (read_products). Searches products, not variants: a variant's
+ * own title is usually "Default Title", and Shopify's search matches word
+ * prefixes (`word*`), not a leading wildcard (code review).
+ */
 export async function searchVariants(domain: string, token: string, words: string, deps: ShopifyDeps): Promise<VariantHit[]> {
   const clean = words.replace(/[^\p{L}\p{N} ._-]/gu, ' ').trim().slice(0, 80);
-  const query = clean ? clean.split(/\s+/).map((w) => `title:*${w}*`).join(' AND ') : '';
-  const d = await graphql<{ productVariants?: { nodes?: Array<{ id?: string; displayName?: string; price?: string; product?: { status?: string } }> } }>(
+  const query = clean ? clean.split(/\s+/).map((w) => `title:${w}*`).join(' AND ') : '';
+  type Products = { products?: { nodes?: Array<{ status?: string; variants?: { nodes?: Array<{ id?: string; displayName?: string; price?: string }> } }> } };
+  const d = await graphql<Products>(
     domain,
     token,
-    'query($q: String) { productVariants(first: 10, query: $q) { nodes { id displayName price product { status } } } }',
+    'query($q: String) { products(first: 10, query: $q) { nodes { status variants(first: 5) { nodes { id displayName price } } } } }',
     { q: query || null },
     deps,
   );
-  return (d.productVariants?.nodes ?? [])
-    .filter((n) => typeof n.id === 'string' && VARIANT_RE.test(n.id))
-    .map((n) => ({ id: n.id!, title: (n.displayName ?? '').slice(0, 300), price: String(n.price ?? ''), status: String(n.product?.status ?? '').toLowerCase() }));
+  const hits: VariantHit[] = [];
+  for (const p of d.products?.nodes ?? []) {
+    for (const n of p.variants?.nodes ?? []) {
+      if (typeof n.id === 'string' && VARIANT_RE.test(n.id)) hits.push({ id: n.id, title: (n.displayName ?? '').slice(0, 300), price: String(n.price ?? ''), status: String(p.status ?? '').toLowerCase() });
+    }
+  }
+  return hits.slice(0, 10);
 }
 
 export interface CanaryPlaced {
@@ -244,7 +259,7 @@ function userErrors(errs: UserErr[] | undefined, what: string): void {
 
 const DRAFT_CREATE = `mutation($input: DraftOrderInput!) {
   draftOrderCreate(input: $input) {
-    draftOrder { id name totalPriceSet { shopMoney { amount } } lineItems(first: 1) { nodes { name } } }
+    draftOrder { id name totalPriceSet { shopMoney { amount } } lineItems(first: 1) { nodes { name requiresShipping } } }
     userErrors { field message }
   }
 }`;
@@ -258,13 +273,13 @@ const DRAFT_COMPLETE = `mutation($id: ID!) {
 
 /**
  * Places the canary: a draft order for one of the variant, 100% off, to the
- * seed address, tagged; completed only when its total is zero (a product
- * with shipping or a tax setting that leaves something to pay is deleted
- * again and refused, so the canary never creates an order anyone owes).
+ * seed address, tagged; completed only when its total is zero and the item
+ * needs no shipping (otherwise the draft is deleted again and refused, so
+ * the canary never creates an order anyone owes or anything that ships).
  */
 export async function placeCanary(domain: string, token: string, variant: string, email: string, deps: ShopifyDeps): Promise<CanaryPlaced> {
   if (!VARIANT_RE.test(variant)) throw new ShopifyError('not-found', 'Pick the canary product first.');
-  type Created = { draftOrderCreate?: { draftOrder?: { id?: string; totalPriceSet?: { shopMoney?: { amount?: string } }; lineItems?: { nodes?: Array<{ name?: string }> } } | null; userErrors?: UserErr[] } };
+  type Created = { draftOrderCreate?: { draftOrder?: { id?: string; totalPriceSet?: { shopMoney?: { amount?: string } }; lineItems?: { nodes?: Array<{ name?: string; requiresShipping?: boolean | null }> } } | null; userErrors?: UserErr[] } };
   const c = await graphql<Created>(
     domain,
     token,
@@ -285,16 +300,37 @@ export async function placeCanary(domain: string, token: string, variant: string
   if (!draft?.id) throw new ShopifyError('api', 'Shopify did not make the test order.');
   const variantTitle = (draft.lineItems?.nodes?.[0]?.name ?? '').slice(0, 300);
   const total = Number(draft.totalPriceSet?.shopMoney?.amount ?? 'NaN');
-  if (!(total === 0)) {
+  const ships = draft.lineItems?.nodes?.[0]?.requiresShipping !== false;
+  if (!(total === 0) || ships) {
     try {
       await graphql(domain, token, DRAFT_DELETE, { input: { id: draft.id } }, deps);
     } catch {
       /* the refusal below matters more; a leftover draft order charges nothing */
     }
-    throw new ShopifyError('not-free', `The test order would not be free (total ${Number.isFinite(total) ? total : 'unknown'}), so it was not placed. Pick a download product with no shipping, or check that taxes and shipping do not apply to it.`);
+    // A product that ships would go out as a real free order (security review): only downloads are canaries.
+    if (ships) throw new ShopifyError('not-free', 'This product needs shipping, so it was not placed: a canary must be a download product (in Shopify, untick "This is a physical product").');
+    throw new ShopifyError('not-free', `The test order would not be free (total ${Number.isFinite(total) ? total : 'unknown'}), so it was not placed. Pick a download product, or check that taxes do not apply to it.`);
   }
   type Completed = { draftOrderComplete?: { draftOrder?: { order?: { id?: string; name?: string; createdAt?: string } | null } | null; userErrors?: UserErr[] } };
-  const done = await graphql<Completed>(domain, token, DRAFT_COMPLETE, { id: draft.id }, deps);
+  // Too little time left to hear Shopify's answer: drop the draft rather than risk an order nobody records (code review).
+  if (deps.deadline - (deps.now ?? Date.now)() < MIN_COMPLETE_MS) {
+    try {
+      await graphql(domain, token, DRAFT_DELETE, { input: { id: draft.id } }, deps);
+    } catch {
+      /* nothing was ordered either way */
+    }
+    throw new ShopifyError('timeout', 'Shopify was slow, so the test order was not placed. Try again in a minute.');
+  }
+  let done: Completed;
+  try {
+    done = await graphql<Completed>(domain, token, DRAFT_COMPLETE, { id: draft.id }, deps);
+  } catch (e) {
+    // Shopify may have made the order without our hearing about it: never report that as "not placed".
+    if (e instanceof ShopifyError && (e.code === 'timeout' || e.code === 'unreachable')) {
+      throw new ShopifyError('unknown', `Shopify did not answer in time, so the test order may have been placed. Look in Shopify for an order tagged "${CANARY_TAG}" before placing another; its email, if any, can still be found with "Look for its email now".`);
+    }
+    throw e;
+  }
   const completeErrors = done.draftOrderComplete?.userErrors;
   if (completeErrors?.length) {
     // Leave no free draft order behind when it could not be completed (code review).
@@ -394,7 +430,7 @@ export async function readOrders(domain: string, token: string, days: number, de
   let partial = false;
   for (;;) {
     type Page = { orders?: { nodes?: ApiOrder[]; pageInfo?: { hasNextPage?: boolean; endCursor?: string | null } } };
-    const page: Page = await graphql<Page>(domain, token, ORDERS_QUERY, { q: `created_at:>='${since}'`, after }, deps);
+    const page: Page = await graphql<Page>(domain, token, ORDERS_QUERY, { q: `created_at:>='${since}' -tag:${CANARY_TAG}`, after }, deps);
     for (const o of page.orders?.nodes ?? []) orders.push(toImported(o));
     const info = page.orders?.pageInfo;
     if (!info?.hasNextPage || !info.endCursor) break;

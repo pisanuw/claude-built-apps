@@ -1,4 +1,4 @@
-# Delivery Canary: handoff (day 3 of 7, 2026-11-14)
+# Delivery Canary: handoff (day 4 of 7, 2026-11-15)
 
 Rewritten at the end of every build day by the build routine
 (BUILD_ROUTINE.md). It is the only state the next day's session has, and the
@@ -59,7 +59,28 @@ Shape marks: stateful, connected, unattended, engine (PLAN.md "Shape").
   inbox check" shows the sample as found in Promotions.
   `GET /api/seed-reach` answers `{"gmailImap": true}` when the function can
   reach imap.gmail.com (greeting only; cached a minute).
-- Not live yet: milestones 4 to 7.
+- Since day 4 (deploy of 2026-11-15, see "Remaining" for the run): the
+  "Canary orders from Shopify" card. Signed in, the shop connects its own
+  Shopify app (made in the Dev Dashboard with read_orders,
+  write_draft_orders and optionally read_products) by pasting the store
+  address, client ID and client secret; `/api/shopify/connect` trades them
+  for a 24-hour Admin API token (client credentials grant; same Shopify
+  organization only), refuses missing or extra scopes, reads the shop's
+  name and keeps the secret sealed. The seed address at that moment is
+  sealed with it: canaries only ever go to that address, and changing the
+  seed inbox means pasting the secret again (security review). The owner
+  picks a download product (search, or paste a variant ID) and "Place a
+  canary order now" makes a draft order for it (100% off, tag
+  `delivery-canary`, email = the sealed seed address), deletes and refuses
+  it unless the total is 0 and the item needs no shipping, then completes
+  it. The page looks in the seed inbox (kept app password) 45 s, 90 s,
+  2.5, 4, 6 and 9 minutes after the order, only for mail after the order
+  time (`after:` in the Gmail search), records transit time and placement on
+  the canary row and runs the full check on the email. "Scan the last 30
+  days of orders from Shopify" feeds the late order scan from the Admin API
+  (no customer fields asked for; canaries excluded). Signed out, "See a
+  sample canary order" shows a result.
+- Not live yet: milestones 5 to 7.
 
 ## Milestones (docs/PLAN.md)
 
@@ -68,8 +89,8 @@ Shape marks: stateful, connected, unattended, engine (PLAN.md "Shape").
 | 1 | Delivery email check | done | 1 | code review (high) and security review run, all findings fixed |
 | 2 | Unfulfilled digital order scan | done | 2 | code review (high, 12 findings) and security review (no high/medium; 2 low) fixed |
 | 3 | Seed mailbox connection | done | 3 | code review (high, 6 real findings) and security review (1 medium, 4 low) fixed; not yet tried against a real Gmail account (open question 4) |
-| 4 | Shopify connection and canary order | next | | the shop's own Dev Dashboard app (answered 12 Nov) |
-| 5 | Schedule and alerts | | | needs open question 1; first Netlify Scheduled Function |
+| 4 | Shopify connection and canary order | done | 4 | code review (high, 10 findings) and security review (1 medium, 1 low) fixed; not yet tried against a real shop (open question 5) |
+| 5 | Schedule and alerts | next | | first Netlify Scheduled Function; app email through Resend |
 | 6 | Polish | | | |
 | 7 | Finish | | | |
 
@@ -81,11 +102,20 @@ npm run dev          # http://localhost:5173 (memory stores, no sign-in)
 PW_CHROMIUM=/opt/pw-browsers/chromium npm run e2e   # walkthrough; PW_CHROMIUM only in the cloud sandbox
 ```
 
-Tests: 301 vitest (99% statements, 95% branches), 3 Playwright walkthroughs
-(sample email; sample orders export; sample seed inbox check). The IMAP
+Tests: 467 vitest (99% statements, 95% branches), 4 Playwright walkthroughs
+(sample email; sample orders export; sample seed inbox check; sample canary).
+The Shopify client runs against a scripted Admin API (`test/shopify-fake.ts`:
+token endpoint, products, draft orders, orders paging). Test fixtures must
+never look like real Shopify secrets (`shpss_`/`shpat_` prefixes): GitHub
+push protection rejects the push (day 4). The IMAP
 client and Gmail logic run against a scripted Gmail session
 (`test/gmail-fake.ts`); this sandbox cannot open IMAP connections, so the
 live path is unproven until a real seed account is checked.
+Migrations 0001 to 0004 were applied twice (idempotent) to a throwaway
+local Postgres 16 with an auth stub on day 4, and the shop_connections
+grants, both definer functions, the canary limits (5 a day not counting
+refused ones; none while one is placing or unknown; PT409/PT429) and the
+shopify_calls limit exercised as two users and anon.
 Migration 0003 was also applied to a throwaway local Postgres 16 with a
 Supabase-like auth stub (roles anon/authenticated, auth.uid()) and its
 grants, definer functions and both rate limits exercised (day 3).
@@ -95,6 +125,7 @@ Live checks:
 - `curl -s https://delivery-canary.hintwise.org/api/seed-reach` prints `{"gmailImap":true}`;
 - `curl -s -X POST https://delivery-canary.hintwise.org/api/seed-check -d '{}'` answers 401;
 - `curl -s -X POST https://delivery-canary.hintwise.org/api/link-check -d '{"url":"https://example.com"}'` answers 401 (sign-in required).
+- `curl -s -X POST https://delivery-canary.hintwise.org/api/shopify/connect -d '{}'` answers 401.
 
 ## Platform use
 
@@ -135,9 +166,30 @@ Live checks:
   when "Keep" is ticked, the key exists and Gmail accepted the sign-in.
   Only 16-letter app passwords are sent; every refused sign-in is one
   outcome (`login-failed`) with all the hints.
+  Migration `0004_shopify_canary.sql` (day 4): `shop_connections` (one per
+  shop: myshopify domain, client ID, scopes, shop name, `canary_email`,
+  sealed `secret`; column SELECT without `secret`, DELETE; writes only
+  through definer `shop_connection_save(shop, domain, client_id, secret,
+  scopes, shop_name, canary_email)`; the function reads it through definer
+  `shop_connection_secret(shop)`), `shopify_calls` (rate-limit log: 60 Admin
+  API requests an hour per user), `canary_orders` (variant, status placing |
+  placed | failed | unknown | arrived | no-email, order id and name, placed
+  and arrived times, transit seconds, placement, seed_where, check_id,
+  error; inserted by the function, insert trigger resets the outcome
+  fields, 5 a day per user not counting failed, none while the shop's last
+  is placing or unknown and under 10 minutes old (PT409), 500 kept; the
+  page updates status and outcome columns only).
+- Functions `POST /api/shopify/{connect,products,orders,canary}`
+  (`src/server/shopapi.ts`, client in `shopify.ts`): Admin API 2026-10,
+  only `<name>.myshopify.com` hosts, token fetched per request (never
+  kept), 8.5 s budget; the canary keeps 800 ms to record its result and
+  needs 2.5 s left before completing the draft; a timeout while completing
+  is recorded as "unknown", never "not placed".
 - Sign-in: Google and email link (template panel, `sign-in-link`); the app
   host was added to `platform/src/signin/app-hosts.ts` in 80c3150.
-- LLM: none. Email: none yet (milestone 5). Files: none (the orders CSV is
+- LLM: none. Email: none yet (milestone 5).
+- Shopify: the shop's own Dev Dashboard app; no HintWise Partner account,
+  no Shopify secret of ours. Files: none (the orders CSV is
   read in the browser and never uploaded).
 - Env names (values never here): VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY;
   DELIVERY_CANARY_KEY (repository secret, target.yml envPassthrough, the
@@ -200,6 +252,28 @@ Live checks:
 - 2026-11-14 (code review): the Spam search adds `in:spam` (Gmail's search
   skips Spam otherwise, even in the Spam folder).
 
+- 2026-11-15: the client credentials grant (Shopify's route since legacy
+  custom apps ended on 1 Jan 2026): the shop pastes client ID and secret;
+  tokens last 24 hours, so the function fetches one per request and keeps
+  none. Shopify's own-organization custom apps get protected customer data
+  access by default; the app still never asks for customer fields.
+- 2026-11-15: connecting refuses an app with scopes beyond read_orders,
+  write_draft_orders, read_products (and the implied read_draft_orders), so
+  a leaked secret could do no more than this app does.
+- 2026-11-15 (security review): the canary's address is sealed with the
+  client secret at connect time; a stolen session could otherwise point the
+  seed inbox at its own mailbox and receive free downloads. Canary items
+  must need no shipping, not just cost 0.
+- 2026-11-15 (code review): a canary whose completion timed out is
+  "unknown" (the order may exist), blocks another canary for 10 minutes,
+  and the page tells the owner to look in Shopify; refused canaries do not
+  count against the 5 a day; the orders scan leaves out canaries; product
+  search uses the products query with `title:word*` (variant titles are
+  usually "Default Title"); every seed look gets a fresh session token.
+- 2026-11-15: the page, not the server, waits for the email: a function
+  has 10 seconds, the wait is up to 9 minutes. The scheduled run
+  (milestone 5) will do the same looks from a scheduled function.
+
 ## Tried and rejected
 
 - Counting recent link tests, then inserting (two HTTP calls): racy under
@@ -215,12 +289,27 @@ Live checks:
 - Distinct outcomes for "app password required" and "sign in through the
   browser": Gmail sends them only for a right normal password, so they made
   the check a password oracle (security review).
+- `productVariants(query: "title:*word*")` for product search: matches the
+  variant's own title ("Default Title") and Shopify has no leading
+  wildcard, so it found nothing (code review).
+- Using the seed inbox's current address for canaries: a session alone
+  could change it (security review).
 - Gmail API for the seed mailbox: gmail.readonly is a restricted scope
   needing Google verification on the shared HintWise client, a shared
   setting; IMAP with an app password on the shop's own seed account is
   planned instead (open question 3).
 
 ## Open questions for the owner
+
+5. (day 4) The Shopify connection and canary are tested against a scripted
+   Admin API only. Recommendation: when convenient, in a development store
+   of the same Shopify organization, create the Dev Dashboard app (steps in
+   the card's "How to connect"), connect it, set a cheap download product
+   as the canary and place one; tell the build session what the card says.
+   Default: milestone 5 goes ahead and the first real report is treated as a
+   bug to fix. (One risk to confirm: whether the shop's delivery app sends
+   its email for orders made from draft orders; the card says so when no
+   email arrives.)
 
 4. (day 3) The seed inbox check is tested against a scripted Gmail session
    only; this build sandbox cannot open IMAP connections. Recommendation:
@@ -264,12 +353,20 @@ mailbox: IMAP with a Google app password.
 
 ## Remaining and known issues
 
-- Milestones 4 to 7 (PLAN.md). Milestone 4 next: Shopify connection with
-  the shop's own Dev Dashboard app (read_orders, write_draft_orders),
-  credentials sealed like the app password (secretbox.ts; add a sealed
-  column or table in migration 0004), canary draft order to the seed
-  address, then the seed check waits for the email. Check Shopify's
-  current custom-app steps first (PLAN.md risks).
+- Milestones 5 to 7 (PLAN.md). Milestone 5 next: a Netlify Scheduled
+  Function (first use with this deploy runner: check the runner bundles and
+  registers it) that, for each shop with a schedule, places the canary and
+  looks for its email, then mails a digest and an instant alert through
+  Resend (sender delivery-canary@hintwise.org, opt-in, unsubscribe link,
+  per-user and per-day caps). The scheduled job has no user token: it
+  needs a signed call to definer functions (key-derived HMAC), as open
+  question 1 planned, or a platform-provided way; check docs/platform.md
+  and the app-notify platform function (seen in main's log on 15 Nov)
+  first, and ask the owner before anything that needs the service-role key.
+- Canary known limits: completion timeouts leave status "unknown" with no
+  automatic lookup by tag (the owner looks in Shopify); the page must stay
+  open for the 9-minute wait (or use "Look for its email now" later);
+  variant search shows up to 5 variants of 10 products.
 - Deploy run 181 (day 3): migration 0003 applied, check-schema passed with
   two advisor warnings by design ("Signed-In Users Can Execute SECURITY
   DEFINER Function" for seed_inbox_save and seed_inbox_secret: both check
@@ -314,9 +411,13 @@ mailbox: IMAP with a Google app password.
   client), `seed.ts` (Gmail seed check), `secretbox.ts` (sealing, address
   tag); `src/core/seedwhere.ts`; `src/ui/seed.ts` (the card),
   `seedclient.ts`; `test/gmail-fake.ts` (scripted Gmail).
+- `src/server/shopify.ts` (Admin API client: token, scopes, products,
+  canary draft order, orders), `shopapi.ts` (routes); `src/core/canary.ts`
+  (variant IDs, wait schedule, transit text); `src/ui/shopify.ts` (the
+  card), `shopclient.ts`; `test/shopify-fake.ts` (scripted Admin API).
 - `src/ui/app.ts` (the page), `report.ts`, `linkclient.ts`, `dom.ts`;
   `src/store/stores.ts` (shops, checks with summaries).
-- `supabase/migrations/0001_init.sql`, `0002_order_scans.sql`, `0003_seed_inbox.sql`; `deploy/target.yml`;
+- `supabase/migrations/0001_init.sql`, `0002_order_scans.sql`, `0003_seed_inbox.sql`, `0004_shopify_canary.sql`; `deploy/target.yml`;
   `e2e/walkthrough.spec.ts`.
 
 ## Log
@@ -332,3 +433,8 @@ mailbox: IMAP with a Google app password.
   Gmail placement, sealed app password, migration 0003, reachability probe);
   code review (6) and security review (1 medium, 4 low) fixed; deployed
   (run 181).
+- Day 4 (2026-11-15): milestone 4, canary orders from Shopify (the shop's
+  own Dev Dashboard app, client credentials grant, sealed secret and canary
+  address, free tagged draft order, timed seed inbox looks, orders from the
+  Admin API, migration 0004); code review (10) and security review (1
+  medium, 1 low) fixed; deployed.

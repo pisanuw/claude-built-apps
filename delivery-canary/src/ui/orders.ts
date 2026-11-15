@@ -162,7 +162,7 @@ function defaultDownload(name: string, text: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-export function mountOrders(deps: OrdersDeps): { el: HTMLElement; refresh: () => Promise<void>; reset: () => void; runImport: (imp: ImportResult, label: string) => Promise<void> } {
+export function mountOrders(deps: OrdersDeps): { el: HTMLElement; refresh: () => Promise<void>; reset: () => void; runImport: (imp: ImportResult, label: string) => Promise<boolean> } {
   const digest = deps.digest ?? ((d: ArrayBuffer) => crypto.subtle.digest('SHA-256', d));
   const download = deps.download ?? defaultDownload;
   let busy = false;
@@ -392,8 +392,8 @@ export function mountOrders(deps: OrdersDeps): { el: HTMLElement; refresh: () =>
   }
 
   /** Scans orders read from Shopify's Admin API (the Shopify card); the same orders again update their scan. */
-  async function runImport(imp: ImportResult, label: string): Promise<void> {
-    if (busy) return;
+  async function runImport(imp: ImportResult, label: string): Promise<boolean> {
+    if (busy) return false;
     busy = true;
     scanBtn.disabled = true;
     sampleBtn.disabled = true;
@@ -403,9 +403,10 @@ export function mountOrders(deps: OrdersDeps): { el: HTMLElement; refresh: () =>
         sha = hex(await digest(new TextEncoder().encode(JSON.stringify(imp.orders)).buffer as ArrayBuffer));
       } catch {
         say('This browser could not fingerprint the orders (it needs a secure https page). Reload the page and try again.');
-        return;
+        return true;
       }
       await scan(imp, sha, label, null);
+      return true;
     } finally {
       busy = false;
       scanBtn.disabled = false;

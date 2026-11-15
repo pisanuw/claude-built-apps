@@ -241,6 +241,8 @@ export interface ShopConnectionRow {
   /** Granted scopes, comma separated. */
   scopes: string;
   shop_name: string;
+  /** The seed address canaries go to, fixed when the shop was connected ('' when none was set up then). */
+  canary_email: string;
   updated_at: string;
 }
 
@@ -250,7 +252,7 @@ export interface ConnectionStore {
   remove(shopId: string): Promise<void>;
 }
 
-const CONNECTION_COLUMNS = 'shop_id, shop_domain, client_id, scopes, shop_name, updated_at';
+const CONNECTION_COLUMNS = 'shop_id, shop_domain, client_id, scopes, shop_name, canary_email, updated_at';
 
 export class MemoryConnectionStore implements ConnectionStore {
   readonly rows = new Map<string, ShopConnectionRow>();
@@ -275,7 +277,7 @@ export class SupabaseConnectionStore implements ConnectionStore {
   }
 }
 
-export type CanaryStatus = 'placing' | 'placed' | 'failed' | 'arrived' | 'no-email';
+export type CanaryStatus = 'placing' | 'placed' | 'failed' | 'unknown' | 'arrived' | 'no-email';
 
 /** One canary order placed in the shop for the seed inbox, and what became of its email. */
 export interface CanaryRow {

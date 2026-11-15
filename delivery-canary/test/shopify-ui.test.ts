@@ -57,7 +57,7 @@ function setup(o: Opts = {}) {
   const shops = new InMemoryRepository<ShopRow>();
   const stores: Stores = { shops, checks: new MemoryCheckStore(), scans: new MemoryScanStore(), seeds, connections, canaries, saved: o.saved ?? true };
   if (o.saved !== false) void shops.put(SHOP);
-  if (o.connected) connections.rows.set(SHOP.id, { shop_id: SHOP.id, shop_domain: 'juniper-stitch.myshopify.com', client_id: 'a'.repeat(32), scopes: 'read_orders,read_products,write_draft_orders', shop_name: 'Juniper Stitch', updated_at: '2026-11-15T09:00:00Z' });
+  if (o.connected) connections.rows.set(SHOP.id, { shop_id: SHOP.id, shop_domain: 'juniper-stitch.myshopify.com', client_id: 'a'.repeat(32), scopes: 'read_orders,read_products,write_draft_orders', shop_name: 'Juniper Stitch', canary_email: o.seed && o.seed !== 'none' ? 'canary@gmail.com' : '', updated_at: '2026-11-15T09:00:00Z' });
   if (o.seed && o.seed !== 'none') {
     seeds.rows.set(SHOP.id, { shop_id: SHOP.id, address: 'canary@gmail.com', sender: 'hello@juniperstitch.example', subject_hint: '', has_secret: o.seed === 'kept', last_checked_at: null, last_outcome: null });
   }
@@ -66,8 +66,8 @@ function setup(o: Opts = {}) {
   const base: ShopClient = {
     connect: async (req) => {
       calls.push({ action: 'connect', req });
-      connections.rows.set(SHOP.id, { shop_id: SHOP.id, shop_domain: 'juniper-stitch.myshopify.com', client_id: req.clientId, scopes: 'read_orders,write_draft_orders', shop_name: 'Juniper Stitch', updated_at: '2026-11-15T10:00:00Z' });
-      return { shopName: 'Juniper Stitch', domain: 'juniper-stitch.myshopify.com', scopes: ['read_orders', 'write_draft_orders'], products: false };
+      connections.rows.set(SHOP.id, { shop_id: SHOP.id, shop_domain: 'juniper-stitch.myshopify.com', client_id: req.clientId, scopes: 'read_orders,write_draft_orders', shop_name: 'Juniper Stitch', canary_email: seeds.rows.get(SHOP.id)?.address ?? '', updated_at: '2026-11-15T10:00:00Z' });
+      return { shopName: 'Juniper Stitch', domain: 'juniper-stitch.myshopify.com', scopes: ['read_orders', 'write_draft_orders'], products: false, canaryEmail: seeds.rows.get(SHOP.id)?.address ?? '' };
     },
     products: async (req) => {
       calls.push({ action: 'products', req });
@@ -124,7 +124,7 @@ function setup(o: Opts = {}) {
     shopify: client,
     sleep,
   };
-  mountApp(root, deps);
+  const app = mountApp(root, deps);
   const $ = <T extends Element = HTMLElement>(sel: string) => root.querySelector(sel) as unknown as T;
   return {
     root,
@@ -134,6 +134,10 @@ function setup(o: Opts = {}) {
     connections,
     calls,
     seedRequests,
+    refreshShopify: async () => {
+      await app.refresh();
+      await tick();
+    },
     release: () => {
       for (const r of sleeping.splice(0)) r();
     },
@@ -168,6 +172,9 @@ describe('core canary helpers', () => {
     expect(canaryText({ ...r, status: 'placed', error: '' })).toMatch(/not been found yet/);
     expect(canaryText({ ...r, status: 'placed', error: 'the check failed' })).toBe('Placed; the check failed');
     expect(canaryText({ ...r, status: 'placing' })).toMatch(/Being placed/);
+    expect(canaryText({ ...r, transit_seconds: null })).toBe('Email arrived in the Promotions tab; its arrival time could not be read.');
+    expect(canaryText({ ...r, status: 'unknown', error: '' })).toMatch(/did not answer in time/);
+    expect(canaryText({ ...r, status: 'unknown', error: 'maybe' })).toBe('maybe');
   });
 });
 
@@ -208,7 +215,7 @@ describe('Shopify card, signed in', () => {
     submit();
     await tick();
     expect(t.calls[0]).toEqual({ action: 'connect', req: { shopId: SHOP.id, domain: 'juniper-stitch', clientId: 'a'.repeat(32), clientSecret: 'fakesecret_secret_secret_secret' } });
-    expect(t.$('#shopify-status').textContent).toMatch(/Connected to Juniper Stitch\. The app cannot read products/);
+    expect(t.$('#shopify-status').textContent).toMatch(/Connected to Juniper Stitch\. Set up the seed inbox, then connect again, before placing canaries\. The app cannot read products/);
     expect(t.$<HTMLInputElement>('#shopify-client-secret').value).toBe('');
     expect(t.$('#shopify-form').hidden).toBe(true);
     expect(t.$('#shopify-connected-box').hidden).toBe(false);
@@ -424,6 +431,57 @@ describe('Shopify card, signed in', () => {
     expect(t.$('#shopify-form').hidden).toBe(false);
   });
 
+  it('asks to connect again when the seed address changed since connecting', async () => {
+    const t = setup({ connected: true, seed: 'kept' });
+    const row = t.connections.rows.get(SHOP.id)!;
+    row.canary_email = 'old.canary@gmail.com';
+    await tick();
+    expect(t.$('#canary-seed-need').textContent).toMatch(/Canaries go to old\.canary@gmail\.com.*To send them to canary@gmail\.com, connect the shop again/);
+    expect(t.$<HTMLButtonElement>('#canary-place').disabled).toBe(true);
+    expect(t.$('#shopify-form').hidden).toBe(false);
+    expect(t.$<HTMLInputElement>('#shopify-domain').value).toBe('juniper-stitch.myshopify.com');
+    expect(t.$<HTMLInputElement>('#shopify-client-id').value).toBe('a'.repeat(32));
+    row.canary_email = '';
+    t.$('#shopify-disconnect').click();
+    await tick();
+    t.connections.rows.set(SHOP.id, { ...row, canary_email: '' });
+    await t.refreshShopify();
+    expect(t.$('#canary-seed-need').textContent).toMatch(/set up after you connected/);
+    t.$<HTMLInputElement>('#shopify-client-secret').value = 'b'.repeat(32);
+    t.$<HTMLFormElement>('#shopify-form').dispatchEvent(new Event('submit', { cancelable: true }));
+    await tick();
+    expect(t.$('#shopify-status').textContent).toMatch(/Canaries will go to canary@gmail\.com/);
+    expect(t.$('#canary-seed-need').textContent).toBe('');
+    expect(t.$('#shopify-form').hidden).toBe(true);
+  });
+
+  it('a typed variant ID wins over the product chosen before', async () => {
+    const t = setup({ connected: true, seed: 'kept', seedCheck: async () => ({ found: true, where: 'primary', placement: 'inbox', receivedAt: '', labels: [], truncated: false, raw: rawBuffer(), kept: true, saved: true }) });
+    t.canaries.add({ id: 'c0', shop_id: SHOP.id, created_at: '2026-11-14T10:00:00Z', variant_id: 'gid://shopify/ProductVariant/42', variant_title: 'Old canary', status: 'arrived', order_name: '#1000', placed_at: '2026-11-14T10:00:00Z', arrived_at: null, transit_seconds: 30, placement: 'inbox', seed_where: 'primary', check_id: null, error: '' });
+    await tick();
+    expect(t.$('#canary-chosen').textContent).toBe('Canary product: Old canary');
+    t.setClock(Date.parse(PLACED) + 60 * 60_000);
+    t.$<HTMLInputElement>('#canary-product').value = '77';
+    t.$('#canary-product').dispatchEvent(new Event('input'));
+    expect(t.$('#canary-chosen').textContent).toBe('');
+    t.$('#canary-place').click();
+    await tick(200);
+    expect(t.calls[0]).toMatchObject({ action: 'canary', req: { variantId: 'gid://shopify/ProductVariant/77' } });
+    // Found, but with no readable arrival time: arrived, time unknown, never a green pass.
+    const row = t.canaries.rows.find((r) => r.id !== 'c0')!;
+    expect(row).toMatchObject({ status: 'arrived', transit_seconds: null });
+    expect(t.$(`[data-canary="${row.id}"]`).className).toBe('canary-warn');
+  });
+
+  it('says when the late orders card is busy', async () => {
+    const t = setup({ connected: true, seed: 'kept' });
+    await tick();
+    t.$('#run-sample-scan').click();
+    t.$('#shopify-scan').click();
+    await tick(120);
+    expect(t.$('#shopify-status').textContent).toMatch(/the late orders card is busy with another scan/);
+  });
+
   it('says when the connection cannot be loaded', async () => {
     const t = setup({ connected: true });
     t.connections.get = async () => {
@@ -444,7 +502,7 @@ describe('shop client', () => {
       return new Response(JSON.stringify({ connected: true, shopName: 'J', domain: 'j.myshopify.com', scopes: ['read_orders', 7], products: true }));
     }) as unknown as typeof fetch;
     const c = await shopClient({ fetchImpl, apiBase: 'https://x.test' }).connect({ shopId: 's', domain: 'j', clientId: 'c', clientSecret: 'k' }, 'tok');
-    expect(c).toEqual({ shopName: 'J', domain: 'j.myshopify.com', scopes: ['read_orders'], products: true });
+    expect(c).toEqual({ shopName: 'J', domain: 'j.myshopify.com', scopes: ['read_orders'], products: true, canaryEmail: '' });
     expect(seen!.url).toBe('https://x.test/api/shopify/connect');
     expect((seen!.init?.headers as Record<string, string>).authorization).toBe('Bearer tok');
     await expect(shopifyCall('orders', {}, 't', { fetchImpl: ok({ error: 'Nope.', outcome: 'scopes' }, 422) })).rejects.toMatchObject({ message: 'Nope.', outcome: 'scopes', status: 422 });
@@ -455,7 +513,8 @@ describe('shop client', () => {
 
   it('validates every answer', async () => {
     expect(() => parseConnected({})).toThrow(ShopifyCallFailed);
-    expect(parseConnected({ connected: true, domain: 'd' })).toEqual({ shopName: '', domain: 'd', scopes: [], products: false });
+    expect(parseConnected({ connected: true, domain: 'd' })).toEqual({ shopName: '', domain: 'd', scopes: [], products: false, canaryEmail: '' });
+    expect(parseConnected({ connected: true, domain: 'd', canaryEmail: 'c@gmail.com' }).canaryEmail).toBe('c@gmail.com');
     expect(() => parseVariants({})).toThrow(ShopifyCallFailed);
     expect(parseVariants({ variants: [null, { id: 'gid://shopify/ProductVariant/1', title: 'T', price: '1.00', status: 'active' }, { title: 'no id' }] })).toEqual([{ id: 'gid://shopify/ProductVariant/1', title: 'T', price: '1.00', status: 'active' }]);
     expect(() => parseOrders({})).toThrow(ShopifyCallFailed);

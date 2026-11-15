@@ -32,7 +32,7 @@ export interface ShopifyCardDeps {
   /** The sample email as the canary would find it (signed out). */
   runSample: () => Promise<string | null>;
   /** Scans orders read from Shopify in the late orders card. */
-  scanOrders: (imp: ImportResult, label: string) => Promise<void>;
+  scanOrders: (imp: ImportResult, label: string) => Promise<boolean>;
   /** The seed inbox card's state changed (a check ran from here). */
   seedChanged?: () => Promise<void>;
   now: () => Date;
@@ -43,16 +43,19 @@ export const STATUS_TEXT: Record<CanaryRow['status'], string> = {
   placing: 'being placed',
   placed: 'placed, email not found yet',
   failed: 'not placed',
+  unknown: 'may have been placed',
   arrived: 'email arrived',
   'no-email': 'no email arrived',
 };
 
 /** One line on what became of a canary. */
 export function canaryText(r: CanaryRow): string {
+  const where = r.seed_where ? WHERE_TEXT[r.seed_where] : 'the seed inbox';
+  if (r.status === 'arrived' && r.transit_seconds === null) return `Email arrived in ${where}; its arrival time could not be read.`;
   if (r.status === 'arrived' && r.transit_seconds !== null) {
-    const where = r.seed_where ? WHERE_TEXT[r.seed_where] : 'the seed inbox';
     return `Email arrived after ${transitText(r.transit_seconds)}, in ${where}.${r.transit_seconds > SLOW_TRANSIT_S ? ' Slow: buyers usually expect it within a few minutes.' : ''}`;
   }
+  if (r.status === 'unknown') return r.error || 'Shopify did not answer in time: look for the order in Shopify.';
   if (r.status === 'failed') return `Not placed: ${r.error || 'Shopify refused the order.'}`;
   if (r.status === 'no-email') return r.error || 'No download email arrived in the seed inbox.';
   if (r.status === 'placed') return r.error ? `Placed; ${r.error}` : 'Placed; its email has not been found yet.';
@@ -166,9 +169,19 @@ export function mountShopify(deps: ShopifyCardDeps): { el: HTMLElement; refresh:
     chosenLine.textContent = c ? `Canary product: ${c.title || c.id}` : '';
   }
 
+  /** The connection's canary address no longer matches the seed inbox: only pasting the secret again can change it. */
+  function needsReconnect(): boolean {
+    return !!conn && !!seedRow && conn.canary_email !== seedRow.address.toLowerCase();
+  }
+
   function seedProblem(): string {
     if (!seedRow) return 'Set up the seed inbox first (the card above): the canary order goes to that address.';
     if (!seedRow.has_secret) return 'In the seed inbox card, tick "Keep the app password" and check once: the canary needs it to look for the email while you wait.';
+    if (needsReconnect()) {
+      return conn?.canary_email
+        ? `Canaries go to ${conn.canary_email}, the seed address when you connected the shop. To send them to ${seedRow.address}, connect the shop again below (paste the client secret): this keeps anyone who gets into your account from redirecting free orders.`
+        : 'The seed inbox was set up after you connected the shop. Connect the shop again below (paste the client secret) so canaries can go to it.';
+    }
     return '';
   }
 
@@ -176,7 +189,11 @@ export function mountShopify(deps: ShopifyCardDeps): { el: HTMLElement; refresh:
     const on = signedIn() && deps.client !== null;
     signedOutNote.hidden = on;
     sampleBtn.hidden = on;
-    connectForm.hidden = !on || !!conn;
+    connectForm.hidden = !on || (!!conn && !needsReconnect());
+    if (conn && needsReconnect()) {
+      if (!domain.value) domain.value = conn.shop_domain;
+      if (!clientId.value) clientId.value = conn.client_id;
+    }
     connectedBox.hidden = !on || !conn;
     if (conn) {
       const scopes = conn.scopes.split(',').filter(Boolean);
@@ -198,7 +215,7 @@ export function mountShopify(deps: ShopifyCardDeps): { el: HTMLElement; refresh:
     }
     const ul = h('ul', { class: 'history-list canaries' });
     for (const r of rows) {
-      const tone = r.status === 'arrived' ? (r.placement === 'inbox' && (r.transit_seconds ?? 0) <= SLOW_TRANSIT_S ? 'pass' : 'warn') : r.status === 'failed' || r.status === 'no-email' ? 'fail' : 'info';
+      const tone = r.status === 'arrived' ? (r.placement === 'inbox' && r.transit_seconds !== null && r.transit_seconds <= SLOW_TRANSIT_S ? 'pass' : 'warn') : r.status === 'failed' || r.status === 'no-email' ? 'fail' : 'info';
       const li = h(
         'li',
         { 'data-canary': r.id, class: `canary-${tone}` },
@@ -306,7 +323,7 @@ export function mountShopify(deps: ShopifyCardDeps): { el: HTMLElement; refresh:
       say(`Connecting to ${req.domain}…`);
       const c = await deps.client.connect({ ...req, shopId: shop.id }, token);
       clientSecret.value = '';
-      say(`Connected to ${c.shopName || c.domain}.${c.products ? '' : ' The app cannot read products, so paste the canary product\'s variant ID.'}`);
+      say(`Connected to ${c.shopName || c.domain}.${c.canaryEmail ? ` Canaries will go to ${c.canaryEmail}.` : ' Set up the seed inbox, then connect again, before placing canaries.'}${c.products ? '' : ' The app cannot read products, so paste the canary product\'s variant ID.'}`);
       await refresh();
       product.focus();
     } catch (e) {
@@ -360,8 +377,11 @@ export function mountShopify(deps: ShopifyCardDeps): { el: HTMLElement; refresh:
   }
 
   /** One look in the seed inbox for the canary's email; true when found (and recorded). */
-  async function look(r: { id: string; placed_at: string }, token: string): Promise<boolean | 'stop'> {
+  async function look(r: { id: string; placed_at: string }): Promise<boolean | 'stop'> {
     if (!seedRow) return 'stop';
+    // A fresh token for every look: the wait outlasts a session token's refresh (code review).
+    const token = await withToken();
+    if (!token) return 'stop';
     const shop = deps.shop();
     if (!shop) return 'stop';
     let res: SeedResponse;
@@ -403,7 +423,7 @@ export function mountShopify(deps: ShopifyCardDeps): { el: HTMLElement; refresh:
       const token = await withToken();
       if (!token) return;
       say(`Looking for the email of ${r.order_name || 'the canary'}…`);
-      const got = await look({ id: r.id, placed_at: r.placed_at }, token);
+      const got = await look({ id: r.id, placed_at: r.placed_at });
       if (got === false) say(`No email from ${seedRow?.sender ?? 'the sender'} since the canary was placed.`);
       await deps.seedChanged?.();
     } finally {
@@ -420,7 +440,9 @@ export function mountShopify(deps: ShopifyCardDeps): { el: HTMLElement; refresh:
       say(need);
       return;
     }
-    const pick = chosen ?? (variantId(product.value) ? { id: variantId(product.value), title: '' } : null);
+    // A variant ID typed in the box wins over the product chosen earlier (code review).
+    const typed = variantId(product.value);
+    const pick = typed && typed !== chosen?.id ? { id: typed, title: '' } : chosen;
     if (!pick) {
       say('Pick the canary product first: search for it, or paste its variant ID.');
       product.focus();
@@ -452,7 +474,7 @@ export function mountShopify(deps: ShopifyCardDeps): { el: HTMLElement; refresh:
           say(`Stopped waiting. ${placed.orderName} stays in the list: use "Look for its email now" later.`);
           return;
         }
-        const got = await look({ id: placed.canaryId, placed_at: placed.placedAt }, token);
+        const got = await look({ id: placed.canaryId, placed_at: placed.placedAt });
         if (got === true || got === 'stop') return;
       }
       say(NO_EMAIL_TEXT);
@@ -479,9 +501,10 @@ export function mountShopify(deps: ShopifyCardDeps): { el: HTMLElement; refresh:
       const shop = await deps.ensureShop();
       say('Reading the last 30 days of orders from Shopify…');
       const imp = await deps.client.orders({ shopId: shop.id, days: 30 }, token);
-      say(`Read ${imp.orders.length} order${imp.orders.length === 1 ? '' : 's'} from Shopify${imp.partial ? ' (the newest only: the shop has more than one request can read)' : ''}. The scan is in the late orders card.`);
       busy = false;
-      await deps.scanOrders(imp, `Shopify, last ${imp.days} days`);
+      const scanned = await deps.scanOrders(imp, `Shopify, last ${imp.days} days`);
+      const read = `Read ${imp.orders.length} order${imp.orders.length === 1 ? '' : 's'} from Shopify${imp.partial ? ' (the newest only: the shop has more than one request can read)' : ''}`;
+      say(scanned ? `${read}. The scan is in the late orders card.` : `${read}, but the late orders card is busy with another scan. Try again when it finishes.`);
     } catch (e) {
       say(failText(e, 'read the orders'));
     } finally {
@@ -531,6 +554,9 @@ export function mountShopify(deps: ShopifyCardDeps): { el: HTMLElement; refresh:
     void connect();
   });
   findBtn.addEventListener('click', () => void find());
+  product.addEventListener('input', () => {
+    if (chosen && product.value.trim()) setChosen(null);
+  });
   product.addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter') {
       ev.preventDefault();

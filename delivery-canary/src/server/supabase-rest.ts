@@ -102,6 +102,8 @@ export interface StoredConnection {
   clientId: string;
   /** Sealed client secret. */
   secret: string;
+  /** The seed address canaries may go to, fixed when the shop was connected; '' for none. */
+  canaryEmail: string;
 }
 
 /** The connection of one of the caller's shops with its sealed secret, or null. */
@@ -113,9 +115,9 @@ export async function shopConnection(cfg: RestConfig, token: string, shopId: str
   });
   if (!res.ok) throw new Error(`shop_connection_secret ${res.status}`);
   const data = (await res.json()) as unknown;
-  const row = (Array.isArray(data) ? data[0] : data) as { shop_domain?: unknown; client_id?: unknown; secret?: unknown } | null | undefined;
+  const row = (Array.isArray(data) ? data[0] : data) as { shop_domain?: unknown; client_id?: unknown; secret?: unknown; canary_email?: unknown } | null | undefined;
   if (!row || typeof row.shop_domain !== 'string' || typeof row.client_id !== 'string' || typeof row.secret !== 'string') return null;
-  return { domain: row.shop_domain, clientId: row.client_id, secret: row.secret };
+  return { domain: row.shop_domain, clientId: row.client_id, secret: row.secret, canaryEmail: typeof row.canary_email === 'string' ? row.canary_email : '' };
 }
 
 export interface ConnectionSave {
@@ -125,13 +127,14 @@ export interface ConnectionSave {
   secret: string;
   scopes: string;
   shopName: string;
+  canaryEmail: string;
 }
 
 export async function saveShopConnection(cfg: RestConfig, token: string, s: ConnectionSave): Promise<boolean> {
   const res = await (cfg.fetchImpl ?? fetch)(`${base(cfg)}/rest/v1/rpc/shop_connection_save`, {
     method: 'POST',
     headers: rpcHeaders(cfg, token),
-    body: JSON.stringify({ p_shop: s.shopId, p_domain: s.domain, p_client_id: s.clientId, p_secret: s.secret, p_scopes: s.scopes, p_shop_name: s.shopName }),
+    body: JSON.stringify({ p_shop: s.shopId, p_domain: s.domain, p_client_id: s.clientId, p_secret: s.secret, p_scopes: s.scopes, p_shop_name: s.shopName, p_canary_email: s.canaryEmail }),
   });
   if (!res.ok) throw new Error(`shop_connection_save ${res.status}`);
   return (await res.json()) === true;
@@ -147,14 +150,15 @@ export async function seedAddress(cfg: RestConfig, token: string, shopId: string
   return Array.isArray(rows) && typeof rows[0]?.address === 'string' ? rows[0].address : null;
 }
 
-/** Inserts a canary_orders row ('placing'); 'limited' at 5 a day per user. */
-export async function startCanary(cfg: RestConfig, token: string, shopId: string, variantId: string, variantTitle: string): Promise<{ id: string } | 'limited'> {
+/** Inserts a canary_orders row ('placing'); 'limited' at 5 a day per user, 'busy' while the shop's last canary is unresolved (SQLSTATE PT409). */
+export async function startCanary(cfg: RestConfig, token: string, shopId: string, variantId: string, variantTitle: string): Promise<{ id: string } | 'limited' | 'busy'> {
   const res = await (cfg.fetchImpl ?? fetch)(`${base(cfg)}/rest/v1/canary_orders?select=id`, {
     method: 'POST',
     headers: { ...rpcHeaders(cfg, token), prefer: 'return=representation' },
     body: JSON.stringify({ shop_id: shopId, variant_id: variantId, variant_title: variantTitle }),
   });
   if (res.status === 429) return 'limited';
+  if (res.status === 409) return 'busy';
   if (!res.ok) throw new Error(`canary_orders ${res.status}`);
   const rows = (await res.json()) as Array<{ id?: unknown }>;
   const id = Array.isArray(rows) ? rows[0]?.id : undefined;
@@ -163,7 +167,7 @@ export async function startCanary(cfg: RestConfig, token: string, shopId: string
 }
 
 export interface CanaryPatch {
-  status: 'placed' | 'failed';
+  status: 'placed' | 'failed' | 'unknown';
   order_id?: string;
   order_name?: string;
   placed_at?: string;

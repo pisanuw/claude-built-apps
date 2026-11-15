@@ -68,6 +68,12 @@ Platform needs, from the architecture table in BUILD_ROUTINE.md:
 | 6 | Polish | README for the shop owner, phone layout, keyboard and screen-reader pass, Google button against the branding rules, empty and error states, Playwright walkthrough, security review, demo GIF | Walkthrough green from the sample email to the saved check; accessibility-lens scan of the live page has no serious issue |
 | 7 | Finish | Catalog row, PROJECTS.md write-up, mirror files, implemented.json, portfolio | Live check and the finish checklist in BUILD_ROUTINE.md |
 
+Milestone 4 as built (day 4, 2026-11-15): the app may also hold
+read_products (optional, only for the product search); any other scope is
+refused. Canaries go only to the seed address sealed with the client secret
+when the shop was connected, and only for a product that needs no shipping.
+Done.
+
 If the feature milestones finish early, polish and finish split into two days
 as written; if one grows, it is split here first.
 

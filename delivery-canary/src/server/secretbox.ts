@@ -30,9 +30,14 @@ export function seedAad(userId: string, shopId: string, address: string, sender:
   return `delivery-canary/seed-inbox/${VERSION}/${userId}/${shopId}/${address.toLowerCase()}/${sender.toLowerCase()}`;
 }
 
-/** Binds a kept Shopify client secret to its user, shop, store domain and client ID. */
-export function shopAad(userId: string, shopId: string, domain: string, clientId: string): string {
-  return `delivery-canary/shopify-app/${VERSION}/${userId}/${shopId}/${domain.toLowerCase()}/${clientId}`;
+/**
+ * Binds a kept Shopify client secret to its user, shop, store domain, client
+ * ID and the seed address canaries may go to: changing that address needs
+ * the secret pasted again, so a stolen session cannot send free orders to
+ * its own mailbox (security review).
+ */
+export function shopAad(userId: string, shopId: string, domain: string, clientId: string, canaryEmail: string): string {
+  return `delivery-canary/shopify-app/${VERSION}/${userId}/${shopId}/${domain.toLowerCase()}/${clientId}/${canaryEmail.toLowerCase()}`;
 }
 
 export function seal(key: Buffer, plain: string, aad: string): string {

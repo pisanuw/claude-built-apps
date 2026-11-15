@@ -56,11 +56,13 @@ export interface Connected {
   domain: string;
   scopes: string[];
   products: boolean;
+  /** The seed address canaries will go to; '' when no seed inbox was set up. */
+  canaryEmail: string;
 }
 
 export function parseConnected(d: Record<string, unknown>): Connected {
   if (d.connected !== true || typeof d.domain !== 'string') throw bad();
-  return { shopName: str(d.shopName, 200), domain: str(d.domain), scopes: Array.isArray(d.scopes) ? d.scopes.filter((x): x is string => typeof x === 'string') : [], products: d.products === true };
+  return { shopName: str(d.shopName, 200), domain: str(d.domain), scopes: Array.isArray(d.scopes) ? d.scopes.filter((x): x is string => typeof x === 'string') : [], products: d.products === true, canaryEmail: str(d.canaryEmail, 254) };
 }
 
 export interface Variant {

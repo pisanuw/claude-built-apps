@@ -9,6 +9,8 @@ export interface FakeVariant {
   displayName: string;
   price: string;
   status?: string;
+  /** Default false (a download). */
+  requiresShipping?: boolean;
 }
 
 export interface FakeOrder {
@@ -78,14 +80,15 @@ export function fakeShopify(o: FakeShopOptions = {}): FakeShop {
     if (over) return respond(over.status, over.body);
 
     if (/\bshop \{/.test(query)) return respond(200, { data: { shop: { name: o.shopName ?? 'Juniper Stitch' } } });
-    if (query.includes('productVariants')) {
+    if (query.includes('products(')) {
+      // Shopify matches word prefixes: title:fox* finds "Fox pattern". Each variant stands for a one-variant product here.
       const q = String(variables.q ?? '').toLowerCase();
-      const words = [...q.matchAll(/title:\*([^*]+)\*/g)].map((m) => m[1]);
+      const words = [...q.matchAll(/title:([^*\s]+)\*/g)].map((m) => m[1]);
       const nodes = (o.variants ?? [])
-        .filter((v) => words.every((w) => v.displayName.toLowerCase().includes(w)))
+        .filter((v) => words.every((w) => v.displayName.toLowerCase().split(/[\s-]+/).some((t) => t.startsWith(w))))
         .slice(0, 10)
-        .map((v) => ({ id: v.id, displayName: v.displayName, price: v.price, product: { status: v.status ?? 'ACTIVE' } }));
-      return respond(200, { data: { productVariants: { nodes } } });
+        .map((v) => ({ status: v.status ?? 'ACTIVE', variants: { nodes: [{ id: v.id, displayName: v.displayName, price: v.price }] } }));
+      return respond(200, { data: { products: { nodes } } });
     }
     if (query.includes('draftOrderCreate')) {
       const input = (variables.input ?? {}) as Record<string, unknown>;
@@ -94,7 +97,7 @@ export function fakeShopify(o: FakeShopOptions = {}): FakeShop {
       const line = ((input.lineItems as Array<{ variantId: string }>) ?? [])[0];
       const v = (o.variants ?? []).find((x) => x.id === line?.variantId);
       if (!v) return respond(200, { data: { draftOrderCreate: { draftOrder: null, userErrors: [{ field: ['lineItems', '0', 'variantId'], message: 'Product variant does not exist' }] } } });
-      return respond(200, { data: { draftOrderCreate: { draftOrder: { id, name: `#D${drafts.length}`, totalPriceSet: { shopMoney: { amount: o.draftTotal ?? '0.0' } }, lineItems: { nodes: [{ name: v.displayName }] } }, userErrors: [] } } });
+      return respond(200, { data: { draftOrderCreate: { draftOrder: { id, name: `#D${drafts.length}`, totalPriceSet: { shopMoney: { amount: o.draftTotal ?? '0.0' } }, lineItems: { nodes: [{ name: v.displayName, requiresShipping: v.requiresShipping ?? false }] } }, userErrors: [] } } });
     }
     if (query.includes('draftOrderDelete')) {
       const id = String(((variables.input ?? {}) as { id?: string }).id);
@@ -156,12 +159,13 @@ export function memoryShopDeps(over: Partial<ShopApiDeps> & { limited?: Set<stri
     },
     connection: async (_t, shop) => connections.get(shop) ?? null,
     saveConnection: async (_t, s: ConnectionSave) => {
-      connections.set(s.shopId, { domain: s.domain, clientId: s.clientId, secret: s.secret, scopes: s.scopes, shopName: s.shopName });
+      connections.set(s.shopId, { domain: s.domain, clientId: s.clientId, secret: s.secret, scopes: s.scopes, shopName: s.shopName, canaryEmail: s.canaryEmail });
       return true;
     },
     seedAddress: async (_t, shop) => seeds.get(shop) ?? null,
     startCanary: async (_t, shopId, variantId, variantTitle) => {
       if (over.limited?.has('canary-row')) return 'limited';
+      if (over.limited?.has('canary-busy')) return 'busy';
       const id = `00000000-0000-4000-8000-${String(canaries.length + 1).padStart(12, '0')}`;
       canaries.push({ id, shopId, variantId, variantTitle });
       return { id };

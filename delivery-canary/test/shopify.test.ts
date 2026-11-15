@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { handleApi, type ApiDeps } from '../src/server/api';
 import { liveDeps } from '../src/server/netlify';
 import { keyFrom, open, seal, shopAad } from '../src/server/secretbox';
-import { handleShopify, SHOP_REQUEST_BUDGET_MS } from '../src/server/shopapi';
+import { handleShopify, RECORD_RESERVE_MS, SHOP_REQUEST_BUDGET_MS } from '../src/server/shopapi';
 import {
   CANARY_NOTE,
   CANARY_TAG,
@@ -13,10 +13,12 @@ import {
   getToken,
   graphql,
   MAX_API_ORDERS,
+  MIN_COMPLETE_MS,
   normalizeShopDomain,
   placeCanary,
   readOrders,
   searchVariants,
+  SHOP_HOST_RE,
   ShopifyError,
   toImported,
   variantId,
@@ -95,6 +97,11 @@ describe('normalizeShopDomain', () => {
     ['javascript:alert(1)'],
   ])('refuses %j', (input) => {
     expect(normalizeShopDomain(input)).toBe('');
+  });
+  it('uses the one host rule the client calls with', () => {
+    expect(SHOP_HOST_RE.test('juniper-stitch.myshopify.com')).toBe(true);
+    expect(SHOP_HOST_RE.test('myshopify.com')).toBe(false);
+    expect(SHOP_HOST_RE.test('a.b.myshopify.com')).toBe(false);
   });
 });
 
@@ -224,6 +231,8 @@ describe('graphql', () => {
   it('refuses answers without data or not in JSON', async () => {
     expect(await errOf(q(answer(reply(200, {}))))).toMatchObject({ code: 'api', message: expect.stringMatching(/did not expect/) });
     expect(await errOf(q(answer(reply(200, '<html>not json'))))).toMatchObject({ code: 'api', message: expect.stringMatching(/did not expect/) });
+    expect(await errOf(q(answer(reply(200, 'null'))))).toMatchObject({ code: 'api', message: expect.stringMatching(/did not expect/) });
+    expect(await errOf(q(answer(reply(200, '"text"'))))).toMatchObject({ code: 'api' });
   });
   it('contacts only myshopify.com hosts', async () => {
     const f = vi.fn();
@@ -292,24 +301,50 @@ const VARIANTS = [
 ];
 
 describe('searchVariants', () => {
-  it('finds variants by title words', async () => {
+  it('finds variants of products by title word prefixes', async () => {
     const s = fakeShopify({ variants: VARIANTS });
-    const hits = await searchVariants(DOMAIN, 'faketoken_fake_token_0001', ' meadow  "PDF"; ', withFetch(s.fetch));
+    const hits = await searchVariants(DOMAIN, 'faketoken_fake_token_0001', ' mead  "PDF"; ', withFetch(s.fetch));
     expect(hits).toEqual([{ id: 'gid://shopify/ProductVariant/4401', title: 'Meadow Quilt Pattern - PDF', price: '0.00', status: 'active' }]);
-    expect(JSON.parse(s.calls[0].body).variables).toEqual({ q: 'title:*meadow* AND title:*PDF*' });
+    const sent = JSON.parse(s.calls[0].body) as { query: string; variables: unknown };
+    expect(sent.variables).toEqual({ q: 'title:mead* AND title:PDF*' });
+    expect(sent.query).toMatch(/products\(first: 10, query: \$q\)/);
     const all = await searchVariants(DOMAIN, 'faketoken_fake_token_0001', '()', withFetch(s.fetch));
     expect(all.map((h) => h.status)).toEqual(['active', 'draft', 'active']);
     expect(JSON.parse(s.calls[1].body).variables).toEqual({ q: null });
   });
-  it('drops nodes without a variant id and fills missing fields', async () => {
+  it('flattens variants, drops ones without a variant id, fills missing fields and keeps at most 10', async () => {
+    const many = Array.from({ length: 5 }, (_, i) => ({ id: `gid://shopify/ProductVariant/${100 + i}`, displayName: `V${i}`, price: '1.00' }));
     const s = fakeShopify({
-      graphql: () => ({ status: 200, body: { data: { productVariants: { nodes: [{ id: 'gid://shopify/Product/1', displayName: 'x' }, { displayName: 'no id' }, { id: 'gid://shopify/ProductVariant/9' }] } } } }),
+      graphql: () => ({
+        status: 200,
+        body: {
+          data: {
+            products: {
+              nodes: [
+                { status: 'ACTIVE', variants: { nodes: [{ id: 'gid://shopify/Product/1', displayName: 'x' }, { displayName: 'no id' }, { id: 'gid://shopify/ProductVariant/9' }] } },
+                {},
+                { status: 'ARCHIVED', variants: {} },
+                { variants: { nodes: many } },
+                { status: 'ACTIVE', variants: { nodes: many } },
+              ],
+            },
+          },
+        },
+      }),
     });
-    expect(await searchVariants(DOMAIN, 'faketoken_fake_token_0001', 'x', withFetch(s.fetch))).toEqual([{ id: 'gid://shopify/ProductVariant/9', title: '', price: '', status: '' }]);
+    const hits = await searchVariants(DOMAIN, 'faketoken_fake_token_0001', 'x', withFetch(s.fetch));
+    expect(hits).toHaveLength(10);
+    expect(hits[0]).toEqual({ id: 'gid://shopify/ProductVariant/9', title: '', price: '', status: 'active' });
+    expect(hits[1]).toEqual({ id: 'gid://shopify/ProductVariant/100', title: 'V0', price: '1.00', status: '' });
+    expect(hits[9].status).toBe('active');
     const none = fakeShopify({ graphql: () => ({ status: 200, body: { data: {} } }) });
     expect(await searchVariants(DOMAIN, 'faketoken_fake_token_0001', 'x', withFetch(none.fetch))).toEqual([]);
   });
 });
+
+/** A draft order answer for scripted placeCanary tests. */
+const created = (draftOrder: Record<string, unknown> | null) => ({ status: 200, body: { data: { draftOrderCreate: { draftOrder, userErrors: [] } } } });
+const download = { nodes: [{ name: 'Meadow Quilt Pattern - PDF', requiresShipping: false }] };
 
 describe('placeCanary', () => {
   const tok = 'faketoken_fake_token_0001';
@@ -338,11 +373,21 @@ describe('placeCanary', () => {
     expect(s.drafts[0]).toMatchObject({ deleted: true, completed: false });
     expect(s.calls.some((c) => c.body.includes('draftOrderComplete'))).toBe(false);
   });
+  it('deletes and refuses a product that ships, even when free', async () => {
+    const s = fakeShopify({ variants: VARIANTS.map((v) => ({ ...v, requiresShipping: true })) });
+    const e = await errOf(placeCanary(DOMAIN, tok, VARIANT, 'a@gmail.com', withFetch(s.fetch)));
+    expect([e.code, e.message]).toEqual(['not-free', expect.stringMatching(/needs shipping/)]);
+    expect(s.drafts[0]).toMatchObject({ deleted: true, completed: false });
+    // No line item shipping answer counts as shipping.
+    const blank = fakeShopify({ graphql: (q) => (q.includes('draftOrderCreate') ? created({ id: 'gid://shopify/DraftOrder/1', totalPriceSet: { shopMoney: { amount: '0' } }, lineItems: { nodes: [{ name: 'x', requiresShipping: null }] } }) : undefined) });
+    expect((await errOf(placeCanary(DOMAIN, tok, VARIANT, 'a@gmail.com', withFetch(blank.fetch)))).message).toMatch(/needs shipping/);
+    expect(blank.calls.some((c) => c.body.includes('draftOrderComplete'))).toBe(false);
+  });
   it('refuses a draft without a total, even when deleting it fails', async () => {
     const s = fakeShopify({
       variants: VARIANTS,
       graphql: (query) => {
-        if (query.includes('draftOrderCreate')) return { status: 200, body: { data: { draftOrderCreate: { draftOrder: { id: 'gid://shopify/DraftOrder/1' }, userErrors: [] } } } };
+        if (query.includes('draftOrderCreate')) return created({ id: 'gid://shopify/DraftOrder/1', lineItems: download });
         if (query.includes('draftOrderDelete')) return { status: 500, body: {} };
         return undefined;
       },
@@ -359,11 +404,6 @@ describe('placeCanary', () => {
     expect((await errOf(placeCanary(DOMAIN, tok, VARIANT, 'a@gmail.com', withFetch(noDraft.fetch)))).message).toBe('Shopify did not make the test order.');
     const blank = fakeShopify({ graphql: () => ({ status: 200, body: { data: { draftOrderCreate: { userErrors: [{ field: null }] } } } }) });
     expect((await errOf(placeCanary(DOMAIN, tok, VARIANT, 'a@gmail.com', withFetch(blank.fetch)))).message).toBe('Shopify could not make the test order: ');
-    const notDone = fakeShopify({
-      variants: VARIANTS,
-      graphql: (query) => (query.includes('draftOrderComplete') ? { status: 200, body: { data: { draftOrderComplete: { draftOrder: null, userErrors: [{ message: 'Payment needed' }] } } } } : undefined),
-    });
-    expect((await errOf(placeCanary(DOMAIN, tok, VARIANT, 'a@gmail.com', withFetch(notDone.fetch)))).message).toBe('Shopify could not complete the test order: Payment needed');
     for (const order of [null, { id: 'gid://shopify/DraftOrder/1' }, { name: '#1' }]) {
       const odd = fakeShopify({
         variants: VARIANTS,
@@ -372,10 +412,59 @@ describe('placeCanary', () => {
       expect((await errOf(placeCanary(DOMAIN, tok, VARIANT, 'a@gmail.com', withFetch(odd.fetch)))).message).toBe('Shopify did not turn the test order into an order.');
     }
   });
+  it('deletes a draft that could not be completed, even when the delete fails', async () => {
+    const notDone = fakeShopify({
+      variants: VARIANTS,
+      graphql: (query) => (query.includes('draftOrderComplete') ? { status: 200, body: { data: { draftOrderComplete: { draftOrder: null, userErrors: [{ message: 'Payment needed' }] } } } } : undefined),
+    });
+    expect(await errOf(placeCanary(DOMAIN, tok, VARIANT, 'a@gmail.com', withFetch(notDone.fetch)))).toMatchObject({ code: 'api', message: 'Shopify could not complete the test order: Payment needed' });
+    expect(notDone.drafts[0]).toMatchObject({ deleted: true, completed: false });
+    const stuck = fakeShopify({
+      variants: VARIANTS,
+      graphql: (query) => {
+        if (query.includes('draftOrderComplete')) return { status: 200, body: { data: { draftOrderComplete: { userErrors: [{ message: 'Nope' }] } } } };
+        if (query.includes('draftOrderDelete')) return { status: 500, body: {} };
+        return undefined;
+      },
+    });
+    expect((await errOf(placeCanary(DOMAIN, tok, VARIANT, 'a@gmail.com', withFetch(stuck.fetch)))).message).toBe('Shopify could not complete the test order: Nope');
+  });
+  it('drops the draft instead of completing it when too little time is left', async () => {
+    const t = Date.UTC(2026, 10, 15, 12);
+    const s = fakeShopify({ variants: VARIANTS });
+    const e = await errOf(placeCanary(DOMAIN, tok, VARIANT, 'a@gmail.com', withFetch(s.fetch, { now: () => t, deadline: t + MIN_COMPLETE_MS - 1 })));
+    expect([e.code, e.message]).toEqual(['timeout', expect.stringMatching(/was not placed/)]);
+    expect(s.drafts[0]).toMatchObject({ deleted: true, completed: false });
+    expect(s.calls.some((c) => c.body.includes('draftOrderComplete'))).toBe(false);
+    const failing = fakeShopify({ variants: VARIANTS, graphql: (q) => (q.includes('draftOrderDelete') ? { status: 500, body: {} } : undefined) });
+    expect((await errOf(placeCanary(DOMAIN, tok, VARIANT, 'a@gmail.com', withFetch(failing.fetch, { now: () => t, deadline: t + MIN_COMPLETE_MS - 1 })))).code).toBe('timeout');
+    const ok = fakeShopify({ variants: VARIANTS });
+    expect((await placeCanary(DOMAIN, tok, VARIANT, 'a@gmail.com', withFetch(ok.fetch, { now: () => t, deadline: t + MIN_COMPLETE_MS }))).orderName).toBe('#1100');
+  });
+  it('says the order may have been placed when completing it times out or Shopify drops the line', async () => {
+    const s = fakeShopify({ variants: VARIANTS });
+    const timesOut = (async (u: string, init: RequestInit) => {
+      if (String(init.body).includes('draftOrderComplete')) throw new DOMException('slow', 'TimeoutError');
+      return s.fetch(u, init);
+    }) as unknown as typeof fetch;
+    const e = await errOf(placeCanary(DOMAIN, tok, VARIANT, 'a@gmail.com', withFetch(timesOut)));
+    expect([e.code, e.message]).toEqual(['unknown', expect.stringMatching(/may have been placed.*tagged "delivery-canary"/)]);
+    expect(s.drafts[0].deleted).toBe(false);
+    const down = fakeShopify({ variants: VARIANTS, graphql: (q) => (q.includes('draftOrderComplete') ? { status: 503, body: {} } : undefined) });
+    expect((await errOf(placeCanary(DOMAIN, tok, VARIANT, 'a@gmail.com', withFetch(down.fetch)))).code).toBe('unknown');
+    const refused = fakeShopify({ variants: VARIANTS, graphql: (q) => (q.includes('draftOrderComplete') ? { status: 400, body: {} } : undefined) });
+    expect((await errOf(placeCanary(DOMAIN, tok, VARIANT, 'a@gmail.com', withFetch(refused.fetch)))).code).toBe('api');
+    const odd = fakeShopify({ variants: VARIANTS });
+    const throwsOdd = (async (u: string, init: RequestInit) => {
+      if (String(init.body).includes('draftOrderComplete')) return { get status(): number { throw new Error('odd'); } } as unknown as Response;
+      return odd.fetch(u, init);
+    }) as unknown as typeof fetch;
+    await expect(placeCanary(DOMAIN, tok, VARIANT, 'a@gmail.com', withFetch(throwsOdd))).rejects.toThrow('odd');
+  });
   it('uses the current time when Shopify gives no creation time', async () => {
     const s = fakeShopify({
       graphql: (query) => {
-        if (query.includes('draftOrderCreate')) return { status: 200, body: { data: { draftOrderCreate: { draftOrder: { id: 'gid://shopify/DraftOrder/1', totalPriceSet: { shopMoney: { amount: '0' } } } } } } };
+        if (query.includes('draftOrderCreate')) return created({ id: 'gid://shopify/DraftOrder/1', totalPriceSet: { shopMoney: { amount: '0' } }, lineItems: { nodes: [{ requiresShipping: false }] } });
         if (query.includes('draftOrderComplete')) return { status: 200, body: { data: { draftOrderComplete: { draftOrder: { order: { id: 'gid://shopify/Order/7' } } } } } };
         return undefined;
       },
@@ -471,7 +560,8 @@ describe('readOrders', () => {
     expect(r).toMatchObject({ rows: 7, droppedPersonal: [], droppedCount: 0, partial: false, days: 5 });
     expect(s.calls).toHaveLength(3);
     const vars = s.calls.map((c) => JSON.parse(c.body).variables);
-    expect(vars[0]).toEqual({ q: `created_at:>='${new Date(NOW - 5 * 86_400_000).toISOString()}'`, after: null });
+    // Canary orders are left out of the scan: they are test orders.
+    expect(vars[0]).toEqual({ q: `created_at:>='${new Date(NOW - 5 * 86_400_000).toISOString()}' -tag:delivery-canary`, after: null });
     expect(vars.slice(1).map((v) => v.after)).toEqual(['3', '6']);
   });
   it('keeps the days between 1 and 60', async () => {
@@ -552,9 +642,11 @@ const post = (d: MemoryShopDeps, action: string, body: unknown, headers: Record<
 
 const connectBody = (over: Record<string, unknown> = {}) => ({ shopId: SHOP, domain: 'https://admin.shopify.com/store/juniper-stitch', clientId: CLIENT_ID, clientSecret: SECRET, ...over });
 
-/** A connection stored as the connect route would store it. */
-function connected(d: MemoryShopDeps, key = d.key!, user = USER): void {
-  d.connections.set(SHOP, { domain: DOMAIN, clientId: CLIENT_ID, secret: seal(key, SECRET, shopAad(user, SHOP, DOMAIN, CLIENT_ID)), scopes: 'read_orders,write_draft_orders', shopName: 'Juniper Stitch' });
+const SEED = 'canary.shop@gmail.com';
+
+/** A connection stored as the connect route would store it, with the seed address canaries may go to. */
+function connected(d: MemoryShopDeps, key = d.key!, user = USER, canaryEmail = SEED): void {
+  d.connections.set(SHOP, { domain: DOMAIN, clientId: CLIENT_ID, secret: seal(key, SECRET, shopAad(user, SHOP, DOMAIN, CLIENT_ID, canaryEmail)), scopes: 'read_orders,write_draft_orders', shopName: 'Juniper Stitch', canaryEmail });
 }
 
 describe('shopify routes: common checks', () => {
@@ -595,17 +687,35 @@ describe('POST /api/shopify/connect', () => {
   it('connects the shop and keeps the secret sealed for this user, shop, domain and client', async () => {
     const { s, d } = shop();
     const r = await post(d, 'connect', connectBody());
-    expect(r).toEqual({ status: 200, body: { connected: true, shopName: 'Juniper Stitch', domain: DOMAIN, scopes: ['read_orders', 'read_products', 'write_draft_orders'], products: true } });
+    expect(r).toEqual({ status: 200, body: { connected: true, shopName: 'Juniper Stitch', domain: DOMAIN, scopes: ['read_orders', 'read_products', 'write_draft_orders'], products: true, canaryEmail: '' } });
     expect(d.kinds).toEqual(['connect']);
     const saved = d.connections.get(SHOP)!;
-    expect(saved).toMatchObject({ domain: DOMAIN, clientId: CLIENT_ID, scopes: 'read_orders,read_products,write_draft_orders', shopName: 'Juniper Stitch' });
+    expect(saved).toMatchObject({ domain: DOMAIN, clientId: CLIENT_ID, scopes: 'read_orders,read_products,write_draft_orders', shopName: 'Juniper Stitch', canaryEmail: '' });
     expect(saved.secret.startsWith('v1.')).toBe(true);
     expect(saved.secret).not.toContain(SECRET);
-    expect(saved.secret).not.toContain('0123456789abcdef');
-    expect(open(d.key!, saved.secret, shopAad(USER, SHOP, DOMAIN, CLIENT_ID))).toBe(SECRET);
-    expect(open(d.key!, saved.secret, shopAad('user-2', SHOP, DOMAIN, CLIENT_ID))).toBeNull();
-    expect(open(d.key!, saved.secret, shopAad(USER, SHOP, 'other.myshopify.com', CLIENT_ID))).toBeNull();
+    expect(saved.secret).not.toContain('fake-client-secret');
+    expect(open(d.key!, saved.secret, shopAad(USER, SHOP, DOMAIN, CLIENT_ID, ''))).toBe(SECRET);
+    expect(open(d.key!, saved.secret, shopAad('user-2', SHOP, DOMAIN, CLIENT_ID, ''))).toBeNull();
+    expect(open(d.key!, saved.secret, shopAad(USER, SHOP, 'other.myshopify.com', CLIENT_ID, ''))).toBeNull();
+    expect(open(d.key!, saved.secret, shopAad(USER, SHOP, DOMAIN, CLIENT_ID, SEED))).toBeNull();
     expect(s.calls.map((c) => new URL(c.url).pathname)).toEqual(['/admin/oauth/access_token', '/admin/api/2026-10/graphql.json']);
+  });
+  it('seals the current seed address with the secret, as the only address canaries may go to', async () => {
+    const { d } = shop();
+    d.seeds.set(SHOP, 'Canary.Shop@GMAIL.com');
+    const r = await post(d, 'connect', connectBody());
+    expect(r).toMatchObject({ status: 200, body: { canaryEmail: SEED } });
+    const saved = d.connections.get(SHOP)!;
+    expect(saved.canaryEmail).toBe(SEED);
+    expect(open(d.key!, saved.secret, shopAad(USER, SHOP, DOMAIN, CLIENT_ID, SEED))).toBe(SECRET);
+    expect(open(d.key!, saved.secret, shopAad(USER, SHOP, DOMAIN, CLIENT_ID, 'other@gmail.com'))).toBeNull();
+    expect(open(d.key!, saved.secret, shopAad(USER, SHOP, DOMAIN, CLIENT_ID, ''))).toBeNull();
+  });
+  it('answers 503 when the seed address cannot be read, before calling Shopify', async () => {
+    const { s, d } = shop({}, { seedAddress: async () => { throw new Error('db'); } });
+    expect(await post(d, 'connect', connectBody())).toMatchObject({ status: 503, body: { error: expect.stringMatching(/unavailable/) } });
+    expect(s.calls).toHaveLength(0);
+    expect(d.connections.size).toBe(0);
   });
   it('checks the fields first', async () => {
     const { s, d } = shop();
@@ -675,7 +785,7 @@ describe('POST /api/shopify/products', () => {
     expect((await post(d, 'products', { shopId: SHOP })).body).toMatchObject({ variants: expect.any(Array) });
   });
   it('says when the app cannot read products', async () => {
-    const { d } = shop({ graphql: (q) => (q.includes('productVariants') ? { status: 200, body: { errors: [{ message: 'Access denied', extensions: { code: 'ACCESS_DENIED' } }] } } : undefined) });
+    const { d } = shop({ graphql: (q) => (q.includes('products(') ? { status: 200, body: { errors: [{ message: 'Access denied', extensions: { code: 'ACCESS_DENIED' } }] } } : undefined) });
     connected(d);
     expect(await post(d, 'products', { shopId: SHOP, q: 'x' })).toMatchObject({ status: 422, body: { outcome: 'scopes', error: expect.stringMatching(/no read_products scope/) } });
     const http = shop({ graphql: () => ({ status: 403, body: {} }) });
@@ -708,7 +818,7 @@ describe('POST /api/shopify/products', () => {
   });
   it('never calls a stored domain that is not a myshopify.com shop', async () => {
     const { s, d } = shop();
-    d.connections.set(SHOP, { domain: 'shop.example.com', clientId: CLIENT_ID, secret: seal(d.key!, SECRET, shopAad(USER, SHOP, 'shop.example.com', CLIENT_ID)), scopes: '', shopName: '' });
+    d.connections.set(SHOP, { domain: 'shop.example.com', clientId: CLIENT_ID, secret: seal(d.key!, SECRET, shopAad(USER, SHOP, 'shop.example.com', CLIENT_ID, '')), scopes: '', shopName: '', canaryEmail: '' });
     expect(await post(d, 'products', { shopId: SHOP })).toMatchObject({ status: 422, body: { outcome: 'bad-domain' } });
     expect(s.calls).toHaveLength(0);
   });
@@ -771,7 +881,7 @@ describe('POST /api/shopify/canary', () => {
   const ready = (opts: FakeShopOptions = {}, over: Parameters<typeof memoryShopDeps>[0] = {}) => {
     const x = shop(opts, over);
     connected(x.d);
-    x.d.seeds.set(SHOP, 'canary.shop@gmail.com');
+    x.d.seeds.set(SHOP, SEED);
     return x;
   };
 
@@ -811,7 +921,7 @@ describe('POST /api/shopify/canary', () => {
   it('keeps the picked title when Shopify gives none, and says when the row could not be updated', async () => {
     const ok = ready({
       graphql: (q) => {
-        if (q.includes('draftOrderCreate')) return { status: 200, body: { data: { draftOrderCreate: { draftOrder: { id: 'gid://shopify/DraftOrder/1', totalPriceSet: { shopMoney: { amount: '0' } } }, userErrors: [] } } } };
+        if (q.includes('draftOrderCreate')) return created({ id: 'gid://shopify/DraftOrder/1', totalPriceSet: { shopMoney: { amount: '0' } }, lineItems: { nodes: [{ requiresShipping: false }] } });
         if (q.includes('draftOrderComplete')) return { status: 200, body: { data: { draftOrderComplete: { draftOrder: { order: { id: 'gid://shopify/Order/1', name: '#1', createdAt: '2026-11-15T10:00:00Z' } }, userErrors: [] } } } };
         return undefined;
       },
@@ -833,14 +943,40 @@ describe('POST /api/shopify/canary', () => {
     expect(c.s.calls).toHaveLength(0);
     expect(c.d.canaries).toHaveLength(0);
   });
-  it('needs the seed address first', async () => {
+  it('needs a seed address sealed at connect time, even when one is set up now', async () => {
     const { s, d } = shop();
-    connected(d);
-    expect(await post(d, 'canary', canaryBody())).toMatchObject({ status: 409, body: { outcome: 'no-seed', error: expect.stringMatching(/seed inbox first/) } });
+    connected(d, d.key!, USER, '');
+    d.seeds.set(SHOP, SEED);
+    expect(await post(d, 'canary', canaryBody())).toMatchObject({ status: 409, body: { outcome: 'no-seed', error: expect.stringMatching(/seed inbox first.*connect the shop again/) } });
     expect(s.calls).toHaveLength(0);
     expect(d.kinds).toEqual([]);
-    const down = shop({}, { seedAddress: async () => { throw new Error('db'); } });
-    expect(await post(down.d, 'canary', canaryBody())).toMatchObject({ status: 503 });
+    expect(d.canaries).toHaveLength(0);
+  });
+  it('refuses when the seed address changed since the shop was connected', async () => {
+    const { s, d } = shop();
+    connected(d);
+    d.seeds.set(SHOP, 'someone.else@gmail.com');
+    const r = await post(d, 'canary', canaryBody());
+    expect(r).toMatchObject({ status: 409, body: { outcome: 'seed-changed', error: expect.stringContaining(`canaries go to ${SEED}`) } });
+    d.seeds.delete(SHOP);
+    expect(await post(d, 'canary', canaryBody())).toMatchObject({ status: 409, body: { outcome: 'seed-changed' } });
+    expect(s.calls).toHaveLength(0);
+    expect(d.kinds).toEqual([]);
+    expect(d.canaries).toHaveLength(0);
+  });
+  it('sends the order to the sealed address, whatever the case of the current one', async () => {
+    const { s, d } = shop();
+    connected(d);
+    d.seeds.set(SHOP, 'CANARY.Shop@gmail.com');
+    expect(await post(d, 'canary', canaryBody())).toMatchObject({ status: 200, body: { seedAddress: SEED } });
+    expect(s.drafts[0].input.email).toBe(SEED);
+  });
+  it('answers 503 when the seed address cannot be read, before counting or calling Shopify', async () => {
+    const { s, d } = shop({}, { seedAddress: async () => { throw new Error('db'); } });
+    connected(d);
+    expect(await post(d, 'canary', canaryBody())).toMatchObject({ status: 503 });
+    expect(s.calls).toHaveLength(0);
+    expect(d.kinds).toEqual([]);
   });
   it('needs a connection whose secret this key opens', async () => {
     const { s, d } = shop();
@@ -858,6 +994,37 @@ describe('POST /api/shopify/canary', () => {
     expect(s.drafts[0]).toMatchObject({ deleted: true, completed: false });
     expect(d.canaries[0]).toMatchObject({ status: 'failed', error: expect.stringMatching(/would not be free/) });
     expect(d.canaries[0].order_id).toBeUndefined();
+  });
+  it('refuses a product that ships: deleted, recorded as failed', async () => {
+    const { s, d } = ready({ variants: VARIANTS.map((v) => ({ ...v, requiresShipping: true })) });
+    expect(await post(d, 'canary', canaryBody())).toMatchObject({ status: 422, body: { outcome: 'not-free', error: expect.stringMatching(/needs shipping/) } });
+    expect(s.drafts[0]).toMatchObject({ deleted: true, completed: false });
+    expect(d.canaries[0]).toMatchObject({ status: 'failed', error: expect.stringMatching(/needs shipping/) });
+  });
+  it('records an order Shopify may have made as unknown, not failed', async () => {
+    const { d } = ready({ graphql: (q) => (q.includes('draftOrderComplete') ? { status: 503, body: {} } : undefined) });
+    expect(await post(d, 'canary', canaryBody())).toMatchObject({ status: 504, body: { outcome: 'unknown', error: expect.stringMatching(/may have been placed/) } });
+    expect(d.canaries[0]).toMatchObject({ status: 'unknown', error: expect.stringMatching(/may have been placed/) });
+  });
+  it('keeps time back for recording the result: a slow Shopify drops the draft', async () => {
+    let t = 0;
+    const { s, d } = ready({}, { now: () => t });
+    const slow = (async (u: string, init: RequestInit) => {
+      t += 3000;
+      return s.fetch(u, init);
+    }) as unknown as typeof fetch;
+    d.fetchImpl = slow;
+    // Without the reserve, 2500 ms would be left before completing (enough); with it, 1700.
+    expect(SHOP_REQUEST_BUDGET_MS - 6000).toBe(MIN_COMPLETE_MS);
+    expect(RECORD_RESERVE_MS).toBeGreaterThan(0);
+    expect(await post(d, 'canary', canaryBody())).toMatchObject({ status: 504, body: { outcome: 'timeout', error: expect.stringMatching(/was not placed/) } });
+    expect(s.drafts[0]).toMatchObject({ deleted: true, completed: false });
+    expect(d.canaries[0]).toMatchObject({ status: 'failed' });
+  });
+  it('refuses a second canary while one is still unknown', async () => {
+    const { s, d } = ready({}, { limited: new Set(['canary-busy']) });
+    expect(await post(d, 'canary', canaryBody())).toMatchObject({ status: 409, body: { outcome: 'busy', error: expect.stringMatching(/delivery-canary/) } });
+    expect(s.drafts).toHaveLength(0);
   });
   it('records a missing variant as failed', async () => {
     const { s, d } = ready();
@@ -911,7 +1078,7 @@ describe('Shopify REST calls', () => {
   const last = () => calls.at(-1)!;
   const headers = () => last().init.headers as Record<string, string>;
   const sent = () => JSON.parse(last().init.body as string) as unknown;
-  const save: ConnectionSave = { shopId: SHOP, domain: DOMAIN, clientId: CLIENT_ID, secret: 'v1.a.b', scopes: 'read_orders', shopName: 'Juniper' };
+  const save: ConnectionSave = { shopId: SHOP, domain: DOMAIN, clientId: CLIENT_ID, secret: 'v1.a.b', scopes: 'read_orders', shopName: 'Juniper', canaryEmail: 'canary@gmail.com' };
 
   it('records a Shopify call, with 429 as the limit', async () => {
     expect(await recordShopifyCall(cfg(201), 'tok', 'orders')).toBe('ok');
@@ -922,9 +1089,10 @@ describe('Shopify REST calls', () => {
     await expect(recordShopifyCall(cfg(500), 'tok', 'connect')).rejects.toThrow(/shopify_calls 500/);
   });
   it('reads the stored connection', async () => {
-    const row = { shop_domain: DOMAIN, client_id: CLIENT_ID, secret: 'v1.x.y' };
-    const want = { domain: DOMAIN, clientId: CLIENT_ID, secret: 'v1.x.y' };
+    const row = { shop_domain: DOMAIN, client_id: CLIENT_ID, secret: 'v1.x.y', canary_email: 'canary@gmail.com' };
+    const want = { domain: DOMAIN, clientId: CLIENT_ID, secret: 'v1.x.y', canaryEmail: 'canary@gmail.com' };
     expect(await shopConnection(cfg(200, [row]), 'tok', SHOP)).toEqual(want);
+    expect(await shopConnection(cfg(200, [{ ...row, canary_email: null }]), 'tok', SHOP)).toEqual({ ...want, canaryEmail: '' });
     expect(last().url).toBe('https://auth.example/rest/v1/rpc/shop_connection_secret');
     expect(sent()).toEqual({ p_shop: SHOP });
     expect(await shopConnection(cfg(200, row), 'tok', SHOP)).toEqual(want);
@@ -938,7 +1106,7 @@ describe('Shopify REST calls', () => {
   it('saves the connection', async () => {
     expect(await saveShopConnection(cfg(200, true), 'tok', save)).toBe(true);
     expect(last().url).toBe('https://auth.example/rest/v1/rpc/shop_connection_save');
-    expect(sent()).toEqual({ p_shop: SHOP, p_domain: DOMAIN, p_client_id: CLIENT_ID, p_secret: 'v1.a.b', p_scopes: 'read_orders', p_shop_name: 'Juniper' });
+    expect(sent()).toEqual({ p_shop: SHOP, p_domain: DOMAIN, p_client_id: CLIENT_ID, p_secret: 'v1.a.b', p_scopes: 'read_orders', p_shop_name: 'Juniper', p_canary_email: 'canary@gmail.com' });
     expect(await saveShopConnection(cfg(200, false), 'tok', save)).toBe(false);
     await expect(saveShopConnection(cfg(400), 'tok', save)).rejects.toThrow(/shop_connection_save 400/);
   });
@@ -959,6 +1127,7 @@ describe('Shopify REST calls', () => {
     expect(headers()).toMatchObject({ prefer: 'return=representation', 'content-profile': 'app_delivery_canary' });
     expect(sent()).toEqual({ shop_id: SHOP, variant_id: VARIANT, variant_title: 'Meadow' });
     expect(await startCanary(cfg(429), 'tok', SHOP, VARIANT, '')).toBe('limited');
+    expect(await startCanary(cfg(409), 'tok', SHOP, VARIANT, '')).toBe('busy');
     await expect(startCanary(cfg(500), 'tok', SHOP, VARIANT, '')).rejects.toThrow(/canary_orders 500/);
     await expect(startCanary(cfg(201, []), 'tok', SHOP, VARIANT, '')).rejects.toThrow(/no id/);
     await expect(startCanary(cfg(201, { id: 'c-1' }), 'tok', SHOP, VARIANT, '')).rejects.toThrow(/no id/);
@@ -996,7 +1165,7 @@ describe('Shopify REST calls', () => {
     expect(d.shopify.key).toEqual(keyFrom('k'.repeat(32)));
     expect(await d.shopify.record('t', 'connect')).toBe('ok');
     expect(last().url).toMatch(/shopify_calls$/);
-    expect(await d.shopify.connection('t', SHOP)).toEqual({ domain: DOMAIN, clientId: CLIENT_ID, secret: 'v1.s.t' });
+    expect(await d.shopify.connection('t', SHOP)).toEqual({ domain: DOMAIN, clientId: CLIENT_ID, secret: 'v1.s.t', canaryEmail: '' });
     expect(await d.shopify.saveConnection('t', save)).toBe(false);
     expect(await d.shopify.seedAddress('t', SHOP)).toBe('seed@gmail.com');
     expect(await d.shopify.startCanary('t', SHOP, VARIANT, 'x')).toEqual({ id: 'c-2' });

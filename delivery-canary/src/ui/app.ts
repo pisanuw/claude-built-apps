@@ -408,11 +408,13 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
       if (shop?.delivery_app === 'unknown' || !shop) {
         if (analysis.app.id !== 'unknown') appSelect.value = analysis.app.id;
       }
-      current = { analysis, placement, link: null, linkSkipped: '', linkUrl: '', savedId: null, seed: from?.seed ?? null };
+      const mine: Current = { analysis, placement, link: null, linkSkipped: '', linkUrl: '', savedId: null, seed: from?.seed ?? null };
+      current = mine;
       const best = downloadCandidates(analysis.links)[0];
       if (best) await testLink(best.url);
       await show(true);
-      return current.savedId;
+      // Signing out meanwhile clears `current`; this check's own record still says what was saved (code review).
+      return mine.savedId;
     } finally {
       busy = false;
       checkBtn.disabled = false;

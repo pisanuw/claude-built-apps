@@ -40,7 +40,7 @@ export interface ShopApiDeps {
   connection(token: string, shopId: string): Promise<StoredConnection | null>;
   saveConnection(token: string, s: ConnectionSave): Promise<boolean>;
   seedAddress(token: string, shopId: string): Promise<string | null>;
-  startCanary(token: string, shopId: string, variantId: string, variantTitle: string): Promise<{ id: string } | 'limited'>;
+  startCanary(token: string, shopId: string, variantId: string, variantTitle: string): Promise<{ id: string } | 'limited' | 'busy'>;
   updateCanary(token: string, id: string, patch: CanaryPatch): Promise<void>;
   /** For calls to Shopify (tests pass a scripted Admin API). */
   fetchImpl?: typeof fetch;
@@ -54,6 +54,8 @@ export interface ShopApiResponse {
 
 /** Netlify's limit is 10 s; Supabase calls before and after Shopify fit in what is left. */
 export const SHOP_REQUEST_BUDGET_MS = 8500;
+/** Kept back from a canary's Shopify calls for recording the result. */
+export const RECORD_RESERVE_MS = 800;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const json = (status: number, body: unknown): ShopApiResponse => ({ status, body });
@@ -70,6 +72,7 @@ function statusOf(e: ShopifyError): number {
     case 'rate-limited':
       return 429;
     case 'timeout':
+    case 'unknown':
       return 504;
     default:
       return 502;
@@ -102,14 +105,19 @@ interface Ctx {
 
 const LIMIT_TEXT = 'You have made 60 Shopify requests in the last hour. Try again later.';
 
+/** Credentials opened from a stored connection, with the seed address canaries may go to. */
+interface Opened extends Credentials {
+  canaryEmail: string;
+}
+
 /** The shop's credentials opened from the stored connection; a response when that is not possible. */
-async function credentials(ctx: Ctx, d: ShopApiDeps): Promise<Credentials | ShopApiResponse> {
+async function credentials(ctx: Ctx, d: ShopApiDeps): Promise<Opened | ShopApiResponse> {
   if (!d.key) return json(503, { error: 'Connecting a shop is not switched on for this site yet.' });
   const stored = await d.connection(ctx.token, ctx.shopId);
   if (!stored) return json(409, { error: 'Connect your Shopify shop first.', outcome: 'not-connected' });
-  const secret = open(d.key, stored.secret, shopAad(ctx.user, ctx.shopId, stored.domain, stored.clientId));
+  const secret = open(d.key, stored.secret, shopAad(ctx.user, ctx.shopId, stored.domain, stored.clientId, stored.canaryEmail));
   if (secret === null) return json(409, { error: 'The kept app secret can no longer be read. Connect the shop again.', outcome: 'not-connected' });
-  return { domain: stored.domain, clientId: stored.clientId, clientSecret: secret };
+  return { domain: stored.domain, clientId: stored.clientId, clientSecret: secret, canaryEmail: stored.canaryEmail };
 }
 
 export async function handleShopify(route: string, method: string, bodyText: string | null, token: string, d: ShopApiDeps): Promise<ShopApiResponse> {
@@ -159,6 +167,13 @@ async function connect(ctx: Ctx, d: ShopApiDeps): Promise<ShopApiResponse> {
   } catch {
     return json(503, { error: 'Shopify connection is unavailable right now. Try again in a minute.' });
   }
+  // The seed address now is the only one canaries may go to until the shop is connected again (security review).
+  let canaryEmail: string;
+  try {
+    canaryEmail = ((await d.seedAddress(ctx.token, ctx.shopId)) ?? '').toLowerCase();
+  } catch {
+    return json(503, { error: 'Shopify connection is unavailable right now. Try again in a minute.' });
+  }
   let c;
   try {
     c = await connectShop({ domain, clientId, clientSecret }, ctx.deps);
@@ -170,30 +185,39 @@ async function connect(ctx: Ctx, d: ShopApiDeps): Promise<ShopApiResponse> {
       shopId: ctx.shopId,
       domain,
       clientId,
-      secret: seal(d.key, clientSecret, shopAad(ctx.user, ctx.shopId, domain, clientId)),
+      secret: seal(d.key, clientSecret, shopAad(ctx.user, ctx.shopId, domain, clientId, canaryEmail)),
       scopes: c.scopes.granted.join(','),
       shopName: c.shopName,
+      canaryEmail,
     });
     if (!saved) return json(503, { error: 'Shopify accepted the app, but the connection could not be saved. Try again.' });
   } catch {
     return json(503, { error: 'Shopify accepted the app, but the connection could not be saved. Try again.' });
   }
-  return json(200, { connected: true, shopName: c.shopName, domain, scopes: c.scopes.granted, products: c.scopes.products });
+  return json(200, { connected: true, shopName: c.shopName, domain, scopes: c.scopes.granted, products: c.scopes.products, canaryEmail });
 }
 
 /** Opens the credentials, counts the call and fetches a token; a response when any step stops. */
-async function session(ctx: Ctx, d: ShopApiDeps, kind: ShopifyCallKind): Promise<{ domain: string; token: string } | ShopApiResponse> {
-  let cred: Credentials | ShopApiResponse;
+async function session(
+  ctx: Ctx,
+  d: ShopApiDeps,
+  kind: ShopifyCallKind,
+  /** A last check on the opened connection before anything is counted or sent to Shopify. */
+  guard?: (cred: Opened) => Promise<ShopApiResponse | null>,
+): Promise<{ domain: string; token: string; canaryEmail: string } | ShopApiResponse> {
+  let cred: Opened | ShopApiResponse;
   try {
     cred = await credentials(ctx, d);
     if ('status' in cred) return cred;
+    const stop = guard ? await guard(cred) : null;
+    if (stop) return stop;
     if ((await d.record(ctx.token, kind)) === 'limited') return json(429, { error: LIMIT_TEXT });
   } catch {
     return json(503, { error: 'Shopify connection is unavailable right now. Try again in a minute.' });
   }
   try {
     const t = await getToken(cred, ctx.deps);
-    return { domain: cred.domain, token: t.accessToken };
+    return { domain: cred.domain, token: t.accessToken, canaryEmail: cred.canaryEmail };
   } catch (e) {
     return fail(e, 'Could not reach Shopify. Try again in a minute.');
   }
@@ -228,26 +252,34 @@ async function canary(ctx: Ctx, d: ShopApiDeps): Promise<ShopApiResponse> {
   const variant = parseVariant(text(ctx.body, 'variantId', 300));
   if (!variant) return json(400, { error: 'Pick the canary product (search for it, or paste its variant ID).' });
   const title = text(ctx.body, 'variantTitle', 300);
-  let seed: string | null;
-  try {
-    seed = await d.seedAddress(ctx.token, ctx.shopId);
-  } catch {
-    return json(503, { error: 'Shopify connection is unavailable right now. Try again in a minute.' });
-  }
-  if (!seed) return json(409, { error: 'Set up the seed inbox first (the card above): the canary order goes to that address.', outcome: 'no-seed' });
-  const s = await session(ctx, d, 'canary');
+  // Canaries go only to the seed address sealed with the client secret at connect time, never to one
+  // a session could change on its own (security review); the seed inbox must still be that address,
+  // so the page can watch for the email.
+  const s = await session(ctx, d, 'canary', async (cred) => {
+    if (!cred.canaryEmail) {
+      return json(409, { error: 'Set up the seed inbox first (the card above), then connect the shop again: canary orders only go to the seed address saved when the shop was connected.', outcome: 'no-seed' });
+    }
+    const seed = ((await d.seedAddress(ctx.token, ctx.shopId)) ?? '').toLowerCase();
+    if (seed !== cred.canaryEmail) {
+      return json(409, { error: `The seed inbox address changed since the shop was connected (canaries go to ${cred.canaryEmail}). Connect the shop again with its client secret to send canaries to the new address.`, outcome: 'seed-changed' });
+    }
+    return null;
+  });
   if ('status' in s) return s;
+  const seed = s.canaryEmail;
 
-  let row: { id: string } | 'limited';
+  let row: { id: string } | 'limited' | 'busy';
   try {
     row = await d.startCanary(ctx.token, ctx.shopId, variant, title);
   } catch {
     return json(503, { error: 'The canary could not be recorded, so no order was placed. Try again in a minute.' });
   }
   if (row === 'limited') return json(429, { error: 'You have placed 5 canary orders in the last day. Try again tomorrow.' });
+  if (row === 'busy') return json(409, { error: 'A canary for this shop was placed in the last 10 minutes and its result is not known yet. Look in Shopify for an order tagged "delivery-canary" before placing another.', outcome: 'busy' });
 
   try {
-    const placed = await placeCanary(s.domain, s.token, variant, seed, ctx.deps);
+    // Time is kept back for recording the result, so a placed order is never left unrecorded (code review).
+    const placed = await placeCanary(s.domain, s.token, variant, seed, { ...ctx.deps, deadline: ctx.deps.deadline - RECORD_RESERVE_MS });
     let saved = true;
     try {
       await d.updateCanary(ctx.token, row.id, { status: 'placed', order_id: placed.orderId, order_name: placed.orderName, placed_at: placed.placedAt, variant_title: placed.variantTitle || title });
@@ -257,8 +289,9 @@ async function canary(ctx: Ctx, d: ShopApiDeps): Promise<ShopApiResponse> {
     return json(200, { canaryId: row.id, ...placed, seedAddress: seed, saved });
   } catch (e) {
     const msg = e instanceof ShopifyError ? e.message : 'The canary order could not be placed.';
+    const unknown = e instanceof ShopifyError && e.code === 'unknown';
     try {
-      await d.updateCanary(ctx.token, row.id, { status: 'failed', error: msg.slice(0, 500) });
+      await d.updateCanary(ctx.token, row.id, { status: unknown ? 'unknown' : 'failed', error: msg.slice(0, 500) });
     } catch {
       /* the answer below says what happened */
     }

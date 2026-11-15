@@ -3,9 +3,13 @@
 -- applied (add 0005_<name>.sql).
 --
 -- shop_connections: one per shop, the shop's own Dev Dashboard app
--- (myshopify domain, client ID, granted scopes, the shop's name in Shopify)
--- and its client secret sealed by the Netlify function (AES-256-GCM with
--- DELIVERY_CANARY_KEY, bound to the user, shop, domain and client ID). The
+-- (myshopify domain, client ID, granted scopes, the shop's name in Shopify),
+-- the seed address canary orders may go to (the seed inbox's address when
+-- the shop was connected), and the client secret sealed by the Netlify
+-- function (AES-256-GCM with DELIVERY_CANARY_KEY, bound to the user, shop,
+-- domain, client ID and that canary address, so the address cannot be
+-- changed without pasting the secret again: a stolen session cannot send
+-- free orders to its own mailbox; security review). The
 -- database never sees the secret itself. Column-level SELECT leaves the
 -- sealed column out of every table read; the function reads it through
 -- shop_connection_secret with the user's token. Rows are written only
@@ -29,6 +33,7 @@ create table if not exists app_delivery_canary.shop_connections (
   secret text not null check (char_length(secret) <= 800 and secret like 'v1.%'),
   scopes text not null default '' check (char_length(scopes) <= 500),
   shop_name text not null default '' check (char_length(shop_name) <= 200),
+  canary_email text not null default '' check (canary_email = '' or (char_length(canary_email) between 3 and 254 and canary_email ~ '^[^@[:space:]]+@[^@[:space:]]+$')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -51,7 +56,7 @@ create table if not exists app_delivery_canary.canary_orders (
   created_at timestamptz not null default now(),
   variant_id text not null check (variant_id ~ '^gid://shopify/ProductVariant/[0-9]{1,20}$'),
   variant_title text not null default '' check (char_length(variant_title) <= 300),
-  status text not null default 'placing' check (status in ('placing', 'placed', 'failed', 'arrived', 'no-email')),
+  status text not null default 'placing' check (status in ('placing', 'placed', 'failed', 'unknown', 'arrived', 'no-email')),
   order_id text check (order_id is null or order_id ~ '^gid://shopify/Order/[0-9]{1,20}$'),
   order_name text not null default '' check (char_length(order_name) <= 40),
   placed_at timestamptz,
@@ -123,9 +128,12 @@ create trigger shopify_calls_limit
   before insert on app_delivery_canary.shopify_calls
   for each row execute function app_delivery_canary.shopify_calls_limit();
 
--- Canary orders: 5 a day per user (each is a real order in the shop), at
--- most 500 kept per account (the oldest beyond that are removed), and the
--- row starts as 'placing' whatever the caller sent.
+-- Canary orders: 5 a day per user (each is a real order in the shop; a
+-- refused one that placed nothing does not count), none while the shop's
+-- last canary is still 'placing' or 'unknown' (Shopify did not answer, so
+-- the order may exist) and under 10 minutes old, at most 500 kept per
+-- account (the oldest beyond that are removed), and the row starts as
+-- 'placing' whatever the caller sent.
 create or replace function app_delivery_canary.canary_orders_limit()
 returns trigger
 language plpgsql
@@ -145,9 +153,15 @@ begin
   new.placement := null;
   new.seed_where := null;
   new.check_id := null;
+  if exists (
+    select 1 from app_delivery_canary.canary_orders
+    where shop_id = new.shop_id and status in ('placing', 'unknown') and created_at > now() - interval '10 minutes'
+  ) then
+    raise sqlstate 'PT409' using message = 'A canary for this shop is still being placed. Try again in a few minutes.';
+  end if;
   if (
     select count(*) from app_delivery_canary.canary_orders
-    where user_id = new.user_id and created_at > now() - interval '1 day'
+    where user_id = new.user_id and created_at > now() - interval '1 day' and status <> 'failed'
   ) >= 5 then
     raise sqlstate 'PT429' using message = 'You have placed 5 canary orders in the last day. Try again tomorrow.';
   end if;
@@ -198,7 +212,8 @@ create or replace function app_delivery_canary.shop_connection_save(
   p_client_id text,
   p_secret text,
   p_scopes text,
-  p_shop_name text
+  p_shop_name text,
+  p_canary_email text
 )
 returns boolean
 language plpgsql
@@ -214,14 +229,15 @@ begin
   if not exists (select 1 from app_delivery_canary.shops s where s.id = p_shop and s.user_id = v_user) then
     raise exception 'That shop is not yours.' using errcode = '42501';
   end if;
-  insert into app_delivery_canary.shop_connections as t (shop_id, user_id, shop_domain, client_id, secret, scopes, shop_name)
-  values (p_shop, v_user, lower(p_domain), p_client_id, p_secret, coalesce(p_scopes, ''), coalesce(p_shop_name, ''))
+  insert into app_delivery_canary.shop_connections as t (shop_id, user_id, shop_domain, client_id, secret, scopes, shop_name, canary_email)
+  values (p_shop, v_user, lower(p_domain), p_client_id, p_secret, coalesce(p_scopes, ''), coalesce(p_shop_name, ''), lower(coalesce(p_canary_email, '')))
   on conflict (shop_id) do update set
     shop_domain = excluded.shop_domain,
     client_id = excluded.client_id,
     secret = excluded.secret,
     scopes = excluded.scopes,
     shop_name = excluded.shop_name,
+    canary_email = excluded.canary_email,
     updated_at = now()
   where t.user_id = v_user;
   return found;
@@ -231,19 +247,19 @@ $$;
 -- The connection of one of the caller's shops with its sealed secret, for
 -- the function to open; no row when the shop is not connected.
 create or replace function app_delivery_canary.shop_connection_secret(p_shop uuid)
-returns table (shop_domain text, client_id text, secret text)
+returns table (shop_domain text, client_id text, secret text, canary_email text)
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select t.shop_domain, t.client_id, t.secret from app_delivery_canary.shop_connections t
+  select t.shop_domain, t.client_id, t.secret, t.canary_email from app_delivery_canary.shop_connections t
   where t.shop_id = p_shop and t.user_id = auth.uid();
 $$;
 
 -- Grants, written out in full.
 revoke all on table app_delivery_canary.shop_connections from public, anon, authenticated;
-grant select (shop_id, user_id, shop_domain, client_id, scopes, shop_name, created_at, updated_at)
+grant select (shop_id, user_id, shop_domain, client_id, scopes, shop_name, canary_email, created_at, updated_at)
   on app_delivery_canary.shop_connections to authenticated;
 grant delete on app_delivery_canary.shop_connections to authenticated;
 revoke all on table app_delivery_canary.shopify_calls from public, anon, authenticated;
@@ -256,7 +272,7 @@ grant update (variant_title, status, order_id, order_name, placed_at, arrived_at
 revoke execute on function app_delivery_canary.shopify_calls_limit() from public, anon, authenticated;
 revoke execute on function app_delivery_canary.canary_orders_limit() from public, anon, authenticated;
 revoke execute on function app_delivery_canary.canary_orders_touch() from public, anon, authenticated;
-revoke execute on function app_delivery_canary.shop_connection_save(uuid, text, text, text, text, text) from public, anon;
-grant execute on function app_delivery_canary.shop_connection_save(uuid, text, text, text, text, text) to authenticated;
+revoke execute on function app_delivery_canary.shop_connection_save(uuid, text, text, text, text, text, text) from public, anon;
+grant execute on function app_delivery_canary.shop_connection_save(uuid, text, text, text, text, text, text) to authenticated;
 revoke execute on function app_delivery_canary.shop_connection_secret(uuid) from public, anon;
 grant execute on function app_delivery_canary.shop_connection_secret(uuid) to authenticated;

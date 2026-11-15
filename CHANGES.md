@@ -621,3 +621,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-15 [note] udebt on Supabase (owner yes): migrate udebt (0001, 0002), expose-schema app_udebt, 3 samples loaded via sql, check-schema passed (runs 43706780478..43706985331)
 
 2026-11-15 [code] platform: udebt added to EXTERNAL_APP_LABELS (owner yes, DEPLOY.md step 3); udebt gateway row set to Sonnet with default caps
+2026-11-15 [feat] delivery-canary day 4: canary orders from the shop's own Shopify app (sealed secret and canary address, free tagged draft order, timed seed inbox looks), orders from the Admin API
