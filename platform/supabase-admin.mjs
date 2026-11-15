@@ -1314,7 +1314,7 @@ export function anonSetupSql(slug, userId, keySha256) {
   if (!/^[0-9a-f]{64}$/.test(keySha256)) throw new Error('anon-setup: --key-sha256 must be 64 lowercase hex characters');
   return `insert into platform.llm_app_anon (slug, user_id, key_sha256) values (${lit(slug)}, ${lit(userId)}::uuid, ${lit(keySha256)})
 on conflict (slug) do update set user_id = excluded.user_id, key_sha256 = excluded.key_sha256;
-select a.slug, (a.user_id is not null) as has_user, left(a.key_sha256, 8) as key_prefix, l.enabled as app_enabled
+select jsonb_build_object('slug', a.slug, 'has_user', a.user_id is not null, 'key_prefix', left(a.key_sha256, 8), 'app_enabled', l.enabled)::text as result
   from platform.llm_app_anon a join platform.llm_apps l using (slug) where a.slug = ${lit(slug)};`;
 }
 
@@ -1329,12 +1329,12 @@ async function anonSetup(slug) {
   if (!slug || !/^[a-z0-9][a-z0-9-]*$/.test(slug)) fail('anon-setup: give an app slug, e.g. anon-setup udebt');
   const hash = String(flagValue('--key-sha256') || '').trim().toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(hash)) fail('anon-setup: pass --key-sha256=<the sha256 of the app secret, 64 hex>');
-  const app = queryResult(await sql(`select jsonb_build_object('enabled', enabled)::text as r from platform.llm_apps where slug = ${lit(slug)}`));
+  const app = queryResult(await sql(`select jsonb_build_object('enabled', enabled)::text as result from platform.llm_apps where slug = ${lit(slug)}`));
   if (!app) fail(`anon-setup: ${slug} is not in platform.llm_apps; register the app first`);
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key) fail('anon-setup needs SUPABASE_SERVICE_ROLE_KEY (the workflow passes the repo secret)');
   const email = anonEmail(slug);
-  const found = queryResult(await sql(`select jsonb_build_object('id', id)::text as r from auth.users where email = ${lit(email)}`));
+  const found = queryResult(await sql(`select jsonb_build_object('id', id)::text as result from auth.users where email = ${lit(email)}`));
   let uid = found?.id ?? null;
   if (!uid) {
     const base = (url || `https://${ref}.supabase.co`).replace(/\/+$/, '');

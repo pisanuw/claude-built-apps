@@ -58,7 +58,8 @@ describe('anon-setup SQL', () => {
     const q = anonSetupSql('udebt', '0b6f4a7e-1c2d-4e5f-8a9b-0c1d2e3f4a5b', HASH);
     expect(q).toContain("values ('udebt', '0b6f4a7e-1c2d-4e5f-8a9b-0c1d2e3f4a5b'::uuid, '" + HASH + "')");
     expect(q).toContain('on conflict (slug) do update');
-    expect(q).toContain('left(a.key_sha256, 8)');
+    expect(q).toContain("left(a.key_sha256, 8)");
+    expect(q).toContain('::text as result');
     expect(anonEmail('udebt')).toBe('visitors+udebt@hintwise.org');
   });
 
