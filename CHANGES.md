@@ -619,3 +619,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-15 [code] udebt platform files: migrations 0001/0002 and three sample SQLs copied from understanding-debt a141646; SHARED_TABLES gains app_udebt.repositories and analyses
 
 2026-11-15 [note] udebt on Supabase (owner yes): migrate udebt (0001, 0002), expose-schema app_udebt, 3 samples loaded via sql, check-schema passed (runs 43706780478..43706985331)
+
+2026-11-15 [code] platform: udebt added to EXTERNAL_APP_LABELS (owner yes, DEPLOY.md step 3); udebt gateway row set to Sonnet with default caps
