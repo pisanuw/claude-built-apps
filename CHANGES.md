@@ -630,3 +630,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-15 [note] udebt: fourth sample understanding-debt.sql (sha 11af30cb) loaded on the owner yes (run 43715703125); check-schema passed, 4 repositories, 4 analyses
 
 2026-11-15 [note] app-notify first real StepWise send 15:17 UTC: 1 sent, 0 failed, HTTP 200; Resend accepted it with the List-Unsubscribe headers; items_seen 5
+
+2026-11-15 [decision] udebt gateway limits (owner "1 yes, 2 yes"): $1.00/day per person via udebt; app $5/day, $20/week, $40/month; other apps unchanged (run 43732364337)
