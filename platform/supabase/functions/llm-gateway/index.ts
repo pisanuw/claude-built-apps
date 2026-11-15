@@ -15,6 +15,13 @@
  *           200 with allowance() from src/gateway/caps.ts (allowed,
  *           uses_credit, scope, resets_at, app_open, the person's own limits,
  *           calls_left, credits, admin).
+ * Anonymous: an app's own server may send `x-hintwise-app-key: <secret>`
+ *           (with the public anon key as the bearer, which verify_jwt
+ *           needs). When the secret's sha256 matches the app's row in
+ *           platform.llm_app_anon (shared/0013), the call runs as that row's
+ *           stand-in user, so every cap applies to all such visitors as one
+ *           person. Answers then carry anonymous: true. Browsers cannot send
+ *           the header (it is not in the CORS allow list).
  * Credits:  once the free allowance is used up, a call is paid with one of
  *           the person's credits (platform.credits, shared/0008), taken before
  *           the call and given back if it fails; never past the app's caps.
@@ -24,6 +31,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { jsonHeaders, preflight } from '../../../src/gateway/cors.ts';
 import { appSlug, parseBody, validateRequest, type AppRow } from '../../../src/gateway/validate.ts';
 import { allowance, decide, funding, type Limits, type Spend } from '../../../src/gateway/caps.ts';
+import { ANON_HEADER, appKeyMatches } from '../../../src/gateway/anon.ts';
 import { buildAnthropicParams, describeError, errorRow, usageRow, type UsageRow } from '../../../src/gateway/request.ts';
 
 // Supabase injects SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY into every
@@ -80,17 +88,36 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
   if (req.method !== 'POST') return json(origin, 405, { error: 'method', message: 'Use POST.' });
 
-  const auth = req.headers.get('authorization') ?? '';
-  const jwt = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-  if (!jwt) return json(origin, 401, { error: 'auth', message: 'Sign in first: send Authorization: Bearer <session token>.' });
-  const { data: userData, error: userError } = await admin.auth.getUser(jwt);
-  const user = userData?.user;
-  if (userError || !user) return json(origin, 401, { error: 'auth', message: 'The session token is invalid or expired; sign in again.' });
-
-  const parsed = parseBody(await req.text());
-  if (!parsed.ok) return json(origin, parsed.status, { error: 'request', message: parsed.error });
-  const slug = appSlug(parsed.body);
-  if (!slug.ok) return json(origin, slug.status, { error: 'request', message: slug.error });
+  const appKey = req.headers.get(ANON_HEADER);
+  const anonymous = appKey !== null;
+  let user: { id: string };
+  let parsed: ReturnType<typeof parseBody>;
+  let slug: ReturnType<typeof appSlug>;
+  if (anonymous) {
+    // An app's server for its visitors who are not signed in (shared/0013).
+    parsed = parseBody(await req.text());
+    if (!parsed.ok) return json(origin, parsed.status, { error: 'request', message: parsed.error });
+    slug = appSlug(parsed.body);
+    if (!slug.ok) return json(origin, slug.status, { error: 'request', message: slug.error });
+    const { data: anonRow, error: anonError } = await admin.from('llm_app_anon').select('user_id, key_sha256').eq('slug', slug.slug).maybeSingle();
+    if (anonError) return json(origin, 500, { error: 'database', message: anonError.message });
+    if (!anonRow?.user_id || !(await appKeyMatches(appKey, anonRow.key_sha256))) {
+      return json(origin, 401, { error: 'auth', anonymous: true, message: `The app key is not valid for app "${slug.slug}".` });
+    }
+    user = { id: anonRow.user_id as string };
+  } else {
+    const auth = req.headers.get('authorization') ?? '';
+    const jwt = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+    if (!jwt) return json(origin, 401, { error: 'auth', message: 'Sign in first: send Authorization: Bearer <session token>.' });
+    const { data: userData, error: userError } = await admin.auth.getUser(jwt);
+    if (userError || !userData?.user) return json(origin, 401, { error: 'auth', message: 'The session token is invalid or expired; sign in again.' });
+    user = userData.user;
+    parsed = parseBody(await req.text());
+    if (!parsed.ok) return json(origin, parsed.status, { error: 'request', message: parsed.error });
+    slug = appSlug(parsed.body);
+    if (!slug.ok) return json(origin, slug.status, { error: 'request', message: slug.error });
+  }
+  const anonFlag = anonymous ? { anonymous: true } : {};
 
   const { data: app, error: appError } = await admin.from('llm_apps').select('*').eq('slug', slug.slug).maybeSingle();
   if (appError) return json(origin, 500, { error: 'database', message: appError.message });
@@ -104,7 +131,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const found = await spendFor(slug.slug, user.id);
     if ('error' in found) return json(origin, 500, { error: 'database', message: found.error });
     const [credits, adminFlag] = await Promise.all([creditsOf(slug.slug, user.id), isAdmin(user.id)]);
-    return json(origin, 200, allowance(found.spend, app as Limits, new Date(), { credits, admin: adminFlag }));
+    return json(origin, 200, { ...allowance(found.spend, app as Limits, new Date(), { credits, admin: adminFlag }), ...anonFlag });
   }
 
   const valid = validateRequest(parsed.body, app as AppRow);
@@ -128,6 +155,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       scope: decision.scope,
       resets_at: decision.resets_at,
       credits: 0,
+      ...anonFlag,
       message: `The ${decision.scope} spending cap for the HintWise key is reached; it resets at ${decision.resets_at}. You can use your own key meanwhile.`,
     });
   }

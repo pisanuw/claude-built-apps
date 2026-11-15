@@ -158,6 +158,7 @@ Details: docs/platform.md section 3.
   - no streaming, `tool_choice` or `output_config` (the gateway can be extended);
   - `max_tokens` is clamped to the app's limit, 4096 by default;
   - models are the app's `allowed_models`: Opus 5.5, Sonnet 5.5 and Haiku 5.5 by default, with `claude-opus-5-5` used when the request names none.
+- **Visitors who are not signed in** (shared/0013, owner, 15 Nov; udebt first): an app's own server code may call the gateway for them, all counted as one stand-in user. It sends `Authorization: Bearer <the public anon key>` (verify_jwt needs a project JWT) and `x-hintwise-app-key: <secret>`; browsers cannot send that header. The owner makes the secret (`openssl rand -base64 32`), puts it in the app's Netlify env as a secret `HINTWISE_APP_KEY` (Functions scope) and gives Plabs only its sha256 (`printf %s "$KEY" | shasum -a 256`); Plabs runs `anon-setup <slug> --key-sha256=<hex>` after the owner's yes (`anon-off <slug>` undoes it). The per-person caps (`user-day`, and any app-user caps) are then the visitors' shared allowance, inside the app caps; answers carry `anonymous: true`. Put a bot check (Turnstile, verified in the app's function) in front of it.
 - **Calling Claude from scripts:** use the local `claude` CLI. Using an Anthropic API key needs the owner's yes.
 
 ### Spending limits
