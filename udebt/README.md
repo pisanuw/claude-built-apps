@@ -8,7 +8,7 @@ Supabase admin workflow:
   applied with `migrate udebt`, then `expose-schema app_udebt` and `check-schema app_udebt`.
 - `supabase/ops/<sample>.sql`: the three shared sample analyses (public repositories),
   each loaded with `sql`; idempotent.
-- `supabase/ops/udebt-llm-app.sql`: the gateway row (default model only).
+- `supabase/ops/udebt-llm-caps.sql`: the gateway row (default model Sonnet, default caps), from understanding-debt ba647d7; run after the owner's yes.
 
 Shared by design (`SHARED_TABLES` in platform/supabase-admin.mjs): app_udebt.repositories
 and app_udebt.analyses, read by every signed-in person.
