@@ -427,6 +427,8 @@ export function queryResult(resp) {
  */
 export const SHARED_TABLES = {
   'platform.llm_apps': 'which apps use the gateway, with their models and caps; no secrets (policy llm_apps_select_authenticated, shared/0001)',
+  'app_udebt.repositories': 'public GitHub repositories udebt has analysed (URL, name, licence); no personal data (udebt 0001/0002)',
+  'app_udebt.analyses': 'analyses of public repositories, shared with every signed-in person by design (owner, 15 Nov); no answers or personal data (udebt 0002)',
 };
 
 /**
