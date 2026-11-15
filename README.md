@@ -122,6 +122,7 @@ addresses for now.
 | [Study Buddy Matchmaker](https://study-buddy-matchmaker.hintwise.org/) ([code](./study-buddy-matchmaker)) | Upload a gradebook CSV and get complementary study pairs with shared agendas. |
 | [Where Does It Say](https://where-does-it-say.hintwise.org/) ([code](./where-does-it-say)) | Questions about the syllabus answered only with verbatim quotes, or a refusal. |
 | [Code Analogy Forge](https://code-analogy-forge.hintwise.org/) ([code](./code-analogy-forge)) | Three analogies for a piece of code or a CS concept, pitched at the audience you choose. |
+| [Lewis Structure Alt Text](https://lewis-alt-text.hintwise.org/) ([code](./lewis-alt-text)) | Screen-reader alt text for Lewis structures and related chemistry figures that describes what is drawn without giving away the answer. |
 | [Dossier Comment Reflector](https://dossier-comment-reflector.hintwise.org/) ([code](./dossier-comment-reflector)) | Years of student evaluation comments in; themes, before-and-after evidence for your course changes, fair quotes and a page-limited tenure reflection draft out. |
 | [Research Map](https://research-map.hintwise.org/) ([code](https://github.com/pisan-labs/research-map)) | A school's faculty as a map where people with similar research sit close together; search a topic or paste a project idea to find possible advisors and collaborators. Live for UW Bothell STEM and UW Tacoma. |
 

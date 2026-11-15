@@ -32,6 +32,7 @@ export const DEPLOYED_APP_LABELS: readonly string[] = [
   'heap-arena-replay',
   'leap-second-lab',
   'letter-ledger',
+  'lewis-alt-text',
   'lockstep-lab',
   'migration-diff-narrator',
   'misrepresentation-preflight',

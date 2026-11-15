@@ -638,3 +638,7 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-15 [code] platform: anonymous gateway use per app (shared/0013 llm_app_anon, x-hintwise-app-key, anon-setup/anon-off); built for udebt (owner "1a"), not deployed
 
 2026-11-15 [code] platform: anon gateway review fixes: service_role grant on llm_app_anon (was a blocker), generic 500, stand-in banned from interactive sign-in, random-key rule in the guide
+
+2026-11-15 [code] lewis-alt-text: new app (alt text for Lewis structure images, skill v8 as cached system block, gateway or own key, CLI via claude); no per-user data
+
+2026-11-15 [decision] lewis-alt-text gateway limits (owner "3 ok"): 20 alt texts a person a day; app $3/day, $15/week, $40/month; Plabs sets them

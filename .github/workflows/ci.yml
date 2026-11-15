@@ -1972,6 +1972,36 @@ jobs:
       - name: Build
         run: npm run build
 
+  lewis-alt-text:
+    name: lewis-alt-text
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lewis-alt-text
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: lewis-alt-text/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test with coverage
+        run: npm run coverage
+
+      - name: Build
+        run: npm run build
+
   four-ghosts:
     name: four-ghosts
     runs-on: ubuntu-latest

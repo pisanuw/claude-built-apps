@@ -1,0 +1,5 @@
+# Playwright output
+test-results/
+playwright-report/
+# Local Supabase values (see .env.example)
+.env

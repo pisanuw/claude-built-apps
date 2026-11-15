@@ -1258,3 +1258,22 @@ target-tile ghosts against BFS and A* pursuit (captures per minute, bunching,
 spread). No backend. 55 vitest tests, 99.6% statement coverage on the core.
 Live: [four-ghosts.hintwise.org](https://four-ghosts.hintwise.org).
 See its [README](./four-ghosts/README.md).
+
+### [`lewis-alt-text/`](./lewis-alt-text)
+
+Lewis Structure Alt Text: upload an image of a Lewis structure or a related
+chemistry figure and get alt text for screen reader users. The rules are a
+chemistry accessibility skill by a collaborator, sent to Claude unchanged as
+one cached system block, with the visitor's answers to the skill's usual
+questions (question or answer key, lesson focus, context) in the user turn.
+The reply is parsed into alt text, a clarifying question or an error, with an
+optional atom-by-atom verification audit, and checked mechanically against
+the skill's hard rules (no bond-type names, no Unicode symbols, spaced
+two-letter element symbols, at most 20 sentences). Images are resized in the
+browser to fit the gateway's 1 MB limit. Model calls go through the LLM
+gateway for signed-in visitors or straight to api.anthropic.com with the
+visitor's own key; nothing about a figure is stored. A command-line tool runs
+the same TypeScript core through the local claude CLI. 126 vitest tests,
+99.7% statement coverage, and a Playwright walkthrough with the model faked.
+See its [README](./lewis-alt-text/README.md).
+

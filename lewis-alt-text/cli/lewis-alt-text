@@ -1,0 +1,103 @@
+#!/usr/bin/env -S node --no-warnings=ExperimentalWarning
+// Command-line alt text for Lewis structure images, with the same prompt and
+// checks as the web app. Runs the local `claude` CLI (your Claude
+// subscription, no API key). Needs Node 22.18 or newer, which runs the app's
+// TypeScript core directly.
+//
+//   cli/lewis-alt-text figure.png [more.png ...] [options]
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
+import { DEFAULT_MODEL, writeAltText } from '../src/core/alt-text.ts';
+import { FOCUSES, PURPOSES, sniffType, toBase64 } from '../src/core/request.ts';
+import { generateWithClaude } from './claude-cli.mjs';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const SKILL = path.join(HERE, '..', 'skill', 'lewis-structure-alt-text-v8.txt');
+const MAX_BYTES = 5 * 1024 * 1024; // the API's per-image limit
+
+const HELP = `Usage: lewis-alt-text IMAGE... [options]
+
+Writes screen-reader alt text for Lewis structure images, using the local
+claude CLI (your Claude subscription; no API key).
+
+Options:
+  -p, --purpose P   ${Object.keys(PURPOSES).join(' | ')}   (default unknown, treated as a question)
+  -f, --focus F     ${Object.keys(FOCUSES).join(' | ')}
+  -c, --context T   caption, question text or lesson topic
+  -a, --audit       also print the atom-by-atom verification audit (to stderr)
+  -m, --model M     opus (default), sonnet or haiku, or a full model id; also $LEWIS_MODEL
+  -j, --json        print one JSON object per image
+  -h, --help
+
+Alt text goes to stdout, warnings to stderr.
+Exit status: 0 alt text written, 2 the model asked a question, 1 error.`;
+
+const MODELS = { opus: 'claude-opus-5-5', sonnet: 'claude-sonnet-5-5', haiku: 'claude-haiku-5-5' };
+
+let parsed;
+try {
+  parsed = parseArgs({
+    allowPositionals: true,
+    options: {
+      purpose: { type: 'string', short: 'p', default: 'unknown' },
+      focus: { type: 'string', short: 'f', default: 'unknown' },
+      context: { type: 'string', short: 'c', default: '' },
+      audit: { type: 'boolean', short: 'a', default: false },
+      model: { type: 'string', short: 'm', default: process.env.LEWIS_MODEL || 'opus' },
+      json: { type: 'boolean', short: 'j', default: false },
+      help: { type: 'boolean', short: 'h', default: false },
+    },
+  });
+} catch (e) {
+  console.error(`${e.message}\n\n${HELP}`);
+  process.exit(1);
+}
+const { values: o, positionals: files } = parsed;
+if (o.help || files.length === 0) {
+  console.log(HELP);
+  process.exit(o.help ? 0 : 1);
+}
+
+const skill = await readFile(SKILL, 'utf8');
+const model = MODELS[o.model] ?? (o.model || DEFAULT_MODEL);
+const options = { purpose: o.purpose, focus: o.focus, context: o.context, audit: o.audit };
+
+async function one(file) {
+  const bytes = new Uint8Array(await readFile(file));
+  if (bytes.length > MAX_BYTES) throw new Error('image is larger than 5 MB');
+  const mediaType = sniffType(bytes);
+  if (!mediaType) throw new Error('not a PNG, JPEG, GIF or WebP image');
+  return writeAltText({ base64: toBase64(bytes), mediaType, options, skill, model, generate: (req) => generateWithClaude(req) });
+}
+
+let hadError = false;
+let hadQuestion = false;
+for (const file of files) {
+  let r;
+  try {
+    r = await one(file);
+  } catch (e) {
+    r = { kind: 'error', message: e.message, warnings: [] };
+  }
+  if (o.json) {
+    console.log(JSON.stringify({ file, ...r }));
+  } else {
+    if (files.length > 1) console.log(`== ${path.basename(file)} ==`);
+    if (r.kind === 'alt') {
+      if (r.audit) console.error(`--- audit ---\n${r.audit}\n-------------`);
+      console.log(r.altText);
+      for (const w of r.warnings) console.error(`warning: ${w}`);
+    } else if (r.kind === 'question') {
+      console.log(`QUESTION: ${r.question}`);
+      console.error('Answer it with --context "..." and run again.');
+    } else {
+      console.error(`error: ${file}: ${r.message}`);
+    }
+  }
+  hadError ||= r.kind === 'error';
+  hadQuestion ||= r.kind === 'question';
+}
+// An error outranks a question.
+process.exit(hadError ? 1 : hadQuestion ? 2 : 0);

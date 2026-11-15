@@ -1,0 +1,459 @@
+name: lewis-structure-alt-text
+description: Write screen-reader alt text for Lewis structures and related chemistry figures (Lewis dot symbols, resonance structures, bracketed ions, formal charges, lone pairs, unpaired electrons, dipole moment arrows, molecular models). Use whenever the user asks for alt text, an image description, or accessibility text for a chemistry structure image, or uploads one and mentions accessibility, screen readers, or blind or low-vision students, even without saying "alt text." Output is the alt text only, unless a brief clarifying question is needed or the user asks to see the verification audit.
+---
+
+# Writing Alt Text for Lewis Structures
+
+## Purpose
+
+Lewis structure alt text gives a screen reader user the same visual information a sighted student has.
+
+Do not solve problems the image asks students to solve. Describe the structure accurately enough that the student can do the same reasoning as a sighted student.
+
+For an answer key, you may describe the correct answers, formal charges, resonance contributors, and other instructor-provided information shown.
+
+Gold standard test: Can a blind student get the same visual evidence as a sighted student while still doing the same chemistry reasoning? If yes, the alt text is probably appropriate.
+
+---
+
+## Output Format
+
+Return only the alt text. Nothing else.
+
+- No preamble, explanation, labels, or surrounding quotation marks.
+- Do not start with "Image of," "Picture of," or "Diagram of" unless the figure type is useful (for example, "A Lewis structure of...").
+- One block of plain prose. No markdown, bullets, or line breaks.
+- No Unicode symbols (subscript digits, superscript signs, Greek delta, arrows). Spell everything out in words.
+
+Length scales with complexity, from 2 to 20 sentences:
+
+- Diatomic molecules or ions, and single atoms: about 2 to 5 sentences.
+- Simple polyatomic structures: roughly 6 to 12 sentences.
+- Complex polyatomic structures, or multiple resonance contributors: up to 20 sentences. Never exceed 20.
+
+If a figure runs past 20 sentences, state shared features once ("Each oxygen atom has three lone pairs of electrons") and drop non-focus detail. Never omit required information: formal charges, brackets, overall charge, or the number of structures. When a shared feature includes position, keep the relational anchor even when you compress it (see "Lone Pairs and Spatial Position").
+
+Respond with something other than alt text only when:
+
+1. No image was provided or it cannot be opened. Say so briefly and ask for it.
+2. A clarifying question is warranted (see "Handling Uncertainty and Edge Cases"). Ask only the question, with no draft.
+3. The user asks to see the verification audit (for example, "show your inventory" or "show your work"). Return the inventory and recount from Steps 2 and 3 under "Audit," then the alt text under "Alt text."
+
+Otherwise the audit is working notes only. Never include it in the output.
+
+---
+
+## Workflow
+
+Work through the steps in order. Steps 2, 3, and 6 are mandatory verification gates. Never skip or shorten them, even for simple or familiar-looking figures. Do not draft until Steps 2 and 3 are complete. Skipped verification is the most common cause of errors.
+
+### Step 1: Understand the figure and its purpose
+
+Review the image and any context the user gives (caption, question text, lesson topic, file name). Determine three things.
+
+**Figure type.** For example: Lewis dot symbol, Lewis structure, resonance contributors, structure with a dipole arrow, or molecular model.
+
+**Question or answer key.** Answer-key signals: the user says so, instructor annotations, answers or corrections in a different color, circled or highlighted answers, graded work.
+
+- Clearly an answer key: describe all information shown, including completed work, formal charges, resonance assignments, dipole arrows, partial charges, labels, annotations, instructor notes, corrections, and highlighted answers. Add no reasoning, calculations, or conclusions that are not shown.
+- Clearly a question: describe only what is visibly shown. Do not supply missing labels, formal charges, resonance contributors, species names, geometries, or anything else the student must determine.
+- Unclear: see "Handling Uncertainty and Edge Cases." When in doubt, preserve the reasoning task for the student. Never treat an unknown figure as an answer key.
+
+**Instructional focus.** Lone pairs, bonding, formal charges, resonance, geometry, polarity, or something else. See "Preserve the Instructional Goal."
+
+### Step 2: Mandatory visual audit (before drafting)
+
+Do not write any alt text yet. First write an explicit inventory in your working notes. Do not hold it only in your head. Do not describe the figure from a general impression. The inventory is not part of the output (see "Output Format").
+
+If the figure has several structures, number them left to right, top to bottom, and keep a separate inventory for each. Within a structure, list every atom in a fixed order, left to right, top to bottom. For each atom, record all of the following. Write "none" or "0" rather than skipping an item:
+
+- ID, element symbol, and position (for example, "upper oxygen")
+- every atom it connects to, with the exact number of visible parallel line segments for each connection (or electron pairs, if drawn as dots)
+- number of lone pairs, and, for each lone pair, its actual drawn position stated two ways: (a) its compass or clock direction as drawn, and (b) its position relative to the bonds and other substituents on that atom (for example, "on the side not facing the central atom," "between the two bonds to the atoms above and left," "on the axis perpendicular to the plane of the four bonded atoms"). Never record only the count.
+- number of unpaired electrons
+- formal or partial charge drawn on it, or "none drawn"
+
+Also record the brackets and overall charge for each structure (or "none drawn"). For the whole figure, record the number of structures, any arrows (type and direction), and every text label.
+
+Record each connection from both ends. Confirm the two entries agree.
+
+Format example (illustrative only; counts differ for every figure, so do not copy them):
+
+```
+Structure 1
+- S1: central sulfur, center. Connected to O1: 2 lines. Connected to O2: 1 line. Connected to O3: 1 line. Lone pairs: 1, positioned below the sulfur atom, on the side not facing any oxygen. Unpaired: 0. Charge: none drawn.
+- O1: upper oxygen. Connected to S1: 2 lines. Lone pairs: 2, both on the side of the oxygen away from sulfur (upper-left and upper-right of the oxygen symbol). Unpaired: 0. Charge: none drawn.
+- O2: lower-left oxygen. Connected to S1: 1 line. Lone pairs: 3, on the left, lower-left, and bottom of the oxygen symbol, none facing sulfur. Unpaired: 0. Charge: none drawn.
+- O3: lower-right oxygen. Connected to S1: 1 line. Lone pairs: 3, on the right, lower-right, and bottom of the oxygen symbol, none facing sulfur. Unpaired: 0. Charge: none drawn.
+Brackets: none drawn. Overall charge: none drawn.
+```
+
+Bond-counting warning: For each atom, inspect each attached atom independently. Never assume connections match, or differ, because the structure resembles a familiar molecule. If one connection has two parallel line segments, check every other connection separately. Do not generalize from the first connection or from the structure you expect.
+
+Positioning warning: Never fill in a lone pair's position with a generic default (such as "above and below") because that is the common pattern for a different molecule or a simpler case. Look at what is actually drawn, including diagonal placement, and record it relative to the other substituents on that atom, not just a compass word in isolation.
+
+Miscounting atoms, resonance contributors, line segments, formal charges, lone pairs, electrons, or positions is the most damaging error. Never assume a structure matches a common molecule.
+
+### Step 3: Mandatory independent recount
+
+Reinspect the image. Recount every connection (line segments) and every electron group (lone pairs, unpaired electrons), atom by atom, including the position recorded for each lone pair. Do not rely on your first pass or on the structure you expect. Write out the second count and compare it with the inventory item by item.
+
+- If every item matches, continue.
+- If any item differs or is unclear, inspect that part again, zooming or cropping if you can. Recount until two independent counts agree.
+
+Ambiguity rule: If an item is still unclear after reinspection (for example, two or three line segments, or whether a dot is present, or exactly which side a lone pair sits on), do not guess. Do not resolve it by what the structure "should" look like. State the ambiguity in the alt text (for example, "The number of line segments between the sulfur atom and the oxygen atom on the right is difficult to determine."). If the ambiguity materially affects the description and the user can respond, you may ask one clarifying question instead (see "Handling Uncertainty and Edge Cases").
+
+### Step 4: Decide what to name and how much detail to give
+
+Follow "Naming Species" to decide whether to identify the molecule or ion. Follow "Preserve the Instructional Goal" to set the level of detail.
+
+### Step 5: Draft in a consistent order
+
+Write from the verified inventory only, not from your impression of the image or the structure you expect. A workable order for most figures:
+
+1. What the overall figure is (for example, "A Lewis structure..." or "Three Lewis structures connected by double-headed arrows...").
+2. Which atoms are present and where they are positioned.
+3. How the atoms are connected: the number of line segments between atoms, without naming the bond type.
+4. Electrons: lone pairs and unpaired electrons, with position relative to bonds and other substituents when the inventory records one (see "Lone Pairs and Spatial Position").
+5. Formal charges or partial charges.
+6. Brackets and overall charge.
+7. Arrows, labels, and annotations.
+
+### Step 6: Mandatory draft validation gate
+
+Before returning the alt text, compare every factual statement in the draft against the inventory, one statement at a time. Verify in particular:
+
+- atom counts for each element, and the number of structures
+- the number of line segments for every connection
+- lone pair and unpaired electron counts for every atom
+- for every lone pair position mentioned, that the stated direction matches the inventory exactly, including diagonal versus above/below versus left/right, and that it is anchored to a bond or substituent, not just a bare compass word
+- formal and partial charges and which atom has each, plus brackets and overall charge
+- arrows, labels, and positions (above, below, left, right, diagonal)
+
+If a statement covers several atoms (for example, "Each oxygen atom has three lone pairs of electrons"), confirm that every atom it covers has that count in the inventory, and, if a shared position is implied, that every atom it covers actually shares that position.
+
+If any statement is unsupported by or conflicts with the inventory, correct the draft (or, after reinspecting the image, the inventory) and compare again. Do not return the alt text until every count agrees.
+
+Then confirm style:
+
+- Does it describe what is shown, not what it means?
+- Does it avoid inferring chemistry that is not drawn?
+- If the figure is a question, does it avoid giving away the answer?
+- Does it list only the number of line segments between atoms, without naming any bond as single, double, or triple?
+- Are formulas and symbols spelled out for text-to-speech, with a space between the letters of every two-letter element symbol?
+- Is the length right for the complexity?
+- Where location is included, is it relational (tied to bonds or other substituents), not a generic compass default?
+- Does it pass the gold standard test?
+
+---
+
+## General Principles
+
+### Describe visual evidence before conclusions
+
+Describe what the student can see, not what it means.
+
+Prefer: "A nitrogen atom is located at the center of the structure. Three oxygen atoms surround the nitrogen atom." Avoid: "This is nitrate."
+
+Prefer: "The oxygen atom above nitrogen has a formal charge of minus one." Avoid: "The oxygen atom above nitrogen is more stable."
+
+Identification and interpretation can come later, and only when appropriate. The goal is access to the visual evidence while preserving the student's reasoning task whenever possible.
+
+### Never Infer a Familiar Molecule
+
+Do not assume a familiar chemistry species.
+
+- A central atom with three oxygen atoms is not necessarily nitrate.
+- A linear O-C-O arrangement is not necessarily carbon dioxide.
+- A structure that resembles a common ion may differ in bond placement, lone pairs, formal charges, resonance contributors, or overall charge.
+
+A look-alike may differ by only one bond, one lone pair, one formal charge, one atom, or one position. Verify the drawing before identifying it. Count and verify the structure, including where every lone pair actually sits, before naming or describing it. Do not borrow the lone pair arrangement from a more familiar or simpler molecule just because the central atom or formula looks similar.
+
+### Naming Species
+
+Do not identify the molecule or ion unless one of these is true:
+
+- The figure itself labels the species.
+- The image is clearly an answer key.
+- The user identifies the species and the figure is not a question.
+- The instructional context shows that naming it does not reveal part of the intended task.
+
+For a question figure, the user naming the species is not enough on its own. When in doubt, describe the structure instead of naming it.
+
+### Use chemistry terminology when students are expected to know it
+
+Use terms such as: Lewis structure, Lewis dot symbol, lone pair, unpaired electron, formal charge, resonance contributor, dipole moment arrow.
+
+Follow the Bonds section when describing bonds. Describe visible bond representations rather than inferring chemistry from the drawing. Do not oversimplify chemistry vocabulary.
+
+### Read formulas as spoken chemistry notation
+
+Text-to-speech may misread subscripts and superscripts, so write them out.
+
+- Write "N O subscript 3, one minus charge," not "NO3-".
+- Write "H subscript 2 O," not "H2O".
+- Write "open parenthesis, H g subscript 2, close parenthesis, subscript 3," not "(Hg2)3".
+
+Two-letter symbols: When an element's symbol has two letters, add a space between them to avoid text-to-speech errors. Write "C l" for chlorine, "H g" for mercury, "C o" for cobalt, and "N a" for sodium. Do this every time you write the symbol itself, including inside formulas. One-letter symbols are written as is. Do not apply this to full element names such as "carbon" or "oxygen."
+
+---
+
+## Lewis Dot Symbols
+
+When introducing Lewis dot symbols, count electrons explicitly and describe placement.
+
+> A fluorine atom is shown as the element symbol F surrounded by seven valence electrons. Two electrons appear above the symbol, two below, two on one side, and one unpaired electron on the remaining side.
+
+When lone pairs are the focus, describe locations precisely. Otherwise state only:
+
+> The fluorine atom is shown with three lone pairs of electrons.
+
+---
+
+## Bonds
+
+Describe only the number and arrangement of line segments between atoms. Do not name the bond type.
+
+Never use "single bond," "double bond," "triple bond," "singly bonded," or "doubly bonded." Do not add an interpretive sentence such as "These line segments represent a double bond." Identifying the bond type is part of the reasoning the student must do, just as a sighted student reads the lines and interprets them. This applies to every figure, including answer keys and figures that are themselves Lewis structures. The one exception is text printed in the figure that names a bond type. Report it as a label.
+
+Prefer:
+
+- One line segment: "One horizontal line segment connects the two atoms." or "The atoms are connected by one horizontal line segment."
+- Two line segments: "Two parallel line segments connect the atoms."
+- Three line segments: "Three parallel line segments connect the atoms."
+
+Avoid:
+
+- "Two parallel line segments connect the atoms, representing a double bond."
+- "The atoms are connected by a single bond."
+
+For electron dots, state only the number of pairs between the atoms: "Two pairs of electrons appear between the atoms."
+
+When referring back to an atom, identify it by connection or position, not bond type. Prefer "the oxygen atom connected to nitrogen by two parallel line segments." Avoid "the doubly bonded oxygen atom."
+
+Use the actual orientation of the line segments (horizontal, vertical, diagonal), not "horizontal" by default.
+
+---
+
+## Lone Pairs and Spatial Position
+
+When lone pairs matter, describe number and location, and state location relative to the atom's bonds and neighbors, not just a compass direction in isolation. A compass word alone (above, below, left, right) is not enough when the drawing shows a different arrangement, such as diagonal placement, or when the position carries chemical meaning (which side faces the central atom, which side is open).
+
+Default to the relational version whenever an atom has both bonds and lone pairs:
+
+> The oxygen atom has two lone pairs of electrons: one above the oxygen symbol and one below, on the sides not facing nitrogen.
+
+Not just:
+
+> The oxygen atom has two lone pairs of electrons.
+
+Two rules that prevent the most common error:
+
+1. **Do not default to "above and below" or any other compass pair out of habit.** Use whatever direction is actually drawn, including diagonal (upper-left, lower-right) or perpendicular-to-the-plane placements, and verify it against Step 2 and Step 3 before writing it.
+2. **State what the lone pair position is relative to.** Prefer "on the three sides of chlorine that do not face iodine" over "chlorine has three lone pairs." Prefer "diagonally, in the upper-left and lower-right of iodine, on the axis perpendicular to the four chlorine atoms" over "iodine has two lone pairs, above and below."
+
+When several atoms share the same arrangement, state the relational pattern once for all of them rather than dropping the relational detail to save length:
+
+> Each of the four chlorine atoms has three lone pairs of electrons, occupying the three sides of that chlorine atom that do not face the iodine atom.
+
+When location is not the instructional focus, you may give the count alone, but only as a deliberate choice under "Preserve the Instructional Goal," never as a shortcut for an atom whose position you have not actually verified.
+
+Do not assume lone pair locations that are not drawn.
+
+---
+
+## Unpaired Electrons
+
+Describe unpaired electrons when shown.
+
+> The chlorine atom has one lone pair of electrons and one unpaired electron.
+
+Never call a single electron a lone pair.
+
+Do not infer or explain radical behavior unless the figure explicitly shows it or answer-key annotations include it. Use "radical" only when the figure labels the species as a radical or the instructional context requires the term.
+
+---
+
+## Formal Charges
+
+Report only formal charges that are visibly drawn. Never calculate one for the student, and never report one that is not shown. The one exception is an answer key that explicitly provides the charges elsewhere in the figure, such as a table or annotation.
+
+Describe magnitude and location.
+
+> The oxygen atom above nitrogen has a formal charge of minus one. The nitrogen atom has a formal charge of plus one.
+
+For answer keys, include all displayed formal charges.
+
+If an atom has no charge drawn, you may say that no formal charge is shown on it when that helps the student. Never state a calculated value.
+
+---
+
+## Resonance Structures
+
+Describe atom positions first, then what changes.
+
+- Overall: "Four Lewis structures are connected by double-headed arrows to indicate resonance."
+- Each structure: "In the first structure, the oxygen atom on the left is connected to sulfur by two parallel line segments." Then: "In the second structure, the oxygen atom above sulfur is connected to sulfur by two parallel line segments."
+- Conclusion: "The position of the two parallel line segments changes among the resonance contributors while the positions of the atoms remain unchanged."
+
+Count the structures carefully and state the correct number. Never say electrons are physically moving.
+
+---
+
+## Geometric Arrangement
+
+Use relative positions: above, below, left, right, upper-left, lower-right, diagonal.
+
+Useful descriptions: linear arrangement, bent arrangement, inverted T-shaped arrangement, trigonal arrangement, square arrangement, four atoms surrounding the central atom.
+
+When geometry is only suggestive and not the lesson, describe the drawing rather than naming a VSEPR shape.
+
+> The three hydrogen atoms form the points of an approximately equilateral triangle around the nitrogen atom.
+
+For a central atom with both bonded atoms and lone pairs arranged around it (for example, a square planar drawing with four bonded atoms and two lone pairs on the central atom), state where the lone pairs sit relative to the bonded atoms, not only that they exist. See "Lone Pairs and Spatial Position."
+
+Do not introduce molecular or electron geometry terms early or when they are not shown.
+
+---
+
+## Dipole Moment Arrows and Partial Charges
+
+Describe dipole moment arrows explicitly.
+
+> A dipole moment arrow is shown above the bond. The tail of the arrow is marked with a short perpendicular line, indicating the positive end of the dipole. The arrowhead points toward the negative end of the dipole and the direction of greater electron density.
+
+Spell out partial charge symbols rather than relying on screen reader interpretation:
+
+> The symbol lower-case delta plus appears above hydrogen. The symbol lower-case delta minus appears above fluorine.
+
+Do not describe bond polarity when the image only shows a Lewis structure.
+
+---
+
+## Brackets and Ionic Charges
+
+Always describe brackets and overall charge.
+
+> The entire structure is enclosed within square brackets. A one-minus charge appears outside the upper-right corner of the brackets.
+
+---
+
+## Preserve the Instructional Goal
+
+Match the amount of detail to the purpose of the figure. Not every visible feature deserves equal attention.
+
+- In an introductory Lewis structure lesson, exact lone pair locations may matter.
+- In a bond polarity lesson, stating that lone pairs are present may be enough.
+- In a resonance lesson, bond placement and formal charges may matter more than lone pair positions.
+- In a molecular geometry lesson, relative atom placement, and the position of lone pairs relative to bonded atoms, usually matters more than a bare lone pair count.
+
+Describe most fully the features that match the instructional goal. When other features are present but not the focus, it is often enough to note that they exist without exact locations. For example, "The fluorine atom has three lone pairs of electrons." may be preferable to "One lone pair is shown above the fluorine symbol, one below, and one to the right." when the figure illustrates polarity rather than Lewis structures.
+
+If the goal is unknown, use moderate detail and do not overemphasize one feature. Moderate detail means counts of lone pairs and electrons without exact locations, with bonds, charges, brackets, and arrows fully described. Exception: if the central atom has both bonds and lone pairs, or if the figure's main content is the spatial arrangement of atoms (for example, a figure showing how substituents and lone pairs are distributed around a central atom), include the relational position of the lone pairs even at moderate detail, because that spatial relationship is part of the visual evidence itself, not an optional detail.
+
+When unsure whether to include information that is not visibly drawn, leave it out. Never omit anything that is visibly drawn.
+
+---
+
+## Handling Uncertainty and Edge Cases
+
+### When to ask a clarifying question
+
+This skill is used interactively, so you may ask a brief clarifying question before writing. Ask only when the answer would materially change what you include. Ask one short question at a time. Examples: Is this figure teaching Lewis structures, resonance, polarity, or molecular geometry? Is this image part of a problem students solve, or an answer key? Are lone pairs the instructional focus?
+
+Do not ask when you can describe the figure accurately at moderate detail, or when the user has given enough context. If the user declines to answer or says to proceed, use the defaults below.
+
+### Defaults when you do not ask
+
+- Question or answer key unclear, and the distinction does not materially change the description: treat it as a question. Describe only what is visibly drawn. Add nothing the student is meant to determine.
+- Instructional focus unclear: use moderate detail, as defined in "Preserve the Instructional Goal," including the relational lone pair exception described there.
+- Part of the image is illegible or ambiguous: describe what can be read, and state plainly in the alt text that a specific part is unclear (for example, "The charge on the right-hand atom is difficult to read"). Do not guess. Follow the ambiguity rule in Step 3.
+- Related figure that is not a Lewis structure (for example, a skeletal structure, VSEPR drawing, orbital diagram, or condensed formula): apply the same principles. Describe before interpreting, spell out notation, use relative positions, and do not give away answers. Do not force Lewis-specific vocabulary onto elements that are not drawn.
+- Instructional text in the image (labels, captions, question prompts): include text that is part of the figure. Omit text that is clearly part of the surrounding page and read separately, unless the user says otherwise.
+
+---
+
+## Molecular Models
+
+For ball-and-stick, space-filling, electrostatic potential, electron-density, or similar models:
+
+- Identify the model type, describe the visible representation, and describe before interpreting.
+- Describe atoms by color, not element, unless the figure labels them. Never identify an element from color alone, even when a familiar color convention seems to apply.
+- If color or saturation varies across a sphere (shading, highlights), use the darkest, most saturated color. Say "black," not "gray."
+- If a key or legend is shown, describe the key itself: each color and the label beside it. Do not say which atoms in the model match which key entries. The student makes that match.
+- Ball-and-stick: describe the number of sticks connecting two spheres (for example, "two parallel sticks connect the spheres"). Do not call them a double bond or name a bond order.
+- Space-filling: describe the arrangement and whether spheres visibly overlap. Do not infer bond order from overlap.
+- Electrostatic potential and electron density: describe the colors, where they appear on the model, and any color scale shown. Do not interpret colors as charge distribution unless it is labeled or is the instructional focus.
+- Do not infer molecular geometry unless it is labeled or is the instructional focus.
+- Preserve the instructional goal.
+
+---
+
+## What Not To Do
+
+Do not:
+
+- infer chemistry that is not shown
+- assume a structure matches a common molecule without counting what is drawn
+- default a lone pair's position to a generic compass pair (such as "above and below") without checking what is actually drawn
+- describe a lone pair's existence without its position relative to bonds or neighboring atoms, when position is included at all
+- give away homework answers
+- name the species in a question figure unless the figure labels it or the instructional context makes naming safe
+- count resonance structures incorrectly
+- assume lone pair locations that are not drawn
+- name a bond as single, double, or triple (describe only the number of line segments)
+- describe bond polarity when the image only shows a Lewis structure
+- describe electron geometry when it is not shown
+- use Unicode notation that may be read unreliably
+- add commentary, headings, or explanations around the alt text
+- treat an unknown figure as an answer key
+
+Avoid statements such as "Oxygen obeys the octet rule" unless the purpose of the image is octet-rule analysis.
+
+---
+
+## Worked Examples
+
+Each example gives a brief description of the figure and the alt text to return. The text after "Alt text:" is the entire output.
+
+### Example 1: Diatomic molecule (short)
+
+Figure: Two nitrogen atoms side by side joined by three parallel lines. Each nitrogen has one lone pair on its outer side. Context: Lewis structures lesson, no answer key.
+
+Alt text:
+A Lewis structure shows the element symbol N on the left and the element symbol N on the right. Three parallel horizontal line segments connect the two atoms. Each nitrogen atom has one lone pair of electrons, shown on the side opposite the other nitrogen atom.
+
+### Example 2: Lewis dot symbol (very short)
+
+Figure: The symbol Cl with seven dots around it.
+
+Alt text:
+A chlorine atom is shown as the element symbol C l surrounded by seven valence electrons. Two electrons appear above the symbol, two below, two on the left side, and one unpaired electron on the right side.
+
+### Example 3: Polarity figure with dipole arrow (lone pairs not the focus)
+
+Figure: H on the left and F on the right joined by one line. Delta plus above H, delta minus above F. A dipole arrow below the bond with a crossed tail at H and the arrowhead at F. Three lone pairs drawn on F. The figure has no label naming the molecule. Context: bond polarity lesson.
+
+Alt text:
+The element symbol H appears on the left and the element symbol F appears on the right, connected by one horizontal line segment. The fluorine atom has three lone pairs of electrons. The symbol lower-case delta plus appears above hydrogen, and the symbol lower-case delta minus appears above fluorine. A dipole moment arrow is shown below the bond. The tail of the arrow, at the hydrogen end, is marked with a short perpendicular line, indicating the positive end of the dipole. The arrowhead points toward fluorine, the negative end of the dipole and the direction of greater electron density.
+
+### Example 4: Question figure (restraint)
+
+Figure: An ion drawn inside square brackets with a one-plus charge outside the upper-right corner. An N is at the center with an H above, below, to the left, and to the right, each joined to the N by one line. No lone pairs and no formal charges are drawn on any atom. The figure has no label naming the species. Context: question asking students to complete the Lewis structure by adding any lone pairs and formal charges.
+
+Alt text:
+A Lewis structure shows the element symbol N at the center, surrounded by four element symbols H: one above, one below, one on the left, and one on the right. Each H is connected to the N by one line segment. No lone pairs of electrons and no formal charges are drawn on any atom. The entire structure is enclosed within square brackets, and a one-plus charge appears outside the upper-right corner of the brackets.
+
+### Example 5: Resonance contributors in an answer key (longer)
+
+Figure: Three nitrate resonance structures separated by double-headed arrows. Each is in square brackets with a one-minus charge at the upper right. Nitrogen is at the center with oxygens above, lower-left, and lower-right. In each structure, one oxygen is joined to the nitrogen by two parallel lines and the other two oxygens are each joined by one line. Nitrogen shows a plus one formal charge; each oxygen joined by one line shows a minus one formal charge. The oxygens joined by one line have three lone pairs each, and the oxygen joined by two lines has two lone pairs. Context: answer key for a resonance and formal charge problem.
+
+Alt text:
+Three Lewis structures are connected by double-headed arrows to indicate resonance. Each structure is enclosed within square brackets, with a one-minus charge outside the upper-right corner of the brackets. In every structure, a nitrogen atom is at the center, with one oxygen atom above it, one at the lower left, and one at the lower right. In the first structure, the oxygen atom above nitrogen is connected to nitrogen by two parallel line segments, and the other two oxygen atoms are each connected to nitrogen by one line segment. The nitrogen atom has a formal charge of plus one, and each of the two oxygen atoms connected by one line segment has a formal charge of minus one. No formal charge is shown on the oxygen atom connected by two parallel line segments. In the second structure, the oxygen atom at the lower left is connected by two parallel line segments, and the oxygen atoms above and at the lower right are each connected by one line segment, with the same formal charges shown on the nitrogen atom and on the two oxygen atoms connected by one line segment. In the third structure, the oxygen atom at the lower right is connected by two parallel line segments, and the oxygen atoms above and at the lower left are each connected by one line segment, again with the same formal charges shown. In every structure, each oxygen atom connected by one line segment has three lone pairs of electrons, and the oxygen atom connected by two parallel line segments has two lone pairs of electrons. The position of the two parallel line segments changes among the resonance contributors while the positions of the atoms remain unchanged.
+
+### Example 6: Square planar ion with lone pairs on the central atom (spatial positioning is the focus)
+
+Figure: The iodine tetrachloride anion. Iodine at the center, with four chlorine atoms arranged around it at the top, bottom, left, and right, each connected to iodine by one line segment. Two lone pairs on iodine are drawn diagonally, one in the upper-left area between the top and left chlorines and one in the lower-right area between the bottom and right chlorines, on the axis perpendicular to the plane of the four chlorine atoms. Each chlorine atom has three lone pairs, occupying the three sides of that chlorine atom that do not face iodine. The whole structure is enclosed in square brackets with a one-minus charge at the upper-right corner. Context: molecular geometry lesson, no label naming the ion.
+
+Alt text:
+A Lewis structure shows the element symbol I at the center, surrounded by four element symbols C l: one above, one below, one to the left, and one to the right. Each chlorine atom is connected to the iodine atom by one line segment. The iodine atom has two lone pairs of electrons, positioned diagonally: one in the upper-left area, between the top and left chlorine atoms, and one in the lower-right area, between the bottom and right chlorine atoms, on the axis perpendicular to the plane formed by the four chlorine atoms. Each of the four chlorine atoms has three lone pairs of electrons, occupying the three sides of that chlorine atom that do not face the iodine atom. The entire structure is enclosed within square brackets, and a one-minus charge appears outside the upper-right corner of the brackets.
