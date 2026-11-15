@@ -64,7 +64,7 @@ describe('schemaFindings', () => {
     expect(f.notes).toEqual([expect.stringMatching(/^platform\.llm_apps: a signed-in stranger sees 1 of 1 row\(s\), by design: /)]);
     // The same name in another schema is not shared.
     expect(schemaFindings('app_x', { tables: [t], definers: [] }, { llm_apps: 1 }, []).errors).toEqual(['app_x.llm_apps: a signed-in stranger sees 1 of 1 row(s)']);
-    expect(Object.keys(SHARED_TABLES)).toEqual(['platform.llm_apps']);
+    expect(Object.keys(SHARED_TABLES)).toEqual(['platform.llm_apps', 'app_udebt.repositories', 'app_udebt.analyses']);
   });
 
   it('fails on RLS off, anon access, a leak to a stranger and an unpinned definer', () => {
