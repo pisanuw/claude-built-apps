@@ -5,7 +5,8 @@ select jsonb_build_object(
   'llm_usage_udebt_today', (select coalesce(jsonb_agg(jsonb_build_object(
       'at', to_char(u.created_at at time zone 'UTC', 'HH24:MI:SS'),
       'ok', u.ok, 'model', u.model, 'in', u.input_tokens, 'out', u.output_tokens, 'cache_read', u.cache_read_tokens, 'cache_write', u.cache_write_tokens,
-      'cost', u.cost_usd, 'error', left(u.error, 160)) order by u.created_at), '[]'::jsonb)
+      'cost', u.cost_usd, 'error', left(u.error, 160),
+      'stand_in', exists (select 1 from platform.llm_app_anon a where a.user_id = u.user_id)) order by u.created_at), '[]'::jsonb)
     from platform.llm_usage u
     where u.app = 'udebt' and u.created_at >= date_trunc('day', now() at time zone 'UTC') at time zone 'UTC'),
   'auth_actions_since_1600_utc', (select coalesce(jsonb_object_agg(a, n), '{}'::jsonb) from (
