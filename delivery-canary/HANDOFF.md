@@ -59,7 +59,7 @@ Shape marks: stateful, connected, unattended, engine (PLAN.md "Shape").
   inbox check" shows the sample as found in Promotions.
   `GET /api/seed-reach` answers `{"gmailImap": true}` when the function can
   reach imap.gmail.com (greeting only; cached a minute).
-- Since day 4 (deploy of 2026-11-15, see "Remaining" for the run): the
+- Since day 4 (Deploy run 182, commit 539f685): the
   "Canary orders from Shopify" card. Signed in, the shop connects its own
   Shopify app (made in the Dev Dashboard with read_orders,
   write_draft_orders and optionally read_products) by pasting the store
@@ -367,6 +367,13 @@ mailbox: IMAP with a Google app password.
   automatic lookup by tag (the owner looks in Shopify); the page must stay
   open for the 9-minute wait (or use "Look for its email now" later);
   variant search shows up to 5 variants of 10 products.
+- Deploy run 182 (day 4): migration 0004 applied, check-schema passed
+  with four advisor warnings by design (signed-in users can execute the
+  definer functions seed_inbox_save, seed_inbox_secret,
+  shop_connection_save, shop_connection_secret; each checks auth.uid() and
+  the shop's owner itself). Live: the four /api/shopify/* routes answer 401
+  signed out; the signed-out sample canary verified in a browser (no page
+  errors); health `seedKeep: true`.
 - Deploy run 181 (day 3): migration 0003 applied, check-schema passed with
   two advisor warnings by design ("Signed-In Users Can Execute SECURITY
   DEFINER Function" for seed_inbox_save and seed_inbox_secret: both check
