@@ -6,7 +6,7 @@ Supabase admin workflow:
 
 - `supabase/migrations/`: copied byte for byte from that repository (commit a141646),
   applied with `migrate udebt`, then `expose-schema app_udebt` and `check-schema app_udebt`.
-- `supabase/ops/<sample>.sql`: the three shared sample analyses (public repositories),
+- `supabase/ops/<sample>.sql`: the shared sample analyses (public repositories; understanding-debt.sql from 9b8a104, 15 Nov),
   each loaded with `sql`; idempotent.
 - `supabase/ops/udebt-llm-caps.sql`: the gateway row (default model Sonnet, default caps), from understanding-debt ba647d7; run after the owner's yes.
 
