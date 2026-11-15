@@ -130,9 +130,10 @@ Still open, none of it blocking Plabs:
    - So check it yourself. In an hourly check, run `curl -s https://stepwise.hintwise.org/ | grep -c 'class="mark"'`: 1 means the footer logo is live (and `data-site-footer` must still count 1). Tell the owner once.
    - **That release is app-notify's first real email.** After it goes live, the next 15:17 UTC run should send to the opted-in people (0 opted in on 13 Nov, so possibly nobody).
    - Check `notify_sends` and the app-notify answer, and whether Resend accepted the List-Unsubscribe headers.
-3. **upvote:** add the CI concurrency group with its next real change, never alone, because a push triggers a Netlify build.
-4. **Watch the build routine** (11:49 CET daily). Delivery Canary day 4 is next, on 15 Nov.
-5. **Logo rollout:** the shared footer mark reaches apps on each deploy. Don't redeploy all apps (credits). Favicons and social images come later.
+3. **udebt** (pisanuw/understanding-debt, own repo, its session session_01JyJzMYGFTUG3wn6vdqEMb9): schema app_udebt live since 15 Nov (owner's yes; migrations 0001/0002, 3 shared samples, check-schema passed). Still open: the gateway row's default model (Sonnet, asked), 'udebt' in EXTERNAL_APP_LABELS plus the sign-in-link/delete-account redeploy, and a Render worker (needs the owner's yes).
+4. **upvote:** add the CI concurrency group with its next real change, never alone, because a push triggers a Netlify build.
+5. **Watch the build routine** (11:49 CET daily). Delivery Canary day 4 is next, on 15 Nov.
+6. **Logo rollout:** the shared footer mark reaches apps on each deploy. Don't redeploy all apps (credits). Favicons and social images come later.
 
 ## 6. Waiting on the owner
 
