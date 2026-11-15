@@ -1,6 +1,6 @@
 /**
- * The page: the delivery-email check, the late-order scan, the shop, and the
- * shop's history.
+ * The page: the delivery-email check, the seed inbox, canary orders from
+ * Shopify, the late-order scan, the shop, and the shop's history.
  * Everything the page needs from outside comes through AppDeps, so the
  * tests run it under jsdom with memory stores and fake link tests.
  */
@@ -18,6 +18,8 @@ import { mountOrders } from './orders';
 import { PLACEMENT_TEXT, renderReport, VERDICT_TEXT } from './report';
 import { mountSeed } from './seed';
 import type { SeedRequest, SeedResponse } from './seedclient';
+import type { ShopClient } from './shopclient';
+import { mountShopify } from './shopify';
 
 export interface AppDeps {
   /** Stores for the current sign-in state. */
@@ -38,6 +40,10 @@ export interface AppDeps {
     check: (req: SeedRequest, token: string) => Promise<SeedResponse>;
     keepAvailable: () => Promise<boolean>;
   };
+  /** The Shopify routes (absent in previews: the card then offers the sample only). */
+  shopify?: ShopClient;
+  /** Waits (tests pass a fake clock's). */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 const PLACEMENTS: Placement[] = ['inbox', 'promotions', 'spam', 'other', 'unknown'];
@@ -113,8 +119,29 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
     },
     runSample: () => runSampleEmail({ placement: 'promotions', seed: { where: 'promotions', receivedAt: '' } }),
     suggestSender: () => current?.analysis.from.address ?? '',
+    onChange: () => shopifyCard.refresh(),
   });
   const orders = mountOrders({ stores: () => stores, ensureShop: () => ensureShop(), shop: () => shop, now, digest: deps.digest, download: deps.download });
+  const shopifyCard = mountShopify({
+    stores: () => stores,
+    shop: () => shop,
+    ensureShop: () => ensureShop(),
+    token: deps.seed?.token ?? (async () => null),
+    client: deps.shopify ?? null,
+    seedCheck: deps.seed?.check ?? (async () => ({ found: false, kept: false, saved: false })),
+    runEmail: async (raw, placement, seed) => {
+      while (busy) await new Promise((r) => setTimeout(r, 50));
+      return run(raw, { placement, seed });
+    },
+    runSample: async () => {
+      while (busy) await new Promise((r) => setTimeout(r, 50));
+      return runSampleEmail({ placement: 'promotions', seed: { where: 'promotions', receivedAt: '' } });
+    },
+    scanOrders: (imp, label) => orders.runImport(imp, label),
+    seedChanged: () => seedCard.refresh(),
+    now,
+    sleep: deps.sleep,
+  });
 
   root.replaceChildren(
     h(
@@ -148,6 +175,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
         result,
       ),
       seedCard.el,
+      shopifyCard.el,
       orders.el,
       h(
         'section',
@@ -262,6 +290,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
       say(`Could not load your history: ${(e as Error).message}`);
     }
     await seedCard.refresh();
+    await shopifyCard.refresh();
     await orders.refresh();
   }
 
@@ -357,9 +386,9 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
     await show(true);
   }
 
-  /** Checks one email; `from` gives Gmail's placement when the seed inbox found it. */
-  async function run(raw: string | ArrayBuffer, from?: { placement: Placement; seed: SeedOrigin }): Promise<void> {
-    if (busy) return;
+  /** Checks one email; `from` gives Gmail's placement when the seed inbox found it. The saved check's id, or null. */
+  async function run(raw: string | ArrayBuffer, from?: { placement: Placement; seed: SeedOrigin }): Promise<string | null> {
+    if (busy) return null;
     busy = true;
     checkBtn.disabled = true;
     sampleBtn.disabled = true;
@@ -371,7 +400,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
       } catch (e) {
         clear(result);
         say(e instanceof EmailError ? e.message : 'This file could not be read as an email.');
-        return;
+        return null;
       }
       let placement = from?.placement ?? placementChosen();
       if (placement === 'unknown' && analysis.labelPlacement) placement = analysis.labelPlacement;
@@ -383,6 +412,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
       const best = downloadCandidates(analysis.links)[0];
       if (best) await testLink(best.url);
       await show(true);
+      return current.savedId;
     } finally {
       busy = false;
       checkBtn.disabled = false;
@@ -404,7 +434,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
     say('Choose the .eml file of a delivery email, or paste its source, or try the sample.');
   });
 
-  function runSampleEmail(from?: { placement: Placement; seed: SeedOrigin }): Promise<void> {
+  function runSampleEmail(from?: { placement: Placement; seed: SeedOrigin }): Promise<string | null> {
     const raw = sampleEmail(sampleFileUrl(deps.origin, deps.basePath));
     fileInput.value = '';
     paste.value = raw;
@@ -441,6 +471,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
       current = null;
       clear(result);
       seedCard.reset();
+      shopifyCard.reset();
       orders.reset();
       void load();
     });

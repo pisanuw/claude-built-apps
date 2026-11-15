@@ -1,3 +1,4 @@
+import { memoryShopDeps } from './shopify-fake';
 import { Duplex } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import { analyseEmail } from '../src/core/email';
@@ -314,7 +315,7 @@ function seedDeps(over: Partial<SeedDeps> = {}): SeedDeps & { saves: SeedSave[];
 }
 
 function api(seed: SeedDeps, verify: ApiDeps['verifyUser'] = async (t) => (t.startsWith('good') ? 'user-1' : null)): ApiDeps {
-  return { verifyUser: verify, record: async () => 'ok', fetchFile: async () => { throw new Error('unused'); }, seed };
+  return { verifyUser: verify, record: async () => 'ok', fetchFile: async () => { throw new Error('unused'); }, seed, shopify: memoryShopDeps() };
 }
 
 const body = (over: Record<string, unknown> = {}) => JSON.stringify({ shopId: SHOP, address: 'Canary.Shop@gmail.com', sender: 'orders@juniperstitch.example', password: 'abcd efgh ijkl mnop', remember: true, ...over });
@@ -327,7 +328,7 @@ describe('POST /api/seed-check', () => {
     expect(parseSeedBody(JSON.stringify({ shopId: 'x' }))).toMatch(/Save the shop first/);
     expect(parseSeedBody(body({ sender: 'x' }))).toMatch(/download emails come from/);
     expect(parseSeedBody(body({ days: '3' }))).toMatch(/between 1 and 60/);
-    expect(parseSeedBody(body({ password: undefined, subject: ' Your   pattern ', days: 7 }))).toEqual({ shopId: SHOP, address: 'canary.shop@gmail.com', sender: 'orders@juniperstitch.example', subject: 'Your pattern', password: '', remember: true, days: 7 });
+    expect(parseSeedBody(body({ password: undefined, subject: ' Your   pattern ', days: 7 }))).toEqual({ shopId: SHOP, address: 'canary.shop@gmail.com', sender: 'orders@juniperstitch.example', subject: 'Your pattern', password: '', remember: true, days: 7, after: '' });
   });
   it('wants POST, a token, a good body and a live session', async () => {
     const s = seedDeps();
@@ -343,7 +344,7 @@ describe('POST /api/seed-check', () => {
     const r = await post(api(s));
     expect(r.status).toBe(200);
     expect(r.body).toMatchObject({ found: true, where: 'promotions', outcome: 'found', kept: true, saved: true, raw: 'aGVsbG8=' });
-    expect(s.checked[0]).toEqual({ address: 'canary.shop@gmail.com', password: 'abcdefghijklmnop', sender: 'orders@juniperstitch.example', subject: '', days: 14 });
+    expect(s.checked[0]).toEqual({ address: 'canary.shop@gmail.com', password: 'abcdefghijklmnop', sender: 'orders@juniperstitch.example', subject: '', days: 14, after: '' });
     expect(s.tags).toEqual([addressTag('canary.shop@gmail.com', KEY)]);
     const saved = s.saves[0];
     expect(saved).toMatchObject({ shopId: SHOP, address: 'canary.shop@gmail.com', secretMode: 'set', outcome: 'found' });

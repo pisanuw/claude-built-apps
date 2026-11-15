@@ -11,6 +11,8 @@
  *   (handleSeedCheck below). Signed-in callers only; 12 an hour per user and
  *   20 an hour per seed address (the seed_checks insert trigger).
  *
+ * - POST /api/shopify/*    -> the shop's own Shopify app (shopapi.ts).
+ *
  * The function acts with the caller's own Supabase token, so row level
  * security applies to everything it reads or writes. Its one secret,
  * DELIVERY_CANARY_KEY, only seals and opens kept app passwords.
@@ -18,6 +20,7 @@
 import type { LinkResult } from '../core/types';
 import { cleanPassword, DEFAULT_DAYS, SeedError, seedQueryProblem, type SeedErrorCode, type SeedQuery, type SeedResult } from './seed';
 import { addressTag, open, seal, seedAad } from './secretbox';
+import { handleShopify, type ShopApiDeps } from './shopapi';
 import type { SeedSave } from './supabase-rest';
 
 export const LINK_TESTS_PER_HOUR = 30;
@@ -35,6 +38,8 @@ export interface ApiDeps {
   record(token: string, host: string): Promise<'ok' | 'limited'>;
   fetchFile(url: string): Promise<LinkResult>;
   seed: SeedDeps;
+  /** The Shopify routes (/api/shopify/*); verifyUser is shared. */
+  shopify: Omit<ShopApiDeps, 'verifyUser'>;
 }
 
 export interface SeedDeps {
@@ -73,6 +78,7 @@ export async function handleApi(method: string, path: string, bodyText: string |
     return json(200, { gmailImap: reachCache.ok });
   }
   if (route === '/api/seed-check') return method === 'POST' ? handleSeedCheck(bodyText, headers, deps) : json(405, { error: 'Use POST.' });
+  if (route.startsWith('/api/shopify/')) return handleShopify(route, method, bodyText, bearer(headers), { ...deps.shopify, verifyUser: deps.verifyUser });
   if (route !== '/api/link-check') return json(404, { error: 'Not found.' });
   if (method !== 'POST') return json(405, { error: 'Use POST.' });
 
@@ -121,6 +127,8 @@ export interface SeedCheckBody {
   /** Keep the typed password (sealed) for this shop's later checks. */
   remember: boolean;
   days: number;
+  /** Only an email that arrived after this time counts (a canary order's time), ISO; '' for any. */
+  after: string;
 }
 
 /** Reads and normalises the request body; a string is the problem in plain words. */
@@ -142,7 +150,13 @@ export function parseSeedBody(bodyText: string | null): SeedCheckBody | string {
     password: typeof b.password === 'string' ? cleanPassword(b.password.slice(0, 200)) : '',
     remember: b.remember === true,
     days: b.days === undefined ? DEFAULT_DAYS : typeof b.days === 'number' ? b.days : NaN,
+    after: '',
   };
+  if (b.after !== undefined && b.after !== '') {
+    const t = typeof b.after === 'string' ? Date.parse(b.after) : NaN;
+    if (Number.isNaN(t)) return 'Send "after" as a time (ISO 8601).';
+    out.after = new Date(t).toISOString();
+  }
   if (!UUID_RE.test(out.shopId)) return 'Save the shop first, then check its seed inbox.';
   const problem = seedQueryProblem({ ...out, password: out.password || 'keptkeptkeptkept' });
   return problem || out;
@@ -190,7 +204,7 @@ export async function handleSeedCheck(bodyText: string | null, headers: Record<s
   let failure: SeedError | null = null;
   try {
     const budget = Math.max(1500, SEED_REQUEST_BUDGET_MS - SAVE_RESERVE_MS - (now() - startedAt));
-    result = await seed.check({ address: body.address, password, sender: body.sender, subject: body.subject, days: body.days }, budget);
+    result = await seed.check({ address: body.address, password, sender: body.sender, subject: body.subject, days: body.days, after: body.after }, budget);
   } catch (e) {
     failure = e instanceof SeedError ? e : new SeedError('protocol', 'The seed inbox check failed. Try again in a minute.');
   }

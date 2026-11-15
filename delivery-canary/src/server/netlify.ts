@@ -7,7 +7,7 @@ import { handleApi, type ApiDeps } from './api';
 import { fetchFile } from './fetchfile';
 import { keyFrom } from './secretbox';
 import { gmailReachableLive, seedCheckLive } from './seed';
-import { recordSeedCheck, recordTest, saveSeed, seedSecret, verifyUser, type RestConfig } from './supabase-rest';
+import { recordSeedCheck, recordShopifyCall, recordTest, saveSeed, saveShopConnection, seedAddress, seedSecret, shopConnection, startCanary, updateCanary, verifyUser, type RestConfig } from './supabase-rest';
 
 declare const __SUPABASE_URL__: string;
 declare const __SUPABASE_ANON_KEY__: string;
@@ -23,17 +23,27 @@ export interface FnEvent {
 
 /** Server deps; `key` is DELIVERY_CANARY_KEY, read from the function's environment at run time (never bundled). */
 export function liveDeps(cfg: RestConfig, key: string | undefined): ApiDeps {
+  const sealKey = keyFrom(key);
   return {
     verifyUser: (t) => verifyUser(cfg, t),
     record: (t, h) => recordTest(cfg, t, h),
     fetchFile: (u) => fetchFile(u, { budgetMs: 8000 }),
     seed: {
-      key: keyFrom(key),
+      key: sealKey,
       record: (t, tag) => recordSeedCheck(cfg, t, tag),
       secret: (t, shop) => seedSecret(cfg, t, shop),
       save: (t, s) => saveSeed(cfg, t, s),
       check: (q, budgetMs) => seedCheckLive(q, budgetMs),
       reachable: () => gmailReachableLive(),
+    },
+    shopify: {
+      key: sealKey,
+      record: (t, kind) => recordShopifyCall(cfg, t, kind),
+      connection: (t, shop) => shopConnection(cfg, t, shop),
+      saveConnection: (t, s) => saveShopConnection(cfg, t, s),
+      seedAddress: (t, shop) => seedAddress(cfg, t, shop),
+      startCanary: (t, shop, v, title) => startCanary(cfg, t, shop, v, title),
+      updateCanary: (t, id, p) => updateCanary(cfg, t, id, p),
     },
   };
 }

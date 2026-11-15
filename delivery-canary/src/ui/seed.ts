@@ -23,11 +23,13 @@ export interface SeedCardDeps {
   /** Whether the server can keep app passwords. */
   keepAvailable: () => Promise<boolean>;
   /** Runs the delivery-email check on the found message, with Gmail's placement. */
-  runEmail: (raw: ArrayBuffer | string, placement: Placement, seed: { where: SeedWhere; receivedAt: string }) => Promise<void>;
+  runEmail: (raw: ArrayBuffer | string, placement: Placement, seed: { where: SeedWhere; receivedAt: string }) => Promise<unknown>;
   /** The sample, as a seed inbox check would find it. */
-  runSample: () => Promise<void>;
+  runSample: () => Promise<unknown>;
   /** A sender to suggest (the From address of the last checked email), or ''. */
   suggestSender: () => string;
+  /** The seed inbox row may have changed (after a check or forget). */
+  onChange?: () => Promise<void>;
 }
 
 export const OUTCOME_TEXT: Record<string, string> = {
@@ -213,6 +215,7 @@ export function mountSeed(deps: SeedCardDeps): { el: HTMLElement; refresh: () =>
     } finally {
       busy = false;
       checkBtn.disabled = false;
+      await deps.onChange?.();
     }
   }
 
@@ -233,6 +236,7 @@ export function mountSeed(deps: SeedCardDeps): { el: HTMLElement; refresh: () =>
         say(`Could not forget the seed inbox: ${(e as Error).message}`);
       }
       await refresh();
+      await deps.onChange?.();
     })();
   });
 

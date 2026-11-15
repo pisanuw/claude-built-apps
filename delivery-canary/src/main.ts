@@ -10,6 +10,7 @@ import { memoryStores, supabaseStores } from './store/stores';
 import { mountApp } from './ui/app';
 import { checkLink } from './ui/linkclient';
 import { checkSeedInbox, seedKeepAvailable } from './ui/seedclient';
+import { shopClient } from './ui/shopclient';
 
 const root = document.getElementById('app');
 if (!root) throw new Error('index.html needs <div id="app">');
@@ -22,6 +23,7 @@ mountApp(root, {
   basePath: location.pathname.replace(/[^/]*$/, ''),
   checkLink: (url) => checkLink(url, { token: () => (live ? currentToken() : Promise.resolve(null)) }),
   seed: live ? { token: () => currentToken(), check: (req, token) => checkSeedInbox(req, token), keepAvailable: () => seedKeepAvailable() } : undefined,
+  shopify: live ? shopClient() : undefined,
   mountAuth: live
     ? (el, onStores) => {
         mountSignIn(el);

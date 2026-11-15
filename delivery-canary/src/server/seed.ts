@@ -31,6 +31,17 @@ export interface SeedQuery {
   subject: string;
   /** How far back to look, in days. */
   days: number;
+  /** Only mail that arrived after this time (ISO), less AFTER_SLACK_S for clocks; '' or absent for any. */
+  after?: string;
+}
+
+/** Shopify's and Gmail's clocks may differ a little: mail up to a minute before `after` still counts. */
+export const AFTER_SLACK_S = 60;
+
+/** `after` as Unix seconds less the slack, or null. */
+export function afterSeconds(after: string | undefined): number | null {
+  const t = Date.parse(after ?? '');
+  return Number.isNaN(t) ? null : Math.max(0, Math.floor(t / 1000) - AFTER_SLACK_S);
 }
 
 export type { SeedWhere };
@@ -97,9 +108,11 @@ export function cleanPassword(p: string): string {
 }
 
 /** The Gmail search for the query (X-GM-RAW syntax). */
-export function gmailSearch(q: Pick<SeedQuery, 'sender' | 'subject' | 'days'>): string {
+export function gmailSearch(q: Pick<SeedQuery, 'sender' | 'subject' | 'days' | 'after'>): string {
   const words = q.subject.trim().split(/\s+/).filter(Boolean);
-  return [`from:${q.sender}`, `newer_than:${q.days}d`, words.length ? `subject:(${words.join(' ')})` : ''].filter(Boolean).join(' ');
+  const after = afterSeconds(q.after);
+  // Gmail reads a number after "after:" as Unix seconds.
+  return [`from:${q.sender}`, `newer_than:${q.days}d`, after !== null ? `after:${after}` : '', words.length ? `subject:(${words.join(' ')})` : ''].filter(Boolean).join(' ');
 }
 
 /**
@@ -161,7 +174,7 @@ export async function findDelivery(c: ImapClient, q: SeedQuery): Promise<SeedRes
   if (!boxes.all) throw new SeedError('mailbox', 'This does not look like a Gmail mailbox: it has no All Mail folder. The seed account must be a Gmail or Google Workspace account.');
   const search = gmailSearch(q);
 
-  const candidates: Candidate[] = [];
+  let candidates: Candidate[] = [];
   if (boxes.spam) {
     await examine(c, boxes.spam);
     // Gmail's search leaves Spam out unless asked, even with the Spam folder open (code review).
@@ -171,6 +184,9 @@ export async function findDelivery(c: ImapClient, q: SeedQuery): Promise<SeedRes
   await examine(c, boxes.all);
   const a = await newestIn(c, 'all', search);
   if (a) candidates.push(a);
+  // Gmail's after: is the filter; this guards against a server that ignored it.
+  const after = afterSeconds(q.after);
+  if (after !== null) candidates = candidates.filter((x) => !x.receivedAt || Date.parse(x.receivedAt) >= after * 1000);
   if (!candidates.length) return { found: false };
   // Newest by arrival; a spam copy wins a tie (a buyer would not see it).
   candidates.sort((x, y) => (x.receivedAt < y.receivedAt ? 1 : x.receivedAt > y.receivedAt ? -1 : x.box === 'spam' ? -1 : 1));

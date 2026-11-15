@@ -17,6 +17,7 @@ import {
   MAX_CSV_BYTES,
   OrdersError,
   scanOrders,
+  type ImportResult,
   type ScanSummary,
 } from '../core/orders';
 import { sampleOrdersCsv } from '../core/orders-sample';
@@ -161,7 +162,7 @@ function defaultDownload(name: string, text: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-export function mountOrders(deps: OrdersDeps): { el: HTMLElement; refresh: () => Promise<void>; reset: () => void } {
+export function mountOrders(deps: OrdersDeps): { el: HTMLElement; refresh: () => Promise<void>; reset: () => void; runImport: (imp: ImportResult, label: string) => Promise<void> } {
   const digest = deps.digest ?? ((d: ArrayBuffer) => crypto.subtle.digest('SHA-256', d));
   const download = deps.download ?? defaultDownload;
   let busy = false;
@@ -334,50 +335,77 @@ export function mountOrders(deps: OrdersDeps): { el: HTMLElement; refresh: () =>
         say('This browser could not fingerprint the file (it needs a secure https page). Reload the page and try again.');
         return;
       }
-      const stores = deps.stores();
-      const now = deps.now();
-      let shop: ShopRow;
-      let same: ScanRow | undefined;
-      let previous: ScanRow | undefined;
+      await scan(imp, sha, fileName, asOf);
+    } finally {
+      busy = false;
+      scanBtn.disabled = false;
+      sampleBtn.disabled = false;
+    }
+  }
+
+  /** Scans an import (from a file, or read from Shopify), saves it under `sha` and lists it. */
+  async function scan(imp: ImportResult, sha: string, fileName: string, asOf: Date | null): Promise<void> {
+    const stores = deps.stores();
+    const now = deps.now();
+    let shop: ShopRow;
+    let same: ScanRow | undefined;
+    let previous: ScanRow | undefined;
+    try {
+      shop = await deps.ensureShop();
+    } catch (e) {
+      say(`Could not save your shop: ${(e as Error).message}`);
+      return;
+    }
+    try {
+      same = await stores.scans.byFile(shop.id, sha);
+      previous = await stores.scans.latest(shop.id, same?.id);
+    } catch (e) {
+      say(`Could not read your earlier scans: ${(e as Error).message}`);
+      return;
+    }
+    // Compare with the shop's latest other file, never with this file's own earlier scan.
+    // Ages run to the file's own time (when Shopify made the export), so a file scanned again later gives the same answer.
+    const at = asOf && asOf.getTime() <= now.getTime() ? asOf : now;
+    const summary = scanOrders(imp, now, graceChosen(), previous?.summary ?? null, at);
+    const row: ScanRow = {
+      id: same?.id ?? newId(),
+      shop_id: shop.id,
+      created_at: same?.created_at ?? now.toISOString(),
+      updated_at: now.toISOString(),
+      file_sha256: sha,
+      file_name: fileName.slice(0, 200),
+      grace_minutes: summary.graceMinutes,
+      orders_total: summary.counts.orders,
+      flagged: summary.counts.late,
+      summary,
+    };
+    show(row);
+    try {
+      await stores.scans.put(row);
+      const again = same ? ' This file was scanned before, so that scan was updated instead of adding another.' : '';
+      say(stores.saved ? `Scanned and saved.${again}` : `Scanned. Sign in to keep this scan.${again}`);
+    } catch (e) {
+      say(`Scanned, but not saved: ${(e as Error).message}`);
+    }
+    await refresh();
+    result.focus();
+  }
+
+  /** Scans orders read from Shopify's Admin API (the Shopify card); the same orders again update their scan. */
+  async function runImport(imp: ImportResult, label: string): Promise<void> {
+    if (busy) return;
+    busy = true;
+    scanBtn.disabled = true;
+    sampleBtn.disabled = true;
+    try {
+      let sha: string;
       try {
-        shop = await deps.ensureShop();
-      } catch (e) {
-        say(`Could not save your shop: ${(e as Error).message}`);
+        sha = hex(await digest(new TextEncoder().encode(JSON.stringify(imp.orders)).buffer as ArrayBuffer));
+      } catch {
+        say('This browser could not fingerprint the orders (it needs a secure https page). Reload the page and try again.');
         return;
       }
-      try {
-        same = await stores.scans.byFile(shop.id, sha);
-        previous = await stores.scans.latest(shop.id, same?.id);
-      } catch (e) {
-        say(`Could not read your earlier scans: ${(e as Error).message}`);
-        return;
-      }
-      // Compare with the shop's latest other file, never with this file's own earlier scan.
-      // Ages run to the file's own time (when Shopify made the export), so a file scanned again later gives the same answer.
-      const at = asOf && asOf.getTime() <= now.getTime() ? asOf : now;
-      const summary = scanOrders(imp, now, graceChosen(), previous?.summary ?? null, at);
-      const row: ScanRow = {
-        id: same?.id ?? newId(),
-        shop_id: shop.id,
-        created_at: same?.created_at ?? now.toISOString(),
-        updated_at: now.toISOString(),
-        file_sha256: sha,
-        file_name: fileName.slice(0, 200),
-        grace_minutes: summary.graceMinutes,
-        orders_total: summary.counts.orders,
-        flagged: summary.counts.late,
-        summary,
-      };
-      show(row);
-      try {
-        await stores.scans.put(row);
-        const again = same ? ' This file was scanned before, so that scan was updated instead of adding another.' : '';
-        say(stores.saved ? `Scanned and saved.${again}` : `Scanned. Sign in to keep this scan.${again}`);
-      } catch (e) {
-        say(`Scanned, but not saved: ${(e as Error).message}`);
-      }
-      await refresh();
-      result.focus();
+      await scan(imp, sha, label, null);
     } finally {
       busy = false;
       scanBtn.disabled = false;
@@ -406,5 +434,5 @@ export function mountOrders(deps: OrdersDeps): { el: HTMLElement; refresh: () =>
     void run(new TextEncoder().encode(text).buffer as ArrayBuffer, 'sample-orders-export.csv', null);
   });
 
-  return { el, refresh, reset };
+  return { el, refresh, reset, runImport };
 }

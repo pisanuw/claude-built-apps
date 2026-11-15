@@ -1,11 +1,12 @@
 /**
- * Shops, checks and order scans behind the template's Repository interface: Supabase
+ * Shops, checks, order scans, seed inboxes, Shopify connections and canary orders behind the template's Repository interface: Supabase
  * tables `shops` and `checks` when signed in, memory otherwise (signed out,
  * tests, `vite preview` and the Playwright walkthrough).
  */
 import { InMemoryRepository, SupabaseRepository, type Repository } from '../lib/repository';
 import type { AppClient } from '../lib/supabase';
 import type { ScanSummary } from '../core/orders';
+import type { SeedWhere } from '../core/seedwhere';
 import type { Baseline, CheckReport, Placement, Verdict } from '../core/types';
 
 export interface ShopRow {
@@ -232,21 +233,126 @@ export class SupabaseSeedStore implements SeedStore {
   }
 }
 
+/** A shop's Shopify connection as the page sees it: never the client secret, sealed or not. */
+export interface ShopConnectionRow {
+  shop_id: string;
+  shop_domain: string;
+  client_id: string;
+  /** Granted scopes, comma separated. */
+  scopes: string;
+  shop_name: string;
+  updated_at: string;
+}
+
+/** Connections are written only by the server (/api/shopify/connect); the page reads them and may disconnect. */
+export interface ConnectionStore {
+  get(shopId: string): Promise<ShopConnectionRow | undefined>;
+  remove(shopId: string): Promise<void>;
+}
+
+const CONNECTION_COLUMNS = 'shop_id, shop_domain, client_id, scopes, shop_name, updated_at';
+
+export class MemoryConnectionStore implements ConnectionStore {
+  readonly rows = new Map<string, ShopConnectionRow>();
+  async get(shopId: string) {
+    return this.rows.get(shopId);
+  }
+  async remove(shopId: string) {
+    this.rows.delete(shopId);
+  }
+}
+
+export class SupabaseConnectionStore implements ConnectionStore {
+  constructor(private readonly client: AppClient) {}
+  async get(shopId: string): Promise<ShopConnectionRow | undefined> {
+    const { data, error } = await this.client.from('shop_connections').select(CONNECTION_COLUMNS).eq('shop_id', shopId).maybeSingle();
+    if (error) throw new Error(`shop_connections: ${error.message}`);
+    return (data ?? undefined) as ShopConnectionRow | undefined;
+  }
+  async remove(shopId: string): Promise<void> {
+    const { error } = await this.client.from('shop_connections').delete().eq('shop_id', shopId);
+    if (error) throw new Error(`shop_connections: ${error.message}`);
+  }
+}
+
+export type CanaryStatus = 'placing' | 'placed' | 'failed' | 'arrived' | 'no-email';
+
+/** One canary order placed in the shop for the seed inbox, and what became of its email. */
+export interface CanaryRow {
+  id: string;
+  shop_id: string;
+  created_at: string;
+  variant_id: string;
+  variant_title: string;
+  status: CanaryStatus;
+  order_name: string;
+  placed_at: string | null;
+  arrived_at: string | null;
+  transit_seconds: number | null;
+  placement: Placement | null;
+  seed_where: SeedWhere | null;
+  check_id: string | null;
+  error: string;
+}
+
+/** The fields the page may change after the server placed the order. */
+export type CanaryUpdate = Partial<Pick<CanaryRow, 'status' | 'arrived_at' | 'transit_seconds' | 'placement' | 'seed_where' | 'check_id' | 'error'>>;
+
+export const CANARY_LIST_LIMIT = 20;
+
+/** Canary rows are inserted by the server (/api/shopify/canary); the page lists them and records the email's arrival. */
+export interface CanaryStore {
+  list(shopId: string, limit?: number): Promise<CanaryRow[]>;
+  update(id: string, patch: CanaryUpdate): Promise<void>;
+}
+
+const CANARY_COLUMNS = 'id, shop_id, created_at, variant_id, variant_title, status, order_name, placed_at, arrived_at, transit_seconds, placement, seed_where, check_id, error';
+
+export class MemoryCanaryStore implements CanaryStore {
+  readonly rows: CanaryRow[] = [];
+  async list(shopId: string, limit = CANARY_LIST_LIMIT) {
+    return byNewest(this.rows.filter((r) => r.shop_id === shopId)).slice(0, limit);
+  }
+  async update(id: string, patch: CanaryUpdate) {
+    const r = this.rows.find((x) => x.id === id);
+    if (r) Object.assign(r, patch);
+  }
+  /** Signed out, the sample canary is added here. */
+  add(row: CanaryRow) {
+    this.rows.push(row);
+  }
+}
+
+export class SupabaseCanaryStore implements CanaryStore {
+  constructor(private readonly client: AppClient) {}
+  async list(shopId: string, limit = CANARY_LIST_LIMIT): Promise<CanaryRow[]> {
+    const { data, error } = await this.client.from('canary_orders').select(CANARY_COLUMNS).eq('shop_id', shopId).order('created_at', { ascending: false }).limit(limit);
+    if (error) throw new Error(`canary_orders: ${error.message}`);
+    return (data ?? []) as CanaryRow[];
+  }
+  async update(id: string, patch: CanaryUpdate): Promise<void> {
+    const { error } = await this.client.from('canary_orders').update(patch).eq('id', id);
+    if (error) throw new Error(`canary_orders: ${error.message}`);
+  }
+}
+
 export interface Stores {
   shops: Repository<ShopRow>;
   checks: CheckStore;
   scans: ScanStore;
   seeds: SeedStore;
+  connections: ConnectionStore;
+  canaries: CanaryStore;
   /** True when rows reach the account (signed in). */
   saved: boolean;
 }
 
 export function memoryStores(): Stores {
-  return { shops: new InMemoryRepository<ShopRow>(), checks: new MemoryCheckStore(), scans: new MemoryScanStore(), seeds: new MemorySeedStore(), saved: false };
+  return { shops: new InMemoryRepository<ShopRow>(), checks: new MemoryCheckStore(), scans: new MemoryScanStore(), seeds: new MemorySeedStore(), connections: new MemoryConnectionStore(), canaries: new MemoryCanaryStore(), saved: false };
 }
 
 export function supabaseStores(client: AppClient): Stores {
-  return { shops: new SupabaseRepository<ShopRow>(client, 'shops'), checks: new SupabaseCheckStore(client), scans: new SupabaseScanStore(client), seeds: new SupabaseSeedStore(client), saved: true };
+  return { shops: new SupabaseRepository<ShopRow>(client, 'shops'), checks: new SupabaseCheckStore(client), scans: new SupabaseScanStore(client), seeds: new SupabaseSeedStore(client), connections: new SupabaseConnectionStore(client), canaries: new SupabaseCanaryStore(client), saved: true };
 }
 
 /** Newest first. */

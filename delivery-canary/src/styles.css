@@ -92,3 +92,19 @@ p.fix { margin: 0.5rem 0; }
   .history-list li .row-actions { grid-column: 2; grid-row: 1 / span 4; }
   table.orders th, table.orders td { padding: 0.3rem; }
 }
+
+/* Canary orders (Shopify card). */
+.inline { display: flex; gap: 0.5rem; align-items: center; }
+.inline input { flex: 1; min-width: 0; }
+.variant-list { list-style: none; padding: 0; margin: 0.5rem 0; }
+.variant-list li { padding: 0.25rem 0; }
+.canaries li { grid-template-columns: 11rem 1fr 7rem; }
+.canaries li .s { grid-column: 1 / -1; }
+.canaries li > button { grid-column: 1 / -1; justify-self: start; }
+.canaries li.canary-fail .v { color: var(--fail); font-weight: 600; }
+.canaries li.canary-warn .v { color: var(--warn); font-weight: 600; }
+.canaries li.canary-pass .v { color: var(--ok); font-weight: 600; }
+.canaries li.canary-info .v { color: var(--muted); font-weight: 600; }
+@media (max-width: 40rem) {
+  .canaries li { grid-template-columns: 1fr; }
+}

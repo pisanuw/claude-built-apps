@@ -6,7 +6,7 @@ import { sampleEmail } from '../src/core/sample';
 import type { LinkResult } from '../src/core/types';
 import { InMemoryRepository } from '../src/lib/repository';
 import type { AppClient } from '../src/lib/supabase';
-import { MemoryCheckStore, MemoryScanStore, MemorySeedStore, SupabaseSeedStore, type CheckRow, type SeedInboxRow, type ShopRow, type Stores } from '../src/store/stores';
+import { MemoryCanaryStore, MemoryCheckStore, MemoryConnectionStore, MemoryScanStore, MemorySeedStore, SupabaseSeedStore, type CheckRow, type SeedInboxRow, type ShopRow, type Stores } from '../src/store/stores';
 import { mountApp, type AppDeps } from '../src/ui/app';
 import { renderReport } from '../src/ui/report';
 import { OUTCOME_TEXT } from '../src/ui/seed';
@@ -21,7 +21,7 @@ const RAW = sampleEmail('https://files.juniperstitch.example/d/abc/pattern.pdf')
 const rawBuffer = () => new TextEncoder().encode(RAW).buffer as ArrayBuffer;
 
 function savedStores(seeds = new MemorySeedStore()): Stores {
-  return { shops: new InMemoryRepository<ShopRow>(), checks: new MemoryCheckStore(), scans: new MemoryScanStore(), seeds, saved: true };
+  return { shops: new InMemoryRepository<ShopRow>(), checks: new MemoryCheckStore(), scans: new MemoryScanStore(), seeds, connections: new MemoryConnectionStore(), canaries: new MemoryCanaryStore(), saved: true };
 }
 
 function setup(opts: { stores?: Stores; check?: (req: SeedRequest, token: string) => Promise<SeedResponse>; keep?: boolean; token?: string | null; noSeed?: boolean } = {}) {

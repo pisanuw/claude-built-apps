@@ -30,6 +30,11 @@ export function seedAad(userId: string, shopId: string, address: string, sender:
   return `delivery-canary/seed-inbox/${VERSION}/${userId}/${shopId}/${address.toLowerCase()}/${sender.toLowerCase()}`;
 }
 
+/** Binds a kept Shopify client secret to its user, shop, store domain and client ID. */
+export function shopAad(userId: string, shopId: string, domain: string, clientId: string): string {
+  return `delivery-canary/shopify-app/${VERSION}/${userId}/${shopId}/${domain.toLowerCase()}/${clientId}`;
+}
+
 export function seal(key: Buffer, plain: string, aad: string): string {
   const iv = randomBytes(12);
   const c = createCipheriv('aes-256-gcm', key, iv);

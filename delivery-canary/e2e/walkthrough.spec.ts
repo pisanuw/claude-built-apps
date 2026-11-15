@@ -48,3 +48,16 @@ test('the sample seed inbox check reads the Promotions placement', async ({ page
   await expect(report).toContainText('seed inbox: the Promotions tab');
   await expect(page.locator('#history .history-list li')).toHaveCount(1);
 });
+
+test('the sample canary order shows its email arriving in Promotions', async ({ page }) => {
+  await page.goto('/');
+  const card = page.locator('#shopify-card');
+  await expect(card.getByRole('heading', { name: 'Canary orders from Shopify' })).toBeVisible();
+  await expect(card.locator('#shopify-form')).toBeHidden();
+  await card.getByRole('button', { name: 'See a sample canary order' }).click();
+  await expect(card.locator('#shopify-status')).toContainText('1 min 42 s later, in the Promotions tab');
+  await expect(card.locator('#canary-list li')).toHaveCount(1);
+  await expect(card.locator('#canary-list li')).toContainText('#1042: Canary pattern (sample)');
+  await expect(page.getByRole('article', { name: 'Check result' })).toContainText('It landed in Promotions');
+  await expect(page.locator('#history .history-list li')).toHaveCount(1);
+});

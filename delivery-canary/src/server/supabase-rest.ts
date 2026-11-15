@@ -82,3 +82,100 @@ export async function saveSeed(cfg: RestConfig, token: string, s: SeedSave): Pro
   if (!res.ok) throw new Error(`seed_inbox_save ${res.status}`);
   return (await res.json()) === true;
 }
+
+export type ShopifyCallKind = 'connect' | 'products' | 'orders' | 'canary';
+
+/** Inserts one shopify_calls row; its trigger answers 429 at 60 an hour per user. */
+export async function recordShopifyCall(cfg: RestConfig, token: string, kind: ShopifyCallKind): Promise<'ok' | 'limited'> {
+  const res = await (cfg.fetchImpl ?? fetch)(`${base(cfg)}/rest/v1/shopify_calls`, {
+    method: 'POST',
+    headers: { ...rpcHeaders(cfg, token), prefer: 'return=minimal' },
+    body: JSON.stringify({ kind }),
+  });
+  if (res.status === 429) return 'limited';
+  if (!res.ok) throw new Error(`shopify_calls ${res.status}`);
+  return 'ok';
+}
+
+export interface StoredConnection {
+  domain: string;
+  clientId: string;
+  /** Sealed client secret. */
+  secret: string;
+}
+
+/** The connection of one of the caller's shops with its sealed secret, or null. */
+export async function shopConnection(cfg: RestConfig, token: string, shopId: string): Promise<StoredConnection | null> {
+  const res = await (cfg.fetchImpl ?? fetch)(`${base(cfg)}/rest/v1/rpc/shop_connection_secret`, {
+    method: 'POST',
+    headers: rpcHeaders(cfg, token),
+    body: JSON.stringify({ p_shop: shopId }),
+  });
+  if (!res.ok) throw new Error(`shop_connection_secret ${res.status}`);
+  const data = (await res.json()) as unknown;
+  const row = (Array.isArray(data) ? data[0] : data) as { shop_domain?: unknown; client_id?: unknown; secret?: unknown } | null | undefined;
+  if (!row || typeof row.shop_domain !== 'string' || typeof row.client_id !== 'string' || typeof row.secret !== 'string') return null;
+  return { domain: row.shop_domain, clientId: row.client_id, secret: row.secret };
+}
+
+export interface ConnectionSave {
+  shopId: string;
+  domain: string;
+  clientId: string;
+  secret: string;
+  scopes: string;
+  shopName: string;
+}
+
+export async function saveShopConnection(cfg: RestConfig, token: string, s: ConnectionSave): Promise<boolean> {
+  const res = await (cfg.fetchImpl ?? fetch)(`${base(cfg)}/rest/v1/rpc/shop_connection_save`, {
+    method: 'POST',
+    headers: rpcHeaders(cfg, token),
+    body: JSON.stringify({ p_shop: s.shopId, p_domain: s.domain, p_client_id: s.clientId, p_secret: s.secret, p_scopes: s.scopes, p_shop_name: s.shopName }),
+  });
+  if (!res.ok) throw new Error(`shop_connection_save ${res.status}`);
+  return (await res.json()) === true;
+}
+
+/** The seed address saved for one of the caller's shops, or null. */
+export async function seedAddress(cfg: RestConfig, token: string, shopId: string): Promise<string | null> {
+  const res = await (cfg.fetchImpl ?? fetch)(`${base(cfg)}/rest/v1/seed_inboxes?select=address&shop_id=eq.${encodeURIComponent(shopId)}`, {
+    headers: { apikey: cfg.anonKey, authorization: `Bearer ${token}`, 'accept-profile': SCHEMA },
+  });
+  if (!res.ok) throw new Error(`seed_inboxes ${res.status}`);
+  const rows = (await res.json()) as Array<{ address?: unknown }>;
+  return Array.isArray(rows) && typeof rows[0]?.address === 'string' ? rows[0].address : null;
+}
+
+/** Inserts a canary_orders row ('placing'); 'limited' at 5 a day per user. */
+export async function startCanary(cfg: RestConfig, token: string, shopId: string, variantId: string, variantTitle: string): Promise<{ id: string } | 'limited'> {
+  const res = await (cfg.fetchImpl ?? fetch)(`${base(cfg)}/rest/v1/canary_orders?select=id`, {
+    method: 'POST',
+    headers: { ...rpcHeaders(cfg, token), prefer: 'return=representation' },
+    body: JSON.stringify({ shop_id: shopId, variant_id: variantId, variant_title: variantTitle }),
+  });
+  if (res.status === 429) return 'limited';
+  if (!res.ok) throw new Error(`canary_orders ${res.status}`);
+  const rows = (await res.json()) as Array<{ id?: unknown }>;
+  const id = Array.isArray(rows) ? rows[0]?.id : undefined;
+  if (typeof id !== 'string') throw new Error('canary_orders: no id');
+  return { id };
+}
+
+export interface CanaryPatch {
+  status: 'placed' | 'failed';
+  order_id?: string;
+  order_name?: string;
+  placed_at?: string;
+  variant_title?: string;
+  error?: string;
+}
+
+export async function updateCanary(cfg: RestConfig, token: string, id: string, patch: CanaryPatch): Promise<void> {
+  const res = await (cfg.fetchImpl ?? fetch)(`${base(cfg)}/rest/v1/canary_orders?id=eq.${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { ...rpcHeaders(cfg, token), prefer: 'return=minimal' },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(`canary_orders ${res.status}`);
+}

@@ -1,3 +1,4 @@
+import { memoryShopDeps } from './shopify-fake';
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { bearer, handleApi, LINK_TESTS_PER_HOUR, type ApiDeps } from '../src/server/api';
@@ -146,6 +147,7 @@ function deps(over: Partial<ApiDeps> = {}): ApiDeps & { recorded: string[] } {
     },
     fetchFile: async (u) => ({ ...emptyResult(u), status: 200, size: 3 }),
     seed: { key: null, record: async () => 'ok', secret: async () => null, save: async () => false, check: async () => ({ found: false }), reachable: async () => true },
+    shopify: memoryShopDeps(),
     ...over,
   };
 }

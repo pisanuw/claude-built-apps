@@ -15,6 +15,8 @@ export interface SeedRequest {
   /** '' to use the password kept for this shop. */
   password: string;
   remember: boolean;
+  /** Only an email that arrived after this time counts (a canary order's time), ISO. */
+  after?: string;
 }
 
 export interface SeedFoundResponse {
