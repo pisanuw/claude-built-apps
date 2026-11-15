@@ -301,6 +301,8 @@ Live checks:
 
 ## Open questions for the owner
 
+**Answered by the owner, 15 Nov 2026 (Lisbon ~11:55, in the Plabs session):** questions 4 and 5: "skip them, continue build on Delivery Canary". No live Shopify or seed-inbox test before the remaining milestones; build on, and treat the first real report as a bug to fix.
+
 5. (day 4) The Shopify connection and canary are tested against a scripted
    Admin API only. Recommendation: when convenient, in a development store
    of the same Shopify organization, create the Dev Dashboard app (steps in

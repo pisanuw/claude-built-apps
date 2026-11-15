@@ -624,3 +624,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-15 [feat] delivery-canary day 4: canary orders from the shop's own Shopify app (sealed secret and canary address, free tagged draft order, timed seed inbox looks), orders from the Admin API
 
 2026-11-15 [note] udebt live: udebt.hintwise.org (Netlify) and udebt-api.hintwise.org (Render free); DEPLOY.md curl checks pass; Netlify SUPABASE_ANON_KEY left to the owner
+
+2026-11-15 [decision] Delivery Canary questions 4 and 5: owner says skip the live Shopify/IMAP tests and continue the build
