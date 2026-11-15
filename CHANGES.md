@@ -646,3 +646,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-15 [note] anonymous gateway use live for udebt (owner yes): 0013 applied, llm-gateway redeployed, anon-setup udebt (stand-in visitors+udebt banned from sign-in, key f1cdfee9...); shared $1/day; no Turnstile for now
 
 2026-11-15 [note] lewis-alt-text live at lewis-alt-text.hintwise.org (Deploy 43740334178, owner yes); sign-in-link and delete-account redeployed; caps 20 calls/day/person, $1 cross-app via it, app $3/$15/$40
+
+2026-11-15 [decision] lewis-alt-text per-person cross-app cap raised to $1.50 (owner), so 20 uncached Opus calls fit
