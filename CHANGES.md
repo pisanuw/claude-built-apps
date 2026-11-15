@@ -622,3 +622,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 
 2026-11-15 [code] platform: udebt added to EXTERNAL_APP_LABELS (owner yes, DEPLOY.md step 3); udebt gateway row set to Sonnet with default caps
 2026-11-15 [feat] delivery-canary day 4: canary orders from the shop's own Shopify app (sealed secret and canary address, free tagged draft order, timed seed inbox looks), orders from the Admin API
+
+2026-11-15 [note] udebt live: udebt.hintwise.org (Netlify) and udebt-api.hintwise.org (Render free); DEPLOY.md curl checks pass; Netlify SUPABASE_ANON_KEY left to the owner
