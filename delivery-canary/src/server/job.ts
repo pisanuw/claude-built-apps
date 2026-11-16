@@ -28,8 +28,12 @@ import { SeedError, type SeedQuery, type SeedResult } from './seed';
 import { getToken, placeCanary, ShopifyError } from './shopify';
 
 export const JOB_BUDGET_MS = 25_000;
-/** A step is not started with less than this left. */
-const STEP_MIN_MS = 9_000;
+/** A look (seed check, link test, alert) or a claim is not started with less than this left. */
+const STEP_MIN_MS = 12_000;
+/** The link test gets less time here than on the page: a slow link in one shop's email must not hold up every other shop's run (security review). */
+const LINK_BUDGET_MS = 5_000;
+/** Kept back for the database writes and an alert after a link test. */
+const AFTER_LINK_MS = 4_500;
 /** Kept for the heartbeat at the end. */
 const END_RESERVE_MS = 1_500;
 
@@ -37,9 +41,10 @@ export interface JobDeps {
   key: Buffer;
   store: JobStore;
   seedCheck(q: SeedQuery, budgetMs: number): Promise<SeedResult>;
-  fetchFile(url: string): Promise<LinkResult>;
-  /** Sends one email and returns Resend's id; null when RESEND_API is not set (then no email is sent). */
-  send: ((m: Mail) => Promise<string>) | null;
+  /** The link test, finished within budgetMs. */
+  fetchFile(url: string, budgetMs: number): Promise<LinkResult>;
+  /** Sends one email within timeoutMs and returns Resend's id; null when RESEND_API is not set (then no email is sent). */
+  send: ((m: Mail, timeoutMs: number) => Promise<string>) | null;
   /** For calls to Shopify (tests pass a scripted Admin API). */
   shopifyFetch?: typeof fetch;
   now?: () => number;
@@ -76,16 +81,33 @@ export async function runJob(d: JobDeps, budgetMs = JOB_BUDGET_MS): Promise<JobS
       const r = await d.store.reserve(shopId, 'alert', dedupe);
       if ('skip' in r) return;
       const mail = alertMail({ ...a, to: r.email, shopName: r.shopName, unsubscribeUrl: unsubscribeUrl(unsubToken(d.key, shopId)) });
+      let id: string;
       try {
-        await d.store.done(r.sendId, true, await d.send(mail));
-        s.alerts++;
+        id = await sendTwice(mail);
       } catch (e) {
         await d.store.done(r.sendId, false, (e as Error).message);
         throw e;
       }
+      await d.store.done(r.sendId, true, id);
+      s.alerts++;
     } catch (e) {
       s.errors++;
       log(`alert for ${shopId}: ${(e as Error).message}`);
+    }
+  }
+
+  /**
+   * Sends within what is left; a refused or failed send is tried once more
+   * when time allows (the canary is already settled, so a lost alert would
+   * not come back). The send row is marked failed only after both.
+   */
+  async function sendTwice(mail: Mail): Promise<string> {
+    const attempt = () => d.send!(mail, Math.max(1000, Math.min(6000, left() - END_RESERVE_MS)));
+    try {
+      return await attempt();
+    } catch (first) {
+      if (left() < END_RESERVE_MS + 3000) throw first;
+      return attempt();
     }
   }
 
@@ -130,7 +152,7 @@ export async function runJob(d: JobDeps, budgetMs = JOB_BUDGET_MS): Promise<JobS
       let linkSkipped = '';
       if (best) {
         try {
-          link = await d.fetchFile(best.url);
+          link = await d.fetchFile(best.url, Math.max(1000, Math.min(LINK_BUDGET_MS, left() - AFTER_LINK_MS)));
         } catch {
           linkSkipped = 'The link test could not run.';
         }
@@ -179,7 +201,16 @@ export async function runJob(d: JobDeps, budgetMs = JOB_BUDGET_MS): Promise<JobS
     const started = await d.store.start(c.shopId, c.variantId!, c.variantTitle);
     if ('error' in started) {
       s.skipped++;
-      await d.store.outcome(c.shopId, `Skipped: ${started.message ?? (started.error === 'busy' ? 'the last canary is still being placed.' : 'the canary limit was reached.')}`);
+      const why =
+        started.error === 'busy'
+          ? 'another canary of this shop is still being placed; trying again in 15 minutes.'
+          : started.error === 'limited'
+            ? `${started.message ?? 'the daily canary limit was reached.'} This slot is skipped.`
+            : 'the schedule was turned off.';
+      await d.store.outcome(c.shopId, `Skipped: ${why}`);
+      if (started.error === 'limited' && c.alerts) {
+        await alert(c.shopId, `run:${c.shopId}:${day(now())}`, { kind: 'cannot-run', orderName: '', product: c.variantTitle, detail: `This slot was skipped: ${started.message ?? 'the daily limit of 5 canary orders was reached'}.`, findings: [] });
+      }
       return;
     }
     const conn = c.connection!;
@@ -215,7 +246,7 @@ export async function runJob(d: JobDeps, budgetMs = JOB_BUDGET_MS): Promise<JobS
       unsubscribeUrl: unsubscribeUrl(unsubToken(d.key, g.shopId)),
     });
     try {
-      await d.store.done(r.sendId, true, await d.send!(mail));
+      await d.store.done(r.sendId, true, await sendTwice(mail));
       s.digests++;
     } catch (e) {
       await d.store.done(r.sendId, false, (e as Error).message);

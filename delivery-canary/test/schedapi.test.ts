@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { handleApi, type ApiDeps } from '../src/server/api';
+import { handleApi, resetLastRunCache, type ApiDeps } from '../src/server/api';
 import { jobStore } from '../src/server/jobrest';
 import { alertMail, digestMail, esc, line, sendResend, unsubscribeUrl, type Mail } from '../src/server/mail';
 import { makeHandler } from '../src/server/netlify';
@@ -61,6 +61,12 @@ describe('POST /api/schedule', () => {
     expect(d.saved[0]).toEqual({ shopId: SHOP, enabled: true, cadence: 'weekly', weekday: 1, hour: 14, variantId: 'gid://shopify/ProductVariant/77', variantTitle: 'Canary', alerts: true, digest: false, tag: jobTag(jobToken(KEY), SHOP) });
     expect(r.body).toEqual({ schedule: { shop_id: SHOP, enabled: true } });
   });
+  it('tags the lower-case shop id, as Postgres prints it', async () => {
+    const d = deps();
+    await handleSchedule('POST', body({ shopId: SHOP.toUpperCase() }), TOKEN, d);
+    expect(d.saved[0].shopId).toBe(SHOP);
+    expect(d.saved[0].tag).toBe(jobTag(jobToken(KEY), SHOP));
+  });
   it('refuses bad input in plain words', async () => {
     expect(parseSchedule('nope')).toBe('Send JSON.');
     expect(parseSchedule('[]')).toBe('Send JSON.');
@@ -105,6 +111,7 @@ describe('/api/unsubscribe/<token>', () => {
     expect((await handleUnsubscribe('POST', '/api/unsubscribe/u1.bad', deps())).status).toBe(400);
     expect((await handleUnsubscribe('POST', route, deps({ key: null }))).status).toBe(400);
     expect((await handleUnsubscribe('PUT', route, deps())).status).toBe(405);
+    expect((await handleUnsubscribe('GET', '/api/unsubscribe/%E0%A4', deps())).status).toBe(400);
     expect((await handleUnsubscribe('POST', route, deps({ unsubscribe: async () => { throw new Error('x'); } }))).status).toBe(503);
   });
   it('is served as a locked-down HTML page by the function', async () => {
@@ -122,8 +129,19 @@ describe('/api/unsubscribe/<token>', () => {
   });
   it('health says when the schedule last ran, and never waits on it for long', async () => {
     const api = { verifyUser: async () => null, record: async () => 'ok' as const, fetchFile: async () => { throw new Error('no'); }, seed: { key: KEY, record: async () => 'ok' as const, secret: async () => null, save: async () => false, check: async () => ({ found: false as const }), reachable: async () => true }, shopify: {} as ApiDeps['shopify'] };
-    expect((await handleApi('GET', '/api/health', null, {}, { ...api, lastRun: async () => '2026-11-16T10:00:00Z' })).body).toMatchObject({ scheduleLastRun: '2026-11-16T10:00:00Z' });
+    resetLastRunCache();
+    const h = (await handleApi('GET', '/api/health', null, {}, { ...api, lastRun: async () => '2026-11-16T10:00:00Z' })).body as Record<string, unknown>;
+    expect(h).toMatchObject({ scheduleLastRun: '2026-11-16T10:00:00Z' });
+    // The token's hash is shown (not secret) so a migration can pin it; never the token itself.
+    expect(h.jobTokenSha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(JSON.stringify(h)).not.toContain(jobToken(KEY));
+    // Cached for a minute: a second call does not ask the database again.
+    expect((await handleApi('GET', '/api/health', null, {}, { ...api, lastRun: async () => { throw new Error('x'); } })).body).toMatchObject({ scheduleLastRun: '2026-11-16T10:00:00Z' });
+    resetLastRunCache();
     expect((await handleApi('GET', '/api/health', null, {}, { ...api, lastRun: async () => { throw new Error('x'); } })).body).toMatchObject({ scheduleLastRun: null });
+    resetLastRunCache();
+    expect((await handleApi('GET', '/api/health', null, {}, { ...api, lastRun: () => new Promise<string>(() => undefined) })).body).toMatchObject({ scheduleLastRun: null });
+    resetLastRunCache();
   });
 });
 
@@ -154,6 +172,10 @@ describe('alert and digest emails', () => {
     const mk = (canaries: Array<{ status: string; placement: 'inbox' | 'spam' | 'promotions' | null }>) =>
       digestMail({ to: 'a@b.example', shopName: 'Shop', canaries: canaries.map((c, i) => ({ created_at: at(i + 1), transit_seconds: 60, ...c })), checks: [{ created_at: at(1), verdict: 'fail', placement: 'spam' }, { created_at: at(9), verdict: 'fail', placement: 'spam' }], now, unsubscribeUrl: 'https://u' });
     expect(mk([]).text).toMatch(/No canary ran in the last seven days/);
+    expect(mk([{ status: 'placed', placement: null }]).text).toMatch(/still waiting for its email/);
+    const mixed = mk([{ status: 'arrived', placement: 'inbox' }, { status: 'placing', placement: null }]).text;
+    expect(mixed).toMatch(/Every canary reached the inbox/);
+    expect(mixed).toMatch(/1 still waiting/);
     expect(mk([{ status: 'arrived', placement: 'inbox' }]).text).toMatch(/Every canary reached the inbox/);
     expect(mk([{ status: 'arrived', placement: 'promotions' }]).text).toMatch(/not all in the Primary inbox/);
     const bad = mk([{ status: 'arrived', placement: 'spam' }, { status: 'no-email', placement: null }]);

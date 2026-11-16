@@ -20,13 +20,19 @@
 # (late download order scan, migration 0002), 2026-11-13; milestone 3 (seed
 # inbox check over IMAP, migration 0003, DELIVERY_CANARY_KEY), 2026-11-14.
 # Milestone 4 (canary orders from the shop's own Shopify app, migration
-# 0004), 2026-11-15.
+# 0004), 2026-11-15. Milestone 5 (scheduled canaries and alert email,
+# migration 0005, the Scheduled Function netlify/functions/canary-run every
+# 10 minutes, RESEND_API), 2026-11-16.
 #
 # envPassthrough: DELIVERY_CANARY_KEY (repository secret, added by the owner
 # on 12 Nov) reaches the function's runtime environment only, never the page
 # bundle. It seals the seed-inbox app passwords a shop asks to keep and the
-# shops' Shopify app client secrets. Never
+# shops' Shopify app client secrets, and derives the scheduled job's token
+# (an HMAC of the key that the job_* database functions check). Never
 # replace it once passwords are stored: they could not be opened again.
+# RESEND_API (repository secret, already used by other apps) reaches the
+# functions only: canary-run sends alert and digest email from
+# delivery-canary@hintwise.org. Without it the schedule runs but sends none.
 
 provider: netlify
 projectName: delivery-canary
@@ -41,6 +47,7 @@ env:
 
 envPassthrough:
   - DELIVERY_CANARY_KEY
+  - RESEND_API
 
 netlify:
   functionsDir: netlify/functions

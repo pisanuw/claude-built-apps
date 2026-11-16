@@ -382,16 +382,18 @@ describe('runJob: schedules that cannot run', () => {
     });
   }
 
-  it('skips while busy or at the daily limit, without an alert', async () => {
+  it('skips while busy (no alert) or at the daily limit (one alert)', async () => {
     const t = setup({ cadence: 'daily' });
     t.store.rows.push({ id: 'old', shopId: SHOP, userId: USER, created: START + 60_000, status: 'placing', variant_title: '' });
     await t.tick();
-    expect(t.store.schedules.get(SHOP)!.outcome).toMatch(/^Skipped: A canary for this shop/);
+    expect(t.store.schedules.get(SHOP)!.outcome).toBe('Skipped: another canary of this shop is still being placed; trying again in 15 minutes.');
+    expect(t.mails).toHaveLength(0);
     t.store.rows = Array.from({ length: 5 }, (_, i) => ({ id: `x${i}`, shopId: 'other', userId: USER, created: START + 86_400_000 - 60 * 60_000, status: 'arrived', variant_title: '' }));
     t.setClock(START + 86_400_000 - 30 * 60_000);
     await t.tick(60);
-    expect(t.store.schedules.get(SHOP)!.outcome).toMatch(/^Skipped: You have placed 5/);
-    expect(t.mails).toHaveLength(0);
+    expect(t.store.schedules.get(SHOP)!.outcome).toMatch(/^Skipped: You have placed 5.*This slot is skipped\.$/);
+    expect(t.mails.map((m) => m.subject)).toEqual(['Juniper Stitch: the scheduled canary could not run']);
+    expect(t.mails[0].text).toMatch(/This slot was skipped: You have placed 5/);
   });
 
   it('a refused order is failed with an alert; a completion timeout is unknown', async () => {
@@ -417,6 +419,20 @@ describe('runJob: email', () => {
     await t.tick();
     expect(t.store.sends).toHaveLength(0);
     expect(t.store.rows[0].status).toBe('arrived');
+  });
+
+  it('a send that fails once is tried again', async () => {
+    const t = setup({ where: 'spam' });
+    const real = t.deps.send!;
+    let calls = 0;
+    t.deps.send = async (m, ms) => {
+      if (++calls === 1) throw new Error('Resend 503: busy');
+      return real(m, ms);
+    };
+    await t.tick();
+    await t.tick();
+    expect(calls).toBe(2);
+    expect(t.store.sends[0]).toMatchObject({ status: 'sent' });
   });
 
   it('a refused send is recorded as failed', async () => {

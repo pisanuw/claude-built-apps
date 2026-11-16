@@ -19,9 +19,10 @@
  * security applies to everything it reads or writes. Its one secret,
  * DELIVERY_CANARY_KEY, only seals and opens kept app passwords.
  */
+import { createHash } from 'node:crypto';
 import type { LinkResult } from '../core/types';
 import { cleanPassword, DEFAULT_DAYS, SeedError, seedQueryProblem, type SeedErrorCode, type SeedQuery, type SeedResult } from './seed';
-import { addressTag, open, seal, seedAad } from './secretbox';
+import { addressTag, jobToken, open, seal, seedAad } from './secretbox';
 import { handleSchedule, handleUnsubscribe, type SchedApiDeps } from './schedapi';
 import { handleShopify, type ShopApiDeps } from './shopapi';
 import type { SeedSave } from './supabase-rest';
@@ -73,13 +74,26 @@ export function resetReachCache(): void {
 const json = (status: number, body: unknown): ApiResponse => ({ status, body });
 
 /** The health check never waits long or fails on the heartbeat. */
+let lastRunCache: { at: number; value: string | null } | null = null;
+export function resetLastRunCache(): void {
+  lastRunCache = null;
+}
+
 async function lastRunOf(deps: ApiDeps): Promise<string | null> {
   if (!deps.lastRun) return null;
+  const now = Date.now();
+  if (lastRunCache && now - lastRunCache.at < REACH_TTL_MS) return lastRunCache.value;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let value: string | null = null;
   try {
-    return await Promise.race([deps.lastRun(), new Promise<null>((r) => setTimeout(() => r(null), 2000))]);
+    value = await Promise.race([deps.lastRun(), new Promise<null>((r) => (timer = setTimeout(() => r(null), 2000)))]);
   } catch {
-    return null;
+    value = null;
+  } finally {
+    clearTimeout(timer);
   }
+  lastRunCache = { at: now, value };
+  return value;
 }
 
 export function bearer(headers: Record<string, string | undefined>): string {
@@ -90,7 +104,11 @@ export function bearer(headers: Record<string, string | undefined>): string {
 
 export async function handleApi(method: string, path: string, bodyText: string | null, headers: Record<string, string | undefined>, deps: ApiDeps): Promise<ApiResponse> {
   const route = path.replace(/^\/\.netlify\/functions\/api/, '/api').replace(/\/+$/, '');
-  if (route === '/api/health') return json(200, { ok: true, status: 'ok', seedKeep: deps.seed.key !== null, scheduleLastRun: await lastRunOf(deps) });
+  if (route === '/api/health') {
+    // jobTokenSha256 is not secret: a later migration stores it in job_config so the database refuses any other job token.
+    const fp = deps.seed.key ? { jobTokenSha256: createHash('sha256').update(jobToken(deps.seed.key), 'utf8').digest('hex') } : {};
+    return json(200, { ok: true, status: 'ok', seedKeep: deps.seed.key !== null, scheduleLastRun: await lastRunOf(deps), ...fp });
+  }
   if (route === '/api/schedule' || route === '/api/unsubscribe' || route.startsWith('/api/unsubscribe/')) {
     if (!deps.schedule) return json(503, { error: 'Scheduled canaries are not switched on for this site yet.' });
     const d = { ...deps.schedule, verifyUser: deps.verifyUser };

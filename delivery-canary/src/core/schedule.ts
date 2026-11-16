@@ -89,6 +89,8 @@ export interface TrendWeek {
   noEmail: number;
   /** Canaries that could not be placed (failed or unknown). */
   notPlaced: number;
+  /** Canaries still being placed or waiting for their email. */
+  pending: number;
   /** Median transit time of the week's arrived canaries, seconds; null when none. */
   medianTransit: number | null;
   checks: number;
@@ -111,7 +113,7 @@ function median(xs: number[]): number | null {
 
 /** Counts for one set of canaries and checks (`week` is left as given). */
 export function summarise(week: string, canaries: TrendCanary[], checks: TrendCheck[]): TrendWeek {
-  const w: TrendWeek = { week, canaries: 0, inbox: 0, promotions: 0, spam: 0, other: 0, noEmail: 0, notPlaced: 0, medianTransit: null, checks: 0, failedChecks: 0 };
+  const w: TrendWeek = { week, canaries: 0, inbox: 0, promotions: 0, spam: 0, other: 0, noEmail: 0, notPlaced: 0, pending: 0, medianTransit: null, checks: 0, failedChecks: 0 };
   const transits: number[] = [];
   for (const c of canaries) {
     w.canaries++;
@@ -124,6 +126,7 @@ export function summarise(week: string, canaries: TrendCanary[], checks: TrendCh
       if (typeof c.transit_seconds === 'number') transits.push(c.transit_seconds);
     } else if (c.status === 'no-email') w.noEmail++;
     else if (c.status === 'failed' || c.status === 'unknown') w.notPlaced++;
+    else w.pending++;
   }
   w.checks = checks.length;
   w.failedChecks = checks.filter((k) => k.verdict === 'fail').length;
@@ -158,6 +161,7 @@ export function weekLine(w: TrendWeek, transit: (s: number) => string): string {
   if (w.other) parts.push(`${w.other} elsewhere`);
   if (w.noEmail) parts.push(`${w.noEmail} with no email`);
   if (w.notPlaced) parts.push(`${w.notPlaced} not placed`);
+  if (w.pending) parts.push(`${w.pending} still waiting`);
   const head = w.canaries ? `${w.canaries} canar${w.canaries === 1 ? 'y' : 'ies'}${parts.length ? `: ${parts.join(', ')}` : ''}` : '';
   const tail = [w.medianTransit !== null ? `median arrival ${transit(w.medianTransit)}` : '', w.checks ? `${w.checks} check${w.checks === 1 ? '' : 's'}${w.failedChecks ? ` (${w.failedChecks} failed)` : ''}` : ''].filter(Boolean);
   return [head, ...tail].filter(Boolean).join('; ') + '.';

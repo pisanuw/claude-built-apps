@@ -59,7 +59,8 @@ export function parseSchedule(bodyText: string | null): Omit<ScheduleSave, 'tag'
   } catch {
     return 'Send JSON.';
   }
-  const shopId = typeof b.shopId === 'string' ? b.shopId : '';
+  // Lower case, as Postgres prints a uuid: the tag is an HMAC of this exact text (security review).
+  const shopId = typeof b.shopId === 'string' ? b.shopId.toLowerCase() : '';
   if (!UUID_RE.test(shopId)) return 'Save the shop first.';
   if (b.cadence !== 'daily' && b.cadence !== 'weekly') return 'Choose daily or weekly.';
   const int = (v: unknown, lo: number, hi: number) => typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi;
@@ -118,7 +119,12 @@ function page(title: string, body: string): string {
 }
 
 export async function handleUnsubscribe(method: string, route: string, d: SchedApiDeps): Promise<SchedResponse> {
-  const token = decodeURIComponent(route.replace(/^\/api\/unsubscribe\/?/, ''));
+  let token = '';
+  try {
+    token = decodeURIComponent(route.replace(/^\/api\/unsubscribe\/?/, ''));
+  } catch {
+    /* a broken link: answered below like any other bad token */
+  }
   const shopId = d.key ? unsubShop(d.key, token) : null;
   if (!shopId) {
     return { status: 400, html: page('This link does not work', '<p>The link is incomplete or was not made by Delivery Canary. To stop its emails, sign in at <a href="https://delivery-canary.hintwise.org/">delivery-canary.hintwise.org</a> and untick them in the schedule card, or write to support@hintwise.org.</p>') };

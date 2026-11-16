@@ -167,9 +167,10 @@ export function mountShopify(deps: ShopifyCardDeps): { el: HTMLElement; refresh:
   const signedIn = () => deps.stores().saved;
 
   function setChosen(c: { id: string; title: string } | null): void {
+    const changed = (chosen?.id ?? null) !== (c?.id ?? null);
     chosen = c;
     chosenLine.textContent = c ? `Canary product: ${c.title || c.id}` : '';
-    void deps.chosenChanged?.();
+    if (changed) void deps.chosenChanged?.();
   }
 
   /** The connection's canary address no longer matches the seed inbox: only pasting the secret again can change it. */
@@ -580,14 +581,8 @@ export function mountShopify(deps: ShopifyCardDeps): { el: HTMLElement; refresh:
       try {
         await deps.stores().connections.remove(shop.id);
         conn = undefined;
-        // A schedule cannot run without the connection: remove it too, so no "cannot run" alerts follow.
-        let scheduleGone = true;
-        try {
-          await deps.stores().schedules.remove(shop.id);
-        } catch {
-          scheduleGone = false;
-        }
-        say(`Shop disconnected and its kept secret deleted${scheduleGone ? '' : ' (its schedule could not be removed: turn it off in the schedule card)'}. To be sure, uninstall the app or rotate its secret in Shopify too.`);
+        // The database removes the shop's schedule with the connection (migration 0005).
+        say('Shop disconnected and its kept secret deleted, and its schedule removed. To be sure, uninstall the app or rotate its secret in Shopify too.');
         await deps.chosenChanged?.();
       } catch (e) {
         say(`Could not disconnect: ${(e as Error).message}`);

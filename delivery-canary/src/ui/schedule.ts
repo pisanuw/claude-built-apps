@@ -92,6 +92,8 @@ export function mountSchedule(deps: ScheduleCardDeps): { el: HTMLElement; refres
   let ready = { connected: false, seedKept: false };
   let busy = false;
   let generation = 0;
+  /** The saved row the form last showed: the form is only rewritten when the saved schedule changed, so unsaved edits survive a refresh. */
+  let shown: string | null = null;
 
   const status = h('p', { class: 'status', role: 'status', 'aria-live': 'polite', id: 'sched-status' });
   const say = (t: string) => {
@@ -251,7 +253,11 @@ export function mountSchedule(deps: ScheduleCardDeps): { el: HTMLElement; refres
       if (mine !== generation) return;
       row = r;
       ready = { connected: !!conn, seedKept: !!seed?.has_secret };
-      fill(r);
+      const key = r ? `${r.shop_id}/${r.updated_at}` : null;
+      if (key !== shown) {
+        fill(r);
+        shown = key;
+      }
       renderSummary(r);
       renderTrend(canaries as CanaryRow[], checks);
     } catch (e) {
@@ -263,6 +269,7 @@ export function mountSchedule(deps: ScheduleCardDeps): { el: HTMLElement; refres
 
   function reset(): void {
     generation++;
+    shown = null;
     row = undefined;
     ready = { connected: false, seedKept: false };
     onBox.checked = false;
@@ -302,6 +309,7 @@ export function mountSchedule(deps: ScheduleCardDeps): { el: HTMLElement; refres
         token,
       );
       renderSummary(row);
+      shown = `${row.shop_id}/${row.updated_at}`;
       say(row.enabled ? `Saved.${row.next_run_at ? ` The next canary is placed ${when(row.next_run_at)}.` : ''}` : 'Saved. The schedule is off.');
     } catch (e) {
       say(e instanceof ShopifyCallFailed ? e.message : 'The schedule could not be saved.');

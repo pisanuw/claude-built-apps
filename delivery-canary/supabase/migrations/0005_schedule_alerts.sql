@@ -51,7 +51,8 @@ begin
   if tg_op = 'UPDATE' then
     new.source := old.source;
   else
-    new.source := case when coalesce(current_setting('app_delivery_canary.job', true), '') = 'on' then 'schedule' else 'page' end;
+    -- Only job_canary_start (running as the function owner) sets the flag; a page insert runs as authenticated.
+    new.source := case when coalesce(current_setting('app_delivery_canary.job', true), '') = 'on' and current_user not in ('authenticated', 'anon') then 'schedule' else 'page' end;
   end if;
   return new;
 end
@@ -97,7 +98,7 @@ create table if not exists app_delivery_canary.email_sends (
   provider_id text not null default '' check (char_length(provider_id) <= 100),
   error text not null default '' check (char_length(error) <= 300),
   created_at timestamptz not null default now(),
-  unique (kind, dedupe)
+  unique (shop_id, kind, dedupe)
 );
 comment on table app_delivery_canary.email_sends is 'Alert and digest emails: caps and dedupe (no address stored).';
 create index if not exists email_sends_user_created_idx on app_delivery_canary.email_sends (user_id, created_at);
@@ -124,6 +125,39 @@ create policy email_sends_select_own on app_delivery_canary.email_sends for sele
 -- job_runs: no policy for anon or authenticated; only the definer functions touch it.
 drop policy if exists job_runs_none on app_delivery_canary.job_runs;
 create policy job_runs_none on app_delivery_canary.job_runs for select to authenticated using (false);
+
+-- A schedule cannot run without the shop's Shopify connection: disconnecting
+-- (however it happens) removes the schedule too, so no "cannot run" alerts follow.
+create or replace function app_delivery_canary.shop_connections_drop_schedule()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from app_delivery_canary.canary_schedules where shop_id = old.shop_id and user_id = old.user_id;
+  return old;
+end
+$$;
+
+drop trigger if exists shop_connections_drop_schedule on app_delivery_canary.shop_connections;
+create trigger shop_connections_drop_schedule
+  after delete on app_delivery_canary.shop_connections
+  for each row execute function app_delivery_canary.shop_connections_drop_schedule();
+
+-- job_config: the SHA-256 of the real job token, once a later migration
+-- stores it (the live function shows it at /api/health as jobTokenSha256;
+-- it is not secret). From then on job_token_ok refuses every other token,
+-- so a token a user made up for their own schedule's tag stops working.
+create table if not exists app_delivery_canary.job_config (
+  id boolean primary key default true check (id),
+  token_sha256 text not null check (token_sha256 ~ '^[0-9a-f]{64}$')
+);
+comment on table app_delivery_canary.job_config is 'The SHA-256 of the scheduled job''s token (not secret); job_token_ok checks it.';
+alter table app_delivery_canary.job_config enable row level security;
+drop policy if exists job_config_none on app_delivery_canary.job_config;
+create policy job_config_none on app_delivery_canary.job_config for select to authenticated using (false);
+revoke all on table app_delivery_canary.job_config from public, anon, authenticated;
 
 -- The next run after p_after: the hour (UTC) on the next day, or on the next
 -- p_weekday for weekly. The page has the same rule (src/core/schedule.ts).
@@ -165,11 +199,14 @@ $$;
 create or replace function app_delivery_canary.job_token_ok(p_token text)
 returns void
 language plpgsql
-immutable
+stable
 set search_path = ''
 as $$
 begin
   if p_token is null or p_token !~ '^[0-9a-f]{64}$' then
+    raise exception 'Bad job token.' using errcode = '42501';
+  end if;
+  if exists (select 1 from app_delivery_canary.job_config c where c.token_sha256 <> encode(extensions.digest(p_token, 'sha256'), 'hex')) then
     raise exception 'Bad job token.' using errcode = '42501';
   end if;
 end
@@ -329,6 +366,8 @@ begin
       return jsonb_build_object('error', 'limited', 'message', sqlerrm);
     when sqlstate 'PT409' then
       perform set_config('app_delivery_canary.job', '', true);
+      -- Another canary of this shop is still unresolved: this slot tries again shortly instead of waiting a whole period.
+      update app_delivery_canary.canary_schedules set next_run_at = least(next_run_at, now() + interval '15 minutes') where shop_id = p_shop;
       return jsonb_build_object('error', 'busy', 'message', sqlerrm);
   end;
   perform set_config('app_delivery_canary.job', '', true);
@@ -455,7 +494,8 @@ begin
   if (p_kind = 'alert' and not s.alerts) or (p_kind = 'digest' and not s.digest) then
     return jsonb_build_object('skip', 'off');
   end if;
-  select u.email into v_email from auth.users u where u.id = s.user_id;
+  select u.email into v_email from auth.users u
+  where u.id = s.user_id and u.email_confirmed_at is not null and not coalesce(u.is_anonymous, false);
   if v_email is null or v_email = '' then
     return jsonb_build_object('skip', 'no-address');
   end if;
@@ -469,7 +509,7 @@ begin
   end if;
   insert into app_delivery_canary.email_sends (user_id, shop_id, kind, dedupe)
   values (s.user_id, s.shop_id, p_kind, left(p_dedupe, 120))
-  on conflict (kind, dedupe) do nothing
+  on conflict (shop_id, kind, dedupe) do nothing
   returning id into v_id;
   if v_id is null then
     return jsonb_build_object('skip', 'duplicate');
@@ -519,7 +559,7 @@ begin
                 where c2.shop_id = s.shop_id and c2.created_at > now() - interval '7 days' order by c2.created_at desc limit 200) c) as checks
       from app_delivery_canary.canary_schedules s
       join app_delivery_canary.shops sh on sh.id = s.shop_id
-      where s.digest and s.enabled and coalesce(s.last_digest_at, s.digest_from) <= now() - interval '7 days'
+      where s.digest and s.enabled and greatest(s.last_digest_at, s.digest_from) <= now() - interval '7 days'
         and s.tag = app_delivery_canary.job_tag(p_token, s.shop_id)
       limit 5
     ) q
@@ -544,7 +584,7 @@ end
 $$;
 
 -- Heartbeat: rows older than two days are forgotten, and at most 20 token
--- hashes are kept (an existing row is always updated).
+-- hashes are kept (the most recently seen).
 create or replace function app_delivery_canary.job_heartbeat(p_token text, p_summary jsonb)
 returns boolean
 language plpgsql
@@ -562,10 +602,11 @@ begin
   if found then
     return true;
   end if;
-  if (select count(*) from app_delivery_canary.job_runs) >= 20 then
-    return false;
-  end if;
   insert into app_delivery_canary.job_runs (token_hash, runs, summary) values (v_hash, 1, coalesce(p_summary, '{}'::jsonb));
+  -- Junk tokens cannot lock the real job out: the stalest rows beyond 20 go, and the real job refreshes its row every run.
+  delete from app_delivery_canary.job_runs where token_hash in (
+    select r.token_hash from app_delivery_canary.job_runs r order by r.last_run_at desc offset 20
+  );
   return true;
 end
 $$;
@@ -594,6 +635,7 @@ grant select (id, shop_id, user_id, kind, status, created_at) on app_delivery_ca
 revoke all on table app_delivery_canary.job_runs from public, anon, authenticated;
 
 revoke execute on function app_delivery_canary.canary_orders_source() from public, anon, authenticated;
+revoke execute on function app_delivery_canary.shop_connections_drop_schedule() from public, anon, authenticated;
 revoke execute on function app_delivery_canary.canary_next_slot(text, integer, integer, timestamptz) from public, anon, authenticated;
 revoke execute on function app_delivery_canary.job_tag(text, uuid) from public, anon, authenticated;
 revoke execute on function app_delivery_canary.job_token_ok(text) from public, anon, authenticated;

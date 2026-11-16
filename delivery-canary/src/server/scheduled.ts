@@ -25,8 +25,8 @@ export function jobDeps(cfg: RestConfig, env: Record<string, string | undefined>
     key,
     store: jobStore(cfg, jobToken(key)),
     seedCheck: (q, budgetMs) => seedCheckLive(q, budgetMs),
-    fetchFile: (u) => fetchFile(u, { budgetMs: 8000 }),
-    send: resend ? (m) => sendResend(resend, m, cfg.fetchImpl ?? fetch) : null,
+    fetchFile: (u, budgetMs) => fetchFile(u, { budgetMs }),
+    send: resend ? (m, timeoutMs) => sendResend(resend, m, cfg.fetchImpl ?? fetch, timeoutMs) : null,
     log,
   };
 }

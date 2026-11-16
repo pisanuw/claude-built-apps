@@ -226,7 +226,7 @@ describe('core schedule: trend', () => {
         { created_at: NOW.toISOString(), verdict: 'warn', placement: 'promotions' },
       ],
     );
-    expect(w).toEqual({ week: 'w', canaries: 9, inbox: 1, promotions: 1, spam: 1, other: 2, noEmail: 1, notPlaced: 2, medianTransit: 95, checks: 2, failedChecks: 1 });
+    expect(w).toEqual({ week: 'w', canaries: 9, inbox: 1, promotions: 1, spam: 1, other: 2, noEmail: 1, notPlaced: 2, pending: 1, medianTransit: 95, checks: 2, failedChecks: 1 });
     expect(summarise('w', [c('arrived', 'inbox', 70), c('arrived', 'inbox', 81)], []).medianTransit).toBe(76);
     expect(summarise('w', [c('arrived', 'inbox', 81), c('arrived', 'inbox', 70), c('arrived', 'inbox', 200)], []).medianTransit).toBe(81);
     expect(summarise('w', [], []).medianTransit).toBeNull();
@@ -256,8 +256,8 @@ describe('core schedule: trend', () => {
     const s = (x: number) => `${x}s`;
     const empty = summarise('w', [], []);
     expect(weekLine(empty, s)).toBe('Nothing checked.');
-    const mixed: TrendWeek = { week: 'w', canaries: 8, inbox: 1, promotions: 1, spam: 1, other: 1, noEmail: 1, notPlaced: 2, medianTransit: 95, checks: 2, failedChecks: 1 };
-    expect(weekLine(mixed, s)).toBe('8 canaries: 1 in the inbox, 1 in Promotions, 1 in Spam, 1 elsewhere, 1 with no email, 2 not placed; median arrival 95s; 2 checks (1 failed).');
+    const mixed: TrendWeek = { week: 'w', canaries: 8, inbox: 1, promotions: 1, spam: 1, other: 1, noEmail: 1, notPlaced: 2, pending: 1, medianTransit: 95, checks: 2, failedChecks: 1 };
+    expect(weekLine(mixed, s)).toBe('8 canaries: 1 in the inbox, 1 in Promotions, 1 in Spam, 1 elsewhere, 1 with no email, 2 not placed, 1 still waiting; median arrival 95s; 2 checks (1 failed).');
     expect(weekLine({ ...empty, canaries: 1 }, s)).toBe('1 canary.');
     expect(weekLine({ ...empty, checks: 1 }, s)).toBe('1 check.');
     expect(weekLine({ ...empty, canaries: 1, inbox: 1, medianTransit: 70 }, transitText)).toBe('1 canary: 1 in the inbox; median arrival 1 min 10 s.');
@@ -802,5 +802,22 @@ describe('half-hour time zones', () => {
       }
     }
     expect(toUtc(1, 9, -330)).toEqual({ weekday: 1, hour: 3 });
+  });
+});
+
+describe('unsaved edits', () => {
+  it('survive a refresh (a product picked above); a newer saved row replaces them', async () => {
+    const t = setup({ connected: true, seed: 'kept', chosen: VARIANT, offsetMin: 0, row: schedRow({ enabled: true, cadence: 'weekly', weekday: 1, hour: 9, updated_at: '2026-11-15T09:00:00Z' }) });
+    await t.refresh();
+    expect(t.$<HTMLSelectElement>('#sched-hour').value).toBe('9');
+    t.$<HTMLInputElement>('#sched-daily').checked = true;
+    t.$<HTMLSelectElement>('#sched-hour').value = '7';
+    t.setChosen(OTHER);
+    await t.refresh();
+    expect(t.$<HTMLInputElement>('#sched-daily').checked).toBe(true);
+    expect(t.$<HTMLSelectElement>('#sched-hour').value).toBe('7');
+    t.schedules.rows.set(SHOP.id, schedRow({ enabled: true, cadence: 'weekly', weekday: 1, hour: 11, updated_at: '2026-11-16T09:00:00Z' }));
+    await t.refresh();
+    expect(t.$<HTMLSelectElement>('#sched-hour').value).toBe('11');
   });
 });

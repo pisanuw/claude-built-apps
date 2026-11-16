@@ -126,9 +126,13 @@ export function digestMail(d: DigestInput): Mail {
   const since = d.now.getTime() - 7 * 86_400_000;
   const sum = summarise('', d.canaries.filter((c) => Date.parse(c.created_at) > since), d.checks.filter((c) => Date.parse(c.created_at) > since));
   const summary = weekLine(sum, transitText);
-  const good = sum.canaries > 0 && sum.inbox === sum.canaries;
-  const verdict = !sum.canaries
-    ? 'No canary ran in the last seven days. Check the schedule and the Shopify connection in Delivery Canary.'
+  // Canaries still waiting for their email are neither good nor bad yet.
+  const settled = sum.canaries - sum.pending;
+  const good = settled > 0 && sum.inbox === settled;
+  const verdict = !settled
+    ? sum.pending
+      ? 'This week\'s canary is still waiting for its email; the next digest will say how it went.'
+      : 'No canary ran in the last seven days. Check the schedule and the Shopify connection in Delivery Canary.'
     : good
       ? 'Every canary reached the inbox. Nothing to do.'
       : sum.spam || sum.noEmail || sum.notPlaced
