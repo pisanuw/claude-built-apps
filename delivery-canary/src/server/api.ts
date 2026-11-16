@@ -12,6 +12,8 @@
  *   20 an hour per seed address (the seed_checks insert trigger).
  *
  * - POST /api/shopify/*    -> the shop's own Shopify app (shopapi.ts).
+ * - POST /api/schedule, GET|POST /api/unsubscribe/<token> -> the scheduled
+ *   canary and its email (schedapi.ts).
  *
  * The function acts with the caller's own Supabase token, so row level
  * security applies to everything it reads or writes. Its one secret,
@@ -20,6 +22,7 @@
 import type { LinkResult } from '../core/types';
 import { cleanPassword, DEFAULT_DAYS, SeedError, seedQueryProblem, type SeedErrorCode, type SeedQuery, type SeedResult } from './seed';
 import { addressTag, open, seal, seedAad } from './secretbox';
+import { handleSchedule, handleUnsubscribe, type SchedApiDeps } from './schedapi';
 import { handleShopify, type ShopApiDeps } from './shopapi';
 import type { SeedSave } from './supabase-rest';
 
@@ -28,7 +31,9 @@ export const MAX_URL_LENGTH = 2048;
 
 export interface ApiResponse {
   status: number;
-  body: unknown;
+  body?: unknown;
+  /** An HTML page instead of JSON (the unsubscribe pages). */
+  html?: string;
 }
 
 export interface ApiDeps {
@@ -40,6 +45,10 @@ export interface ApiDeps {
   seed: SeedDeps;
   /** The Shopify routes (/api/shopify/*); verifyUser is shared. */
   shopify: Omit<ShopApiDeps, 'verifyUser'>;
+  /** The schedule routes (/api/schedule, /api/unsubscribe/*); verifyUser is shared. */
+  schedule?: Omit<SchedApiDeps, 'verifyUser'>;
+  /** When the scheduled job last ran (ISO), or null; for /api/health. */
+  lastRun?: () => Promise<string | null>;
 }
 
 export interface SeedDeps {
@@ -63,6 +72,16 @@ export function resetReachCache(): void {
 
 const json = (status: number, body: unknown): ApiResponse => ({ status, body });
 
+/** The health check never waits long or fails on the heartbeat. */
+async function lastRunOf(deps: ApiDeps): Promise<string | null> {
+  if (!deps.lastRun) return null;
+  try {
+    return await Promise.race([deps.lastRun(), new Promise<null>((r) => setTimeout(() => r(null), 2000))]);
+  } catch {
+    return null;
+  }
+}
+
 export function bearer(headers: Record<string, string | undefined>): string {
   const h = headers.authorization ?? headers.Authorization ?? '';
   const m = /^Bearer\s+([A-Za-z0-9._~+/=-]{20,4096})$/.exec(h.trim());
@@ -71,7 +90,12 @@ export function bearer(headers: Record<string, string | undefined>): string {
 
 export async function handleApi(method: string, path: string, bodyText: string | null, headers: Record<string, string | undefined>, deps: ApiDeps): Promise<ApiResponse> {
   const route = path.replace(/^\/\.netlify\/functions\/api/, '/api').replace(/\/+$/, '');
-  if (route === '/api/health') return json(200, { ok: true, status: 'ok', seedKeep: deps.seed.key !== null });
+  if (route === '/api/health') return json(200, { ok: true, status: 'ok', seedKeep: deps.seed.key !== null, scheduleLastRun: await lastRunOf(deps) });
+  if (route === '/api/schedule' || route === '/api/unsubscribe' || route.startsWith('/api/unsubscribe/')) {
+    if (!deps.schedule) return json(503, { error: 'Scheduled canaries are not switched on for this site yet.' });
+    const d = { ...deps.schedule, verifyUser: deps.verifyUser };
+    return route === '/api/schedule' ? handleSchedule(method, bodyText, bearer(headers), d) : handleUnsubscribe(method, route, d);
+  }
   if (route === '/api/seed-reach') {
     const now = Date.now();
     if (!reachCache || now - reachCache.at > REACH_TTL_MS) reachCache = { at: now, ok: await deps.seed.reachable() };

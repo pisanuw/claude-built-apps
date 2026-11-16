@@ -35,6 +35,8 @@ export interface ShopifyCardDeps {
   scanOrders: (imp: ImportResult, label: string) => Promise<boolean>;
   /** The seed inbox card's state changed (a check ran from here). */
   seedChanged?: () => Promise<void>;
+  /** The schedule card should redraw: the canary product picked here changed, or the shop was disconnected. */
+  chosenChanged?: () => Promise<void>;
   now: () => Date;
   sleep?: (ms: number) => Promise<void>;
 }
@@ -66,7 +68,7 @@ export const NO_EMAIL_TEXT = `No download email reached the seed inbox within ${
 
 const realSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-export function mountShopify(deps: ShopifyCardDeps): { el: HTMLElement; refresh: () => Promise<void>; reset: () => void } {
+export function mountShopify(deps: ShopifyCardDeps): { el: HTMLElement; refresh: () => Promise<void>; reset: () => void; chosen: () => { id: string; title: string } | null } {
   const sleep = deps.sleep ?? realSleep;
   let conn: ShopConnectionRow | undefined;
   let seedRow: SeedInboxRow | undefined;
@@ -167,6 +169,7 @@ export function mountShopify(deps: ShopifyCardDeps): { el: HTMLElement; refresh:
   function setChosen(c: { id: string; title: string } | null): void {
     chosen = c;
     chosenLine.textContent = c ? `Canary product: ${c.title || c.id}` : '';
+    void deps.chosenChanged?.();
   }
 
   /** The connection's canary address no longer matches the seed inbox: only pasting the secret again can change it. */
@@ -220,7 +223,7 @@ export function mountShopify(deps: ShopifyCardDeps): { el: HTMLElement; refresh:
         'li',
         { 'data-canary': r.id, class: `canary-${tone}` },
         h('span', { class: 'v' }, STATUS_TEXT[r.status]),
-        h('span', { class: 't' }, `${r.order_name || 'Canary'}: ${r.variant_title || r.variant_id}`),
+        h('span', { class: 't' }, `${r.order_name || 'Canary'}: ${r.variant_title || r.variant_id}${r.source === 'schedule' ? ' (scheduled)' : ''}`),
         h('span', { class: 'when' }, when(r.placed_at ?? r.created_at)),
         h('span', { class: 's' }, canaryText(r)),
       );
@@ -577,7 +580,15 @@ export function mountShopify(deps: ShopifyCardDeps): { el: HTMLElement; refresh:
       try {
         await deps.stores().connections.remove(shop.id);
         conn = undefined;
-        say('Shop disconnected and its kept secret deleted. To be sure, uninstall the app or rotate its secret in Shopify too.');
+        // A schedule cannot run without the connection: remove it too, so no "cannot run" alerts follow.
+        let scheduleGone = true;
+        try {
+          await deps.stores().schedules.remove(shop.id);
+        } catch {
+          scheduleGone = false;
+        }
+        say(`Shop disconnected and its kept secret deleted${scheduleGone ? '' : ' (its schedule could not be removed: turn it off in the schedule card)'}. To be sure, uninstall the app or rotate its secret in Shopify too.`);
+        await deps.chosenChanged?.();
       } catch (e) {
         say(`Could not disconnect: ${(e as Error).message}`);
       }
@@ -586,5 +597,5 @@ export function mountShopify(deps: ShopifyCardDeps): { el: HTMLElement; refresh:
   });
 
   render();
-  return { el, refresh, reset };
+  return { el, refresh, reset, chosen: () => chosen };
 }

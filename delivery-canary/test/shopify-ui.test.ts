@@ -8,6 +8,7 @@ import { InMemoryRepository } from '../src/lib/repository';
 import type { AppClient } from '../src/lib/supabase';
 import {
   MemoryCanaryStore,
+  MemoryScheduleStore,
   MemoryCheckStore,
   MemoryConnectionStore,
   MemoryScanStore,
@@ -55,7 +56,7 @@ function setup(o: Opts = {}) {
   const connections = new MemoryConnectionStore();
   const canaries = new MemoryCanaryStore();
   const shops = new InMemoryRepository<ShopRow>();
-  const stores: Stores = { shops, checks: new MemoryCheckStore(), scans: new MemoryScanStore(), seeds, connections, canaries, saved: o.saved ?? true };
+  const stores: Stores = { shops, checks: new MemoryCheckStore(), scans: new MemoryScanStore(), seeds, connections, canaries, schedules: new MemoryScheduleStore(), saved: o.saved ?? true };
   if (o.saved !== false) void shops.put(SHOP);
   if (o.connected) connections.rows.set(SHOP.id, { shop_id: SHOP.id, shop_domain: 'juniper-stitch.myshopify.com', client_id: 'a'.repeat(32), scopes: 'read_orders,read_products,write_draft_orders', shop_name: 'Juniper Stitch', canary_email: o.seed && o.seed !== 'none' ? 'canary@gmail.com' : '', updated_at: '2026-11-15T09:00:00Z' });
   if (o.seed && o.seed !== 'none') {
@@ -89,6 +90,9 @@ function setup(o: Opts = {}) {
       const id = '00000000-0000-4000-8000-000000000001';
       canaries.add({ id, shop_id: SHOP.id, created_at: PLACED, variant_id: req.variantId, variant_title: 'Canary pattern - PDF', status: 'placed', order_name: '#1100', placed_at: PLACED, arrived_at: null, transit_seconds: null, placement: null, seed_where: null, check_id: null, error: '' });
       return { canaryId: id, orderName: '#1100', placedAt: PLACED, variantTitle: 'Canary pattern - PDF', seedAddress: 'canary@gmail.com' };
+    },
+    schedule: async () => {
+      throw new ShopifyCallFailed('not in this test', 'protocol', 500);
     },
   };
   const sleeping: Array<() => void> = [];
@@ -429,6 +433,30 @@ describe('Shopify card, signed in', () => {
     expect(t.connections.rows.size).toBe(0);
     expect(t.$('#shopify-status').textContent).toMatch(/Shop disconnected/);
     expect(t.$('#shopify-form').hidden).toBe(false);
+  });
+
+  it('disconnecting also removes the schedule; scheduled canaries are marked', async () => {
+    const t = setup({ connected: true, seed: 'kept' });
+    const schedules = t.stores.schedules as MemoryScheduleStore;
+    schedules.rows.set(SHOP.id, { shop_id: SHOP.id, enabled: true, cadence: 'weekly', weekday: 1, hour: 9, variant_id: 'gid://shopify/ProductVariant/1', variant_title: 'Canary', alerts: true, digest: false, next_run_at: null, last_run_at: null, last_outcome: '', last_digest_at: null, updated_at: PLACED });
+    t.canaries.add({ id: 'c-s', shop_id: SHOP.id, created_at: PLACED, variant_id: 'gid://shopify/ProductVariant/1', variant_title: 'Canary', status: 'arrived', order_name: '#1200', placed_at: PLACED, arrived_at: PLACED, transit_seconds: 60, placement: 'inbox', seed_where: 'primary', check_id: null, error: '', source: 'schedule' });
+    await t.refreshShopify();
+    expect(t.$('#canary-list').textContent).toContain('#1200: Canary (scheduled)');
+    t.$('#shopify-disconnect').click();
+    await tick();
+    expect(schedules.rows.size).toBe(0);
+    expect(t.$('#shopify-status').textContent).toBe('Shop disconnected and its kept secret deleted. To be sure, uninstall the app or rotate its secret in Shopify too.');
+  });
+
+  it('says so when the schedule could not be removed on disconnect', async () => {
+    const t = setup({ connected: true, seed: 'kept' });
+    (t.stores.schedules as MemoryScheduleStore).remove = async () => {
+      throw new Error('x');
+    };
+    await tick();
+    t.$('#shopify-disconnect').click();
+    await tick();
+    expect(t.$('#shopify-status').textContent).toMatch(/its schedule could not be removed/);
   });
 
   it('asks to connect again when the seed address changed since connecting', async () => {

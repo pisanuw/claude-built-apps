@@ -108,3 +108,15 @@ p.fix { margin: 0.5rem 0; }
 @media (max-width: 40rem) {
   .canaries li { grid-template-columns: 1fr; }
 }
+/* Schedule card (milestone 5). */
+label.check { display: flex; gap: 0.5rem; align-items: center; font-weight: 600; margin: 0.25rem 0 0.5rem; }
+fieldset.placement.column { flex-direction: column; }
+ul.plain { list-style: none; padding: 0; margin: 0.5rem 0; }
+ul.plain li { padding: 0.15rem 0; }
+table.trend { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+table.trend th, table.trend td { padding: 0.3rem 0.45rem; border-top: 1px solid var(--line); text-align: right; white-space: nowrap; }
+table.trend th[scope="row"], table.trend thead th:first-child { text-align: left; }
+table.trend thead th { color: var(--muted); font-weight: 600; }
+table.trend tr.bad th[scope="row"] { color: var(--fail); }
+table.trend tr.meh th[scope="row"] { color: var(--warn); }
+table.trend tr.good th[scope="row"] { color: var(--ok); }

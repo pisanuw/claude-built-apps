@@ -7,7 +7,10 @@ import { handleApi, type ApiDeps } from './api';
 import { fetchFile } from './fetchfile';
 import { keyFrom } from './secretbox';
 import { gmailReachableLive, seedCheckLive } from './seed';
-import { recordSeedCheck, recordShopifyCall, recordTest, saveSeed, saveShopConnection, seedAddress, seedSecret, shopConnection, startCanary, updateCanary, verifyUser, type RestConfig } from './supabase-rest';
+import { jobStore } from './jobrest';
+import { UNSUB_HEADERS } from './schedapi';
+import { jobToken } from './secretbox';
+import { recordSeedCheck, recordShopifyCall, recordTest, saveSchedule, saveSeed, saveShopConnection, seedAddress, seedSecret, shopConnection, startCanary, updateCanary, verifyUser, type RestConfig } from './supabase-rest';
 
 declare const __SUPABASE_URL__: string;
 declare const __SUPABASE_ANON_KEY__: string;
@@ -45,6 +48,16 @@ export function liveDeps(cfg: RestConfig, key: string | undefined): ApiDeps {
       startCanary: (t, shop, v, title) => startCanary(cfg, t, shop, v, title),
       updateCanary: (t, id, p) => updateCanary(cfg, t, id, p),
     },
+    schedule: {
+      key: sealKey,
+      readiness: async (t, shop) => {
+        const [conn, kept] = await Promise.all([shopConnection(cfg, t, shop), seedSecret(cfg, t, shop)]);
+        return { connected: conn !== null, seedKept: kept !== null };
+      },
+      save: (t, s) => saveSchedule(cfg, t, s),
+      unsubscribe: (shop) => jobStore(cfg, jobToken(sealKey!)).unsubscribe(shop),
+    },
+    lastRun: sealKey ? () => jobStore(cfg, jobToken(sealKey)).lastRun() : undefined,
   };
 }
 
@@ -52,6 +65,13 @@ export function makeHandler(deps: () => ApiDeps) {
   return async (event: FnEvent) => {
     const body = event.body && event.isBase64Encoded ? Buffer.from(event.body, 'base64').toString('utf8') : event.body;
     const res = await handleApi(event.httpMethod, event.path, body, event.headers ?? {}, deps());
+    if (res.html !== undefined) {
+      return {
+        statusCode: res.status,
+        headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', ...UNSUB_HEADERS },
+        body: event.httpMethod === 'HEAD' ? '' : res.html,
+      };
+    }
     return {
       statusCode: res.status,
       headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' },

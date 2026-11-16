@@ -183,3 +183,25 @@ export async function updateCanary(cfg: RestConfig, token: string, id: string, p
   });
   if (!res.ok) throw new Error(`canary_orders ${res.status}`);
 }
+
+/** Saves one of the caller's shops' schedule (canary_schedule_save); the saved row. */
+export async function saveSchedule(cfg: RestConfig, token: string, s: import('./schedapi').ScheduleSave): Promise<unknown> {
+  const res = await (cfg.fetchImpl ?? fetch)(`${base(cfg)}/rest/v1/rpc/canary_schedule_save`, {
+    method: 'POST',
+    headers: rpcHeaders(cfg, token),
+    body: JSON.stringify({
+      p_shop: s.shopId,
+      p_enabled: s.enabled,
+      p_cadence: s.cadence,
+      p_weekday: s.weekday,
+      p_hour: s.hour,
+      p_variant_id: s.variantId,
+      p_variant_title: s.variantTitle,
+      p_alerts: s.alerts,
+      p_digest: s.digest,
+      p_tag: s.tag,
+    }),
+  });
+  if (!res.ok) throw new Error(`canary_schedule_save ${res.status}`);
+  return res.json();
+}

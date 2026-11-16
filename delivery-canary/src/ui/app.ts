@@ -16,6 +16,7 @@ import { clear, h, when } from './dom';
 import { LinkTestSkipped } from './linkclient';
 import { mountOrders } from './orders';
 import { PLACEMENT_TEXT, renderReport, VERDICT_TEXT } from './report';
+import { mountSchedule } from './schedule';
 import { mountSeed } from './seed';
 import type { SeedRequest, SeedResponse } from './seedclient';
 import type { ShopClient } from './shopclient';
@@ -44,6 +45,8 @@ export interface AppDeps {
   shopify?: ShopClient;
   /** Waits (tests pass a fake clock's). */
   sleep?: (ms: number) => Promise<void>;
+  /** Minutes west of UTC for the schedule card (tests pass a fixed one). */
+  offsetMin?: () => number;
 }
 
 const PLACEMENTS: Placement[] = ['inbox', 'promotions', 'spam', 'other', 'unknown'];
@@ -119,7 +122,10 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
     },
     runSample: () => runSampleEmail({ placement: 'promotions', seed: { where: 'promotions', receivedAt: '' } }),
     suggestSender: () => current?.analysis.from.address ?? '',
-    onChange: () => shopifyCard.refresh(),
+    onChange: async () => {
+      await shopifyCard.refresh();
+      await scheduleCard.refresh();
+    },
   });
   const orders = mountOrders({ stores: () => stores, ensureShop: () => ensureShop(), shop: () => shop, now, digest: deps.digest, download: deps.download });
   const shopifyCard = mountShopify({
@@ -139,8 +145,18 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
     },
     scanOrders: (imp, label) => orders.runImport(imp, label),
     seedChanged: () => seedCard.refresh(),
+    chosenChanged: () => scheduleCard.refresh(),
     now,
     sleep: deps.sleep,
+  });
+  const scheduleCard = mountSchedule({
+    stores: () => stores,
+    shop: () => shop,
+    token: deps.seed?.token ?? (async () => null),
+    client: deps.shopify ?? null,
+    chosen: () => shopifyCard.chosen(),
+    now,
+    offsetMin: deps.offsetMin,
   });
 
   root.replaceChildren(
@@ -176,6 +192,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
       ),
       seedCard.el,
       shopifyCard.el,
+      scheduleCard.el,
       orders.el,
       h(
         'section',
@@ -291,6 +308,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
     }
     await seedCard.refresh();
     await shopifyCard.refresh();
+    await scheduleCard.refresh();
     await orders.refresh();
   }
 
@@ -474,6 +492,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
       clear(result);
       seedCard.reset();
       shopifyCard.reset();
+      scheduleCard.reset();
       orders.reset();
       void load();
     });

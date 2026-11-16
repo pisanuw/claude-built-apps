@@ -4,6 +4,7 @@
  * HTTPS only when the shop owner pastes it to connect, and never comes back.
  */
 import type { ImportedOrder, ImportResult, OrderLine } from '../core/orders';
+import type { ScheduleRow } from '../store/stores';
 
 export class ShopifyCallFailed extends Error {
   constructor(
@@ -23,10 +24,15 @@ export interface ShopClientDeps {
 
 export type ShopAction = 'connect' | 'products' | 'orders' | 'canary';
 
-export async function shopifyCall(action: ShopAction, body: Record<string, unknown>, token: string, deps: ShopClientDeps = {}): Promise<Record<string, unknown>> {
+export function shopifyCall(action: ShopAction, body: Record<string, unknown>, token: string, deps: ShopClientDeps = {}): Promise<Record<string, unknown>> {
+  return apiCall(`/api/shopify/${action}`, body, token, deps);
+}
+
+/** POSTs JSON to one of the app's routes with the user's token; the answer's fields, or ShopifyCallFailed. */
+export async function apiCall(route: string, body: Record<string, unknown>, token: string, deps: ShopClientDeps = {}): Promise<Record<string, unknown>> {
   let res: Response;
   try {
-    res = await (deps.fetchImpl ?? fetch)(`${deps.apiBase ?? ''}/api/shopify/${action}`, {
+    res = await (deps.fetchImpl ?? fetch)(`${deps.apiBase ?? ''}${route}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
       body: JSON.stringify(body),
@@ -138,6 +144,46 @@ export interface ShopClient {
   products(req: { shopId: string; q: string }, token: string): Promise<Variant[]>;
   orders(req: { shopId: string; days: number }, token: string): Promise<ApiOrders>;
   canary(req: { shopId: string; variantId: string; variantTitle: string }, token: string): Promise<CanaryPlaced>;
+  /** Saves the shop's schedule (milestone 5); the saved row. */
+  schedule(req: ScheduleRequest, token: string): Promise<ScheduleRow>;
+}
+
+export interface ScheduleRequest {
+  shopId: string;
+  enabled: boolean;
+  cadence: 'daily' | 'weekly';
+  /** UTC. */
+  weekday: number;
+  /** UTC. */
+  hour: number;
+  variantId: string | null;
+  variantTitle: string;
+  alerts: boolean;
+  digest: boolean;
+}
+
+/** Accepts only a well-formed schedule row from the server. */
+export function parseScheduleRow(d: Record<string, unknown>): ScheduleRow {
+  const r = (d.schedule && typeof d.schedule === 'object' ? d.schedule : null) as Record<string, unknown> | null;
+  if (!r || typeof r.shop_id !== 'string' || (r.cadence !== 'daily' && r.cadence !== 'weekly')) throw bad();
+  const n = (v: unknown, hi: number) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= hi ? v : 0);
+  const t = (v: unknown) => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? v : null);
+  return {
+    shop_id: r.shop_id,
+    enabled: r.enabled === true,
+    cadence: r.cadence,
+    weekday: n(r.weekday, 6),
+    hour: n(r.hour, 23),
+    variant_id: typeof r.variant_id === 'string' ? r.variant_id : null,
+    variant_title: str(r.variant_title),
+    alerts: r.alerts === true,
+    digest: r.digest === true,
+    next_run_at: t(r.next_run_at),
+    last_run_at: t(r.last_run_at),
+    last_outcome: str(r.last_outcome),
+    last_digest_at: t(r.last_digest_at),
+    updated_at: t(r.updated_at) ?? new Date(0).toISOString(),
+  };
 }
 
 export function shopClient(deps: ShopClientDeps = {}): ShopClient {
@@ -146,5 +192,6 @@ export function shopClient(deps: ShopClientDeps = {}): ShopClient {
     products: async (req, token) => parseVariants(await shopifyCall('products', req, token, deps)),
     orders: async (req, token) => parseOrders(await shopifyCall('orders', req, token, deps)),
     canary: async (req, token) => parseCanary(await shopifyCall('canary', req, token, deps)),
+    schedule: async (req, token) => parseScheduleRow(await apiCall('/api/schedule', { ...req }, token, deps)),
   };
 }

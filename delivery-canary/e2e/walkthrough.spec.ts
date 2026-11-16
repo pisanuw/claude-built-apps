@@ -61,3 +61,17 @@ test('the sample canary order shows its email arriving in Promotions', async ({ 
   await expect(page.getByRole('article', { name: 'Check result' })).toContainText('It landed in Promotions');
   await expect(page.locator('#history .history-list li')).toHaveCount(1);
 });
+
+test('the sample schedule shows eight weeks of canary placements', async ({ page }) => {
+  await page.goto('/');
+  const card = page.locator('#schedule-card');
+  await expect(card.getByRole('heading', { name: 'Scheduled canaries and alerts' })).toBeVisible();
+  await expect(card.locator('#sched-form')).toBeHidden();
+  await expect(card.locator('#sched-signin-note')).toBeVisible();
+  await card.getByRole('button', { name: 'See a sample schedule' }).click();
+  await expect(card.locator('#sched-status')).toContainText('its email went to Spam');
+  await expect(card.locator('#sched-summary')).toContainText('Every Monday at 9:00 am, for Canary pattern (free).');
+  await expect(card.locator('#sched-summary')).toContainText('Email: alerts and weekly digest.');
+  await expect(card.locator('#sched-trend tbody tr')).toHaveCount(8);
+  await expect(card.locator('#sched-trend tbody tr.bad')).toHaveCount(2);
+});

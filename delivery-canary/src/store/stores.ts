@@ -295,6 +295,8 @@ export interface CanaryRow {
   seed_where: SeedWhere | null;
   check_id: string | null;
   error: string;
+  /** 'schedule' when the scheduled run placed it (milestone 5); absent in rows made before. */
+  source?: 'page' | 'schedule';
 }
 
 /** The fields the page may change after the server placed the order. */
@@ -308,7 +310,7 @@ export interface CanaryStore {
   update(id: string, patch: CanaryUpdate): Promise<void>;
 }
 
-const CANARY_COLUMNS = 'id, shop_id, created_at, variant_id, variant_title, status, order_name, placed_at, arrived_at, transit_seconds, placement, seed_where, check_id, error';
+const CANARY_COLUMNS = 'id, shop_id, created_at, variant_id, variant_title, status, order_name, placed_at, arrived_at, transit_seconds, placement, seed_where, check_id, error, source';
 
 export class MemoryCanaryStore implements CanaryStore {
   readonly rows: CanaryRow[] = [];
@@ -338,6 +340,55 @@ export class SupabaseCanaryStore implements CanaryStore {
   }
 }
 
+/** A shop's scheduled canary (milestone 5): written only by the server (/api/schedule), read here. Weekday and hour are UTC. */
+export interface ScheduleRow {
+  shop_id: string;
+  enabled: boolean;
+  cadence: 'daily' | 'weekly';
+  weekday: number;
+  hour: number;
+  variant_id: string | null;
+  variant_title: string;
+  alerts: boolean;
+  digest: boolean;
+  next_run_at: string | null;
+  last_run_at: string | null;
+  last_outcome: string;
+  last_digest_at: string | null;
+  updated_at: string;
+}
+
+export interface ScheduleStore {
+  get(shopId: string): Promise<ScheduleRow | undefined>;
+  /** Deletes the shop's schedule (when the shop is disconnected). */
+  remove(shopId: string): Promise<void>;
+}
+
+const SCHEDULE_COLUMNS = 'shop_id, enabled, cadence, weekday, hour, variant_id, variant_title, alerts, digest, next_run_at, last_run_at, last_outcome, last_digest_at, updated_at';
+
+export class MemoryScheduleStore implements ScheduleStore {
+  readonly rows = new Map<string, ScheduleRow>();
+  async get(shopId: string) {
+    return this.rows.get(shopId);
+  }
+  async remove(shopId: string) {
+    this.rows.delete(shopId);
+  }
+}
+
+export class SupabaseScheduleStore implements ScheduleStore {
+  constructor(private readonly client: AppClient) {}
+  async get(shopId: string): Promise<ScheduleRow | undefined> {
+    const { data, error } = await this.client.from('canary_schedules').select(SCHEDULE_COLUMNS).eq('shop_id', shopId).maybeSingle();
+    if (error) throw new Error(`canary_schedules: ${error.message}`);
+    return (data ?? undefined) as ScheduleRow | undefined;
+  }
+  async remove(shopId: string): Promise<void> {
+    const { error } = await this.client.from('canary_schedules').delete().eq('shop_id', shopId);
+    if (error) throw new Error(`canary_schedules: ${error.message}`);
+  }
+}
+
 export interface Stores {
   shops: Repository<ShopRow>;
   checks: CheckStore;
@@ -345,16 +396,17 @@ export interface Stores {
   seeds: SeedStore;
   connections: ConnectionStore;
   canaries: CanaryStore;
+  schedules: ScheduleStore;
   /** True when rows reach the account (signed in). */
   saved: boolean;
 }
 
 export function memoryStores(): Stores {
-  return { shops: new InMemoryRepository<ShopRow>(), checks: new MemoryCheckStore(), scans: new MemoryScanStore(), seeds: new MemorySeedStore(), connections: new MemoryConnectionStore(), canaries: new MemoryCanaryStore(), saved: false };
+  return { shops: new InMemoryRepository<ShopRow>(), checks: new MemoryCheckStore(), scans: new MemoryScanStore(), seeds: new MemorySeedStore(), connections: new MemoryConnectionStore(), canaries: new MemoryCanaryStore(), schedules: new MemoryScheduleStore(), saved: false };
 }
 
 export function supabaseStores(client: AppClient): Stores {
-  return { shops: new SupabaseRepository<ShopRow>(client, 'shops'), checks: new SupabaseCheckStore(client), scans: new SupabaseScanStore(client), seeds: new SupabaseSeedStore(client), connections: new SupabaseConnectionStore(client), canaries: new SupabaseCanaryStore(client), saved: true };
+  return { shops: new SupabaseRepository<ShopRow>(client, 'shops'), checks: new SupabaseCheckStore(client), scans: new SupabaseScanStore(client), seeds: new SupabaseSeedStore(client), connections: new SupabaseConnectionStore(client), canaries: new SupabaseCanaryStore(client), schedules: new SupabaseScheduleStore(client), saved: true };
 }
 
 /** Newest first. */

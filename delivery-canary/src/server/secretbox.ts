@@ -10,7 +10,7 @@
  * could not be opened again (the shop would only need to re-enter the app
  * password, but every shop would).
  */
-import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 const VERSION = 'v1';
 
@@ -84,4 +84,35 @@ export function canonicalAddress(address: string): string {
 export function addressTag(address: string, key: Buffer | null = null): string {
   const text = `delivery-canary/seed-address/${canonicalAddress(address)}`;
   return key ? createHmac('sha256', key).update(text, 'utf8').digest('hex') : createHash('sha256').update(text, 'utf8').digest('hex');
+}
+
+/**
+ * The scheduled job's token (milestone 5): an HMAC of the key, so only a
+ * function holding DELIVERY_CANARY_KEY can compute it. The job_* database
+ * functions only touch schedules whose tag (jobTag) matches it.
+ */
+export function jobToken(key: Buffer): string {
+  return createHmac('sha256', key).update('delivery-canary/job/v1', 'utf8').digest('hex');
+}
+
+/** A schedule's tag: hex HMAC-SHA256 of the shop id under the job token (the database's job_tag). */
+export function jobTag(token: string, shopId: string): string {
+  return createHmac('sha256', token).update(shopId, 'utf8').digest('hex');
+}
+
+const UNSUB_RE = /^u1\.([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.([A-Za-z0-9_-]{43})$/;
+
+/** The unsubscribe link's token for one shop's email: it can only stop that shop's alerts and digest, and never expires. */
+export function unsubToken(key: Buffer, shopId: string): string {
+  const mac = createHmac('sha256', key).update(`delivery-canary/unsubscribe/v1/${shopId}`, 'utf8').digest('base64url');
+  return `u1.${shopId}.${mac}`;
+}
+
+/** The shop id an unsubscribe token was made for, or null when this key did not make it. */
+export function unsubShop(key: Buffer, token: string): string | null {
+  const m = UNSUB_RE.exec(token);
+  if (!m) return null;
+  const want = Buffer.from(unsubToken(key, m[1]).split('.')[2], 'utf8');
+  const got = Buffer.from(m[2], 'utf8');
+  return want.length === got.length && timingSafeEqual(want, got) ? m[1] : null;
 }
