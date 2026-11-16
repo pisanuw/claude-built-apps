@@ -648,3 +648,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-15 [note] lewis-alt-text live at lewis-alt-text.hintwise.org (Deploy 43740334178, owner yes); sign-in-link and delete-account redeployed; caps 20 calls/day/person, $1 cross-app via it, app $3/$15/$40
 
 2026-11-15 [decision] lewis-alt-text per-person cross-app cap raised to $1.50 (owner), so 20 uncached Opus calls fit
+2026-11-16 [code] delivery-canary day 5: scheduled canaries every 10 min (Netlify Scheduled Function), alert and digest email via Resend, 8-week placement table, migration 0005

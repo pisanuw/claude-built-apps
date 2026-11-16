@@ -74,6 +74,16 @@ refused. Canaries go only to the seed address sealed with the client secret
 when the shop was connected, and only for a product that needs no shipping.
 Done.
 
+Milestone 5 as built (day 5, 2026-11-16): the Netlify Scheduled Function
+`canary-run` (every 10 minutes) places each due canary (daily or weekly at a
+local hour, stored as UTC), looks for its email on the following runs and
+calls it "no email" after 40 minutes; alerts for Spam, a failed check, no
+email, an order Shopify refused and a schedule that cannot run; a weekly
+digest; the 8-week placement table on the page. The job has no user token:
+it calls key-proved job_* definer functions (migration 0005). Open: the
+database pins the real job token only once a migration stores its hash
+(job_config; the hash is at /api/health). Done.
+
 If the feature milestones finish early, polish and finish split into two days
 as written; if one grows, it is split here first.
 

@@ -1,4 +1,4 @@
-# Delivery Canary: handoff (day 4 of 7, 2026-11-15)
+# Delivery Canary: handoff (day 5 of 7, 2026-11-16)
 
 Rewritten at the end of every build day by the build routine
 (BUILD_ROUTINE.md). It is the only state the next day's session has, and the
@@ -80,7 +80,25 @@ Shape marks: stateful, connected, unattended, engine (PLAN.md "Shape").
   days of orders from Shopify" feeds the late order scan from the Admin API
   (no customer fields asked for; canaries excluded). Signed out, "See a
   sample canary order" shows a result.
-- Not live yet: milestones 5 to 7.
+- Since day 5 (Deploy run 184, commit 0efebfc): the "Scheduled canaries
+  and alerts" card. Signed in, connected, with the seed app password kept
+  and a canary product picked, the owner turns on a weekly or daily canary
+  at a local hour (stored as UTC), ticks alerts (on by default) and a weekly
+  digest, and saves (`POST /api/schedule`). The Netlify Scheduled Function
+  `canary-run` (every 10 minutes, `netlify/functions/canary-run/`) places
+  each due canary, looks in the seed inbox on the next runs, runs the full
+  check server side (same engine, saved to history), and calls it "no
+  email" 40 minutes after the order. Alerts (Resend, from
+  delivery-canary@hintwise.org, to the account's confirmed address): Spam,
+  a failed check, no email, an order Shopify refused, and a schedule that
+  cannot run or hit the 5-a-day limit. Weekly digest a week after it is
+  turned on. Every email has a one-click unsubscribe
+  (`/api/unsubscribe/<HMAC token>`: GET asks, POST stops that shop's alerts
+  and digest). The card shows the placement table of the last 8 weeks;
+  scheduled canaries are marked "(scheduled)". Signed out, "See a sample
+  schedule" shows the card with sample weeks. `/api/health` adds
+  `scheduleLastRun` and `jobTokenSha256`.
+- Not live yet: milestones 6 (polish) and 7 (finish).
 
 ## Milestones (docs/PLAN.md)
 
@@ -90,8 +108,8 @@ Shape marks: stateful, connected, unattended, engine (PLAN.md "Shape").
 | 2 | Unfulfilled digital order scan | done | 2 | code review (high, 12 findings) and security review (no high/medium; 2 low) fixed |
 | 3 | Seed mailbox connection | done | 3 | code review (high, 6 real findings) and security review (1 medium, 4 low) fixed; not yet tried against a real Gmail account (open question 4) |
 | 4 | Shopify connection and canary order | done | 4 | code review (high, 10 findings) and security review (1 medium, 1 low) fixed; not yet tried against a real shop (open question 5) |
-| 5 | Schedule and alerts | next | | first Netlify Scheduled Function; app email through Resend |
-| 6 | Polish | | | |
+| 5 | Schedule and alerts | done | 5 | code review (high, 10 findings) and security review (1 medium, 5 low, 3 info) fixed, except the medium's last step (open question 6); first Scheduled Function with this runner |
+| 6 | Polish | next | | |
 | 7 | Finish | | | |
 
 ## How to run and verify
@@ -102,8 +120,18 @@ npm run dev          # http://localhost:5173 (memory stores, no sign-in)
 PW_CHROMIUM=/opt/pw-browsers/chromium npm run e2e   # walkthrough; PW_CHROMIUM only in the cloud sandbox
 ```
 
-Tests: 467 vitest (99% statements, 95% branches), 4 Playwright walkthroughs
-(sample email; sample orders export; sample seed inbox check; sample canary).
+Tests: 551 vitest (99% statements, 95% branches), 5 Playwright walkthroughs
+(sample email; sample orders export; sample seed inbox check; sample canary;
+sample schedule). The scheduled job runs against an in-memory copy of the
+job_* functions (`test/job.test.ts`, MemJob), including a simulated week of
+10-minute runs (one weekly canary, seven daily), the alert cap and dedupe,
+and the digest timing. Migrations 0001 to 0005 were applied twice to a
+throwaway local Postgres 16 with an auth stub on day 5, and the job_*
+functions exercised as two users and anon (claim once per slot, busy and
+limit, foreign tokens see only their own tag, caps, dedupe, unsubscribe,
+job_config pinning, the disconnect trigger, column grants).
+Netlify's own bundler (@netlify/zip-it-and-ship-it, listFunctions with
+parseISC) reads `canary-run` as a v2 function with schedule `*/10 * * * *`.
 The Shopify client runs against a scripted Admin API (`test/shopify-fake.ts`:
 token endpoint, products, draft orders, orders paging). Test fixtures must
 never look like real Shopify secrets (`shpss_`/`shpat_` prefixes): GitHub
@@ -121,7 +149,9 @@ Supabase-like auth stub (roles anon/authenticated, auth.uid()) and its
 grants, definer functions and both rate limits exercised (day 3).
 Live checks:
 - `curl -s https://delivery-canary.hintwise.org/ | grep -c "Want something like this"` prints 1 (footer);
-- `curl -s https://delivery-canary.hintwise.org/api/health` prints `{"ok":true,"status":"ok","seedKeep":true}` (seedKeep false means DELIVERY_CANARY_KEY did not reach the function);
+- `curl -s https://delivery-canary.hintwise.org/api/health` prints `{"ok":true,"status":"ok","seedKeep":true,"scheduleLastRun":"<ISO>","jobTokenSha256":"<hex>"}` (seedKeep false means DELIVERY_CANARY_KEY did not reach the function; scheduleLastRun null more than 10 minutes after a deploy means the Scheduled Function is not running; it is cached a minute);
+- `curl -s -X POST https://delivery-canary.hintwise.org/api/schedule -d '{}'` answers 401;
+- `curl -s https://delivery-canary.hintwise.org/api/unsubscribe/u1.bad` answers 400 with the "This link does not work" page;
 - `curl -s https://delivery-canary.hintwise.org/api/seed-reach` prints `{"gmailImap":true}`;
 - `curl -s -X POST https://delivery-canary.hintwise.org/api/seed-check -d '{}'` answers 401;
 - `curl -s -X POST https://delivery-canary.hintwise.org/api/link-check -d '{"url":"https://example.com"}'` answers 401 (sign-in required).
@@ -187,7 +217,33 @@ Live checks:
   is recorded as "unknown", never "not placed".
 - Sign-in: Google and email link (template panel, `sign-in-link`); the app
   host was added to `platform/src/signin/app-hosts.ts` in 80c3150.
-- LLM: none. Email: none yet (milestone 5).
+- Migration `0005_schedule_alerts.sql` (day 5): `canary_schedules` (one
+  per shop: enabled, cadence, UTC weekday and hour, variant, alerts,
+  digest, `tag`, next/last run, last outcome, digest times; browser column
+  SELECT without `tag`, DELETE; written only by definer
+  `canary_schedule_save` with the user's token), `email_sends` (caps and
+  dedupe, unique (shop_id, kind, dedupe); no address stored), `job_runs`
+  (heartbeat by token hash, 20 kept), `job_config` (the job token's
+  SHA-256 once pinned; empty now), `canary_orders.source` ('page' |
+  'schedule', set by trigger). Anon gets schema USAGE and EXECUTE on the
+  job_* definer functions only (claim, canary_start, canary_update,
+  waiting, outcome, mail_reserve, mail_done, digest_due, unsubscribe,
+  heartbeat, last_run); each takes p_token and touches only schedules whose
+  tag = hex HMAC-SHA256(shop id) under it. Deleting a shop connection
+  deletes its schedule (trigger).
+- The job token: `jobToken(key)` = HMAC(DELIVERY_CANARY_KEY,
+  'delivery-canary/job/v1') in `secretbox.ts`; never logged, only in POST
+  bodies. Unsubscribe tokens are a separate HMAC of the shop id.
+- Netlify Scheduled Function `canary-run` (`src/server/scheduled.ts`,
+  `job.ts`; `scripts/build-function.mjs` writes a literal wrapper
+  `canary-run.mjs` with `config.schedule` and bundles `job.mjs`): 25 s
+  budget of Netlify's 30 s; looks first, then claims, then digests, then the
+  heartbeat.
+- LLM: none. Email: Resend from the Scheduled Function only (RESEND_API
+  through target.yml envPassthrough), sender `Delivery Canary
+  <delivery-canary@hintwise.org>`, Reply-To support@hintwise.org,
+  List-Unsubscribe and List-Unsubscribe-Post; caps 4 a day per user and 300
+  a day for the app, in SQL.
 - Shopify: the shop's own Dev Dashboard app; no HintWise Partner account,
   no Shopify secret of ours. Files: none (the orders CSV is
   read in the browser and never uploaded).
@@ -274,6 +330,31 @@ Live checks:
   has 10 seconds, the wait is up to 9 minutes. The scheduled run
   (milestone 5) will do the same looks from a scheduled function.
 
+- 2026-11-16: the scheduled job proves itself with an HMAC of the key
+  checked against a per-schedule tag, not the service-role key (the app
+  never gets it) and not a stored user refresh token (sharing one with the
+  browser session would trip Supabase's refresh-token reuse detection and
+  sign the owner out; it would also be a full session for every HintWise
+  app).
+- 2026-11-16: the canary is placed on one run and looked for on the next
+  ones (a scheduled function has 30 seconds; delivery takes minutes);
+  transit time comes from Gmail's INTERNALDATE, so the 10-minute gap does
+  not blur it. "No email" after 40 minutes.
+- 2026-11-16: a claim moves next_run_at on from now, so a missed run is
+  never made up in a burst; a slot that finds another canary unresolved
+  retries 15 minutes later (code review).
+- 2026-11-16: Promotions is not an alert (receipts often land there) but
+  is in the digest and the table.
+- 2026-11-16: the schedule's wrapper file is hand-written so Netlify reads
+  `export const config = { schedule }` as a literal (checked with
+  zip-it-and-ship-it); job.mjs is the bundle.
+- 2026-11-16: in half-hour time zones the UTC hour rounds down on save and
+  up on display, so the form never drifts; the canary then runs half an
+  hour early (UI test review).
+- 2026-11-16 (security review): alert email only to a confirmed,
+  non-anonymous address; dedupe keys are per shop; the job's link test
+  gets 5 s, not 8.
+
 ## Tried and rejected
 
 - Counting recent link tests, then inserting (two HTTP calls): racy under
@@ -294,12 +375,29 @@ Live checks:
   wildcard, so it found nothing (code review).
 - Using the seed inbox's current address for canaries: a session alone
   could change it (security review).
+- One global (kind, dedupe) key for email sends: a user with a made-up job
+  token could pre-empt another shop's alert by guessing its key (security
+  review); keys are per shop now.
+- Refusing new heartbeat rows once 20 exist: junk tokens could lock the
+  real job out (code review); the stalest rows are evicted instead.
 - Gmail API for the seed mailbox: gmail.readonly is a restricted scope
   needing Google verification on the shared HintWise client, a shared
   setting; IMAP with an app password on the shop's own seed account is
   planned instead (open question 3).
 
 ## Open questions for the owner
+
+6. (day 5) Security review, medium: until the database knows the real job
+   token, a signed-in user can tag their own schedule with a token they
+   made up and call the job_* functions for their own shop. That never
+   reaches another user's data or sends mail (only our function sends),
+   but many such accounts could fill the app-wide cap of 300 alert
+   reservations a day and so delay real alerts. Fix, built in today:
+   `job_config` holds the SHA-256 of the real token, and the live
+   `/api/health` shows it (`jobTokenSha256`, not secret). Recommendation:
+   tomorrow's build adds migration 0006 inserting that hash (one row), which
+   makes every other token fail. Default: day 6 does it with its deploy;
+   nothing for the owner to do.
 
 **Answered by the owner, 15 Nov 2026 (Lisbon ~11:55, in the Plabs session):** questions 4 and 5: "skip them, continue build on Delivery Canary". No live Shopify or seed-inbox test before the remaining milestones; build on, and treat the first real report as a bug to fix.
 
@@ -355,20 +453,40 @@ mailbox: IMAP with a Google app password.
 
 ## Remaining and known issues
 
-- Milestones 5 to 7 (PLAN.md). Milestone 5 next: a Netlify Scheduled
-  Function (first use with this deploy runner: check the runner bundles and
-  registers it) that, for each shop with a schedule, places the canary and
-  looks for its email, then mails a digest and an instant alert through
-  Resend (sender delivery-canary@hintwise.org, opt-in, unsubscribe link,
-  per-user and per-day caps). The scheduled job has no user token: it
-  needs a signed call to definer functions (key-derived HMAC), as open
-  question 1 planned, or a platform-provided way; check docs/platform.md
-  and the app-notify platform function (seen in main's log on 15 Nov)
-  first, and ask the owner before anything that needs the service-role key.
+- Milestones 6 and 7 (PLAN.md). Day 6 (polish) first: migration
+  `0006_job_token.sql` with `insert into app_delivery_canary.job_config
+  (token_sha256) values ('<jobTokenSha256 from /api/health>') on conflict
+  (id) do update set token_sha256 = excluded.token_sha256;` (open question
+  6; the live hash on 16 Nov was 136d9c79...82d0f8, see Deploy run 184
+  below). After its deploy, confirm `scheduleLastRun` still moves (a wrong
+  hash would make every job call fail). Then the polish list below.
+- Schedule known limits: one serial queue per run (a shop whose download
+  link is slow costs up to 5 s of the 25 s; no per-user fairness yet); a
+  scheduled canary left 'placed' more than a day (job down) drops out of
+  the looks without a "no email" alert; an alert whose send fails twice is
+  lost (the canary is settled); the platform's global email opt-out list
+  is not checked (its check needs the service role), only this app's own
+  unsubscribe; DST shifts a schedule by an hour until it is saved again.
+- First real run unproven: the Scheduled Function, IMAP and Shopify paths
+  have never run against a real shop or seed inbox (open questions 4 and 5
+  answered "build on").
 - Canary known limits: completion timeouts leave status "unknown" with no
   automatic lookup by tag (the owner looks in Shopify); the page must stay
   open for the 9-minute wait (or use "Look for its email now" later);
   variant search shows up to 5 variants of 10 products.
+- Deploy run 184 (day 5, commit 0efebfc): migration 0005 applied,
+  check-schema passed with advisor warnings by design ("Public Can Execute
+  SECURITY DEFINER Function" for the 11 job_* functions: each takes the job
+  token and touches only schedules tagged with it; plus the five
+  signed-in definer functions as before). RESEND_API forwarded. The
+  Scheduled Function ran on its own at 11:30:24 UTC (`scheduleLastRun`), so
+  Netlify registered it: first Scheduled Function with this runner works.
+  Live job token hash for migration 0006: `jobTokenSha256` =
+  136d9c797f35161b6fb0f2e1aefe504106844e7ec45875e3a73d6e736482d0f8 (re-read
+  it from /api/health before writing 0006). Live: /api/schedule 401 signed
+  out, /api/unsubscribe/u1.bad and a malformed %-link 400 with the CSP
+  page, footer present, the signed-out sample schedule checked in a browser
+  (8 weeks, no page errors).
 - Deploy run 182 (day 4): migration 0004 applied, check-schema passed
   with four advisor warnings by design (signed-in users can execute the
   definer functions seed_inbox_save, seed_inbox_secret,
@@ -387,9 +505,6 @@ mailbox: IMAP with a Google app password.
   question 4); IMAP client memory caps are per literal, not per response (only a
   misbehaving imap.gmail.com could exploit it; security review L4); the
   found email's link is tested automatically even when it sits in Spam.
-- Milestone 5 needs the scheduled job to open kept passwords without a
-  user token: a signed call to a definer function (key-derived HMAC), as
-  open question 1 planned.
 - Order scan limits (known): which line of a partially refunded order was
   refunded is not in the export; delivery apps that never mark orders
   fulfilled make every order look late (the scan warns).
@@ -426,7 +541,12 @@ mailbox: IMAP with a Google app password.
   card), `shopclient.ts`; `test/shopify-fake.ts` (scripted Admin API).
 - `src/ui/app.ts` (the page), `report.ts`, `linkclient.ts`, `dom.ts`;
   `src/store/stores.ts` (shops, checks with summaries).
-- `supabase/migrations/0001_init.sql`, `0002_order_scans.sql`, `0003_seed_inbox.sql`, `0004_shopify_canary.sql`; `deploy/target.yml`;
+- `src/core/schedule.ts` (next slot, UTC conversion, trend); `src/server/job.ts`
+  (the scheduled run), `jobrest.ts` (job_* calls), `mail.ts` (alert, digest,
+  Resend), `schedapi.ts` (/api/schedule, /api/unsubscribe), `scheduled.ts`
+  (entry); `src/ui/schedule.ts` (the card); tests `test/job.test.ts`
+  (MemJob), `schedapi.test.ts`, `schedule-ui.test.ts`.
+- `supabase/migrations/0001_init.sql`, `0002_order_scans.sql`, `0003_seed_inbox.sql`, `0004_shopify_canary.sql`, `0005_schedule_alerts.sql`; `deploy/target.yml`;
   `e2e/walkthrough.spec.ts`.
 
 ## Log
@@ -447,3 +567,8 @@ mailbox: IMAP with a Google app password.
   address, free tagged draft order, timed seed inbox looks, orders from the
   Admin API, migration 0004); code review (10) and security review (1
   medium, 1 low) fixed; deployed.
+- Day 5 (2026-11-16): milestone 5, scheduled canaries and alerts (the
+  canary-run Scheduled Function, key-proved job_* functions, Resend alerts
+  and digest with one-click unsubscribe, the 8-week table, migration 0005);
+  code review (10) and security review (1 medium, 5 low) fixed; deployed
+  (run 184).
