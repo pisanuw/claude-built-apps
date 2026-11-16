@@ -649,3 +649,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 
 2026-11-15 [decision] lewis-alt-text per-person cross-app cap raised to $1.50 (owner), so 20 uncached Opus calls fit
 2026-11-16 [code] delivery-canary day 5: scheduled canaries every 10 min (Netlify Scheduled Function), alert and digest email via Resend, 8-week placement table, migration 0005
+
+2026-11-16 [code] sign-in links wait for a "Finish signing in" click (template, lewis-alt-text): mail scanners such as Safe Links were spending single-use links on page load
