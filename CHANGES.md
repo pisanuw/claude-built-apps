@@ -653,3 +653,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-16 [code] sign-in links wait for a "Finish signing in" click (template, lewis-alt-text): mail scanners such as Safe Links were spending single-use links on page load
 
 2026-11-16 [code] lewis-alt-text deployed with the Finish signing in fix (owner yes; deploy run 43934158919); live page verified: no auth request on load
+
+2026-11-16 [code] Finish signing in fix applied to delivery-canary, qualified-overtime-checker, teacher-catalog-kit (owner yes); the first two deployed
