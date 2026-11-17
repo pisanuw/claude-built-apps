@@ -4,7 +4,7 @@ This is the rolling handoff for the Plabs relay (session-relay skill). Each hand
 
 Written 14 November 2026 by session_01JyJzMWixW7SqcHTri4Umng, on the owner's "do handoff", and fact-checked the same day by a subagent against git, the Actions runs and the routines list.
 
-Times carry their zone. Commit times are Europe/Berlin (the routine time zone); reports to the owner use Europe/Lisbon.
+Times carry their zone. Commit times are Europe/Berlin (the routine time zone); reports to the owner use Europe/Madrid (Barcelona time; owner, 17 Nov 2026, "until further notice").
 
 Not verified:
 - upvote's Netlify build on Node 24 (the site answers 200);
@@ -262,7 +262,7 @@ The relay session supports the builds: migrations for own-repo apps, platform fe
 - **Questions:** number them, with a recommendation, in message text (no blocking dialogs).
   - With a recommendation and no answer in 15 minutes, take it and say how to undo it (never for the explicit-yes list).
   - Set a send_later check-in for 15 minutes when something waits on an answer.
-- **Times in Lisbon time** (Europe/Lisbon) in reports and chat. Routines keep their Europe/Berlin crons.
+- **Times in Barcelona time** (Europe/Madrid) in reports and chat (owner, 17 Nov 2026, "until further notice"; was Lisbon). Routines keep their Europe/Berlin crons.
 - **Quiet hours are silent.** When an hourly check finds nothing new, print nothing at all: no file, no message, not even a "nothing changed" line.
 - **Public pages** are for customers. Never invent facts about the owner in his voice.
 - **Repo rules:**
@@ -279,7 +279,7 @@ The relay session supports the builds: migrations for own-repo apps, platform fe
 | Repository | pisanuw/claude-built-apps (also daily-project-ideas, pisanorg/yusuf, pisan-labs/chess-tournament-director, pisanuw/upvote, pisanuw/pastemd, pisanuw/live-together; read-only: dashboards, chess-analyzer, meetme) |
 | Handoff document | HANDOFF.md (this file) |
 | Routine time zone | Europe/Berlin |
-| Report time zone | Europe/Lisbon |
+| Report time zone | Europe/Madrid (Barcelona) |
 | Handover check | 13:56 Europe/Berlin |
 | Session start | 14:52 Europe/Berlin |
 | Handoff marker | a commit on main titled `docs: the handoff of <D Month>` (this project pushes docs to main, no PR); no other commit may use that subject |

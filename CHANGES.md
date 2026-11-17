@@ -659,3 +659,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-17 [code] lewis-alt-text: CLI calls the live app through the gateway as the signed-in person; /terminal/ page shows a one-time sign-in code (never used in the browser); --local keeps the claude CLI path
 
 2026-11-17 [code] First-party analytics: shared/0014 (app_events, analytics_apps, daily-salt visitor ids), app-events function, hw-events.js client; MyUni (branch analytics-events) and StepWise (next) wired; not deployed
+
+2026-11-17 [decision] Owner: report times in Barcelona time (Europe/Madrid) until further notice; hourly routine prompt and HANDOFF updated
