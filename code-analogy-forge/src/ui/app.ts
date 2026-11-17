@@ -327,7 +327,7 @@ export function mountApp(root: HTMLElement): void {
   );
   hero.append(
     el('p', { class: 'privacy-note' }, [
-      'Deterministic and fully client-side: a hand-written detector and a curated corpus, no AI calls, and nothing you paste leaves your browser.',
+      'Deterministic and fully client-side: a hand-written detector and a curated corpus, no AI calls, nothing leaves your browser.',
     ]),
   );
   wrap.append(hero);
