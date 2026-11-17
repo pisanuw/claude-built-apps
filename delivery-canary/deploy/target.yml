@@ -22,7 +22,10 @@
 # Milestone 4 (canary orders from the shop's own Shopify app, migration
 # 0004), 2026-11-15. Milestone 5 (scheduled canaries and alert email,
 # migration 0005, the Scheduled Function netlify/functions/canary-run every
-# 10 minutes, RESEND_API), 2026-11-16.
+# 10 minutes, RESEND_API), 2026-11-16. Milestone 6 (polish: migration 0006
+# pins the job token's hash, 0007 guards canary rows, phone layout,
+# static page shell, README),
+# 2026-11-17.
 #
 # envPassthrough: DELIVERY_CANARY_KEY (repository secret, added by the owner
 # on 12 Nov) reaches the function's runtime environment only, never the page

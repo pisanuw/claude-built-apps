@@ -237,6 +237,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
     if (shop) return shop;
     const row: ShopRow = { id: newId(), name: shopName.value.trim() || 'My shop', delivery_app: appSelect.value, baseline: null, created_at: now().toISOString() };
     shop = await stores.shops.put(row);
+    renderShop();
     return shop;
   }
 
@@ -299,12 +300,13 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
   }
 
   async function load(): Promise<void> {
+    sayShop('');
     try {
       const shops = byNewest(await stores.shops.list());
       shop = shops[shops.length - 1] ?? null; // the oldest: the first shop made
     } catch (e) {
       shop = null;
-      say(`Could not load your shop: ${(e as Error).message}`);
+      sayShop(`Could not load your shop: ${(e as Error).message}`);
     }
     renderShop();
     try {

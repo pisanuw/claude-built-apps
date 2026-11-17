@@ -9,12 +9,13 @@
          branding guidelines); text= limits the font to that button's letters. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@500&amp;text=Continue%20with%20Google&amp;display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@500&amp;text=Continue%20with%20Google&amp;display=swap" media="print" onload="this.media='all'" />
   </head>
   <body>
     <!-- A static shell for readers that do not run scripts (search engines,
          accessibility-lens); the app replaces it when it mounts. -->
     <div id="app">
+      <main>
       <header class="top">
         <div>
           <h1>Delivery Canary</h1>
@@ -30,6 +31,7 @@
         </ul>
         <noscript><p>Delivery Canary needs JavaScript turned on.</p></noscript>
       </section>
+      </main>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

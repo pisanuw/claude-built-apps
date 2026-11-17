@@ -320,7 +320,7 @@ describe('the app', () => {
     const stores: Stores = { shops: fail as unknown as Stores['shops'], checks: fail as unknown as Stores['checks'], scans: new MemoryScanStore(), seeds: new MemorySeedStore(), connections: new MemoryConnectionStore(), canaries: new MemoryCanaryStore(), schedules: new MemoryScheduleStore(), saved: true };
     const { $ } = setup({ stores });
     await tick();
-    expect($('.status').textContent).toMatch(/Could not load your (shop|history): offline/);
+    expect($('#shop-status').textContent).toBe('Could not load your shop: offline');
     $<HTMLInputElement>('#shop-name').value = 'X';
     $<HTMLButtonElement>('#save-shop').click();
     await tick();

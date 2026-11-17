@@ -84,7 +84,7 @@ export function trendTable(weeks: TrendWeek[]): HTMLElement {
     ),
   );
   // A focusable region, so keyboard users can scroll the table sideways on a phone.
-  return h('div', { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': 'Placement by week (scrolls sideways)' }, table);
+  return h('div', { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': 'Placement by week' }, table);
 }
 
 export function mountSchedule(deps: ScheduleCardDeps): { el: HTMLElement; refresh: () => Promise<void>; reset: () => void } {

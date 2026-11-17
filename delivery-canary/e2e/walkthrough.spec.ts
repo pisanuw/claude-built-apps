@@ -82,31 +82,31 @@ test('on a phone every sample fits the screen width, and the keyboard reaches ea
   // The static shell in index.html is replaced by the app.
   await expect(page.locator('#shell-h')).toHaveCount(0);
   await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
-  const samples: [string, string, RegExp][] = [
-    ['Try the sample email', '#check-status', /Checked/],
-    ['See a sample seed inbox check', '#seed-status', /Promotions tab/],
-    ['See a sample canary order', '#shopify-status', /1 min 42 s later/],
-    ['See a sample schedule', '#sched-status', /went to Spam/],
-    ['Try a sample export', '#orders-status', /Scanned/],
+  // [button, status line, its text, where focus lands when the sample is done]
+  const samples: [string, string, RegExp, string][] = [
+    ['Try the sample email', '#check-status', /Checked/, '#result'],
+    ['See a sample seed inbox check', '#seed-status', /Promotions tab/, '#result'],
+    ['See a sample canary order', '#shopify-status', /1 min 42 s later/, '#result'],
+    ['See a sample schedule', '#sched-status', /went to Spam/, '#sched-sample'],
+    ['Try a sample export', '#orders-status', /Scanned/, '#scan-result'],
   ];
-  for (const [name, status, text] of samples) {
+  for (const [name, status, text, done] of samples) {
     const button = page.getByRole('button', { name });
-    // The previous sample moves focus to its result when it finishes; focus the button after that.
-    await expect(async () => {
-      await button.focus();
-      await page.waitForTimeout(150);
-      await expect(button).toBeFocused({ timeout: 50 });
-    }).toPass();
+    await button.focus();
+    await expect(button).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page.locator(status)).toContainText(text);
+    await expect(page.locator(done)).toBeFocused();
   }
   await expect(page.locator('#sched-trend tbody tr')).toHaveCount(8);
   const width = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(width).toBeLessThanOrEqual(375);
   // Wide tables scroll inside a focusable region instead of the page.
-  await expect(page.getByRole('region', { name: 'Placement by week (scrolls sideways)' })).toHaveAttribute('tabindex', '0');
-  await expect(page.getByRole('region', { name: 'Paid download orders still unfulfilled, oldest first' })).toHaveAttribute('tabindex', '0');
-  // Saving the shop without a name says so next to the button.
+  await expect(page.getByRole('region', { name: 'Placement by week' })).toHaveAttribute('tabindex', '0');
+  await expect(page.getByRole('region', { name: 'Late orders' })).toHaveAttribute('tabindex', '0');
+  // Running a sample made a shop; saving it without a name says so next to the button.
+  await expect(page.locator('#shop-name')).toHaveValue('My shop');
+  await page.locator('#shop-name').fill('');
   await page.getByRole('button', { name: 'Save shop' }).click();
   await expect(page.locator('#shop-status')).toHaveText('Give the shop a name first.');
   await expect(page.locator('#shop-name')).toBeFocused();
