@@ -64,7 +64,7 @@ describe('the Supabase admin workflow', () => {
   const wf = fs.readFileSync(path.join(here, '..', '..', '.github', 'workflows', 'supabase-admin.yml'), 'utf8');
   it('offers brand-upload and email-optout, with an email input', () => {
     expect(wf).toMatch(/description: '[^']*\| brand-upload \| email-optout \|[^']*'/);
-    expect(wf).toContain("email-optout: status, add or remove; admin: add, remove or list'");
+    expect(wf).toContain("email-optout: status, add or remove; admin: add, remove or list; analytics-register: <slug> <https origin>'");
     expect(wf).toMatch(/description: '[^']*\| email-optout \| admin \|[^']*'/);
     expect(wf).toMatch(/\n {6}email:\n {8}description: 'email-optout and admin only: the address \(masked in the log, never printed\)'/);
   });
