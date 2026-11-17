@@ -85,7 +85,7 @@ export function mountApp(root: HTMLElement): void {
       </div>
     </section>
     <section id="results" class="card results" aria-label="Breakdown" hidden></section>
-    <footer class="muted">Everything runs in your browser: no server, no tracking. After Scott Aaronson's oracle demo.
+    <footer class="muted">Everything runs in your browser: no server, no cookies; visits are counted anonymously. After Scott Aaronson's oracle demo.
       <a href="https://github.com/pisanuw/Claude-capstone/tree/main/outguess-me">Source</a></footer>`;
 
   const $ = <T extends HTMLElement>(sel: string) => root.querySelector(sel) as T;

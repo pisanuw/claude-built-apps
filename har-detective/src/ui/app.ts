@@ -59,7 +59,7 @@ export function initApp(root: HTMLElement): void {
     <div id="results"></div>
     <footer>
       Built as a deterministic, offline take on “AI-powered HAR analysis”: the pattern detectors are
-      hand-written rules, so no API keys and no data leaves the page.
+      hand-written rules, so no API keys and none of your HAR data leaves the page.
       <a href="https://github.com/pisanuw/Claude-capstone/tree/main/har-detective">Source on GitHub</a>.
     </footer>
   `;

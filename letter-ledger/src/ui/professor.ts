@@ -484,7 +484,7 @@ export async function mountProfessor(root: HTMLElement): Promise<void> {
       </fieldset>
       <pre class="md" tabindex="0" aria-label="Outline in Markdown">${esc(md)}</pre>
       <div class="row"><button class="primary" id="ol-dl">Download .md</button><button id="ol-copy">Copy</button></div>
-      <p class="small muted">Built only from what you and the student recorded; no text is generated and nothing is sent anywhere. Grades appear only when the release covers them.</p>
+      <p class="small muted">Built only from what you and the student recorded; no text is generated and none of it is sent anywhere. Grades appear only when the release covers them.</p>
     </section>`;
     for (const c of box.querySelectorAll<HTMLInputElement>('[data-olp]')) {
       c.addEventListener('change', () => {

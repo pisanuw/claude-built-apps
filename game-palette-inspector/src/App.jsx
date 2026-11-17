@@ -199,7 +199,7 @@ export default function App() {
           <p>
             This interface takes its own advice: the accent is a protan/deutan-safe cyan, and no
             pass/fail state is communicated by color alone. Everything runs locally: no uploads,
-            no accounts, no tracking.
+            no accounts, and no cookies (visits are counted anonymously).
           </p>
         </div>
       </footer>

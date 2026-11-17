@@ -937,7 +937,7 @@ export function mount(root: HTMLElement, options: MountOptions = {}): App {
         'section',
         { class: 'card', 'aria-labelledby': 'bk-h' },
         h('h3', { id: 'bk-h' }, 'Backup'),
-        h('p', {}, 'Everything is kept in this browser only. Nothing is sent anywhere. Save a fleet file now and then, and open it on another computer to carry on there.'),
+        h('p', {}, 'Everything is kept in this browser only. Nothing you enter is sent anywhere. Save a fleet file now and then, and open it on another computer to carry on there.'),
         saveFailed ? h('p', { class: 'warnbox' }, 'This browser is not saving your work (private window or storage full). Save a fleet file before you close the tab.') : null,
         h('div', { class: 'toolbar' }, h('button', { type: 'button', class: 'primary', onclick: () => download(`fleet-${today()}.json`, serializeFleet(fleet), 'application/json') }, 'Save fleet file')),
         field('Open a fleet file', open),

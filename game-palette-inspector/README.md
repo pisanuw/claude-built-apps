@@ -2,7 +2,7 @@
 
 Check a game palette against WCAG contrast and 8 types of color vision deficiency, then get replacement colors that keep your art style. Roughly 8% of male players (and about 0.5% of female players) have some form of color vision deficiency; most game color tooling ignores them.
 
-Everything runs in the browser. No accounts, no uploads, no API keys, no tracking.
+Everything runs in the browser. No accounts, no uploads, no API keys, no cookies; visits are counted anonymously (HintWise first-party analytics, page paths only).
 
 **Live**: [game-palette-inspector.hintwise.org](https://game-palette-inspector.hintwise.org)
 
