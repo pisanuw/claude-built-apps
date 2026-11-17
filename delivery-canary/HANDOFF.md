@@ -1,4 +1,4 @@
-# Delivery Canary: handoff (day 5 of 7, 2026-11-16)
+# Delivery Canary: handoff (day 6 of 7, 2026-11-17)
 
 Rewritten at the end of every build day by the build routine
 (BUILD_ROUTINE.md). It is the only state the next day's session has, and the
@@ -98,7 +98,18 @@ Shape marks: stateful, connected, unattended, engine (PLAN.md "Shape").
   scheduled canaries are marked "(scheduled)". Signed out, "See a sample
   schedule" shows the card with sample weeks. `/api/health` adds
   `scheduleLastRun` and `jobTokenSha256`.
-- Not live yet: milestones 6 (polish) and 7 (finish).
+- Since day 6 (Deploy run 187, commit 6c94de4): polish. Migration 0006
+  pins the job token's SHA-256 in job_config, so only the canary-run
+  function can call the job_* functions; migration 0007 guards canary rows
+  (security review: a scheduled canary cannot be re-armed from the page, its
+  placed_at and order id are fixed, job_waiting takes at most two rows per
+  user per run, an order id once set stays and the 5-a-day cap counts every
+  canary that got an order). The page fits a 375 px phone (the orders card
+  overflowed), the two wide tables scroll inside focusable regions, the shop
+  card has its own status line, `index.html` has a static shell (h1, what it
+  does) for readers without scripts, and Google Sans loads (non-blocking)
+  for the Google button. README rewritten for the shop owner; `demo.gif`.
+- Not live yet: milestone 7 (finish).
 
 ## Milestones (docs/PLAN.md)
 
@@ -109,8 +120,8 @@ Shape marks: stateful, connected, unattended, engine (PLAN.md "Shape").
 | 3 | Seed mailbox connection | done | 3 | code review (high, 6 real findings) and security review (1 medium, 4 low) fixed; not yet tried against a real Gmail account (open question 4) |
 | 4 | Shopify connection and canary order | done | 4 | code review (high, 10 findings) and security review (1 medium, 1 low) fixed; not yet tried against a real shop (open question 5) |
 | 5 | Schedule and alerts | done | 5 | code review (high, 10 findings) and security review (1 medium, 5 low, 3 info) fixed, except the medium's last step (open question 6); first Scheduled Function with this runner |
-| 6 | Polish | next | | |
-| 7 | Finish | | | |
+| 6 | Polish | done | 6 | code review (high, 9 findings) and whole-app security review (1 medium, 1 low) fixed; accessibility-lens: only "no headings" (static HTML), fixed with the shell |
+| 7 | Finish | next | | |
 
 ## How to run and verify
 
@@ -120,9 +131,16 @@ npm run dev          # http://localhost:5173 (memory stores, no sign-in)
 PW_CHROMIUM=/opt/pw-browsers/chromium npm run e2e   # walkthrough; PW_CHROMIUM only in the cloud sandbox
 ```
 
-Tests: 551 vitest (99% statements, 95% branches), 5 Playwright walkthroughs
+Tests: 552 vitest (99% statements, 95% branches), 6 Playwright walkthroughs
 (sample email; sample orders export; sample seed inbox check; sample canary;
-sample schedule). The scheduled job runs against an in-memory copy of the
+sample schedule; all samples by keyboard at 375 px with no sideways scroll).
+On day 6 migrations 0001 to 0007 were applied twice to a throwaway local
+Postgres 16 (auth stub, run from /var/tmp: the scratchpad's permissions
+crashed the cluster) and the guards exercised: job_waiting gives 2 rows
+for a user with 4 and 1 for another, a made-up token is refused once
+job_config is set, re-arming a scheduled canary is refused (42501),
+placed_at and order id stay, a failed canary with an order id counts toward
+the cap and a refused one does not, and job_canary_update still works. The scheduled job runs against an in-memory copy of the
 job_* functions (`test/job.test.ts`, MemJob), including a simulated week of
 10-minute runs (one weekly canary, seven daily), the alert cap and dedupe,
 and the digest timing. Migrations 0001 to 0005 were applied twice to a
@@ -239,6 +257,11 @@ Live checks:
   `canary-run.mjs` with `config.schedule` and bundles `job.mjs`): 25 s
   budget of Netlify's 30 s; looks first, then claims, then digests, then the
   heartbeat.
+- Migration `0006_job_token.sql` (day 6): one job_config row, the SHA-256
+  of the live job token (from /api/health). Migration `0007_canary_guards.sql`
+  (day 6): canary_orders_touch guards for the page's roles,
+  canary_orders_limit counts `status <> 'failed' or order_id is not null`,
+  job_waiting fair (two per user, oldest created first, ten in all).
 - LLM: none. Email: Resend from the Scheduled Function only (RESEND_API
   through target.yml envPassthrough), sender `Delivery Canary
   <delivery-canary@hintwise.org>`, Reply-To support@hintwise.org,
@@ -355,7 +378,23 @@ Live checks:
   non-anonymous address; dedupe keys are per shop; the job's link test
   gets 5 s, not 8.
 
+- 2026-11-17: the static shell in index.html is replaced by the app's
+  `root.replaceChildren`; it exists so accessibility-lens (static HTML) and
+  search engines see a heading and what the app does.
+- 2026-11-17: Google Sans for the Google button loads from Google Fonts with
+  `text=Continue with Google` and media=print/onload (no render blocking);
+  the README says the page loads that one font.
+- 2026-11-17 (security review): the guards on scheduled canary rows check
+  `current_user in ('authenticated', 'anon')`; the job's definer functions
+  run as the owner, and the api function's own updates (page canaries) are
+  unchanged.
+
 ## Tried and rejected
+
+- Blocking the page from setting status 'failed' (security review L1's
+  second idea): the api function sets it with the user's own token when
+  Shopify refuses an order, so the database cannot tell them apart; the cap
+  counts order ids instead.
 
 - Counting recent link tests, then inserting (two HTTP calls): racy under
   parallel requests (security review); the insert trigger is the limit now.
@@ -387,17 +426,8 @@ Live checks:
 
 ## Open questions for the owner
 
-6. (day 5) Security review, medium: until the database knows the real job
-   token, a signed-in user can tag their own schedule with a token they
-   made up and call the job_* functions for their own shop. That never
-   reaches another user's data or sends mail (only our function sends),
-   but many such accounts could fill the app-wide cap of 300 alert
-   reservations a day and so delay real alerts. Fix, built in today:
-   `job_config` holds the SHA-256 of the real token, and the live
-   `/api/health` shows it (`jobTokenSha256`, not secret). Recommendation:
-   tomorrow's build adds migration 0006 inserting that hash (one row), which
-   makes every other token fail. Default: day 6 does it with its deploy;
-   nothing for the owner to do.
+None open. Question 6 (day 5, pinning the job token) was done by default on
+day 6 (migration 0006); nothing for the owner.
 
 **Answered by the owner, 15 Nov 2026 (Lisbon ~11:55, in the Plabs session):** questions 4 and 5: "skip them, continue build on Delivery Canary". No live Shopify or seed-inbox test before the remaining milestones; build on, and treat the first real report as a bug to fix.
 
@@ -453,15 +483,31 @@ mailbox: IMAP with a Google app password.
 
 ## Remaining and known issues
 
-- Milestones 6 and 7 (PLAN.md). Day 6 (polish) first: migration
-  `0006_job_token.sql` with `insert into app_delivery_canary.job_config
-  (token_sha256) values ('<jobTokenSha256 from /api/health>') on conflict
-  (id) do update set token_sha256 = excluded.token_sha256;` (open question
-  6; the live hash on 16 Nov was 136d9c79...82d0f8, see Deploy run 184
-  below). After its deploy, confirm `scheduleLastRun` still moves (a wrong
-  hash would make every job call fail). Then the polish list below.
+- Milestone 7 (finish, day 7): BUILD_ROUTINE.md Step 5 (LICENSE, the app's
+  `.github/workflows/ci.yml` copied from bombe-bench's and adjusted, mirrors
+  row, pisan-labs CSV row with topics including claude-code and
+  small-business, root README "Tools for small businesses" row, PROJECTS.md
+  write-up, implemented.json, studio.json and `node scripts/studio_media.js`
+  (uses `demo.gif`), CHANGES.md in both repos, pisanorg/yusuf
+  aiprojects.md, owner actions). Draft publicNotes: "For shops that sell
+  digital files on Shopify. It places a free test order on a schedule,
+  watches a test Gmail inbox for the download email, and emails the owner
+  when that email lands in Spam, never arrives, or its link stops giving the
+  right file. It also checks a single delivery email and finds paid download
+  orders that were never delivered. Limitation: it measures one Gmail inbox,
+  and it has not yet been run against a real shop, so the first real
+  canary may turn up a fix."
+- Deploy run 187 (day 6, commit 6c94de4): migrations 0006 and 0007
+  applied, check-schema passed (same advisor warnings by design as day 5),
+  job_config 1 row. The Scheduled Function's heartbeat moved to 11:10:22
+  UTC after 0006 was applied (job_heartbeat checks the token), so the
+  pinned hash is right. Live: footer present, /api/schedule, link-check and
+  shopify/connect 401 signed out, unsubscribe bad link 400, seed-reach true;
+  all five samples at 375 px with no sideways scroll and no page errors;
+  accessibility-lens score 100, no issues.
 - Schedule known limits: one serial queue per run (a shop whose download
-  link is slow costs up to 5 s of the 25 s; no per-user fairness yet); a
+  link is slow costs up to 5 s of the 25 s; since day 6 at most two looks
+  per user per run); a
   scheduled canary left 'placed' more than a day (job down) drops out of
   the looks without a "no email" alert; an alert whose send fails twice is
   lost (the canary is settled); the platform's global email opt-out list
@@ -517,8 +563,9 @@ mailbox: IMAP with a Google app password.
   deploy (day 2). The Supabase migrations step and check-schema passed.
 - In `vite preview` (http://localhost) the sample shows "Download link is not
   secure (http)"; on the live https site it does not.
-- Polish day: README for the shop owner (a stub now), Google button check,
-  accessibility-lens scan, demo GIF.
+- Polish done on day 6: README, Google button (checked against the rules:
+  text, G, light theme, Google Sans 500 14/20 px, 12/10/12 padding, pill,
+  same size as the email-link button), accessibility-lens, demo GIF.
 
 ## Key files
 
@@ -546,8 +593,8 @@ mailbox: IMAP with a Google app password.
   Resend), `schedapi.ts` (/api/schedule, /api/unsubscribe), `scheduled.ts`
   (entry); `src/ui/schedule.ts` (the card); tests `test/job.test.ts`
   (MemJob), `schedapi.test.ts`, `schedule-ui.test.ts`.
-- `supabase/migrations/0001_init.sql`, `0002_order_scans.sql`, `0003_seed_inbox.sql`, `0004_shopify_canary.sql`, `0005_schedule_alerts.sql`; `deploy/target.yml`;
-  `e2e/walkthrough.spec.ts`.
+- `supabase/migrations/0001_init.sql`, `0002_order_scans.sql`, `0003_seed_inbox.sql`, `0004_shopify_canary.sql`, `0005_schedule_alerts.sql`, `0006_job_token.sql`, `0007_canary_guards.sql`; `deploy/target.yml`;
+  `e2e/walkthrough.spec.ts`; `index.html` (static shell, font); `README.md` (for the shop owner); `demo.gif`.
 
 ## Log
 
@@ -572,3 +619,8 @@ mailbox: IMAP with a Google app password.
   and digest with one-click unsubscribe, the 8-week table, migration 0005);
   code review (10) and security review (1 medium, 5 low) fixed; deployed
   (run 184).
+- Day 6 (2026-11-17): milestone 6, polish (migration 0006 pins the job
+  token, migration 0007 guards canary rows, phone layout, focusable table
+  regions, static shell, Google Sans, README for the shop owner, demo GIF, a
+  phone and keyboard walkthrough); code review (9) and security review (1
+  medium, 1 low) fixed; deployed (run 187).

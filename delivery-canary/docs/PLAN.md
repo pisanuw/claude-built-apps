@@ -84,6 +84,13 @@ it calls key-proved job_* definer functions (migration 0005). Open: the
 database pins the real job token only once a migration stores its hash
 (job_config; the hash is at /api/health). Done.
 
+Milestone 6 as built (day 6, 2026-11-17): README for the shop owner, demo
+GIF, phone layout fixed (375 px), focusable table regions, a static page
+shell, Google Sans for the Google button, a keyboard and phone
+walkthrough; migration 0006 pins the job token and migration 0007 guards
+canary rows (security review). The accessibility-lens scan of the live page
+found only "no headings" (it reads static HTML), fixed with the shell. Done.
+
 If the feature milestones finish early, polish and finish split into two days
 as written; if one grows, it is split here first.
 
