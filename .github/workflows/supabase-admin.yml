@@ -44,6 +44,11 @@
 #                            in Vault (app_notify_secret), and schedules pg_cron job app-notify-daily
 #                            (15:17 UTC) posting to the function with it; "off" unschedules and deletes
 #                            the function secret (every call then 503); values are never printed
+#   report-secret <arg: status | on>  the shared secret pisan-analytics reads analytics totals with
+#                            (app-events-report, shared/0015): "on" generates a fresh
+#                            APP_EVENTS_REPORT_SECRET and sets it as the function secret and as a secret
+#                            env var on the Netlify site pisan-analytics (with APP_EVENTS_REPORT_URL);
+#                            values are never printed; the site needs a deploy to see them
 #   email-hook <arg: status | check | on | off>  Supabase Auth's Send Email hook; "on" (owner's yes
 #                            first) sets a fresh SEND_EMAIL_HOOK_SECRET in the function and in Auth;
 #                            flag "--dry-run" with on
@@ -53,7 +58,7 @@ on:
   workflow_dispatch:
     inputs:
       command:
-        description: 'inspect | sql | apply-shared | migrate | expose-schema | unexpose-schema | check-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | external-hosts | brand-upload | email-optout | admin | optout-ready | account-deletion-test | deploy-function | deploy-gateway | set-gateway-key | set-sign-in-secrets | notify-schedule | email-hook | anon-setup | anon-off'
+        description: 'inspect | sql | apply-shared | migrate | expose-schema | unexpose-schema | check-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | external-hosts | brand-upload | email-optout | admin | optout-ready | account-deletion-test | deploy-function | deploy-gateway | set-gateway-key | set-sign-in-secrets | notify-schedule | email-hook | report-secret | anon-setup | anon-off'
         required: true
         default: 'inspect'
         type: string
@@ -90,7 +95,7 @@ jobs:
           node-version: '24'
 
       - name: Run
-        if: inputs.command != 'deploy-function' && inputs.command != 'deploy-gateway' && inputs.command != 'set-gateway-key' && inputs.command != 'set-sign-in-secrets' && inputs.command != 'notify-schedule' && inputs.command != 'email-hook' && inputs.command != 'email-optout' && inputs.command != 'admin'
+        if: inputs.command != 'deploy-function' && inputs.command != 'deploy-gateway' && inputs.command != 'set-gateway-key' && inputs.command != 'set-sign-in-secrets' && inputs.command != 'notify-schedule' && inputs.command != 'report-secret' && inputs.command != 'email-hook' && inputs.command != 'email-optout' && inputs.command != 'admin'
         run: node platform/supabase-admin.mjs "$CMD" $ARG $FLAGS
         env:
           CMD: ${{ inputs.command }}
@@ -170,7 +175,7 @@ jobs:
           echo "Committed platform/supabase.json."
 
       - uses: supabase/setup-cli@v2
-        if: inputs.command == 'deploy-function' || inputs.command == 'deploy-gateway' || inputs.command == 'set-gateway-key' || inputs.command == 'set-sign-in-secrets' || inputs.command == 'notify-schedule' || inputs.command == 'email-hook'
+        if: inputs.command == 'deploy-function' || inputs.command == 'deploy-gateway' || inputs.command == 'set-gateway-key' || inputs.command == 'set-sign-in-secrets' || inputs.command == 'notify-schedule' || inputs.command == 'report-secret' || inputs.command == 'email-hook'
         with:
           version: latest
           # Resolving "latest" without a token hits GitHub's unauthenticated rate limit
@@ -327,6 +332,59 @@ jobs:
           TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET || secrets.TURNSTILE_SECRET_KEY }}
           TURNSTILE_SITE_KEY_REPO: ${{ vars.TURNSTILE_SITE_KEY || secrets.TURNSTILE_SITE_KEY }}
           EMAIL_LOGO_URL_REPO: ${{ vars.EMAIL_LOGO_URL }}
+
+      - name: Analytics report secret
+        if: inputs.command == 'report-secret'
+        # Like notify-schedule: the secret is generated here, masked at once,
+        # and reaches the CLI and the Netlify API only through private files
+        # (umask 077, removed on exit); never an argument, never printed.
+        working-directory: platform
+        run: |
+          set -euo pipefail
+          REF=$(printf '%s' "$SUPABASE_URL" | sed -nE 's#^https?://([a-z0-9]+)\.supabase\.co.*#\1#p')
+          [ -n "$REF" ] || { echo "::error::SUPABASE_URL does not look like https://<ref>.supabase.co"; exit 1; }
+          case "$ARG" in status|on) ;; *) echo "::error::report-secret needs arg status or on"; exit 1;; esac
+          SITE=pisan-analytics
+          URL=https://auth.hintwise.org/functions/v1/app-events-report
+          umask 077
+          TMP=$(mktemp -d)
+          trap 'rm -rf "$TMP"' EXIT
+          nl() { # nl METHOD ROUTE [BODYFILE]: Netlify API, JSON out
+            if [ $# -ge 3 ]; then
+              curl -fsS -X "$1" -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" -H 'content-type: application/json' --data-binary "@$3" "https://api.netlify.com/api/v1$2"
+            else
+              curl -fsS -X "$1" -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" "https://api.netlify.com/api/v1$2"
+            fi
+          }
+          nl GET "/sites/$SITE.netlify.app" > "$TMP/site.json"
+          SITE_ID=$(jq -r .id "$TMP/site.json"); ACCOUNT=$(jq -r .account_id "$TMP/site.json")
+          [ -n "$SITE_ID" ] && [ "$SITE_ID" != null ] || { echo "::error::Netlify site $SITE not found for this token"; exit 1; }
+          ENV="/accounts/$ACCOUNT/env"
+          status() {
+            NAMES=$(curl -fsS -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" "https://api.supabase.com/v1/projects/$REF/secrets" | jq -r '.[].name')
+            if printf '%s\n' "$NAMES" | grep -qx APP_EVENTS_REPORT_SECRET; then echo "function secret APP_EVENTS_REPORT_SECRET: set"; else echo "function secret APP_EVENTS_REPORT_SECRET: not set (app-events-report answers 503)"; fi
+            nl GET "$ENV?site_id=$SITE_ID" | jq -r --arg site "$SITE" '.[] | select(.key | startswith("APP_EVENTS_REPORT")) | "\(.key) on \($site): \(if .is_secret then "secret" else "plain" end), scopes \(.scopes | join("+"))"'
+          }
+          if [ "$ARG" = on ]; then
+            V=$(openssl rand -hex 32); echo "::add-mask::$V"
+            printf "APP_EVENTS_REPORT_SECRET='%s'\n" "$V" > "$TMP/env"
+            supabase secrets set --remote="$REF" --yes --env-file "$TMP/env" >/dev/null \
+              || supabase secrets set --project-ref "$REF" --yes --env-file "$TMP/env" >/dev/null
+            for KEY in APP_EVENTS_REPORT_SECRET APP_EVENTS_REPORT_URL; do
+              nl DELETE "$ENV/$KEY?site_id=$SITE_ID" >/dev/null 2>&1 || true
+            done
+            jq -n --arg v "$V" '[{key: "APP_EVENTS_REPORT_SECRET", is_secret: true, scopes: ["functions"], values: [{context: "production", value: $v}]}]' > "$TMP/s.json"
+            nl POST "$ENV?site_id=$SITE_ID" "$TMP/s.json" >/dev/null
+            jq -n --arg u "$URL" '[{key: "APP_EVENTS_REPORT_URL", is_secret: false, scopes: ["functions"], values: [{context: "all", value: $u}]}]' > "$TMP/u.json"
+            nl POST "$ENV?site_id=$SITE_ID" "$TMP/u.json" >/dev/null
+            echo "Set APP_EVENTS_REPORT_SECRET (function secret and $SITE production env, secret) and APP_EVENTS_REPORT_URL. Deploy $SITE for its functions to see them."
+          fi
+          status
+        env:
+          ARG: ${{ inputs.arg }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
 
       - name: App-notify daily schedule
         if: inputs.command == 'notify-schedule'

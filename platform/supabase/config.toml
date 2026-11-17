@@ -61,3 +61,9 @@ verify_jwt = true
 # the database checks the Origin against the app's origins.
 verify_jwt = false
 entrypoint = "./functions/app-events/index.ts"
+
+[functions.app-events-report]
+# The pisan-analytics dashboard reads analytics totals (shared/0015). No
+# session: the shared secret APP_EVENTS_REPORT_SECRET (x-report-secret) is the check.
+verify_jwt = false
+entrypoint = "./functions/app-events-report/index.ts"

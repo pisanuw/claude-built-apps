@@ -583,8 +583,13 @@ StepWise (`stepwise`).
   deleted after its day, so days cannot be linked and the IP is never stored.
   `platform.analytics_apps` lists the apps and their exact origins; an app
   not listed, or a wrong Origin, is refused. Service role only.
-- **Reading it.** `platform/supabase/ops/app-events-report.sql` (Supabase
-  admin, `sql`) until pisan-analytics (pisanuw/dashboards) shows it.
+- **Reading it.** pisan-analytics (pisanuw/dashboards) shows an App events
+  section from `platform.app_events_summary` (shared/0015: aggregates only,
+  plus signed-in people and model calls for every app) through the
+  `app-events-report` function, which checks the shared secret
+  `APP_EVENTS_REPORT_SECRET` (`report-secret on` sets it in the function and
+  on the site). `platform/supabase/ops/app-events-report.sql` (Supabase admin,
+  `sql`) gives the same numbers by hand.
 - **Adding an app.** Insert its row in `platform.analytics_apps` (an `sql`
   run), copy the script, add the tag, and say in the app's privacy text what
   is sent.

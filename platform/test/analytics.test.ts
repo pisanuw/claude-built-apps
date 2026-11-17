@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { cleanHost, cleanPath, cleanProps, cleanValue, deviceOf, isBot, MAX_BODY_BYTES, MAX_EVENTS, parseBatch } from '../src/analytics/events';
 import { handleAppEvents } from '../src/analytics/service';
+import { handleReport, reportDays } from '../src/analytics/report';
 import type { Db } from '../src/signin/db';
 
 const CHROME = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36';
@@ -158,5 +159,52 @@ describe('the SQL (shared/0014_app_events.sql)', () => {
   it('registers the first two apps with their https origins', () => {
     expect(sql).toMatch(/'myuni', array\['https:\/\/myuni\.top', 'https:\/\/www\.myuni\.top'\]/);
     expect(sql).toMatch(/'stepwise', array\['https:\/\/stepwise\.hintwise\.org'\]/);
+  });
+});
+
+describe('handleReport (app-events-report)', () => {
+  const SECRET = 's'.repeat(40);
+  const renv = { ...env, APP_EVENTS_REPORT_SECRET: SECRET };
+  const get = (q = '', headers: Record<string, string> = { 'x-report-secret': SECRET }) => new Request(`https://auth.hintwise.org/functions/v1/app-events-report${q}`, { headers });
+
+  it('answers the summary for the asked days, never cached', async () => {
+    const { db, calls } = fakeDb({ days: 7, daily: [] });
+    const res = await handleReport(get('?days=7'), { env: renv, fetch, db });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(await res.json()).toEqual({ days: 7, daily: [] });
+    expect(calls).toEqual([{ fn: 'app_events_summary', args: { p_days: 7 } }]);
+  });
+  it('keeps days between 1 and 400, 30 by default', () => {
+    expect(reportDays('https://x/?days=0')).toBe(1);
+    expect(reportDays('https://x/?days=999')).toBe(400);
+    expect(reportDays('https://x/?days=abc')).toBe(30);
+    expect(reportDays('https://x/')).toBe(30);
+  });
+  it('refuses a wrong or missing secret, other methods, and runs nothing until the secret is set', async () => {
+    const { db, calls } = fakeDb();
+    expect((await handleReport(get('', { 'x-report-secret': 'x'.repeat(40) }), { env: renv, fetch, db })).status).toBe(401);
+    expect((await handleReport(get('', {}), { env: renv, fetch, db })).status).toBe(401);
+    expect((await handleReport(new Request('https://x/', { method: 'POST' }), { env: renv, fetch, db })).status).toBe(405);
+    expect((await handleReport(get(), { env: { ...renv, APP_EVENTS_REPORT_SECRET: '' }, fetch, db })).status).toBe(503);
+    expect((await handleReport(get(), { env: { ...renv, APP_EVENTS_REPORT_SECRET: 'short' }, fetch, db })).status).toBe(503);
+    expect(calls).toEqual([]);
+  });
+  it('logs a database failure and answers 500 without details', async () => {
+    const log = vi.fn();
+    const res = await handleReport(get(), { env: renv, fetch, db: fakeDb(new Error('boom')).db, log });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'database' });
+    expect(log).toHaveBeenCalledWith('app-events-report: boom');
+  });
+});
+
+describe('the summary SQL (shared/0015_app_events_summary.sql)', () => {
+  const sql = readFileSync(new URL('../supabase/shared/0015_app_events_summary.sql', import.meta.url), 'utf8');
+  it('is for the service role only and returns aggregates', () => {
+    expect(sql).toMatch(/revoke execute on function platform\.app_events_summary\(integer\) from public, anon, authenticated/);
+    expect(sql).toMatch(/grant execute on function platform\.app_events_summary\(integer\) to service_role/);
+    expect(sql).not.toMatch(/'visitor',/);
+    expect(sql).not.toMatch(/user_id['"]?\s*,/);
   });
 });
