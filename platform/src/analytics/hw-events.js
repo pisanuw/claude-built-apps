@@ -14,7 +14,10 @@
  *   error     the first 3 script errors on a page (props.message, 100 chars);
  *   and whatever the app sends with window.hintwise.track(name, props).
  * Only the pathname is sent, never the query or the hash (links can carry
- * sign-in tokens). No cookie, no localStorage, no id kept in the browser: the
+ * sign-in tokens), and a path segment that looks like an id or a token (a
+ * share code, an invite, an email address) is sent as ":id". An error message
+ * has quoted text, email addresses and long numbers taken out, since browsers
+ * quote the input in some errors. No cookie, no localStorage, no id kept in the browser: the
  * server counts a visitor with a hash that changes every day. Nothing is sent
  * when the browser asks not to be tracked (Global Privacy Control or Do Not
  * Track) or is automated (navigator.webdriver).
@@ -31,7 +34,34 @@
   var NAME = /^[a-z][a-z0-9_]{0,39}$/;
   var queue = [];
   var timer = null;
-  var path = location.pathname;
+  // A segment that looks like an id or a secret, not a page name. Kept in step
+  // with idLike in events.ts, which applies the same rule again on the server.
+  function idLike(seg) {
+    if (seg.indexOf('@') >= 0) return true;
+    if (/^\d{6,}$/.test(seg) || /^[0-9a-f]{16,}$/i.test(seg)) return true;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seg)) return true;
+    return seg.split(/[-_.~]/).some(function (part) {
+      if (part.length < 8 || !/[a-z]/i.test(part) || (part.match(/\d/g) || []).length < 2) return false;
+      return (part.match(/[a-z](?=\d)|\d(?=[a-z])/gi) || []).length >= 3;
+    });
+  }
+  function here() {
+    return location.pathname
+      .split('/')
+      .map(function (seg) {
+        return seg && idLike(seg) ? ':id' : seg;
+      })
+      .join('/');
+  }
+  function redact(m) {
+    return String(m)
+      .replace(/(["'`])(?:[^"'`\n]{0,300}\1|[^"'`\n]*$)/g, function (m, q) {
+        return m.length > 1 && m.charAt(m.length - 1) === q ? q + '…' + q : q + '…';
+      })
+      .replace(/[^\s@]+@[^\s@]+/g, '…')
+      .replace(/\d{6,}/g, '…');
+  }
+  var path = here();
   var visibleSince = document.visibilityState === 'visible' ? Date.now() : null;
   var engagedMs = 0;
   var errors = 0;
@@ -114,9 +144,9 @@
   }
 
   function changed() {
-    if (location.pathname === path) return;
+    if (here() === path) return;
     flushEngaged(false);
-    path = location.pathname;
+    path = here();
     errors = 0;
     pageview(false);
   }
@@ -163,7 +193,7 @@
   window.addEventListener('error', function (ev) {
     if (errors >= 3) return;
     errors += 1;
-    track('error', { message: String((ev && ev.message) || 'error') });
+    track('error', { message: redact((ev && ev.message) || 'error') });
   });
 
   window.hintwise = window.hintwise || {};

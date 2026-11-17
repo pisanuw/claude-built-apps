@@ -30,11 +30,50 @@ export interface CleanBatch {
   events: CleanEvent[];
 }
 
-/** A pathname: starts with '/', no query or hash, at most 200 characters. */
+/**
+ * True for a path segment that looks like an id or a secret rather than a
+ * page name: a UUID, a long hex string, a long number, anything with an @,
+ * or a random-looking word (8+ characters, 2+ digits, letters and digits
+ * mixed at least three times, like "V1StGXR8"). Page names such as
+ * "program-alarm-1202", "css%20342" or "sha256sum" are kept. Kept in step
+ * with idLike in hw-events.js.
+ */
+export function idLike(seg: string): boolean {
+  if (seg.includes('@')) return true;
+  if (/^\d{6,}$/.test(seg) || /^[0-9a-f]{16,}$/i.test(seg)) return true;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seg)) return true;
+  return seg.split(/[-_.~]/).some((part) => {
+    if (part.length < 8 || !/[a-z]/i.test(part) || (part.match(/\d/g) ?? []).length < 2) return false;
+    return (part.match(/[a-z](?=\d)|\d(?=[a-z])/gi) ?? []).length >= 3;
+  });
+}
+
+/**
+ * A pathname: starts with '/', no query or hash, at most 200 characters, and
+ * every id-like segment replaced by ':id', so a share code, invite token or
+ * email address in a path never reaches the table.
+ */
 export function cleanPath(p: unknown): string | undefined {
   if (typeof p !== 'string' || !p.startsWith('/')) return undefined;
   const cut = p.split(/[?#]/, 1)[0];
-  return cut.slice(0, 200);
+  return cut
+    .split('/')
+    .map((seg) => (seg && idLike(seg) ? ':id' : seg))
+    .join('/')
+    .slice(0, 200);
+}
+
+/**
+ * An error message with what may be someone's data taken out: quoted text
+ * (browsers quote the input in JSON and URL errors), email addresses and
+ * long numbers become '…'. Kept in step with redact in hw-events.js.
+ */
+export function redactMessage(m: string): string {
+  return m
+    .replace(/(["'`])(?:[^"'`\n]{0,300}\1|[^"'`\n]*$)/g, (m, q: string) => (m.length > 1 && m.endsWith(q) ? `${q}…${q}` : `${q}…`))
+    .replace(/[^\s@]+@[^\s@]+/g, '…')
+    .replace(/\d{6,}/g, '…')
+    .slice(0, 100);
 }
 
 /** A referrer host name, lower-cased, or undefined. */
@@ -90,6 +129,7 @@ export function parseBatch(text: string): CleanBatch | null {
     const v = cleanValue(r.v);
     if (v !== undefined) ev.v = v;
     const x = cleanProps(r.x);
+    if (x && ev.n === 'error' && typeof x.message === 'string') x.message = redactMessage(x.message);
     if (x) ev.x = x;
     events.push(ev);
   }

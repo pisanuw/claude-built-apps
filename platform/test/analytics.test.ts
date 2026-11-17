@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
-import { cleanHost, cleanPath, cleanProps, cleanValue, deviceOf, isBot, MAX_BODY_BYTES, MAX_EVENTS, parseBatch } from '../src/analytics/events';
+import { runInNewContext } from 'node:vm';
+import { cleanHost, cleanPath, cleanProps, cleanValue, deviceOf, idLike, isBot, MAX_BODY_BYTES, MAX_EVENTS, parseBatch, redactMessage } from '../src/analytics/events';
 import { handleAppEvents } from '../src/analytics/service';
 import { handleReport, reportDays } from '../src/analytics/report';
 import type { Db } from '../src/signin/db';
@@ -36,6 +37,91 @@ describe('cleaning one event', () => {
     expect(cleanProps([1, 2])).toBeUndefined();
     expect(cleanProps({ Bad: 1 })).toBeUndefined();
     expect(cleanProps(null)).toBeUndefined();
+  });
+});
+
+describe('ids, tokens and data never reach the table', () => {
+  it('masks id-like path segments and keeps page names', () => {
+    for (const seg of ['V1StGXR8_Z5jdHi6B-myT', 'aZ3k9Lq2Xw7pR1sT', '550e8400-e29b-41d4-a716-446655440000', 'deadbeefcafef00d1234', '12345678', 'a@b.org']) {
+      expect(idLike(seg), seg).toBe(true);
+    }
+    for (const seg of ['program-alarm-1202', 'css%20342', 'sha256sum', 'stack-array', '2026-11-17', 'abken,amre', 'b-tree', 'utf8', 'x86-64']) {
+      expect(idLike(seg), seg).toBe(false);
+    }
+    expect(cleanPath('/invite/V1StGXR8_Z5jdHi6B-myT/accept')).toBe('/invite/:id/accept');
+    expect(cleanPath('/uwb/professor/abken,amre')).toBe('/uwb/professor/abken,amre');
+    expect(cleanPath('/u/someone@example.com')).toBe('/u/:id');
+    expect(cleanPath('/')).toBe('/');
+  });
+  it('takes quoted text, emails and long numbers out of error messages', () => {
+    expect(redactMessage('Unexpected token \'H\', "Hello from Ana, 4111111111111111" is not valid JSON')).toBe('Unexpected token \'…\', "…" is not valid JSON');
+    expect(redactMessage("Cannot read properties of undefined (reading 'name')")).toBe("Cannot read properties of undefined (reading '…')");
+    expect(redactMessage('mail ana@example.org failed, order 12345678')).toBe('mail … failed, order …');
+    expect(redactMessage('Unexpected token, "a cut-off quote')).toBe('Unexpected token, "…');
+  });
+  it('applies both in parseBatch, error props included', () => {
+    const b = parseBatch(JSON.stringify({ a: 'letter-ledger', e: [{ n: 'pageview', p: '/s/aZ3k9Lq2Xw7pR1sT' }, { n: 'error', p: '/', x: { message: 'Bad "secret text"' } }, { n: 'op_run', x: { message: 'kept "as is"' } }] }))!;
+    expect(b.events[0].p).toBe('/s/:id');
+    expect(b.events[1].x).toEqual({ message: 'Bad "…"' });
+    expect(b.events[2].x).toEqual({ message: 'kept "as is"' });
+  });
+});
+
+describe('hw-events.js in a page', () => {
+  /** Runs the browser script against a fake page and returns the events it sends. */
+  function runScript(opts: { pathname: string; nav?: Record<string, unknown>; error?: string }) {
+    const sent: { a: string; e: { n: string; p?: string; x?: Record<string, unknown> }[] }[] = [];
+    const listeners: Record<string, ((ev?: unknown) => void)[]> = {};
+    const on = (type: string, fn: (ev?: unknown) => void) => (listeners[type] ??= []).push(fn);
+    const timers: (() => void)[] = [];
+    const window: Record<string, unknown> = {
+      addEventListener: on,
+      location: { pathname: opts.pathname, hostname: 'app.hintwise.org', href: `https://app.hintwise.org${opts.pathname}` },
+      history: { pushState() {}, replaceState() {} },
+    };
+    const ctx = {
+      window,
+      document: {
+        currentScript: { getAttribute: (k: string) => (k === 'data-app' ? 'demo-app' : null) },
+        visibilityState: 'visible',
+        referrer: '',
+        addEventListener: on,
+      },
+      navigator: { webdriver: false, ...opts.nav, sendBeacon: (_u: string, blob: { text: string }) => (sent.push(JSON.parse(blob.text)), true) },
+      location: window.location,
+      history: window.history,
+      Blob: class {
+        text: string;
+        constructor(parts: string[]) {
+          this.text = parts.join('');
+        }
+      },
+      setTimeout: (fn: () => void) => (timers.push(fn), timers.length),
+      clearTimeout: () => {},
+      URL,
+      Date,
+      JSON,
+      Object,
+      String,
+      Math,
+      isFinite,
+    };
+    runInNewContext(readFileSync(new URL('../src/analytics/hw-events.js', import.meta.url), 'utf8'), ctx);
+    if (opts.error) for (const fn of listeners.error ?? []) fn({ message: opts.error });
+    for (const fn of listeners.pagehide ?? []) fn();
+    return sent.flatMap((b) => b.e.map((e) => ({ app: b.a, ...e })));
+  }
+
+  it('sends the page view with id-like segments masked, like the server', () => {
+    const events = runScript({ pathname: '/invite/V1StGXR8_Z5jdHi6B-myT', error: 'JSON: "Dear Ana, a@b.org" is not valid' });
+    expect(events[0]).toEqual({ app: 'demo-app', n: 'pageview', p: '/invite/:id' });
+    const err = events.find((e) => e.n === 'error')!;
+    expect(err.x).toEqual({ message: 'JSON: "…" is not valid' });
+    expect(cleanPath('/invite/V1StGXR8_Z5jdHi6B-myT')).toBe(err.p);
+  });
+  it('sends nothing under Global Privacy Control or to an automated browser', () => {
+    expect(runScript({ pathname: '/', nav: { globalPrivacyControl: true } })).toEqual([]);
+    expect(runScript({ pathname: '/', nav: { webdriver: true } })).toEqual([]);
   });
 });
 
