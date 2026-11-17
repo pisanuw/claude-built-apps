@@ -43,3 +43,17 @@ test('upload an image with your own key and get alt text', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
+
+test('the terminal page shows a sign-in code without using it', async ({ page }) => {
+  await page.goto('/terminal/?token_hash=abc123def456ghi789jkl&type=email');
+  await expect(page.locator('h1')).toHaveText('Terminal sign-in');
+  await expect(page.locator('#code')).toHaveValue('abc123def456ghi789jkl');
+  // The code leaves the address bar once it is on the page.
+  await expect(page).toHaveURL(/\/terminal\/$/);
+
+  // Without a code it offers the email form; this preview build has no sign-in configured.
+  await page.goto('/terminal/');
+  await page.getByLabel('Email address').fill('ann@example.com');
+  await page.getByRole('button', { name: 'Email me a link for my terminal' }).click();
+  await expect(page.locator('#link-status')).toHaveText('Email sign-in is not set up for this app.');
+});

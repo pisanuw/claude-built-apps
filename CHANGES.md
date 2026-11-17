@@ -655,3 +655,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-16 [code] lewis-alt-text deployed with the Finish signing in fix (owner yes; deploy run 43934158919); live page verified: no auth request on load
 
 2026-11-16 [code] Finish signing in fix applied to delivery-canary, qualified-overtime-checker, teacher-catalog-kit (owner yes); the first two deployed
+
+2026-11-17 [code] lewis-alt-text: CLI calls the live app through the gateway as the signed-in person; /terminal/ page shows a one-time sign-in code (never used in the browser); --local keeps the claude CLI path
