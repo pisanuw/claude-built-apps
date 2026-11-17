@@ -147,7 +147,7 @@ From `platform/brand/README.md`:
 ### Analytics
 
 - **Option A:** the deploy adds the platform's cookieless analytics (`scripts/site-analytics.mjs`): `/hw-events.js` and its tag on every page, and the app's origin registered in `platform.analytics_apps`. **Don't add it yourself.** Set `analytics: false` in target.yml only if the app must not count visits.
-- **Option B:** copy `platform/src/analytics/hw-events.js` unchanged into the app's static files, add `<script defer src="/hw-events.js" data-app="<slug>"></script>` to `<head>`, and register the origin (Supabase admin, `analytics-register <slug> https://<host>`). A test that pins the copy's sha256 keeps it unchanged (StepWise's `src/analytics.test.ts`).
+- **Option B:** copy `platform/src/analytics/hw-events.js` unchanged into the app's static files, add `<script defer src="/hw-events.js" data-app="<slug>"></script>` to `<head>`, and register the origin (Supabase admin, `analytics-register <slug> https://<host>`). A test that pins the copy's sha256 keeps it unchanged (StepWise's `src/analytics.test.ts`). If a path carries a share code, invite or access key, add `data-mask="/t/ /join/"` (the prefixes before such codes) to the tag on every page: the next segment is then always sent as `:id`.
 - **App events:** `window.hintwise?.track('<name>', { short: 'props' })` for the actions that matter (a search picked, an operation run). Never put what a visitor typed in a prop.
 - **Privacy text:** don't promise "no tracking" or "nothing is sent anywhere". Say what stays private (what the visitor enters or uploads) and that visits are counted without cookies.
 - **CSP:** a `connect-src` must allow `https://auth.hintwise.org`.

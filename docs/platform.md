@@ -604,6 +604,10 @@ StepWise (`stepwise`).
   `V1StGXR8`) is sent and stored as `:id`; an error message has quoted text,
   emails and long numbers replaced by `…` (browsers quote the input in JSON
   errors). Both rules run in the browser and again in `events.ts`.
+- **Codes in a path.** A share code, invite or access key can be too short
+  or plain for the id rule (UpvoteMe's `/t/<code>`, PasteMD's `/p/<id>`). Such
+  an app adds `data-mask="/t/ /a/"` to the tag: the segment right after each
+  listed prefix is always sent as `:id`. Same attribute on every page.
 - **An app in its own repository** (MyUni, StepWise, udebt): copy
   `hw-events.js` unchanged into the app's static files, add the tag, register
   the origin (`analytics-register`, or an `sql` run), and say in the app's

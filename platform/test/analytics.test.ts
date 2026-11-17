@@ -69,7 +69,7 @@ describe('ids, tokens and data never reach the table', () => {
 
 describe('hw-events.js in a page', () => {
   /** Runs the browser script against a fake page and returns the events it sends. */
-  function runScript(opts: { pathname: string; nav?: Record<string, unknown>; error?: string }) {
+  function runScript(opts: { pathname: string; nav?: Record<string, unknown>; error?: string; mask?: string }) {
     const sent: { a: string; e: { n: string; p?: string; x?: Record<string, unknown> }[] }[] = [];
     const listeners: Record<string, ((ev?: unknown) => void)[]> = {};
     const on = (type: string, fn: (ev?: unknown) => void) => (listeners[type] ??= []).push(fn);
@@ -82,7 +82,7 @@ describe('hw-events.js in a page', () => {
     const ctx = {
       window,
       document: {
-        currentScript: { getAttribute: (k: string) => (k === 'data-app' ? 'demo-app' : null) },
+        currentScript: { getAttribute: (k: string) => (k === 'data-app' ? 'demo-app' : k === 'data-mask' ? (opts.mask ?? null) : null) },
         visibilityState: 'visible',
         referrer: '',
         addEventListener: on,
@@ -118,6 +118,16 @@ describe('hw-events.js in a page', () => {
     const err = events.find((e) => e.n === 'error')!;
     expect(err.x).toEqual({ message: 'JSON: "…" is not valid' });
     expect(cleanPath('/invite/V1StGXR8_Z5jdHi6B-myT')).toBe(err.p);
+  });
+  it('masks the segment after each data-mask prefix, however plain the code', () => {
+    const p = (pathname: string, mask = '/t/ /a/ /join/') => runScript({ pathname, mask })[0].p;
+    expect(p('/t/abcdef')).toBe('/t/:id');
+    expect(p('/a/qlLOWzf6jWLF/settings')).toBe('/a/:id/settings');
+    expect(p('/join/K3X9QZ')).toBe('/join/:id');
+    expect(p('/t/')).toBe('/t/');
+    expect(p('/about')).toBe('/about');
+    expect(p('/x/t/abcdef')).toBe('/x/t/abcdef');
+    expect(p('/t/abcdef', 'not-a-prefix t/')).toBe('/t/abcdef');
   });
   it('sends nothing under Global Privacy Control or to an automated browser', () => {
     expect(runScript({ pathname: '/', nav: { globalPrivacyControl: true } })).toEqual([]);
