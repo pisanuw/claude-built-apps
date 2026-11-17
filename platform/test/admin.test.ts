@@ -12,6 +12,7 @@ let domainRecords: Admin['domainRecords'];
 let domainSummary: Admin['domainSummary'];
 let isNoHostnameError: Admin['isNoHostnameError'];
 let publicUrl: Admin['publicUrl'];
+let analyticsRegisterSql: Admin['analyticsRegisterSql'];
 beforeAll(async () => {
   process.env.SUPABASE_ADMIN_NO_RUN = '1';
   const m = await import('../supabase-admin.mjs');
@@ -24,6 +25,7 @@ beforeAll(async () => {
   domainSummary = m.domainSummary;
   isNoHostnameError = m.isNoHostnameError;
   publicUrl = m.publicUrl;
+  analyticsRegisterSql = m.analyticsRegisterSql;
 });
 
 const current = {
@@ -176,5 +178,18 @@ describe('domainRecords and domainSummary', () => {
     expect(publicUrl({ custom_hostname: 'Auth.Hintwise.org', status: '5_services_reconfigured' }, fb)).toBe('https://auth.hintwise.org');
     expect(publicUrl({ custom_hostname: 'auth.hintwise.org', status: '4_origin_setup_completed' }, fb)).toBe(fb);
     expect(publicUrl(null, fb)).toBe(fb);
+  });
+});
+
+describe('analytics-register', () => {
+  it('inserts the app or merges the origin into its list, and never touches enabled', () => {
+    const q = analyticsRegisterSql('net-units', 'https://net-units.hintwise.org');
+    expect(q).toContain("values ('net-units', array['https://net-units.hintwise.org'])");
+    expect(q).toContain('on conflict (slug) do update set origins =');
+    expect(q).toContain('unnest(platform.analytics_apps.origins || excluded.origins)');
+    expect(q.slice(q.indexOf('do update'), q.indexOf('returning'))).not.toContain('enabled');
+  });
+  it('quotes what it is given', () => {
+    expect(analyticsRegisterSql("a'b", 'https://x.org')).toContain("'a''b'");
   });
 });

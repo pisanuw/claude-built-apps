@@ -95,6 +95,12 @@
  *                           passes DMARC, or after a confirming reply from
  *                           it. Needs SUPABASE_SERVICE_ROLE_KEY, not the
  *                           access token
+ *   analytics-register <slug> <origin>
+ *                           add an https origin to platform.analytics_apps
+ *                           (shared/0014), creating the app's row or merging
+ *                           the origin into it; never changes enabled. The
+ *                           Deploy workflow runs it for every Netlify app
+ *                           (scripts/site-analytics.mjs)
  *   optout-ready            exit 1 unless platform.email_optout_check answers
  *                           (0003 applied); the workflow runs it before it
  *                           deploys sign-in-link or auth-email-hook, which
@@ -1364,6 +1370,22 @@ async function anonOff(slug) {
   console.log(`Anonymous use off for ${slug} (the stand-in sign-in is kept; its usage rows stay).`);
 }
 
+/** The SQL for analytics-register: insert the app, or merge the origin into its list. */
+export function analyticsRegisterSql(slug, origin) {
+  return (
+    `insert into platform.analytics_apps (slug, origins) values (${lit(slug)}, array[${lit(origin)}]) ` +
+    `on conflict (slug) do update set origins = (select array(select distinct o from unnest(platform.analytics_apps.origins || excluded.origins) o order by o)) ` +
+    `returning slug, origins, enabled`
+  );
+}
+
+async function analyticsRegister(slug, origin) {
+  if (!slug || !/^[a-z0-9][a-z0-9-]{0,39}$/.test(slug)) fail('analytics-register: give an app slug');
+  if (!origin || !/^https:\/\/[a-z0-9.-]+\.[a-z]{2,}$/.test(origin)) fail('analytics-register: give an https origin such as https://<app>.hintwise.org');
+  const row = queryResult(await sql(analyticsRegisterSql(slug, origin)));
+  console.log(`Analytics: ${slug} sends from ${JSON.stringify(row?.origins ?? [origin])}${row && row.enabled === false ? ' (switched off: enabled is false)' : ''}.`);
+}
+
 // ---- main -----------------------------------------------------------------
 
 const commands = {
@@ -1393,6 +1415,7 @@ const commands = {
   'account-deletion-test': () => accountDeletionTest(),
   'anon-setup': () => anonSetup(arg),
   'anon-off': () => anonOff(arg),
+  'analytics-register': () => analyticsRegister(arg, arg2),
 };
 
 /** Commands that use only SUPABASE_URL and the service-role key, never the Management API token. */

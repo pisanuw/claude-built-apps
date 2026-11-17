@@ -32,6 +32,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { injectFooterIntoDir } from '../../scripts/site-footer.mjs';
+import { analyticsOrigin, injectAnalyticsIntoDir } from '../../scripts/site-analytics.mjs';
 import { ensureDomainDns, keepOldAlias, resolves } from './cloudflare-dns.mjs';
 import { appDomainFor, oldDomainFor } from '../../scripts/domains.mjs';
 
@@ -72,6 +73,25 @@ function fail(message) {
 function ghNotice(message) {
   const escaped = String(message).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
   console.log(`::notice title=deploy-url::${escaped}`);
+}
+
+/**
+ * Add the app's https origin to platform.analytics_apps through
+ * platform/supabase-admin.mjs (needs SUPABASE_ACCESS_TOKEN and SUPABASE_URL).
+ * Never fails the deploy.
+ */
+function registerAnalytics(slug, host) {
+  const origin = analyticsOrigin(host);
+  if (!origin) return ghNotice(`warning: ${slug}: analytics not registered, "${host}" is not a host name.`);
+  if (!process.env.SUPABASE_ACCESS_TOKEN || !process.env.SUPABASE_URL) {
+    return ghNotice(`warning: ${slug}: analytics not registered (SUPABASE_ACCESS_TOKEN or SUPABASE_URL not set); its events are dropped until it is.`);
+  }
+  try {
+    const admin = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../platform/supabase-admin.mjs');
+    execFileSync('node', [admin, 'analytics-register', slug, origin], { stdio: 'inherit' });
+  } catch (e) {
+    ghNotice(`warning: ${slug}: analytics registration failed (${String(e.message || e).slice(0, 200)}); events are dropped until it succeeds.`);
+  }
 }
 
 /** Load and validate the control file. */
@@ -408,6 +428,7 @@ async function deployNetlify(cfg) {
     envVarsForwarded: Object.keys(env),
     envVarsRemoved: cfg.envRemove,
     siteFooter: cfg.footer !== false,
+    analytics: cfg.analytics === false ? 'off' : cfg.projectName,
     customDomain: appDomainFor(n.customDomain) || '(none)',
     ...(n.customDomain && appDomainFor(n.customDomain) !== n.customDomain ? { customDomainInTargetYml: n.customDomain } : {}),
   };
@@ -439,6 +460,12 @@ async function deployNetlify(cfg) {
   if (cfg.footer !== false) {
     const added = injectFooterIntoDir(publishDir, cfg.projectName);
     log(added ? 'Added the site footer to index.html.' : 'Site footer already present.');
+  }
+  // First-party analytics (scripts/site-analytics.mjs): /hw-events.js and its
+  // tag on every page. `analytics: false` in target.yml opts an app out.
+  if (cfg.analytics !== false) {
+    const pages = injectAnalyticsIntoDir(publishDir, cfg.projectName);
+    log(`Analytics: /hw-events.js added; tag on ${pages.length ? pages.join(', ') : 'no page (already present)'}.`);
   }
 
   // Resolve the site id, in order of reliability:
@@ -558,6 +585,10 @@ async function deployNetlify(cfg) {
     if (!existing.includes(rule)) writeFileSync(file, `${rule}\n${existing}`);
     log(`Redirect rule: ${rule}`);
   }
+  // The app-events function stores events only from a registered origin, so
+  // record this app's address before it goes live. Best effort: a failure is
+  // reported and the deploy goes on (the page still works; events are dropped).
+  if (cfg.analytics !== false) registerAnalytics(cfg.projectName, customDomain || `${siteName}.netlify.app`);
   const run = { cwd: stageDir };
 
   // Forward environment variables to the site (for the serverless function).
