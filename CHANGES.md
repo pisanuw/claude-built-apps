@@ -672,3 +672,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-17 [code] Analytics for every app (owner: "add analytics to the rest of the apps but do not deploy"): deploy-time injection (scripts/site-analytics.mjs, analytics: false opts out), origin registered by the deploy, ids and quoted text masked; branch analytics-all-apps, not merged or deployed
 
 2026-11-17 [code] Analytics branches for the own-repository apps (udebt, upvote, pastemd, photo2pgn, chess-tournament-director: branch analytics; MyUni analytics-masking; StepWise next); script data-mask option for share codes; shared/0016 registers their origins (not applied)
+
+2026-11-17 [code] analytics-all-apps merged to main 741b225 without a deploy (owner: "merge do not deploy"; the code-analogy-forge line held on branch analytics-code-analogy-forge, since its source deploys on push); 0016 applied (run 44125037294); app-events redeployed with masking (run 44125496750); td.pisan.me not registered (owner OK)
