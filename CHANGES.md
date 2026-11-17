@@ -670,3 +670,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-17 [code] delivery-canary day 6: polish: job token pinned (0006), canary row guards (0007, security review), phone layout, static shell, README, demo GIF
 
 2026-11-17 [code] Analytics for every app (owner: "add analytics to the rest of the apps but do not deploy"): deploy-time injection (scripts/site-analytics.mjs, analytics: false opts out), origin registered by the deploy, ids and quoted text masked; branch analytics-all-apps, not merged or deployed
+
+2026-11-17 [code] Analytics branches for the own-repository apps (udebt, upvote, pastemd, photo2pgn, chess-tournament-director: branch analytics; MyUni analytics-masking; StepWise next); script data-mask option for share codes; shared/0016 registers their origins (not applied)
