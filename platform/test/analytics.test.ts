@@ -1,0 +1,162 @@
+import { readFileSync } from 'node:fs';
+import { describe, expect, it, vi } from 'vitest';
+import { cleanHost, cleanPath, cleanProps, cleanValue, deviceOf, isBot, MAX_BODY_BYTES, MAX_EVENTS, parseBatch } from '../src/analytics/events';
+import { handleAppEvents } from '../src/analytics/service';
+import type { Db } from '../src/signin/db';
+
+const CHROME = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36';
+const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
+const env = { SUPABASE_URL: 'https://ref.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'service' };
+
+describe('cleaning one event', () => {
+  it('keeps the pathname only: a query or hash (sign-in tokens) never leaves the browser twice', () => {
+    expect(cleanPath('/uwb/course/css%20342?token_hash=abc#x')).toBe('/uwb/course/css%20342');
+    expect(cleanPath('/a#token')).toBe('/a');
+    expect(cleanPath('https://x.org/a')).toBeUndefined();
+    expect(cleanPath(42)).toBeUndefined();
+    expect(cleanPath('/' + 'x'.repeat(300))).toHaveLength(200);
+  });
+  it('keeps a referrer host name, without www', () => {
+    expect(cleanHost('WWW.Google.com')).toBe('google.com');
+    expect(cleanHost('google.com/search?q=x')).toBeUndefined();
+    expect(cleanHost(7)).toBeUndefined();
+  });
+  it('keeps a value between 0 and a day, to one decimal', () => {
+    expect(cleanValue(12.345)).toBe(12.3);
+    expect(cleanValue(-1)).toBeUndefined();
+    expect(cleanValue(90_000)).toBeUndefined();
+    expect(cleanValue(Number.NaN)).toBeUndefined();
+    expect(cleanValue('5')).toBeUndefined();
+  });
+  it('keeps at most 8 short scalar props with lower-case keys', () => {
+    expect(cleanProps({ kind: 'course', ok: true, n: 3, Bad: 1, nested: { a: 1 }, long: 'y'.repeat(150) })).toEqual({ kind: 'course', ok: true, n: 3, long: 'y'.repeat(100) });
+    const many = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`k${i}`, i]));
+    expect(Object.keys(cleanProps(many)!)).toHaveLength(8);
+    expect(cleanProps([1, 2])).toBeUndefined();
+    expect(cleanProps({ Bad: 1 })).toBeUndefined();
+    expect(cleanProps(null)).toBeUndefined();
+  });
+});
+
+describe('parseBatch', () => {
+  it('reads the app and up to 20 events, dropping bad names', () => {
+    const e = [{ n: 'pageview', p: '/x?y=1', r: 'bing.com' }, { n: 'Bad Name' }, { n: 'engaged', v: 4.04 }, 'junk', null, ...Array.from({ length: 30 }, () => ({ n: 'op_run' }))];
+    const b = parseBatch(JSON.stringify({ a: 'stepwise', e }))!;
+    expect(b.app).toBe('stepwise');
+    expect(b.events[0]).toEqual({ n: 'pageview', p: '/x', r: 'bing.com' });
+    expect(b.events[1]).toEqual({ n: 'engaged', v: 4 });
+    expect(b.events.length).toBeLessThanOrEqual(MAX_EVENTS);
+  });
+  it('refuses what is not a batch', () => {
+    expect(parseBatch('not json')).toBeNull();
+    expect(parseBatch('[]')).toBeNull();
+    expect(parseBatch(JSON.stringify({ a: 'Bad App', e: [] }))).toBeNull();
+    expect(parseBatch(JSON.stringify({ a: 'myuni', e: {} }))).toBeNull();
+    expect(parseBatch('null')).toBeNull();
+  });
+});
+
+describe('who is a person', () => {
+  it('drops bots, scripts and headless browsers', () => {
+    for (const ua of [null, 'curl/8.0', 'Mozilla/5.0 (compatible; Googlebot/2.1)', 'Mozilla/5.0 HeadlessChrome/120.0 Safari/537.36', 'short']) expect(isBot(ua)).toBe(true);
+    expect(isBot(CHROME)).toBe(false);
+    expect(isBot(IPHONE)).toBe(false);
+  });
+  it('tells phones, tablets and desktops apart', () => {
+    expect(deviceOf(IPHONE)).toBe('mobile');
+    expect(deviceOf('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36')).toBe('mobile');
+    expect(deviceOf('Mozilla/5.0 (Linux; Android 14; SM-X710) AppleWebKit/537.36 Chrome/120 Safari/537.36')).toBe('tablet');
+    expect(deviceOf('Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)')).toBe('tablet');
+    expect(deviceOf(CHROME)).toBe('desktop');
+    expect(deviceOf(null)).toBe('desktop');
+  });
+});
+
+function fakeDb(answer: unknown = 2) {
+  const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+  const db: Db = {
+    rpc: vi.fn(async (fn: string, args: Record<string, unknown>) => {
+      calls.push({ fn, args });
+      if (answer instanceof Error) throw answer;
+      return answer as never;
+    }) as Db['rpc'],
+  };
+  return { db, calls };
+}
+
+function post(body: string, headers: Record<string, string> = {}) {
+  return new Request('https://auth.hintwise.org/functions/v1/app-events', {
+    method: 'POST',
+    headers: { origin: 'https://myuni.top', 'user-agent': CHROME, 'content-type': 'text/plain', 'x-forwarded-for': '203.0.113.9', ...headers },
+    body,
+  });
+}
+
+const BATCH = JSON.stringify({ a: 'myuni', e: [{ n: 'pageview', p: '/uwb?token_hash=t', r: 'google.com' }] });
+
+describe('handleAppEvents', () => {
+  it('records a batch with the origin, the IP network and the user agent, and answers 204 with CORS for the page', async () => {
+    const { db, calls } = fakeDb();
+    const res = await handleAppEvents(post(BATCH), { env, fetch, db });
+    expect(res.status).toBe(204);
+    expect(res.headers.get('access-control-allow-origin')).toBe('https://myuni.top');
+    expect(calls).toEqual([
+      {
+        fn: 'app_events_record',
+        args: { p_app: 'myuni', p_origin: 'https://myuni.top', p_ip: '203.0.113.9', p_ua: CHROME, p_device: 'desktop', p_events: [{ n: 'pageview', p: '/uwb', r: 'google.com' }] },
+      },
+    ]);
+  });
+  it('counts an IPv6 client by its /64', async () => {
+    const { db, calls } = fakeDb();
+    await handleAppEvents(post(BATCH, { 'cf-connecting-ip': '2001:db8:1:2:3:4:5:6' }), { env, fetch, db });
+    expect(calls[0].args.p_ip).toBe('2001:db8:1:2::/64');
+  });
+  it('drops bots, requests without an Origin and empty batches without touching the database', async () => {
+    const { db, calls } = fakeDb();
+    expect((await handleAppEvents(post(BATCH, { 'user-agent': 'Mozilla/5.0 (compatible; bingbot/2.0)' }), { env, fetch, db })).status).toBe(204);
+    const noOrigin = new Request('https://x/', { method: 'POST', headers: { 'user-agent': CHROME }, body: BATCH });
+    expect((await handleAppEvents(noOrigin, { env, fetch, db })).status).toBe(204);
+    expect((await handleAppEvents(post(JSON.stringify({ a: 'myuni', e: [{ n: 'BAD' }] })), { env, fetch, db })).status).toBe(204);
+    expect(calls).toEqual([]);
+  });
+  it('answers 400, 413, 405 and preflights', async () => {
+    const { db } = fakeDb();
+    expect((await handleAppEvents(post('nope'), { env, fetch, db })).status).toBe(400);
+    expect((await handleAppEvents(post('x'.repeat(MAX_BODY_BYTES + 1)), { env, fetch, db })).status).toBe(413);
+    expect((await handleAppEvents(new Request('https://x/', { method: 'GET' }), { env, fetch, db })).status).toBe(405);
+    const pre = await handleAppEvents(new Request('https://x/', { method: 'OPTIONS', headers: { origin: 'https://myuni.top' } }), { env, fetch, db });
+    expect(pre.status).toBe(204);
+    expect(pre.headers.get('access-control-allow-methods')).toContain('POST');
+    const http = await handleAppEvents(new Request('https://x/', { method: 'OPTIONS', headers: { origin: 'http://evil.example' } }), { env, fetch, db });
+    expect(http.headers.get('access-control-allow-origin')).toBeNull();
+  });
+  it('logs a refusal or a database failure and still answers 204', async () => {
+    const log = vi.fn();
+    expect((await handleAppEvents(post(BATCH), { env, fetch, db: fakeDb(-2).db, log })).status).toBe(204);
+    expect(log).toHaveBeenCalledWith('app-events: refused myuni from https://myuni.top (-2)');
+    expect((await handleAppEvents(post(BATCH), { env, fetch, db: fakeDb(new Error('boom')).db, log })).status).toBe(204);
+    expect(log).toHaveBeenLastCalledWith('app-events: boom');
+  });
+  it('calls PostgREST with the service key when no Db is passed', async () => {
+    const f = vi.fn(async () => new Response('1', { status: 200 }));
+    await handleAppEvents(post(BATCH), { env, fetch: f as unknown as typeof fetch });
+    const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://ref.supabase.co/rest/v1/rpc/app_events_record');
+    expect((init.headers as Record<string, string>)['content-profile']).toBe('platform');
+  });
+});
+
+describe('the SQL (shared/0014_app_events.sql)', () => {
+  const sql = readFileSync(new URL('../supabase/shared/0014_app_events.sql', import.meta.url), 'utf8');
+  it('keeps the tables and functions away from browsers', () => {
+    expect(sql).toMatch(/revoke all on platform\.analytics_apps, platform\.app_events, platform\.app_events_salt from public, anon, authenticated/);
+    for (const fn of ['app_events_record', 'app_events_prune']) expect(sql).toMatch(new RegExp(`revoke execute on function platform\\.${fn}\\([^)]*\\) from public, anon, authenticated`));
+    expect(sql).toMatch(/enable row level security/);
+    expect(sql).not.toMatch(/grant [^;]*app_events_salt[^;]* to service_role/);
+  });
+  it('registers the first two apps with their https origins', () => {
+    expect(sql).toMatch(/'myuni', array\['https:\/\/myuni\.top', 'https:\/\/www\.myuni\.top'\]/);
+    expect(sql).toMatch(/'stepwise', array\['https:\/\/stepwise\.hintwise\.org'\]/);
+  });
+});

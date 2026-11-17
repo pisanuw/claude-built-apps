@@ -560,6 +560,35 @@ model wherever deterministic code does the job.
 - On demand: `usage` in the Supabase admin workflow prints the same table in
   the run log.
 
+## First-party analytics (app-events)
+
+Since 17 November 2026 (owner: "my own endpoint"), apps can send cookieless
+event analytics to the platform. The first two are MyUni (`myuni`) and
+StepWise (`stepwise`).
+
+- **The script.** `platform/src/analytics/hw-events.js`, copied unchanged
+  into the app: `<script defer src="/hw-events.js" data-app="<slug>">`. It
+  sends `pageview` (path only, never the query or hash; referrer host on the
+  first), `engaged` (seconds visible), `outbound` (link host), `error` (first
+  3 per page) and the app's own events through
+  `window.hintwise.track(name, props)`. Names are lower-case words; props are
+  at most 8 short scalars. Nothing is sent under Global Privacy Control, Do
+  Not Track, or `navigator.webdriver`. No cookie or storage.
+- **The endpoint.** `https://auth.hintwise.org/functions/v1/app-events`
+  (`supabase/functions/app-events`, logic in `src/analytics/`), public. It
+  validates the body, drops bots, and calls `platform.app_events_record` with
+  the Origin, the IP's network and the user agent.
+- **The data.** `platform.app_events` (shared/0014). The visitor id is a hash
+  of a daily random salt, the app, the IP and the user agent; the salt is
+  deleted after its day, so days cannot be linked and the IP is never stored.
+  `platform.analytics_apps` lists the apps and their exact origins; an app
+  not listed, or a wrong Origin, is refused. Service role only.
+- **Reading it.** `platform/supabase/ops/app-events-report.sql` (Supabase
+  admin, `sql`) until pisan-analytics (pisanuw/dashboards) shows it.
+- **Adding an app.** Insert its row in `platform.analytics_apps` (an `sql`
+  run), copy the script, add the tag, and say in the app's privacy text what
+  is sent.
+
 ## 5. What a weekly build does with this
 
 In `<slug>/deploy/target.yml`: `supabase: true` when the app has a schema

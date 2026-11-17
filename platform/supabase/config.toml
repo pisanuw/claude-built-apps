@@ -54,3 +54,10 @@ entrypoint = "./functions/delete-account/index.ts"
 # platform checks the JWT first; the function then verifies the user and
 # that they are in platform.admins.
 verify_jwt = true
+
+[functions.app-events]
+# Public: first-party analytics beacons from the apps in platform.analytics_apps
+# (shared/0014_app_events.sql). The function checks the body and drops bots;
+# the database checks the Origin against the app's origins.
+verify_jwt = false
+entrypoint = "./functions/app-events/index.ts"

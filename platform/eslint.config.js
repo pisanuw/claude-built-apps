@@ -17,6 +17,15 @@ export default tseslint.config(
     },
   },
   {
+    // The analytics script runs in the browser as a classic script (apps copy it unchanged).
+    files: ['src/analytics/hw-events.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'script',
+      globals: { ...globals.browser },
+    },
+  },
+  {
     // The edge function runs on Deno: Deno globals, fetch and Response are
     // available there; imports use npm: specifiers and .ts extensions.
     files: ['supabase/functions/**/*.ts'],
