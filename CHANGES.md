@@ -661,3 +661,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-17 [code] First-party analytics: shared/0014 (app_events, analytics_apps, daily-salt visitor ids), app-events function, hw-events.js client; MyUni (branch analytics-events) and StepWise (next) wired; not deployed
 
 2026-11-17 [decision] Owner: report times in Barcelona time (Europe/Madrid) until further notice; hourly routine prompt and HANDOFF updated
+
+2026-11-17 [code] app-events live (owner yes): 0014 applied (run 44049803587), function deployed (run 44049873064); checked 405/400/204 from outside. MyUni PR #5 open (preview sends 204); StepWise next 732e4bf (analytics + Finish signing in) deploys when CI is green (check scheduled 11:55 Barcelona)
