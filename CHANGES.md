@@ -665,3 +665,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-17 [code] app-events live (owner yes): 0014 applied (run 44049803587), function deployed (run 44049873064); checked 405/400/204 from outside. MyUni PR #5 open (preview sends 204); StepWise next 732e4bf (analytics + Finish signing in) deploys when CI is green (check scheduled 11:55 Barcelona)
 
 2026-11-17 [code] Analytics totals for pisan-analytics: shared/0015 app_events_summary (aggregates, plus sign-ins and model calls per app), app-events-report function (shared secret), report-secret admin command (function secret + pisan-analytics env); not deployed
+
+2026-11-17 [code] Dashboard live (owner: "merge and deploy dashboards"): 0015 applied, app-events-report deployed, report-secret on; new Deploy dashboards workflow deploys pisanuw/dashboards to pisan-analytics (refuses without DASHBOARD_PASSWORD). MyUni PR #5 merged

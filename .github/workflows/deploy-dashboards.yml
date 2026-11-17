@@ -1,0 +1,105 @@
+# Manual: deploy the pisan-analytics dashboard (pisanuw/dashboards, folder
+# netlify-analytics) to its Netlify site with this repo's NETLIFY_AUTH_TOKEN,
+# the same as `netlify deploy --build --prod` from that folder (owner, 17 Nov
+# 2026: "deploy dashboards", option 1, so no token is pasted anywhere).
+#
+# Every run is a production deploy (Netlify credits). The site's own env vars
+# (DASHBOARD_PASSWORD, NETLIFY_TOKEN, CRON_SECRET, TZ, APP_EVENTS_REPORT_*) stay
+# on the site; this workflow lists their names and never reads or prints a
+# value. It refuses to deploy when DASHBOARD_PASSWORD is not set for
+# production, because the dashboard would then be open to anyone.
+# APP_EVENTS_REPORT_SECRET is set by supabase-admin.yml `report-secret on`.
+name: Deploy dashboards
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'pisanuw/dashboards branch, tag or commit to deploy'
+        required: true
+        default: 'main'
+        type: string
+
+concurrency:
+  group: deploy-dashboards
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SITE: pisan-analytics
+      NETLIFY_CLI: netlify-cli@27.20.0
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: pisanuw/dashboards
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Install
+        working-directory: netlify-analytics
+        run: npm ci
+
+      - name: Find the site and check its password gate
+        id: site
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+          api() { curl -fsS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" "https://api.netlify.com/api/v1$1"; }
+          api "/sites/$SITE.netlify.app" > "$RUNNER_TEMP/site.json"
+          SITE_ID=$(jq -r .id "$RUNNER_TEMP/site.json"); ACCOUNT=$(jq -r .account_id "$RUNNER_TEMP/site.json")
+          [ -n "$SITE_ID" ] && [ "$SITE_ID" != null ] || { echo "::error::Netlify site $SITE not found for this token"; exit 1; }
+          echo "Site $SITE: $(jq -r '.ssl_url // .url' "$RUNNER_TEMP/site.json")"
+          # Names and contexts only: values never leave the API response.
+          api "/accounts/$ACCOUNT/env?site_id=$SITE_ID" > "$RUNNER_TEMP/env.json"
+          echo "Site env vars (names only):"
+          jq -r '.[] | "  \(.key) (\([.values[].context] | join(",")))"' "$RUNNER_TEMP/env.json"
+          GATE=$(jq -r '[.[] | select(.key == "DASHBOARD_PASSWORD") | .values[] | select(.context == "all" or .context == "production")] | length' "$RUNNER_TEMP/env.json")
+          rm -f "$RUNNER_TEMP/env.json"
+          [ "$GATE" -gt 0 ] || { echo "::error::DASHBOARD_PASSWORD is not set for production on $SITE: the dashboard would be public. Set it on the site first."; exit 1; }
+          echo "site_id=$SITE_ID" >> "$GITHUB_OUTPUT"
+          echo "base=$(jq -r '.ssl_url // .url' "$RUNNER_TEMP/site.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Build and deploy (production)
+        working-directory: netlify-analytics
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ steps.site.outputs.site_id }}
+          REF: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+          SHA=$(git rev-parse --short HEAD)
+          npx --yes "$NETLIFY_CLI" deploy --build --prod --site "$NETLIFY_SITE_ID" \
+            --message "Deploy dashboards workflow: pisanuw/dashboards $REF ($SHA)"
+
+      - name: Check the live site
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ steps.site.outputs.site_id }}
+          BASE: ${{ steps.site.outputs.base }}
+        run: |
+          set -euo pipefail
+          curl -fsS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" "https://api.netlify.com/api/v1/sites/$NETLIFY_SITE_ID/deploys?per_page=1" \
+            | jq -r '.[0] | "Latest deploy: \(.state), \(.created_at), \(.title // "")"'
+          fail=0
+          for p in / /api/events /api/data; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE$p")
+            echo "$p without a password: $code"
+            [ "$code" = 401 ] || fail=1
+          done
+          [ "$fail" = 0 ] || { echo "::error::$SITE answered without a password: check DASHBOARD_PASSWORD"; exit 1; }
+          code=$(curl -s -o /dev/null -w '%{http_code}' -H 'x-report-secret: not-the-secret' https://auth.hintwise.org/functions/v1/app-events-report)
+          case "$code" in
+            401) echo "app-events-report: secret set (wrong secret refused)";;
+            503) echo "::warning::app-events-report answers 503: run supabase-admin report-secret on";;
+            *) echo "::warning::app-events-report answered $code to a wrong secret";;
+          esac
