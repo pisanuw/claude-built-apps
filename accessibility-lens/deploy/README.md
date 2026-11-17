@@ -50,6 +50,20 @@ itself; run the Deploy workflow manually with `all` to ship it to every app.
 Each Netlify production deploy costs account credits, so prefer naming the
 apps you need.
 
+## Analytics
+
+Every Netlify deploy also adds the platform's first-party analytics from
+[`scripts/site-analytics.mjs`](../../scripts/site-analytics.mjs): it copies
+`platform/src/analytics/hw-events.js` to `/hw-events.js` in the publish dir and
+adds `<script defer src="/hw-events.js" data-app="<projectName>">` before
+`</head>` of every full page. Before the upload the runner registers the app's
+origin (`https://<app>.hintwise.org`, or the `.netlify.app` address when the
+custom domain is not used) in `platform.analytics_apps` with
+`platform/supabase-admin.mjs analytics-register`, using
+`SUPABASE_ACCESS_TOKEN` and `SUPABASE_URL`; a failure there is a warning, not a
+failed deploy. Set `analytics: false` at the top level of `target.yml` to opt an
+app out. Like the footer, changing the script deploys nothing by itself.
+
 ## Removing a secret
 
 Taking a name out of `envPassthrough` only stops the deploy sending it; the

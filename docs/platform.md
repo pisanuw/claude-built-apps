@@ -590,9 +590,24 @@ StepWise (`stepwise`).
   `APP_EVENTS_REPORT_SECRET` (`report-secret on` sets it in the function and
   on the site). `platform/supabase/ops/app-events-report.sql` (Supabase admin,
   `sql`) gives the same numbers by hand.
-- **Adding an app.** Insert its row in `platform.analytics_apps` (an `sql`
-  run), copy the script, add the tag, and say in the app's privacy text what
-  is sent.
+- **Every app in this repo (since 17 November 2026, owner: "add analytics to
+  the rest of the apps").** The Deploy workflow adds it, like the footer:
+  `scripts/site-analytics.mjs` copies the script to `/hw-events.js` and puts
+  the tag (`data-app` = the folder name) on every full page of the build, and
+  the runner registers the app's origin with `supabase-admin.mjs
+  analytics-register <slug> <origin>` before the deploy goes live (best
+  effort: a failure is a warning, and the app's events are dropped until it
+  succeeds). `analytics: false` in `target.yml` opts an app out. Each app gets
+  it with its next deploy; nothing redeploys by itself.
+- **What never reaches the table.** A path segment that looks like an id or a
+  token (a UUID, long hex or number, an @, or a random-looking word such as
+  `V1StGXR8`) is sent and stored as `:id`; an error message has quoted text,
+  emails and long numbers replaced by `…` (browsers quote the input in JSON
+  errors). Both rules run in the browser and again in `events.ts`.
+- **An app in its own repository** (MyUni, StepWise, udebt): copy
+  `hw-events.js` unchanged into the app's static files, add the tag, register
+  the origin (`analytics-register`, or an `sql` run), and say in the app's
+  privacy text what is sent. Update the copy when the platform's changes.
 
 ## 5. What a weekly build does with this
 

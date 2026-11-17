@@ -22,6 +22,7 @@ Written 12 Nov 2026, from the photo2pgn hand-off.
 | Examples | the 60+ apps here, Qualified Overtime Checker, Delivery Canary | UpvoteMe (pisanuw/upvote), PasteMD (pisanuw/pastemd), StepWise (pisan-labs/visualizing-data-structures), photo2pgn (pisan-labs/photo2pgn, created as photo2png and renamed before its first deploy) |
 | Netlify site, `<slug>.hintwise.org`, Cloudflare DNS | the Deploy workflow creates them from `<slug>/deploy/target.yml` | the owner imports the repo in Netlify once; then the Plabs session runs "Attach custom domain" |
 | Footer | injected at deploy time | embedded in the app's HTML, byte for byte, with a sha256 test (section 6) |
+| Analytics | injected at deploy time, origin registered by the deploy | `hw-events.js` copied byte for byte, tag in `<head>`, origin registered with `analytics-register` (section 6) |
 | Database migrations | applied by the Deploy workflow (`supabase: true`) | copied byte for byte into `<slug>/supabase/migrations/` here and applied by the Plabs session, the way StepWise's were done (`stepwise/README.md`) |
 | Email sign-in allow-list | generated from target.yml (`npm run app-hosts` in `platform/`) | the label added to `EXTERNAL_APP_LABELS` in `platform/src/signin/validate.ts`, then sign-in-link and delete-account redeployed |
 | CI | the app's job in `.github/workflows/ci.yml` | the app's own CI |
@@ -142,6 +143,14 @@ From `platform/brand/README.md`:
 - An app with its own icon keeps it. Chess TD keeps its chess piece, for example.
 - An app with none uses the HintWise icon: paste the tag in `platform/brand/favicon-link.html` into `<head>`. It's an inline SVG, so there's no file to serve.
 - `platform/brand/favicon.ico`, `hintwise-icon-*.png` and `apple-touch-icon.png` are there if a manifest needs PNGs.
+
+### Analytics
+
+- **Option A:** the deploy adds the platform's cookieless analytics (`scripts/site-analytics.mjs`): `/hw-events.js` and its tag on every page, and the app's origin registered in `platform.analytics_apps`. **Don't add it yourself.** Set `analytics: false` in target.yml only if the app must not count visits.
+- **Option B:** copy `platform/src/analytics/hw-events.js` unchanged into the app's static files, add `<script defer src="/hw-events.js" data-app="<slug>"></script>` to `<head>`, and register the origin (Supabase admin, `analytics-register <slug> https://<host>`). A test that pins the copy's sha256 keeps it unchanged (StepWise's `src/analytics.test.ts`).
+- **App events:** `window.hintwise?.track('<name>', { short: 'props' })` for the actions that matter (a search picked, an operation run). Never put what a visitor typed in a prop.
+- **Privacy text:** don't promise "no tracking" or "nothing is sent anywhere". Say what stays private (what the visitor enters or uploads) and that visits are counted without cookies.
+- **CSP:** a `connect-src` must allow `https://auth.hintwise.org`.
 
 ## 7. Model calls
 

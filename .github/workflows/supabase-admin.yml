@@ -44,6 +44,7 @@
 #                            in Vault (app_notify_secret), and schedules pg_cron job app-notify-daily
 #                            (15:17 UTC) posting to the function with it; "off" unschedules and deletes
 #                            the function secret (every call then 503); values are never printed
+#   analytics-register <arg: slug origin>  add an app's https origin to platform.analytics_apps (the Deploy workflow does this for every Netlify app)
 #   report-secret <arg: status | on>  the shared secret pisan-analytics reads analytics totals with
 #                            (app-events-report, shared/0015): "on" generates a fresh
 #                            APP_EVENTS_REPORT_SECRET and sets it as the function secret and as a secret
@@ -58,12 +59,12 @@ on:
   workflow_dispatch:
     inputs:
       command:
-        description: 'inspect | sql | apply-shared | migrate | expose-schema | unexpose-schema | check-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | external-hosts | brand-upload | email-optout | admin | optout-ready | account-deletion-test | deploy-function | deploy-gateway | set-gateway-key | set-sign-in-secrets | notify-schedule | email-hook | report-secret | anon-setup | anon-off'
+        description: 'inspect | sql | apply-shared | migrate | expose-schema | unexpose-schema | check-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | external-hosts | brand-upload | email-optout | admin | optout-ready | account-deletion-test | deploy-function | deploy-gateway | set-gateway-key | set-sign-in-secrets | notify-schedule | email-hook | report-secret | anon-setup | anon-off | analytics-register'
         required: true
         default: 'inspect'
         type: string
       arg:
-        description: 'sql: file path; migrate: app slug; expose-schema, unexpose-schema, check-schema: schema; usage: days; check-google: return URL; domain-setup: host; deploy-function: function name; email-hook: status, check, on or off; email-optout: status, add or remove; admin: add, remove or list'
+        description: 'sql: file path; migrate: app slug; expose-schema, unexpose-schema, check-schema: schema; usage: days; check-google: return URL; domain-setup: host; deploy-function: function name; email-hook: status, check, on or off; email-optout: status, add or remove; admin: add, remove or list; analytics-register: <slug> <https origin>'
         required: false
         default: ''
         type: string

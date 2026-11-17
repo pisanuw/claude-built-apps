@@ -668,3 +668,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 
 2026-11-17 [code] Dashboard live (owner: "merge and deploy dashboards"): 0015 applied, app-events-report deployed, report-secret on; new Deploy dashboards workflow deploys pisanuw/dashboards to pisan-analytics (refuses without DASHBOARD_PASSWORD). MyUni PR #5 merged
 2026-11-17 [code] delivery-canary day 6: polish: job token pinned (0006), canary row guards (0007, security review), phone layout, static shell, README, demo GIF
+
+2026-11-17 [code] Analytics for every app (owner: "add analytics to the rest of the apps but do not deploy"): deploy-time injection (scripts/site-analytics.mjs, analytics: false opts out), origin registered by the deploy, ids and quoted text masked; branch analytics-all-apps, not merged or deployed
