@@ -304,3 +304,16 @@ describe('the summary SQL (shared/0015_app_events_summary.sql)', () => {
     expect(sql).not.toMatch(/user_id['"]?\s*,/);
   });
 });
+
+describe('the own-repository apps (shared/0016_analytics_more_apps.sql)', () => {
+  const sql = readFileSync(new URL('../supabase/shared/0016_analytics_more_apps.sql', import.meta.url), 'utf8');
+  it('registers each app with https hintwise.org origins and never changes enabled', () => {
+    const rows = [...sql.matchAll(/\('([a-z0-9-]+)', array\[([^\]]+)\]\)/g)].map((m) => [m[1], m[2]]);
+    expect(rows.map((r) => r[0])).toEqual(['udebt', 'upvoteme', 'paste-md', 'photo2pgn', 'chesstd']);
+    for (const [slug, origins] of rows) {
+      expect(slug).toMatch(/^[a-z0-9][a-z0-9-]{0,39}$/);
+      for (const o of origins.split(',')) expect(o.trim()).toMatch(/^'https:\/\/[a-z0-9-]+\.hintwise\.org'$/);
+    }
+    expect(sql.slice(sql.indexOf('do update'))).not.toContain('enabled');
+  });
+});
