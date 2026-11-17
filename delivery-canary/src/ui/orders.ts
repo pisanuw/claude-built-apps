@@ -112,7 +112,7 @@ export function renderScan(s: ScanSummary, opts: { fileName: string; deliveryApp
       h('p', { class: 'table-title', id: 'late-title' }, 'Paid download orders still unfulfilled, oldest first'),
       h(
         'div',
-        { class: 'table-wrap' },
+        { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-labelledby': 'late-title' },
         h(
           'table',
           { class: 'orders', 'aria-labelledby': 'late-title' },

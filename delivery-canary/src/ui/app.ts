@@ -73,6 +73,11 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
   const say = (text: string) => {
     status.textContent = text;
   };
+  // The shop card's own status line, so its messages show next to its button on a phone.
+  const shopStatus = h('p', { class: 'status', role: 'status', 'aria-live': 'polite', id: 'shop-status' });
+  const sayShop = (text: string) => {
+    shopStatus.textContent = text;
+  };
 
   // Shop settings.
   const shopName = h('input', { id: 'shop-name', type: 'text', maxlength: '120', autocomplete: 'organization', placeholder: 'My pattern shop' });
@@ -201,6 +206,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
         h('div', { class: 'grid2' }, h('div', {}, h('label', { for: 'shop-name', class: 'block' }, 'Shop name'), shopName), h('div', {}, h('label', { for: 'shop-app', class: 'block' }, 'Delivery app'), appSelect)),
         baselineLine,
         h('div', { class: 'actions' }, saveShop),
+        shopStatus,
         saveNote,
       ),
       h('section', { class: 'card', 'aria-labelledby': 'history-h' }, h('h2', { id: 'history-h' }, 'History'), history),
@@ -470,7 +476,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
     void (async () => {
       const name = shopName.value.trim();
       if (!name) {
-        say('Give the shop a name first.');
+        sayShop('Give the shop a name first.');
         shopName.focus();
         return;
       }
@@ -478,9 +484,9 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
         const base: ShopRow = shop ?? { id: newId(), name, delivery_app: appSelect.value, baseline: null, created_at: now().toISOString() };
         shop = await stores.shops.put({ ...base, name, delivery_app: appSelect.value, updated_at: now().toISOString() });
         renderShop();
-        say(stores.saved ? 'Shop saved.' : 'Shop saved on this page. Sign in to keep it.');
+        sayShop(stores.saved ? 'Shop saved.' : 'Shop saved on this page. Sign in to keep it.');
       } catch (e) {
-        say(`Could not save the shop: ${(e as Error).message}`);
+        sayShop(`Could not save the shop: ${(e as Error).message}`);
       }
     })();
   });

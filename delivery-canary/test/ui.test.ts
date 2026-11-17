@@ -295,12 +295,14 @@ describe('the app', () => {
     $<HTMLInputElement>('#shop-name').value = '  ';
     $<HTMLButtonElement>('#save-shop').click();
     await tick();
-    expect($('.status').textContent).toBe('Give the shop a name first.');
+    expect($('#shop-status').textContent).toBe('Give the shop a name first.');
+    expect(document.activeElement?.id).toBe('shop-name');
     $<HTMLInputElement>('#shop-name').value = 'Juniper';
     $<HTMLSelectElement>('#shop-app').value = 'filemonk';
     $<HTMLButtonElement>('#save-shop').click();
     await tick();
     expect((await stores.shops.list())[0]).toMatchObject({ name: 'Juniper', delivery_app: 'filemonk' });
+    expect($('#shop-status').textContent).toBe('Shop saved.');
     $<HTMLButtonElement>('#run-sample').click();
     await tick();
     expect($<HTMLSelectElement>('#shop-app').value).toBe('filemonk'); // a chosen app is kept
@@ -322,7 +324,7 @@ describe('the app', () => {
     $<HTMLInputElement>('#shop-name').value = 'X';
     $<HTMLButtonElement>('#save-shop').click();
     await tick();
-    expect($('.status').textContent).toBe('Could not save the shop: denied');
+    expect($('#shop-status').textContent).toBe('Could not save the shop: denied');
     $<HTMLButtonElement>('#run-sample').click();
     await tick();
     expect($('.status').textContent).toBe('Checked, but not saved: denied');

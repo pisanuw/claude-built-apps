@@ -5,9 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Delivery Canary: is your download email reaching buyers?</title>
     <meta name="description" content="For Shopify shops that sell digital files: check that your download email reaches the Gmail inbox, not Promotions or Spam, and that its link still opens the right file." />
+    <!-- Google Sans Medium for the "Continue with Google" button only (Google's
+         branding guidelines); text= limits the font to that button's letters. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@500&amp;text=Continue%20with%20Google&amp;display=swap" />
   </head>
   <body>
-    <div id="app"></div>
+    <!-- A static shell for readers that do not run scripts (search engines,
+         accessibility-lens); the app replaces it when it mounts. -->
+    <div id="app">
+      <header class="top">
+        <div>
+          <h1>Delivery Canary</h1>
+          <p class="tagline">Does your download email reach the inbox, and does its link still open the right file? Check one in a minute.</p>
+        </div>
+      </header>
+      <section class="card" aria-labelledby="shell-h">
+        <h2 id="shell-h">For shops that sell digital files on Shopify</h2>
+        <ul>
+          <li>Check a delivery email: where Gmail put it, its sender checks, and whether its download link opens the right file.</li>
+          <li>Find paid download orders that were never delivered, from Shopify's orders export or your shop.</li>
+          <li>Place a free test order on a schedule, watch a test Gmail inbox for its email, and get an email when it lands in Spam or never arrives.</li>
+        </ul>
+        <noscript><p>Delivery Canary needs JavaScript turned on.</p></noscript>
+      </section>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

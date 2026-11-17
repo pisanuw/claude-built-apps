@@ -75,3 +75,39 @@ test('the sample schedule shows eight weeks of canary placements', async ({ page
   await expect(card.locator('#sched-trend tbody tr')).toHaveCount(8);
   await expect(card.locator('#sched-trend tbody tr.bad')).toHaveCount(2);
 });
+
+test('on a phone every sample fits the screen width, and the keyboard reaches each one', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.goto('/');
+  // The static shell in index.html is replaced by the app.
+  await expect(page.locator('#shell-h')).toHaveCount(0);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+  const samples: [string, string, RegExp][] = [
+    ['Try the sample email', '#check-status', /Checked/],
+    ['See a sample seed inbox check', '#seed-status', /Promotions tab/],
+    ['See a sample canary order', '#shopify-status', /1 min 42 s later/],
+    ['See a sample schedule', '#sched-status', /went to Spam/],
+    ['Try a sample export', '#orders-status', /Scanned/],
+  ];
+  for (const [name, status, text] of samples) {
+    const button = page.getByRole('button', { name });
+    // The previous sample moves focus to its result when it finishes; focus the button after that.
+    await expect(async () => {
+      await button.focus();
+      await page.waitForTimeout(150);
+      await expect(button).toBeFocused({ timeout: 50 });
+    }).toPass();
+    await page.keyboard.press('Enter');
+    await expect(page.locator(status)).toContainText(text);
+  }
+  await expect(page.locator('#sched-trend tbody tr')).toHaveCount(8);
+  const width = await page.evaluate(() => document.documentElement.scrollWidth);
+  expect(width).toBeLessThanOrEqual(375);
+  // Wide tables scroll inside a focusable region instead of the page.
+  await expect(page.getByRole('region', { name: 'Placement by week (scrolls sideways)' })).toHaveAttribute('tabindex', '0');
+  await expect(page.getByRole('region', { name: 'Paid download orders still unfulfilled, oldest first' })).toHaveAttribute('tabindex', '0');
+  // Saving the shop without a name says so next to the button.
+  await page.getByRole('button', { name: 'Save shop' }).click();
+  await expect(page.locator('#shop-status')).toHaveText('Give the shop a name first.');
+  await expect(page.locator('#shop-name')).toBeFocused();
+});
