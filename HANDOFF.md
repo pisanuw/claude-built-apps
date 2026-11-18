@@ -2,7 +2,7 @@
 
 This is the rolling handoff for the Plabs relay (session-relay skill). Each handover rewrites it. The last section holds the owner's standing instructions, the relay parameters and Scheduling.
 
-Written 18 November 2026, 03:05 Barcelona time, by session_01JyJzMVhQhwQ7Ea3HMyJ3FN on the owner's "/handoff now". Context was 53% (531,832 of 1,000,000 tokens). It was fact-checked by a subagent against git, the Actions runs and the routines list. Reports to the owner use Barcelona time (Europe/Madrid). The relay's handoff and session-start routines use Europe/Berlin crons, the hourly report plain UTC, and the owner's routines Los Angeles time.
+Written 18 November 2026, 03:05 Barcelona time, by session_01JyJzMVhQhwQ7Ea3HMyJ3FN on the owner's "/handoff now". Context was 53% (531,832 of 1,000,000 tokens). It was fact-checked by a subagent against git, the Actions runs and the routines list. Reports to the owner use the owner's reporting zone: Los Angeles by default, and Barcelona while the owner travels, until 6 January 2027 (owner, 18 Nov). Since 18 Nov the relay's handoff and session-start routines run on Los Angeles schedules, like the owner's routines; the hourly check is plain UTC.
 
 ## 1. Goal
 
@@ -36,7 +36,7 @@ Done since the last handoff (14 Nov):
 In progress / remaining:
 - [ ] Own-repo analytics branches await the owner's merge; merging deploys each app (section 4).
 - [ ] Watch the first analytics rows for each newly deployed app on pisan-analytics.
-- [ ] Delivery Canary day 7, the last build day: 18 Nov 11:49 Berlin (build routine).
+- [ ] Delivery Canary day 7, the last build day: 18 Nov 02:49 LA time (11:49 Barcelona), build routine.
 
 ## 3. Current state
 
@@ -56,6 +56,7 @@ The HintWise workflow was adopted on 18 Nov. Its follow-ups:
 - **Delivery Canary** finishes today, 11:49, under BUILD_ROUTINE.md Steps 1 to 5. Then start the Marketer routine with "delivery-canary".
 - **Picker's shortlist** for the next project goes to the owner (T2, 24 hours).
 - **Tomorrow, 19 Nov, 11:49:** the first project under routines/build-day.md. PManager releases from the inbox.
+- **6 January 2027, a dated task:** the owner's travel ends, and reports go back to Los Angeles time. Ask the owner for Los Angeles times for Monitor (daily and weekly), Keeper and Marketer, and move their schedules.
 - **Owner actions:**
   - the `owner-approval` environment, with the owner as required reviewer;
   - the RESEND_API secret in pisan-labs/hintwise-workflow, for the weekly email.
@@ -132,9 +133,10 @@ Then work through this list in order:
 
 ## 10. Background jobs
 
-All times Barcelona (Europe/Madrid):
-- **Relay routines:** hourly status at :46; handoff check at 13:56; session start at 14:52. Ids in Scheduling below.
-- **Owner's routines:** ideas (10:51), build (11:49) and TPT daily product builder (06:37), all daily.
+Times in Barcelona time, the owner's current reporting zone, with Los Angeles time for LA schedules:
+- **Relay routines:** hourly check at :46; handoff check at 13:56 (04:56 LA); session start at 14:52 (05:52 LA). Ids in Scheduling below.
+- **Owner's routines:** ideas 10:51 (01:51 LA), build 11:49 (02:49 LA) and the TPT daily product builder 06:37 (05:37 UTC), all daily.
+- **HintWise workflow routines:** Monitor daily 08:13, Monitor weekly Mondays 07:37, Keeper Thursdays 08:43, Marketer Mondays 10:23 (Barcelona schedules until 6 January 2027).
 - **Platform jobs:** pg_cron app-notify at 16:17; the LLM usage report at 17:10 and 18:10 (often hours late); halflife's pisan-labs sync at 04:13 (time zone not recorded).
 - **Chess TD:** Oracle weekly, Sunday 04:23; FIDE test image daily (fide-test.yml).
 - **Nothing else:** no subagent or background process is running at this handoff, apart from its fact-check.
@@ -150,9 +152,9 @@ All times Barcelona (Europe/Madrid):
 ### Owner's standing instructions
 - **Ask first, and wait, before:** writing production data, deploying to production unless asked, spending money, deleting the unrestorable, rotating secrets, rewriting shared history, publishing outside the session. Pushing to main and deleting merged branches are fine.
 - **Questions:** numbered, with a recommendation, in message text. With a recommendation and no answer in 15 minutes, take it and say how to undo it (never for the ask-first list). Set a send_later check-in for 15 minutes.
-- **Times:** Barcelona time (Europe/Madrid) in reports and chat (owner, 17 Nov, "until further notice").
+- **Times** (owner, 18 Nov): the reporting zone is Los Angeles by default. Until 6 January 2027 the owner is travelling and other zones may apply; now it is Barcelona (Europe/Madrid, named 17 Nov). Label every time with its zone.
 - **Reports** (owner, 18 Nov; replaces the hourly status report):
-  - PManager sends a "Needs you" card at about 09:00 and 18:00 Barcelona time when something waits on the owner, and at once for an incident;
+  - PManager sends a "Needs you" card at about 09:00 and 18:00 in the reporting zone when something waits on the owner, and at once for an incident;
   - Monitor's routines send the daily digest and the weekly retrospective;
   - the weekly email goes to builder@hintwise.org.
 - **The HintWise workflow is adopted** (owner, 18 Nov; pisan-labs/hintwise-workflow).
@@ -166,10 +168,10 @@ All times Barcelona (Europe/Madrid):
 |---|---|
 | Repository | pisanuw/claude-built-apps; also daily-project-ideas, pisanorg/yusuf, pisan-labs/chess-tournament-director, pisanuw/upvote, pisanuw/pastemd, pisanuw/understanding-debt, pisanuw/myuni, pisan-labs/photo2pgn, pisan-labs/visualizing-data-structures, pisan-labs/hintwise-workflow (private, since 18 Nov: the workflow draft); read-only dashboards, chess-analyzer |
 | Handoff document | HANDOFF.md (this file) |
-| Routine time zone | Europe/Berlin |
-| Report time zone | Europe/Madrid (Barcelona) |
-| Handover check | 13:56 Europe/Berlin |
-| Session start | 14:52 Europe/Berlin |
+| Routine time zone | America/Los_Angeles (Europe/Berlin before 18 Nov) |
+| Report time zone | America/Los_Angeles by default; Europe/Madrid (Barcelona) while the owner travels, until 6 January 2027 |
+| Handover check | 04:56 America/Los_Angeles |
+| Session start | 05:52 America/Los_Angeles |
 | Handoff marker | a commit on main titled `docs: the handoff of <D Month>`; no other commit may use that subject |
 | Merge rule | push to main after `node --test scripts/site-footer.test.mjs` passes |
 
@@ -183,7 +185,7 @@ All times Barcelona (Europe/Madrid):
     - trig_01DYgx6NLAWauCztLtCdzwBd: Plabs handoff check: hand over only when due, `CRON_TZ=Europe/Berlin 56 13 * * *`
     - trig_016QHHijGtC5VWcSzZUN4nuQ: Plabs daily handoff: start the next session (create_session), `CRON_TZ=Europe/Berlin 52 14 * * *`
 - **Current session: session_01JyJzMXVbrUAhXw75BNyNCX ("Plabs: Nov 18")**, took over 18 November 2026 (02:36 UTC), started by the relay (parent session_01JyJzMVhQhwQ7Ea3HMyJ3FN). Lineage depth 6 of limit 8.
-  - Moved routines: trig_01ErjL8VzaXQ3sPHHZfCeZMe (handoff check, `CRON_TZ=Europe/Berlin 56 13 * * *`) and trig_01Xsn6UTTEEKE2KWS7EATPkv (session start, `CRON_TZ=Europe/Berlin 52 14 * * *`); the old two are deleted.
+  - Moved routines: trig_01ErjL8VzaXQ3sPHHZfCeZMe (handoff check) and trig_01Xsn6UTTEEKE2KWS7EATPkv (session start); the old two are deleted. On 18 Nov both moved to Los Angeles schedules at the same instants: `CRON_TZ=America/Los_Angeles 56 4 * * *` and `CRON_TZ=America/Los_Angeles 52 5 * * *`.
   - Hourly report moved after the owner's allow rule (2f76ede): trig_01HCHLTqENJ1G7bmepMtrQqK, `46 * * * *`; the old trig_01LvzA4YK1HANnbjfntihccc is deleted.
   - `.claude/settings.json` allows `mcp__claude-code-remote__create_trigger` (owner, 18 Nov), so the next takeover can move routines without the auto-mode check refusing.
 - **HintWise workflow routines** (created 18 Nov at the owner's yes). Each starts a fresh session; leave them alone at a handover:

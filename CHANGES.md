@@ -690,3 +690,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-18 [decision] From 19 Nov new projects follow pisan-labs/hintwise-workflow routines/build-day.md (owner answers Q1, Q3); Delivery Canary finishes today under Steps 1-5. Build task prompt gets the tier map.
 
 2026-11-18 [decision] HintWise workflow adopted (owner answers to 11 questions): Monitor/Keeper/Marketer routines created, hourly status report replaced by PManager hourly check and Needs-you cards; see pisan-labs/hintwise-workflow.
+
+2026-11-18 [decision] Reporting zone: Los Angeles by default, Barcelona while the owner travels until 6 Jan 2027; relay routines moved from Berlin to LA schedules (same instants).
