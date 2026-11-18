@@ -401,6 +401,7 @@ describe('the bar buttons below 640 px (the owner\'s choice for phones)', () => 
   });
   it('makes the panel wide enough for the normal widget: 21.5rem, less 34px of padding and border', () => {
     expect(css).toMatch(/\.hw-signin-panel \{[^}]*width: 21\.5rem;[^}]*max-width: calc\(100vw - 32px\);[^}]*padding: 16px;/);
+    expect(css).toMatch(/\.hw-signin-panel \{[^}]*grid-template-columns: minmax\(0, 1fr\);/); // the field cannot widen it
     expect(21.5 * 16 - 2 * 16 - 2).toBeGreaterThanOrEqual(300);
   });
   it('shows the person\'s initial', () => {
