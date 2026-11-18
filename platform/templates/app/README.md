@@ -126,10 +126,17 @@ at the right of the app's top bar (`src/main.ts` and `index.html` show one):
   label is visually hidden and stays its accessible name. This is the one
   `@media` block in `signin-styles.ts`, so showing the labels again is a
   one-block change.
-- The panel is absolutely placed under the bar's right edge, at most the
-  viewport's width less 32px, so keep the sign-in element at the right of
-  the bar (in a flex bar, `.hw-signin` keeps its width, `flex: none`, and
-  `margin-left: auto` keeps it at the right when the bar wraps). An app with a dark theme restyles `.hw-signin-panel` too.
+- The panel is absolutely placed under the bar's right edge, 21.5rem wide
+  (room for Turnstile's 300px widget) and at most the viewport's width less
+  32px. On a phone too narrow for that widget, Turnstile renders its compact
+  form. So keep the sign-in element at the right of the bar: in a flex bar,
+  `.hw-signin` keeps its width (`flex: none`), and `margin-left: auto` keeps
+  it at the right when the bar wraps.
+- Escape closes the panel wherever the focus is, and so does the focus
+  moving to another part of the page.
+- An app with a dark theme restyles the bar's buttons and `.hw-signin-panel`
+  too (qualified-overtime-checker and lewis-alt-text show how, with Google's
+  dark values and dark G).
 
 ## The Google button
 

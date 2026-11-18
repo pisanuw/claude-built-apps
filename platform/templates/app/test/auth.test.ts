@@ -20,6 +20,7 @@ import {
   initialOf,
   MAGIC_LINK_TEXT,
   magicLinkButton,
+  turnstileSize,
   loadTurnstile,
   maskEmail,
   validHint,
@@ -46,17 +47,19 @@ type Listener = (event: string, session: Session | null) => void;
 /**
  * A fake of the supabase-js auth surface the sign-in code uses. With
  * signOutEmits, signOut sends SIGNED_OUT to the listener before it resolves,
- * as supabase-js does.
+ * as supabase-js does. With signOutFails, it answers an error and sends no
+ * event (supabase-js reports a failed sign-out in `error`, it does not throw).
  */
-function fakeAuth(session: Session | null = null, { signOutEmits = false } = {}) {
+function fakeAuth(session: Session | null = null, { signOutEmits = false, signOutFails = false } = {}) {
   let listener: Listener | null = null;
   const unsubscribe = vi.fn();
   const auth = {
     signInWithOAuth: vi.fn(async () => ({ data: { provider: 'google', url: 'https://accounts.google.com/o' }, error: null })),
     verifyOtp: vi.fn(async () => ({ data: { user: null, session: null }, error: null as { message: string } | null })),
     signOut: vi.fn(async () => {
+      if (signOutFails) return { error: { message: 'offline' } as { message: string } | null };
       if (signOutEmits) listener?.('SIGNED_OUT', null);
-      return { error: null };
+      return { error: null as { message: string } | null };
     }),
     getSession: vi.fn(async () => ({ data: { session }, error: null })),
     onAuthStateChange: vi.fn((cb: Listener) => {
@@ -389,6 +392,17 @@ describe('the bar buttons below 640 px (the owner\'s choice for phones)', () => 
     b.click();
     expect(onClick).toHaveBeenCalled();
   });
+  it('asks Turnstile for its compact widget only when the normal one would not fit', () => {
+    expect(turnstileSize(254)).toBe('compact');
+    expect(turnstileSize(299)).toBe('compact');
+    expect(turnstileSize(300)).toBe('normal');
+    expect(turnstileSize(309)).toBe('normal');
+    expect(turnstileSize(0)).toBe('normal'); // not laid out: the default
+  });
+  it('makes the panel wide enough for the normal widget: 21.5rem, less 34px of padding and border', () => {
+    expect(css).toMatch(/\.hw-signin-panel \{[^}]*width: 21\.5rem;[^}]*max-width: calc\(100vw - 32px\);[^}]*padding: 16px;/);
+    expect(21.5 * 16 - 2 * 16 - 2).toBeGreaterThanOrEqual(300);
+  });
   it('shows the person\'s initial', () => {
     expect(initialOf({ id: 'u1', email: 'ann@example.com' })).toBe('A');
     expect(initialOf({ id: 'u2', email: undefined })).toBe('U');
@@ -470,6 +484,34 @@ describe('mountSignIn', () => {
     magic.click();
     document.getElementById('elsewhere')!.click(); // unmounted: the page's clicks are no longer watched
     expect(panel().hidden).toBe(false);
+  });
+  it('closes a panel that opened on its own with Escape, wherever the focus is, and leaves the focus alone', async () => {
+    const f = fakeAuth();
+    const w = { location: { href: 'https://x.hintwise.org/?token_hash=h&type=email' }, history: { state: null, replaceState: vi.fn() } };
+    mountSignIn(root, { client: f.client, redirectTo: 'https://x/', window: w });
+    await flush();
+    await flush();
+    expect(panel().hidden).toBe(false); // "Finish signing in", opened on load
+    expect(document.activeElement).toBe(document.body);
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(panel().hidden).toBe(true);
+    expect(button('Magic link').getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(document.body);
+  });
+  it('closes the panel when the focus moves to another part of the page, not when it moves inside or just disappears', async () => {
+    const { client } = fakeAuth();
+    const outside = document.body.appendChild(Object.assign(document.createElement('button'), { textContent: 'App button' }));
+    mountSignIn(root, { client, redirectTo: 'https://x/', completeFromUrl: false });
+    await flush();
+    button('Magic link').click(); // the focus goes to the email field
+    button('Email me a sign-in link').focus(); // inside the panel
+    expect(panel().hidden).toBe(false);
+    button('Sign in with Google').focus(); // inside the controls
+    expect(panel().hidden).toBe(false);
+    root.querySelector('input')!.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null })); // a re-render, or the browser's UI
+    expect(panel().hidden).toBe(false);
+    outside.focus(); // Tab to the page behind
+    expect(panel().hidden).toBe(true);
   });
   it('keeps the panel open across a re-render for the same visitor', async () => {
     const f = fakeAuth();
@@ -553,7 +595,7 @@ describe('mountSignIn', () => {
       await flush();
       await flush();
       expect(statusText()).toBe('One more step: complete the check below to get your link.');
-      expect(t.api.render).toHaveBeenCalledWith(expect.any(HTMLElement), expect.objectContaining({ sitekey: 'site-k', action: 'sign-in' }));
+      expect(t.api.render).toHaveBeenCalledWith(expect.any(HTMLElement), expect.objectContaining({ sitekey: 'site-k', action: 'sign-in', size: 'normal' }));
       expect(root.querySelector('.hw-signin-challenge')!.children).toHaveLength(1);
       t.solve('tok-1');
       await flush();
@@ -581,6 +623,22 @@ describe('mountSignIn', () => {
       await flush();
       expect(sendLink).toHaveBeenCalledTimes(2);
       expect(statusText()).toBe('Could not send the link: Could not send the email. Try again in a minute.');
+    });
+    it('renders the compact widget when the panel is too narrow for the normal one (a 320px phone)', async () => {
+      const t = turnstile();
+      const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains('hw-signin-challenge') ? 254 : 0;
+      });
+      try {
+        mount(async () => ({ status: 'challenge', siteKey: 'k' }), { loadTurnstile: async () => t.api });
+        await flush();
+        submit('ann@example.com');
+        await flush();
+        await flush();
+        expect(t.api.render).toHaveBeenCalledWith(expect.any(HTMLElement), expect.objectContaining({ size: 'compact' }));
+      } finally {
+        width.mockRestore();
+      }
     });
     it('renders one widget even when the visitor submits twice while the script loads', async () => {
       const t = turnstile();
@@ -836,7 +894,9 @@ describe('mountSignIn', () => {
     expect(statusText()).toBe(DELETED_MESSAGE);
     expect(panel().hidden).toBe(false); // opened, so the farewell is seen
   });
-  it('shows "Sign in again" on the signed-out panel when the sign-out emits at once', async () => {
+  // Not a test of the fix: here onDone runs before the sign-out, so main's handler passed it too.
+  // It guards that order (farewellFor's stored branch) against the fix for the other one.
+  it('still shows "Sign in again" on the signed-out panel, where onDone runs before the sign-out', async () => {
     const { client, auth } = fakeAuth(session, { signOutEmits: true });
     const env = { VITE_SUPABASE_URL: 'https://auth.hintwise.org', VITE_SUPABASE_ANON_KEY: 'anon' };
     const f = (async () => new Response(JSON.stringify({ status: 'reauth', message: 'Sign in again first.' }), { status: 401 })) as unknown as typeof fetch;
@@ -853,6 +913,38 @@ describe('mountSignIn', () => {
     await flush();
     expect(statusText()).toBe(SIGN_IN_AGAIN);
     expect(panel().hidden).toBe(false);
+  });
+  describe('a farewell kept for a sign-out that failed', () => {
+    const reauth = async (f: ReturnType<typeof fakeAuth>) => {
+      const env = { VITE_SUPABASE_URL: 'https://auth.hintwise.org', VITE_SUPABASE_ANON_KEY: 'anon' };
+      const answer = (async () => new Response(JSON.stringify({ status: 'reauth', message: 'Sign in again first.' }), { status: 401 })) as unknown as typeof fetch;
+      mountSignIn(root, { client: f.client, redirectTo: 'https://x/', deleteOptions: { env, fetch: answer } });
+      await flush();
+      const box = root.querySelector('.hw-account-delete')!;
+      const input = box.querySelector('input')!;
+      input.value = 'DELETE';
+      input.dispatchEvent(new Event('input'));
+      box.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+      await vi.waitFor(() => expect([...box.querySelectorAll('button')].some((b) => b.textContent === 'Sign in again')).toBe(true));
+      [...box.querySelectorAll('button')].find((b) => b.textContent === 'Sign in again')!.click();
+      await flush();
+      expect(f.auth.signOut).toHaveBeenCalled(); // it answered an error: still signed in, no event
+      expect(root.querySelector('.hw-signin-person')).toBeTruthy();
+    };
+    it('is dropped by the next signed-in render', async () => {
+      const f = fakeAuth(session, { signOutFails: true });
+      await reauth(f);
+      f.emit(session); // a token refresh, say
+      f.emit(null); // a later, unrelated sign-out
+      expect(statusText()).toBe('');
+    });
+    it('is dropped by an ordinary "Sign out"', async () => {
+      const f = fakeAuth(session, { signOutFails: true });
+      await reauth(f);
+      button('Sign out').click();
+      f.emit(null);
+      expect(statusText()).toBe('');
+    });
   });
   it('defaults the redirect to this page', async () => {
     const { client, auth } = fakeAuth();

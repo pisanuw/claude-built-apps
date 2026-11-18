@@ -135,7 +135,8 @@ export const SIGN_IN_CSS = `
   box-sizing: border-box;
   display: grid;
   gap: 0.75rem;
-  width: 20rem;
+  /* 21.5rem leaves 309px inside, room for Turnstile's 300px widget; narrower phones get its compact form. */
+  width: 21.5rem;
   max-width: calc(100vw - 32px);
   padding: 16px;
   background: #FFFFFF;
