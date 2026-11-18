@@ -149,7 +149,7 @@ All times Barcelona (Europe/Madrid):
 ### Relay parameters (session-relay skill)
 | Parameter | Value |
 |---|---|
-| Repository | pisanuw/claude-built-apps; also daily-project-ideas, pisanorg/yusuf, pisan-labs/chess-tournament-director, pisanuw/upvote, pisanuw/pastemd, pisanuw/understanding-debt, pisanuw/myuni, pisan-labs/photo2pgn, pisan-labs/visualizing-data-structures; read-only dashboards, chess-analyzer |
+| Repository | pisanuw/claude-built-apps; also daily-project-ideas, pisanorg/yusuf, pisan-labs/chess-tournament-director, pisanuw/upvote, pisanuw/pastemd, pisanuw/understanding-debt, pisanuw/myuni, pisan-labs/photo2pgn, pisan-labs/visualizing-data-structures, pisan-labs/hintwise-workflow (private, since 18 Nov: the workflow draft); read-only dashboards, chess-analyzer |
 | Handoff document | HANDOFF.md (this file) |
 | Routine time zone | Europe/Berlin |
 | Report time zone | Europe/Madrid (Barcelona) |
