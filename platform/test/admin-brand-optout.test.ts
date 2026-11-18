@@ -92,8 +92,8 @@ describe('the Supabase admin workflow', () => {
     expect(wf).toMatch(/inputs\.command != 'email-hook' && inputs\.command != 'email-optout' && inputs\.command != 'admin'\n/);
     expect(wf).toMatch(/- name: Mask the address\n {8}if: inputs\.command == 'email-optout' \|\| inputs\.command == 'admin'\n/);
   });
-  it('gives the service-role key to the generic step only for brand-upload, optout-ready, account-deletion-test and anon-setup', () => {
-    expect(wf).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.command == 'brand-upload' || inputs.command == 'optout-ready' || inputs.command == 'account-deletion-test' || inputs.command == 'anon-setup') && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}");
+  it('gives the service-role key to the generic step only for brand-upload, optout-ready, account-deletion-test, anon-setup and gateway-check', () => {
+    expect(wf).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.command == 'brand-upload' || inputs.command == 'optout-ready' || inputs.command == 'account-deletion-test' || inputs.command == 'anon-setup' || inputs.command == 'gateway-check') && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}");
     // The opt-out step and the admins step, nothing else.
     expect(wf.match(/SUPABASE_SERVICE_ROLE_KEY: \$\{\{ secrets\.SUPABASE_SERVICE_ROLE_KEY \}\}/g)).toHaveLength(2);
   });

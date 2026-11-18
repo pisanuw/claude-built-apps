@@ -101,6 +101,19 @@
  *                           the origin into it; never changes enabled. The
  *                           Deploy workflow runs it for every Netlify app
  *                           (scripts/site-analytics.mjs)
+ *   gateway-check           the post-deploy check of the LLM gateway, end to
+ *                           end, as the test app `gateway-check` (cheapest
+ *                           model, $0.05 a day): upserts its llm_apps row,
+ *                           makes or reuses its stand-in sign-in, stores the
+ *                           sha256 of a fresh app key (masked, never printed),
+ *                           then makes a non-streaming call, a stream read to
+ *                           message_stop, and a stream it leaves after the
+ *                           first content_block_delta, and checks the three
+ *                           llm_usage rows: all ok, the third with the
+ *                           ClientLeft note (the gateway read it to its end).
+ *                           Prints statuses, counts, tokens and cost only;
+ *                           exits 1 on any mismatch. Needs
+ *                           SUPABASE_SERVICE_ROLE_KEY and the access token
  *   optout-ready            exit 1 unless platform.email_optout_check answers
  *                           (0003 applied); the workflow runs it before it
  *                           deploys sign-in-link or auth-email-hook, which
@@ -1331,6 +1344,32 @@ select jsonb_build_object('slug', a.slug, 'has_user', a.user_id is not null, 'ke
  * never reaches this workflow: the owner makes it, puts it in the app's
  * Netlify env and passes only its hash. anon-off <slug> removes the row.
  */
+/**
+ * Creates (or reuses) the stand-in sign-in visitors+<slug>@hintwise.org and
+ * bans it from interactive sign-in; returns its id. `who` names the command
+ * in error messages (anon-setup, gateway-check).
+ */
+async function ensureStandIn(slug, key, who) {
+  const email = anonEmail(slug);
+  const base = (url || `https://${ref}.supabase.co`).replace(/\/+$/, '');
+  const admin = { apikey: key, ...(key.startsWith('sb_') ? {} : { authorization: `Bearer ${key}` }), 'content-type': 'application/json' };
+  const found = queryResult(await sql(`select jsonb_build_object('id', id)::text as result from auth.users where email = ${lit(email)}`));
+  let uid = found?.id ?? null;
+  if (!uid) {
+    const res = await fetch(`${base}/auth/v1/admin/users`, { method: 'POST', headers: admin, body: JSON.stringify({ email, email_confirm: true, ban_duration: STAND_IN_BAN, user_metadata: { stand_in_for: `${slug} visitors who are not signed in` } }) });
+    const body = await res.json().catch(() => null);
+    if (res.status !== 200 || !body?.id) fail(`${who}: creating ${email} answered HTTP ${res.status}`);
+    uid = body.id;
+    console.log(`Created the stand-in sign-in ${email}.`);
+  } else {
+    console.log(`Reusing the stand-in sign-in ${email}.`);
+  }
+  const res = await fetch(`${base}/auth/v1/admin/users/${uid}`, { method: 'PUT', headers: admin, body: JSON.stringify({ ban_duration: STAND_IN_BAN }) });
+  if (res.status !== 200) fail(`${who}: banning ${email} from interactive sign-in answered HTTP ${res.status}`);
+  console.log(`${email} is banned from interactive sign-in (the gateway does not need it to sign in).`);
+  return uid;
+}
+
 async function anonSetup(slug) {
   if (!slug || !/^[a-z0-9][a-z0-9-]*$/.test(slug)) fail('anon-setup: give an app slug, e.g. anon-setup udebt');
   const hash = String(flagValue('--key-sha256') || '').trim().toLowerCase();
@@ -1339,27 +1378,7 @@ async function anonSetup(slug) {
   if (!app) fail(`anon-setup: ${slug} is not in platform.llm_apps; register the app first`);
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key) fail('anon-setup needs SUPABASE_SERVICE_ROLE_KEY (the workflow passes the repo secret)');
-  const email = anonEmail(slug);
-  const found = queryResult(await sql(`select jsonb_build_object('id', id)::text as result from auth.users where email = ${lit(email)}`));
-  let uid = found?.id ?? null;
-  if (!uid) {
-    const base = (url || `https://${ref}.supabase.co`).replace(/\/+$/, '');
-    const admin = { apikey: key, ...(key.startsWith('sb_') ? {} : { authorization: `Bearer ${key}` }), 'content-type': 'application/json' };
-    const res = await fetch(`${base}/auth/v1/admin/users`, { method: 'POST', headers: admin, body: JSON.stringify({ email, email_confirm: true, ban_duration: STAND_IN_BAN, user_metadata: { stand_in_for: `${slug} visitors who are not signed in` } }) });
-    const body = await res.json().catch(() => null);
-    if (res.status !== 200 || !body?.id) fail(`anon-setup: creating ${email} answered HTTP ${res.status}`);
-    uid = body.id;
-    console.log(`Created the stand-in sign-in ${email}.`);
-  } else {
-    console.log(`Reusing the stand-in sign-in ${email}.`);
-  }
-  {
-    const base = (url || `https://${ref}.supabase.co`).replace(/\/+$/, '');
-    const admin = { apikey: key, ...(key.startsWith('sb_') ? {} : { authorization: `Bearer ${key}` }), 'content-type': 'application/json' };
-    const res = await fetch(`${base}/auth/v1/admin/users/${uid}`, { method: 'PUT', headers: admin, body: JSON.stringify({ ban_duration: STAND_IN_BAN }) });
-    if (res.status !== 200) fail(`anon-setup: banning ${email} from interactive sign-in answered HTTP ${res.status}`);
-    console.log(`${email} is banned from interactive sign-in (the gateway does not need it to sign in).`);
-  }
+  const uid = await ensureStandIn(slug, key, 'anon-setup');
   const row = queryResult(await sql(anonSetupSql(slug, uid, hash)));
   console.log(`Anonymous use on for ${slug}: ${JSON.stringify(row)}`);
 }
@@ -1384,6 +1403,186 @@ async function analyticsRegister(slug, origin) {
   if (!origin || !/^https:\/\/[a-z0-9.-]+\.[a-z]{2,}$/.test(origin)) fail('analytics-register: give an https origin such as https://<app>.hintwise.org');
   const row = queryResult(await sql(analyticsRegisterSql(slug, origin)));
   console.log(`Analytics: ${slug} sends from ${JSON.stringify(row?.origins ?? [origin])}${row && row.enabled === false ? ' (switched off: enabled is false)' : ''}.`);
+}
+
+// ---- Post-deploy check of the LLM gateway (owner, 18 Nov 2026: "21b yes") ---
+
+export const CHECK_APP = 'gateway-check';
+export const CHECK_MODEL = 'claude-haiku-5-5';
+export const CHECK_URL = 'https://auth.hintwise.org/functions/v1/llm-gateway';
+export const CHECK_MAX_TOKENS = 32;
+// Longer than 32 tokens, so the third call is still generating when it leaves.
+export const CHECK_PROMPT = 'Count from one to one hundred in words, separated by commas.';
+export const CHECK_CALLS = ['a non-streaming', 'b streamed', 'c streamed, caller left'];
+
+/** Pure: the idempotent upsert of the test app's row (only the cheapest model, 64 tokens, small caps). */
+export function gatewayCheckAppSql() {
+  return `insert into platform.llm_apps (slug, enabled, default_model, allowed_models, max_tokens, cap_day_usd, cap_week_usd, cap_month_usd, cap_user_day_usd)
+values (${lit(CHECK_APP)}, true, ${lit(CHECK_MODEL)}, array[${lit(CHECK_MODEL)}], 64, 0.05, 0.20, 0.50, 0.05)
+on conflict (slug) do update set enabled = excluded.enabled, default_model = excluded.default_model, allowed_models = excluded.allowed_models,
+  max_tokens = excluded.max_tokens, cap_day_usd = excluded.cap_day_usd, cap_week_usd = excluded.cap_week_usd,
+  cap_month_usd = excluded.cap_month_usd, cap_user_day_usd = excluded.cap_user_day_usd;
+select jsonb_build_object('slug', slug, 'enabled', enabled, 'allowed_models', allowed_models, 'max_tokens', max_tokens,
+  'caps_day_week_month_user_day', jsonb_build_array(cap_day_usd, cap_week_usd, cap_month_usd, cap_user_day_usd))::text as result
+  from platform.llm_apps where slug = ${lit(CHECK_APP)};`;
+}
+
+/** Pure: one check call's body. Thinking off: the cheapest model allows it at its default effort. */
+export function gatewayCheckBody(stream) {
+  const body = { app: CHECK_APP, model: CHECK_MODEL, max_tokens: CHECK_MAX_TOKENS, thinking: { type: 'disabled' }, messages: [{ role: 'user', content: CHECK_PROMPT }] };
+  return stream ? { ...body, stream: true } : body;
+}
+
+/** Pure: the types of the complete server-sent events in `text`, in order; a trailing partial event is left out. */
+export function sseEventTypes(text) {
+  const blocks = String(text).replace(/\r\n?/g, '\n').split('\n\n');
+  blocks.pop(); // what follows the last blank line is not a whole event yet
+  const types = [];
+  for (const block of blocks) {
+    let name = '';
+    const data = [];
+    for (const line of block.split('\n')) {
+      if (line.startsWith('event:')) name = line.slice(6).trim();
+      else if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''));
+    }
+    if (!data.length) continue;
+    let type = name || 'message';
+    try {
+      const p = JSON.parse(data.join('\n'));
+      if (p && typeof p.type === 'string') type = p.type;
+    } catch {
+      // not JSON: keep the event name
+    }
+    types.push(type);
+  }
+  return types;
+}
+
+/** Pure: a stream read to its end is complete when message_stop came and no error event. */
+export const sseComplete = (types) => types.includes('message_stop') && !types.includes('error');
+
+/**
+ * Pure: checks the test app's llm_usage rows from this run (in id order, so
+ * a, b, c) against the three calls. Returns the lines to print, the
+ * problems (any one fails the run) and the total cost.
+ */
+export function matchCheckRows(rows) {
+  const problems = [];
+  const lines = rows.map((r, i) => `${CHECK_CALLS[i] ?? `extra row ${i + 1}`}: ok ${r.ok}, note ${r.error ? JSON.stringify(String(r.error).slice(0, 160)) : 'none'}, input ${r.input_tokens}, output ${r.output_tokens}, cost $${Number(r.cost_usd).toFixed(6)}`);
+  if (rows.length !== 3) {
+    const hint = rows.length === 2 ? ': the stream the caller left has no row, so the gateway did not finish reading it or its insert' : '';
+    problems.push(`expected 3 llm_usage rows for ${CHECK_APP} since the run started, found ${rows.length}${hint}`);
+  }
+  rows.slice(0, 2).forEach((r, i) => {
+    if (r.ok !== true || r.error) problems.push(`${CHECK_CALLS[i]}: expected ok with no note, got ok ${r.ok}, note ${JSON.stringify(r.error)}`);
+    if (!(Number(r.output_tokens) > 0)) problems.push(`${CHECK_CALLS[i]}: no output tokens recorded`);
+  });
+  const c = rows[2];
+  if (c) {
+    const note = String(c.error ?? '');
+    if (note.includes('max_tokens')) problems.push(`${CHECK_CALLS[2]}: counted at max_tokens with no message_delta, so the gateway stopped reading after the caller left (the worker ended?)`);
+    else if (c.ok !== true) problems.push(`${CHECK_CALLS[2]}: expected ok, got note ${JSON.stringify(c.error)}`);
+    else if (!note.startsWith('ClientLeft')) problems.push(`${CHECK_CALLS[2]}: no ClientLeft note, so the abort reached the gateway only after message_stop and the drain was not tested; run the check again`);
+    if (!(Number(c.output_tokens) > 0)) problems.push(`${CHECK_CALLS[2]}: no output tokens recorded`);
+  }
+  const total = Math.round(rows.reduce((sum, r) => sum + (Number(r.cost_usd) || 0), 0) * 1e6) / 1e6;
+  if (total >= 0.01) problems.push(`the total cost $${total.toFixed(6)} is not under $0.01`);
+  return { lines, problems, total };
+}
+
+/** The gateway's own error fields, for the log (never the request or the answer text). */
+const gatewaySays = (body) => (body && typeof body === 'object' ? `${body.error ?? ''} ${String(body.message ?? '').slice(0, 200)}`.trim() : '');
+
+/**
+ * gateway-check: the post-deploy check of the deployed llm-gateway (docs/platform.md,
+ * section 3). It works as the test app `gateway-check`, in app-key mode, with
+ * a fresh key each run, and prints statuses, counts, tokens and cost only.
+ */
+async function gatewayCheck() {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) fail('gateway-check needs SUPABASE_SERVICE_ROLE_KEY (the workflow passes the repo secret)');
+  const anon = JSON.parse(fs.readFileSync(path.join(ROOT, 'platform', 'supabase.json'), 'utf8')).anonKey;
+  const since = queryResult(await sql(`select jsonb_build_object('t', now())::text as result`))?.t;
+  if (!since) fail('gateway-check: could not read the database time');
+
+  console.log(`1. Test app: ${JSON.stringify(queryResult(await sql(gatewayCheckAppSql())))}`);
+  console.log('2. Stand-in sign-in:');
+  const uid = await ensureStandIn(CHECK_APP, key, 'gateway-check');
+  const appKey = crypto.randomBytes(32).toString('base64');
+  console.log(`::add-mask::${appKey}`);
+  console.log(`3. A fresh app key, its sha256 stored: ${JSON.stringify(queryResult(await sql(anonSetupSql(CHECK_APP, uid, sha256(appKey)))))}`);
+
+  const headers = { authorization: `Bearer ${anon}`, 'x-hintwise-app-key': appKey, 'content-type': 'application/json' };
+  const post = (stream, signal = AbortSignal.timeout(60_000)) => fetch(CHECK_URL, { method: 'POST', headers, body: JSON.stringify(gatewayCheckBody(stream)), signal });
+  const problems = [];
+  const report = (name, ok, detail) => {
+    console.log(`   ${ok ? 'ok  ' : 'FAIL'} ${name}: ${detail}`);
+    if (!ok) problems.push(`${name}: ${detail}`);
+  };
+  console.log(`4. Three calls to ${CHECK_URL} (${CHECK_MODEL}, max_tokens ${CHECK_MAX_TOKENS}, thinking off):`);
+
+  const a = await post(false);
+  const aBody = await a.json().catch(() => null);
+  const texts = Array.isArray(aBody?.content) ? aBody.content.filter((b) => b?.type === 'text').length : 0;
+  report(CHECK_CALLS[0], a.status === 200 && aBody?.type === 'message' && texts > 0, `HTTP ${a.status}, ${texts} text block(s) ${a.status === 200 ? '' : gatewaySays(aBody)}`.trim());
+
+  const b = await post(true);
+  const bType = b.headers.get('content-type') || '';
+  const bText = await b.text();
+  const bTypes = b.status === 200 ? sseEventTypes(bText) : [];
+  let bSays = '';
+  if (b.status !== 200) {
+    try {
+      bSays = gatewaySays(JSON.parse(bText));
+    } catch {
+      bSays = '';
+    }
+  }
+  report(CHECK_CALLS[1], b.status === 200 && bType.startsWith('text/event-stream') && sseComplete(bTypes), `HTTP ${b.status}, ${bType || 'no content-type'}, ${bTypes.length} events, the last ${bTypes.at(-1) ?? 'none'} ${bSays}`.trim());
+
+  const leave = new AbortController();
+  const c = await post(true, AbortSignal.any([leave.signal, AbortSignal.timeout(60_000)]));
+  let cTypes = [];
+  if (c.status === 200 && c.body) {
+    const reader = c.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    try {
+      for (;;) {
+        const r = await reader.read();
+        if (r.done) break;
+        buf += decoder.decode(r.value, { stream: true });
+        cTypes = sseEventTypes(buf);
+        if (cTypes.includes('content_block_delta')) {
+          leave.abort();
+          break;
+        }
+      }
+    } catch {
+      // the abort
+    }
+  }
+  const cLeft = c.status === 200 && cTypes.includes('content_block_delta') && !cTypes.includes('message_stop');
+  report(CHECK_CALLS[2], cLeft, `HTTP ${c.status}, left after ${cTypes.length} events${cTypes.includes('message_stop') ? ', but message_stop had already arrived' : ''}`);
+
+  console.log('5. The llm_usage rows from this run (waiting up to 20 s for the third):');
+  const rowsSql = `select coalesce(jsonb_agg(jsonb_build_object('ok', ok, 'error', error, 'input_tokens', input_tokens, 'output_tokens', output_tokens, 'cost_usd', cost_usd) order by id), '[]'::jsonb)::text as result
+  from platform.llm_usage where app = ${lit(CHECK_APP)} and user_id = ${lit(uid)}::uuid and created_at >= ${lit(since)}::timestamptz`;
+  let rows = [];
+  for (let waited = 0; waited < 20; waited += 5) {
+    await new Promise((r) => setTimeout(r, 5000));
+    rows = queryResult(await sql(rowsSql)) ?? [];
+    if (rows.length >= 3) break;
+  }
+  const matched = matchCheckRows(rows);
+  for (const line of matched.lines) console.log(`   ${line}`);
+  problems.push(...matched.problems);
+  console.log(`6. Total cost: $${matched.total.toFixed(6)}`);
+  if (problems.length) {
+    for (const p of problems) console.log(`::error::gateway-check: ${p}`);
+    process.exit(1);
+  }
+  console.log('gateway-check passed.');
 }
 
 // ---- main -----------------------------------------------------------------
@@ -1416,6 +1615,7 @@ const commands = {
   'anon-setup': () => anonSetup(arg),
   'anon-off': () => anonOff(arg),
   'analytics-register': () => analyticsRegister(arg, arg2),
+  'gateway-check': () => gatewayCheck(),
 };
 
 /** Commands that use only SUPABASE_URL and the service-role key, never the Management API token. */
