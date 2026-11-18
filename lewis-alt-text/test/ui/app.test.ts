@@ -48,7 +48,8 @@ describe('choosing a key', () => {
     const t = setup();
     expect(t.storage.getItem(MODE_KEY)).toBe('byok');
     expect(t.root.querySelector<HTMLElement>('[data-part=byok]')!.hidden).toBe(false);
-    expect(t.$('signin').textContent).toMatch(/not set up/);
+    expect(t.$('signin-note').textContent).toMatch(/not set up/);
+    expect(t.$('signin').hidden).toBe(true);
   });
 
   it('starts on the HintWise key when live, mounts sign-in and shows the allowance', async () => {
@@ -58,6 +59,8 @@ describe('choosing a key', () => {
     const t = setup({ live: true, mountSignIn, checkAllowance, onAuth: (cb) => (authCb = cb) });
     expect(t.storage.getItem(MODE_KEY)).toBe('gateway');
     expect(mountSignIn).toHaveBeenCalledWith(t.$('signin'));
+    expect(t.$('signin').closest('header .top-bar')).toBeTruthy(); // at the right of the top bar
+    expect(t.$('signin-note').textContent).toMatch(/Sign-in is at the top of the page/);
     await vi.waitFor(() => expect(t.$('allowance').textContent).toBe('5 alt texts left on the HintWise key.'));
     authCb();
     expect(checkAllowance).toHaveBeenCalledTimes(2);

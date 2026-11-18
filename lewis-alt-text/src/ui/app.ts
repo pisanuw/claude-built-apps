@@ -27,7 +27,10 @@ export interface AppDeps {
 
 const SHELL = `
   <header>
-    <h1>Lewis Structure Alt Text</h1>
+    <div class="top-bar">
+      <h1>Lewis Structure Alt Text</h1>
+      <div id="signin" role="region" aria-label="Account"></div>
+    </div>
     <p class="lede">Give it an image of a Lewis structure or a related chemistry figure. It writes alt text for screen reader users that describes what is drawn, without giving away answers students are meant to work out.</p>
   </header>
 
@@ -39,7 +42,7 @@ const SHELL = `
       <label><input type="radio" name="mode" value="byok"> Your own Anthropic API key</label>
     </fieldset>
     <div data-part="gateway">
-      <div id="signin" aria-label="Sign in"></div>
+      <p id="signin-note" class="muted small"></p>
       <p id="allowance" class="muted" aria-live="polite"></p>
     </div>
     <div data-part="byok" hidden>
@@ -160,8 +163,14 @@ export function mountApp(root: HTMLElement, deps: AppDeps): App {
     });
   }
 
-  if (deps.live && deps.mountSignIn) deps.mountSignIn($('signin'));
-  else $('signin').textContent = 'Sign-in is not set up on this copy of the app. Use your own key instead.';
+  // Sign-in sits at the right of the top bar (UpvoteMe's look); this card only points to it.
+  if (deps.live && deps.mountSignIn) {
+    deps.mountSignIn($('signin'));
+    $('signin-note').textContent = 'Sign-in is at the top of the page: Google, or a magic link by email.';
+  } else {
+    $('signin').hidden = true;
+    $('signin-note').textContent = 'Sign-in is not set up on this copy of the app. Use your own key instead.';
+  }
   deps.onAuth?.(() => void refreshAllowance());
 
   $('byok-save').addEventListener('click', () => {
