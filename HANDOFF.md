@@ -67,7 +67,7 @@ Remaining:
   - **Incident, 18 Nov 14:48 UTC:** model replies failed. Render's ANTHROPIC_API_KEY answered 401, and the owner switched LLM_PROVIDER=gateway at about 15:20 UTC. On the gateway two YPai bugs show:
     - the 5.5 models think by default, so small max_tokens calls (and a 300-token main reply) return no text;
     - the empty reply is kept in the history, and the gateway then refuses that conversation (400).
-    The YPai session is fixing both. PManager recommended direct mode with a new key until the fix ships. Record: hintwise-workflow runs/2026-11-18T1450Z-incident-ypai-key.md;
+    **Resolved:** the fix (#41, 16:07 UTC) and its follow-up with the one-time cleanup of the 18 Nov empty rows (#42, 16:56 UTC) are live, both on the owner's yes, after Reviewer APPROVE. A real reply at 17:45 UTC was saved with text. YPai stays on the gateway. Render's ANTHROPIC_API_KEY is still refused and unused. Records: hintwise-workflow runs/2026-11-18T1450Z-incident-ypai-key.md, projects/ypai/releases/fix-gateway.md and fix-gateway-2.md;
     - 23, renewing BACKUP_GITHUB_TOKEN on Render: ypai's offsite backups stopped on 29 Oct;
     - "uploadme" is UpvoteMe (confirmed by the owner's phone screenshot).
   - the card is hintwise-workflow projects/ypai/README.md.
