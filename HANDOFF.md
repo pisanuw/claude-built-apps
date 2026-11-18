@@ -1,201 +1,196 @@
-# Handoff: get users, get noticed
+# Handoff: get users, get noticed (PManager relay)
 
-This is the rolling handoff for the Plabs relay (session-relay skill). Each handover rewrites it. The last section holds the owner's standing instructions, the relay parameters and Scheduling.
+This is the rolling handoff for the PManager relay (the session-relay skill; this session was "Plabs" until 18 Nov). Each handover rewrites it; the last section holds the owner's standing instructions, the relay parameters and Scheduling.
 
-Written 18 November 2026, 03:05 Barcelona time, by session_01JyJzMVhQhwQ7Ea3HMyJ3FN on the owner's "/handoff now". Context was 53% (531,832 of 1,000,000 tokens). It was fact-checked by a subagent against git, the Actions runs and the routines list. Reports to the owner use the owner's reporting zone: Los Angeles by default, and Barcelona while the owner travels, until 6 January 2027 (owner, 18 Nov). Since 18 Nov the relay's handoff and session-start routines run on Los Angeles schedules, like the owner's routines; the hourly check is plain UTC.
+- **Written:** 18 November 2026, 05:35 Barcelona time.
+- **By:** session_01JyJzMXVbrUAhXw75BNyNCX ("PManager: Nov 18"), on the owner's "/handoff manual". Context was about 58%.
+- **The owner starts the next session by hand,** which begins a new lineage. The previous session archives itself once the new one is active and has moved the routines.
 
 ## 1. Goal
 
-Owner's words (2026-11-02): "Get people using these projects, advertise these projects to get customers that may want me to build similar projects for them." "One way to be noticed is for github repos to be noticed, forked and get stars."
-- The offer is paid custom builds, part-time: "I care more about connections and being useful than money." "Built by Claude" is the headline. Customers: small businesses, startups, edtech, universities. Every app lives at `<app>.hintwise.org`.
-- Since 9 Nov the build routine builds one substantial project a week (BUILD_ROUTINE.md). This relay session runs the shared platform, the status reports and the owner's requests across repos.
-- Latest request (17 Nov): "add analytics to the rest of the apps but do not deploy them, add it on a branch if necessary", then "merge do not deploy" and "3 ok": apps in this repo get analytics at their next deploy, with no batch redeploy.
+The owner's words, 2 November 2026: "Get people using these projects, advertise these projects to get customers that may want me to build similar projects for them." "One way to be noticed is for github repos to be noticed, forked and get stars."
+- Customers, in order: small businesses, startups, edtech, universities. The owner's order is a strong preference, not absolute (the 18 Nov pick).
+- Every app lives at `<app>.hintwise.org`.
+
+The owner's words, 18 November 2026: "I want a more structured approach to my web app development ... help me structure it, choose what models should be used for each entity, define their boundaries and write their instructions."
+- The result is the HintWise workflow in **pisan-labs/hintwise-workflow** (private), and this session is its **PManager**: roles/pmanager/ROLE.md.
+- "Each new project should get its own folder in the workflow so all the agent/session documents that went into creating that project are inspectable."
 
 ## 2. Status
 
-Done since the last handoff (14 Nov):
-- [x] StepWise wave 10, the AI pathway and learning paths (its own session); app-notify sent its first real email on 15 Nov.
-- [x] udebt live with anonymous gateway use (15 Nov). Lewis alt-text is live (15 Nov). A standalone setup guide (PDF and zip) was sent to the owner for Scott; it is not in any repo.
-- [x] "Finish signing in" fix against mail scanners using up sign-in links. Deployed for lewis-alt-text, delivery-canary, qualified-overtime-checker and udebt (Netlify builds udebt's main; checked live 16 Nov). teacher-catalog-kit has it but is not deployed.
-- [x] First-party analytics:
-  - shared/0014 (events), 0015 (summary) and 0016 (own-repo apps) applied;
-  - the app-events and app-events-report functions deployed;
-  - pisan-analytics shows an "App events" section (pisanuw/dashboards, deployed by the "Deploy dashboards" workflow);
-  - live and confirmed with real rows: MyUni (PR #5; check run 44080158002) and StepWise (check run 44121998338).
-- [x] Analytics for every app merged to main (741b225), with no deploy:
-  - scripts/site-analytics.mjs adds the script at deploy;
-  - the deploy registers each app's origin (`analytics-register`);
-  - ids and quoted text are masked, and a `data-mask` option covers short share codes.
-- [x] StepWise deployed 17 Nov 18:19 UTC (main d83c070): credits aligned with each page's column; notes-only pushes skip CI.
-- [x] Chess TD CI trim, PR #227 (45899b1): the full suite runs once per code version, and the scheduled Oracle is weekly (Sun 03:23 UTC).
-- [x] Delivery Canary days 4 to 6 (build routine).
-- [x] 18 Nov:
-  - the LLM usage report treats a reused Resend key as already sent (6ba80f2);
-  - the platform/node_modules link committed by mistake in d36dd1d is removed (0b04807).
+Done on 18 Nov (details in hintwise-workflow `decisions/2026-11.md`, and in CHANGES.md here):
+- [x] Took over at 02:36 UTC (725241c). Routine creation is allowed without a prompt (`.claude/settings.json`, 2f76ede).
+- [x] The HintWise workflow was drafted and adopted. The owner answered all 11 questions (hintwise-workflow OPEN-QUESTIONS.md).
+  - Roles: Finder, Picker, Junior, Senior, Builder, Reviewer, Manager, PManager, Marketer, Monitor, Keeper.
+  - Each project gets one folder, `projects/<slug>/`.
+- [x] Finder's procedure moved to hintwise-workflow `roles/finder/ROUTINE.md` (045facf). daily-project-ideas ROUTINE.md is now a pointer (405bde9). The ideas routine's prompt points to the new file; its old prompt is in hintwise-workflow `routines/README.md`.
+- [x] From 19 Nov, new projects follow hintwise-workflow `routines/build-day.md` (BUILD_ROUTINE.md switch: 514d721, dfb4cef). The build routine's prompt carries the tier map. Delivery Canary still finishes under the old Steps 1 to 5 today.
+- [x] New routines: Monitor daily and weekly, Keeper, Marketer. The hourly status report became the "PManager hourly check". The relay's routines now run on Los Angeles schedules.
+- [x] The owner's approval gate, `owner-approval` (eacd8f3):
+  - it covers Supabase admin writes, the domain and DNS workflows, Retire site, and Render domain;
+  - the owner is the required reviewer; a test run waited for review, and was cancelled.
+- [x] Weekly email to builder@hintwise.org (hintwise-workflow `.github/workflows/weekly-email.yml`). It uses the org secret RESEND_API_KEY; a check-only run saw the secret.
+- [x] Next project: **Tagging Doctor**, picked by the owner (idea 2026-10-29 #2), folder `projects/tagging-doctor/`.
+  - The owner approved a free Render service for its compile step.
+- [x] Render cleanup:
+  - deleted the superseded mult-streak and accessibility-lens services;
+  - the inventory is in hintwise-workflow roles/pmanager/KNOWLEDGE.md;
+  - chatwithdigitalme cannot move into backend-hub (6ed4d1e).
+- [x] Chess TD `analytics`: main merged in (a71021b); `pnpm check` green (1870 tests). Not merged into main.
 
-In progress / remaining:
-- [ ] Own-repo analytics branches await the owner's merge; merging deploys each app (section 4).
-- [ ] Watch the first analytics rows for each newly deployed app on pisan-analytics.
-- [ ] Delivery Canary day 7, the last build day: 18 Nov 02:49 LA time (11:49 Barcelona), build routine.
+Remaining:
+- [ ] **Today's ideas run (10:51)** is the first from the new Finder file: check it (reminder trig_01GLzHpWCG4EFr83ZvS6JqTN, 11:12).
+- [ ] **Delivery Canary day 7 (11:49):** check its finish, then start Marketer with "delivery-canary" (reminder trig_01WGhEV2ZnzgSsbvNoLV2Pr4, 13:45).
+- [ ] **LLM usage report run:** check it (reminder trig_012vGYu6zEXiKv5VQRrzWjou, 17:25).
+- [ ] **19 Nov, 11:49:** Tagging Doctor day 1 under build-day.md. Watch it; release requests arrive in hintwise-workflow `inbox/`.
+- [ ] **Own-repo analytics branches:** merge only on the owner's word ("2 will do later").
 
 ## 3. Current state
 
-- **claude-built-apps:** main 6ba80f2 before the handoff commits. CI on 6ba80f2 is green (run 44220531369; platform 533 tests).
-- **Clean:** all twelve checkouts have no uncommitted or unpushed work, and no process is running. That is the 9 session repos plus daily-project-ideas, a second understanding-debt clone and srayermann/lewis-structures-alt-text.
+- **Commits:**
+  - claude-built-apps main 5bb194e, before this handoff commit; CI green through 514d721 (later commits are docs-only and were not re-checked);
+  - hintwise-workflow main a30ba3a;
+  - daily-project-ideas main 405bde9.
+- **Clean:** every checkout, nothing uncommitted or unpushed; no process running.
 - **Branches not merged** (each pushed; merging deploys the app):
-  - udebt `analytics`, upvote `analytics`, pastemd `analytics` and `csp-fix`, photo2pgn `analytics`, chess-tournament-director `analytics`, myuni `analytics-masking`;
-  - claude-built-apps `analytics-code-analogy-forge` (any change under that folder deploys it).
-- **StepWise:** next 643ab0b, main d83c070.
+  - udebt `analytics`, upvote `analytics`, pastemd `analytics` and `csp-fix` (they conflict in netlify.toml and CHANGES.md), photo2pgn `analytics`;
+  - chess-tournament-director `analytics` (main merged in);
+  - myuni `analytics-masking`;
+  - claude-built-apps `analytics-code-analogy-forge`.
 
 ## 4. Next step
 
-Done on 18 Nov: the owner was told how to repair the dangling platform/node_modules link.
-
-The HintWise workflow was adopted on 18 Nov. Its follow-ups:
-- **Today's ideas run (10:51)** is the first from roles/finder/ROUTINE.md: check it.
-- **Delivery Canary** finishes today, 11:49, under BUILD_ROUTINE.md Steps 1 to 5. Then start the Marketer routine with "delivery-canary".
-- **Picker's shortlist** for the next project goes to the owner (T2, 24 hours).
-- **Tomorrow, 19 Nov, 11:49:** the first project under routines/build-day.md. PManager releases from the inbox.
-- **6 January 2027, a dated task:** the owner's travel ends, and reports go back to Los Angeles time. Ask the owner for Los Angeles times for Monitor (daily and weekly), Keeper and Marketer, and move their schedules.
-- **Owner actions:**
-  - done 18 Nov: the `owner-approval` environment has the owner as required reviewer (checked: a gated run waited for review);
-  - done 18 Nov: RESEND_API_KEY, a pisan-labs organization secret shared with hintwise-workflow (a check-only Weekly email run saw it); the first real email goes out Monday 23 Nov.
-
-Then work through this list in order:
-1. **Check the next LLM usage report run** (cron 16:10 and 17:10 UTC; GitHub has delayed these by up to 8 hours). Expect success, or the "Already sent for <day>" line.
-2. **Merge the own-repo analytics branches only on the owner's word.** Two of them need preparing first:
-   - Chess TD `analytics` was cut before #227: merge main into it first.
-   - PasteMD `csp-fix` and `analytics` conflict in netlify.toml and CHANGES.md (the page heads merge cleanly): the second to merge needs those resolved.
-3. **Watch the build routine:** Delivery Canary day 7.
+**First:** move the relay's routines from session_01JyJzMXVbrUAhXw75BNyNCX to yourself (list in Scheduling), record the takeover, then send that session one line saying the routines have moved, so it archives itself. Then work section 2's "Remaining" in time order.
 
 ## 5. Decisions and why
 
-- **Mirrors:** the monorepo is the source of truth. pisan-labs repos are `git subtree split` mirrors (mirror.yml + .github/mirrors.txt).
-- **Netlify credits:** a push to main deploys only targets whose target.yml changed, plus shortcut-sprint and code-analogy-forge source. Runner and footer changes deploy nothing until the next deploy. Docs-only commits carry `[skip netlify]`.
-- **Addresses:** `<app>.hintwise.org` everywhere. target.yml keeps `customDomain: <app>.pisan.me`, and the runner swaps in APP_DOMAIN. Outside webhooks must use hintwise.org; they don't follow the 301.
-- **Runtime:** Node 24 for CI, deploy and ops (owner yes, 14 Nov).
-- **Public pages** are for customers: no scores, build times or test counts.
-- **Email:** sign-in through sign-in-link only, never `signInWithOtp`. App mail is from `<slug>@hintwise.org`.
-- **Gateway spending:** dollar caps per app (day, week, month), optional per-person caps, and credits after the free allowance (owner, 12–13 Nov).
-- **Secrets:** the 9 Nov JWT exposure is accepted; **do not raise rotation again**. Never rotate EMAIL_OPTOUT_SECRET or SIGN_IN_HASH_KEY. Never replace DELIVERY_CANARY_KEY.
-- **Analytics** (owner, 17 Nov: "my own endpoint"):
-  - first-party and cookieless; the visitor id is a daily salted hash, and the IP is never stored;
-  - nothing is sent under Global Privacy Control, Do Not Track or `navigator.webdriver`;
-  - apps here get it at deploy (`analytics: false` opts out); own-repo apps copy hw-events.js byte for byte, pinned by a sha256 test;
-  - app text must not promise "no tracking";
-  - td.pisan.me is not registered (owner OK).
-- **Sign-in links** wait for a "Finish signing in" click when nobody is signed in, because mail scanners (Safe Links) used up the single-use links.
-- **CI minutes:** public repositories cost nothing on standard runners. Chess TD (private) spends most of the minutes (about 870 job-minutes per 100 runs), hence #227. MyUni is private too, but its runs take about 44 seconds.
+- **Workflow** (owner, 18 Nov; the detail is in hintwise-workflow):
+  - Roles are separate from vehicles: most roles run as subagents of the build-day routine; Finder, Monitor, Keeper and Marketer are routines; PManager is this relay.
+  - Rules change only by the owner's instruction or by a pull request the owner merges. Knowledge is appended freely.
+  - Repository files name tiers, never models. The tier map lives only in routine prompts.
+  - T2 decisions default to the recommendation after 24 hours. T3 never defaults.
+  - Only PManager merges into deploying branches and runs production workflows.
+- **Reporting zone** (owner, 18 Nov): Los Angeles by default; Barcelona while the owner travels, until 6 January 2027. Always label times with the zone.
+- **Mirrors:** the monorepo is the source of truth; pisan-labs repositories are subtree-split mirrors (mirror.yml).
+- **Netlify credits:** a push deploys only targets whose target.yml changed (plus shortcut-sprint and code-analogy-forge source). Docs-only commits carry `[skip netlify]`.
+- **Addresses:** `<app>.hintwise.org` everywhere. target.yml keeps `customDomain: <app>.pisan.me`, and the runner swaps in the domain.
+- **Runtime:** Node 24. Public pages carry no scores, build times or test counts.
+- **Email:** sign-in only through sign-in-link, never `signInWithOtp`. App mail comes from `<slug>@hintwise.org`.
+- **Gateway:** dollar caps per app, optional per-person caps. The owner's key only through the gateway.
+- **Secrets:** the 9 Nov JWT exposure is accepted: **do not raise rotation again**. Never rotate EMAIL_OPTOUT_SECRET or SIGN_IN_HASH_KEY. Never replace DELIVERY_CANARY_KEY.
+- **Analytics** (owner, 17 Nov): first-party and cookieless; nothing is sent under GPC, DNT or webdriver; apps here get it at deploy; app text must not promise "no tracking".
+- **Sign-in links** wait for a "Finish signing in" click when nobody is signed in, because mail scanners were using them up.
+- **Render:** backend-hub ($7, always on) is only for small Node backends. The other candidates are Python: chatwithdigitalme, Docker with a disk; fide-lookup, about 320 MB.
 
 ## 6. Tried and rejected
 
-- A second SQL copy of the gateway cap rules: rejected; check mode reuses `decide()`.
-- Redeploying all apps on a runner edit: it ran Netlify out of credits on 2 Nov.
+- A second SQL copy of the gateway cap rules: check mode reuses `decide()` instead.
+- Redeploying every app on a runner edit: it ran Netlify out of credits on 2 Nov.
 - A database trigger on auth.users: Supabase refuses it.
-- Removing Chess TD's CI on main: rejected, because Render deploys main only after the checks pass. The check stays, but is fast when the same code already passed.
-- Leaving paste, topic and join pages without analytics: replaced by `data-mask`.
-- Sending a test beacon into production to prove the pipeline: not done; real visits proved it.
+- Removing Chess TD's CI on main: Render deploys main only after the checks pass.
+- A test beacon into production: not done; real visits proved the pipeline.
+- Moving chatwithdigitalme, fide-lookup, udebt-api or notreptile-backend into backend-hub:
+  - all four are Python, and chatwithdigitalme needs a disk;
+  - a Python hub would need more than 512 MB.
+- The hourly status report: the owner replaced it on 18 Nov with "Needs you" cards and Monitor's digest.
+- Berlin schedules for the relay: they are on Los Angeles schedules now, at the same instants.
 
 ## 7. Constraints and gotchas
 
-- **Commits:** Conventional Commits (`.git-hooks/commit-msg`; `git config core.hooksPath .git-hooks`). `git fetch` before work and before pushing; never force-push main.
-- **Supabase admin workflow:**
-  - one run at a time;
-  - its logs are public: print counts and aggregates only;
-  - `sql` takes a committed file.
+- **Commits:** Conventional Commits (`git config core.hooksPath .git-hooks`). Fetch before work and before every push; never force-push main.
+- **The approval gate:** gated runs show "waiting" until the owner approves them in GitHub. Ask in the "Needs you" card with the run's link. Read-only Supabase admin commands skip the gate; Render domain "show" does not.
+- **The Netlify token:** it now answers 401 to account-wide reads (listing sites; the Netlify env script's account call). Single-site reads work, and the 17 Nov deploy succeeded. If a deploy fails with 401, the owner must replace NETLIFY_AUTH_TOKEN.
+- **Supabase admin:** one run at a time; its logs are public, so print counts only; `sql` takes a committed file.
 - **Never print secrets or put them in workflow inputs.** Never ask the owner to paste a key.
-- **Worktrees:** never commit a node_modules link. `.gitignore` now says `node_modules` without the slash, so it also covers links.
-- **Playwright and analytics:** headless Chromium sets `navigator.webdriver`, so the script sends nothing. Tests override it, and must route or block auth.hintwise.org outright: pagehide beacons can slip past `page.route`.
-- **The app-events endpoint answers 204 either way;** only a stored row proves the pipeline. It also drops headless user agents, so nothing from a test is stored.
-- **CI concurrency:** a superseded run shows as cancelled, which is not a failure.
-- **StepWise:** main moves only when Yusuf says "deploy" (fast-forward to a green `next`; 15 Netlify credits).
-- **MyUni:** pytest is not installed in this container.
+- **Headless Playwright** sets `navigator.webdriver`, so analytics send nothing. The app-events endpoint answers 204 either way; only a stored row proves the pipeline.
+- **StepWise:** main moves only when Yusuf says "deploy". **MyUni:** pytest is not installed in this container.
+- **Superseded CI runs** show as cancelled, which is not a failure.
 
 ## 8. How to run and verify
 
 - **App** (its folder): `npm ci && npm run lint && npm run typecheck && npm run coverage && npm run build`.
-- **Platform** (platform/): `npm run lint && npm run typecheck && npx vitest run && npm run check-scripts`. 533 tests passed on 18 Nov.
-- **Footer and analytics injector:** `node --test scripts/site-footer.test.mjs scripts/site-analytics.test.mjs`.
-- **Analytics counts:** Supabase admin, `sql platform/supabase/ops/app-events-check.sql` (counts only).
+- **Platform** (platform/): `npm run lint && npm run typecheck && npx vitest run && npm run check-scripts` (533 tests on 18 Nov).
+- **Before pushing docs to main:** `node --test scripts/site-footer.test.mjs` (15 pass on 18 Nov).
+- **Inventory:** the List hosts workflow, which is read-only (Netlify part skipped while the token refuses it).
 - **Live footer:** `curl -s https://<app>.hintwise.org/ | grep -c data-site-footer` prints 1.
 
 ## 9. Key files
 
-- docs/platform.md ("First-party analytics") and docs/new-app-guide.md: the platform and the per-app rules.
-- platform/src/analytics/ (hw-events.js, events.ts, service.ts, report.ts): the analytics client and endpoints.
-- scripts/site-analytics.mjs and scripts/site-footer.mjs: injected into every Netlify app at deploy.
-- accessibility-lens/deploy/deploy.mjs: the deploy runner (never import it in a test; it runs main).
-- platform/supabase-admin.mjs and .github/workflows/supabase-admin.yml: database admin.
-- .github/workflows/deploy-dashboards.yml: deploys pisan-analytics.
-- platform/supabase/shared/0001–0016 (schema) and platform/supabase/ops/ (read-only queries).
-- platform/llm-usage-report.mjs: the daily usage email.
-- CHANGES.md, BRIEFING.md, BUILD_ROUTINE.md.
+- **pisan-labs/hintwise-workflow:**
+  - README.md, CHARTER.md, PIPELINE.md;
+  - roles/*/ROLE.md;
+  - routines/README.md (routine ids, and the earlier prompts for undo);
+  - routines/build-day.md;
+  - decisions/2026-11.md;
+  - projects/tagging-doctor/.
+- **BUILD_ROUTINE.md:** the build routine. New projects switch to build-day.md.
+- **docs/platform.md and docs/new-app-guide.md:** the platform and the per-app rules, including the approval gate.
+- **accessibility-lens/deploy/:** the deploy runner, list-hosts.mjs, and render-domain.mjs (including the guarded delete).
+- **backend-hub/README.md:** what can share the hub.
+- **CHANGES.md, BRIEFING.md.**
 
 ## 10. Background jobs
 
-Times in Barcelona time, the owner's current reporting zone, with Los Angeles time for LA schedules:
-- **Relay routines:** hourly check at :46; handoff check at 13:56 (04:56 LA); session start at 14:52 (05:52 LA). Ids in Scheduling below.
-- **Owner's routines:** ideas 10:51 (01:51 LA), build 11:49 (02:49 LA) and the TPT daily product builder 06:37 (05:37 UTC), all daily.
-- **HintWise workflow routines:** Monitor daily 08:13, Monitor weekly Mondays 07:37, Keeper Thursdays 08:43, Marketer Mondays 10:23 (Barcelona schedules until 6 January 2027).
-- **Platform jobs:** pg_cron app-notify at 16:17; the LLM usage report at 17:10 and 18:10 (often hours late); halflife's pisan-labs sync at 04:13 (time zone not recorded).
-- **Chess TD:** Oracle weekly, Sunday 04:23; FIDE test image daily (fide-test.yml).
-- **Nothing else:** no subagent or background process is running at this handoff, apart from its fact-check.
+Times are Barcelona time (the owner's current zone), with LA time for LA schedules.
+- **Relay routines** (move them at takeover):
+  - PManager hourly check at :46;
+  - handoff check 13:56 (04:56 LA);
+  - session start 14:52 (05:52 LA);
+  - one-shots: 11:12, 13:45, 17:25 today.
+- **Owner's routines:** ideas 10:51 (01:51 LA), build 11:49 (02:49 LA), TPT 06:37.
+- **Workflow routines:** Monitor daily 08:13; Monitor weekly Mondays 07:37 (the first email is 23 Nov); Keeper Thursdays 08:43 (first on 19 Nov); Marketer Mondays 10:23.
+- **Platform:** app-notify 16:17; the LLM usage report 17:10 and 18:10 (often late).
 
 ## 11. Open questions
 
-1. When should the own-repo analytics branches merge? Each merge deploys that app. No answer yet.
-2. Which halflife jobs, if any, need platform/node_modules? I don't know.
-3. Older offers with no answer: a weekly footer drift check; a redirect for fide-lookup.onrender.com; testing Google sign-in on MeetMe, Chess TD and Digital Yusuf; posting launch drafts 1–7.
+- Own-repo analytics merges: the owner will do them later.
+- Whether deploys will hit the Netlify 401: I don't know. The 17 Nov deploy worked; watch today's.
+- digitalme calls Claude directly with the Anthropic SDK, not through the gateway. Whose key it uses: I don't know.
 
 ## Notes for the next session
 
 ### Owner's standing instructions
 - **Ask first, and wait, before:** writing production data, deploying to production unless asked, spending money, deleting the unrestorable, rotating secrets, rewriting shared history, publishing outside the session. Pushing to main and deleting merged branches are fine.
-- **Questions:** numbered, with a recommendation, in message text. With a recommendation and no answer in 15 minutes, take it and say how to undo it (never for the ask-first list). Set a send_later check-in for 15 minutes.
-- **Times** (owner, 18 Nov): the reporting zone is Los Angeles by default. Until 6 January 2027 the owner is travelling and other zones may apply; now it is Barcelona (Europe/Madrid, named 17 Nov). Label every time with its zone.
-- **Reports** (owner, 18 Nov; replaces the hourly status report):
-  - PManager sends a "Needs you" card at about 09:00 and 18:00 in the reporting zone when something waits on the owner, and at once for an incident;
-  - Monitor's routines send the daily digest and the weekly retrospective;
-  - the weekly email goes to builder@hintwise.org.
-- **The HintWise workflow is adopted** (owner, 18 Nov; pisan-labs/hintwise-workflow).
-  - This relay session is its PManager: roles/pmanager/ROLE.md.
-  - Its decisions go in that repository's `decisions/`.
-- **Repo rules:** CHANGES.md is append-only, `YYYY-MM-DD [type] text`. Conventional Commits. No model names in repo artifacts. Run lint and tests before committing.
-- **Keys:** the owner's key only through the gateway; never in Netlify or in an app.
+- **Questions:** numbered, with a recommendation, in message text. With a recommendation and no answer within 15 minutes in a live chat, take it and say how to undo it (never for the ask-first list). Workflow T2 items default after 24 hours.
+- **Times:** the reporting zone is Los Angeles by default. Until 6 January 2027 it is the zone the owner last named, Barcelona now. Label every time.
+- **Reports** (owner, 18 Nov): no hourly status report.
+  - PManager sends a "Needs you" card at about 09:00 and 18:00 in the reporting zone when something waits on the owner, and at once for an incident.
+  - Monitor sends the daily digest, the weekly retrospective, and the weekly email.
+- **The HintWise workflow is adopted:** you are its PManager. Owner decisions go in hintwise-workflow `decisions/` verbatim.
+- **Repo rules:** CHANGES.md is append-only (`YYYY-MM-DD [type] text`). Conventional Commits. No model names in repository files. Run lint and tests before committing.
 
 ### Relay parameters (session-relay skill)
 | Parameter | Value |
 |---|---|
-| Repository | pisanuw/claude-built-apps; also daily-project-ideas, pisanorg/yusuf, pisan-labs/chess-tournament-director, pisanuw/upvote, pisanuw/pastemd, pisanuw/understanding-debt, pisanuw/myuni, pisan-labs/photo2pgn, pisan-labs/visualizing-data-structures, pisan-labs/hintwise-workflow (private, since 18 Nov: the workflow draft); read-only dashboards, chess-analyzer |
+| Repository | pisanuw/claude-built-apps; also pisan-labs/hintwise-workflow, daily-project-ideas, pisanorg/yusuf, pisan-labs/chess-tournament-director, pisanuw/upvote, pisanuw/pastemd, pisanuw/understanding-debt, pisanuw/myuni, pisan-labs/photo2pgn, pisan-labs/visualizing-data-structures; read-only dashboards, chess-analyzer |
 | Handoff document | HANDOFF.md (this file) |
-| Routine time zone | America/Los_Angeles (Europe/Berlin before 18 Nov) |
+| Routine time zone | America/Los_Angeles |
 | Report time zone | America/Los_Angeles by default; Europe/Madrid (Barcelona) while the owner travels, until 6 January 2027 |
 | Handover check | 04:56 America/Los_Angeles |
-| Session start | 05:52 America/Los_Angeles |
-| Handoff marker | a commit on main titled `docs: the handoff of <D Month>`; no other commit may use that subject |
+| Session start | 05:52 America/Los_Angeles; new sessions are titled "PManager: <Mon D>" |
+| Handoff marker | a commit on main titled `docs: the handoff of <D Month>` |
 | Merge rule | push to main after `node --test scripts/site-footer.test.mjs` passes |
 
 ### Scheduling
-- **Earlier sessions:** session_01JyJzMZ1aBTZCRkUXLJnRG4 (Nov 8, depth 2); session_01JyJzMXxeHu9P7By5BXRNJv (Nov 11, depth 3); session_01JyJzMWixW7SqcHTri4Umng (Nov 13, depth 4).
-- **Previous session: session_01JyJzMVhQhwQ7Ea3HMyJ3FN ("Plabs: Nov 14")**, lineage depth 5 of limit 8.
-  - Created 14 Nov 13:52 UTC; handed over 18 November 2026 on the owner's "/handoff now", at 53% context.
-  - The next session is depth 6 of 8.
-  - Its routines, all aimed at it, are to be re-aimed by the new session, which then deletes these:
-    - trig_01LvzA4YK1HANnbjfntihccc: Plabs hourly status report, `46 * * * *`
-    - trig_01DYgx6NLAWauCztLtCdzwBd: Plabs handoff check: hand over only when due, `CRON_TZ=Europe/Berlin 56 13 * * *`
-    - trig_016QHHijGtC5VWcSzZUN4nuQ: Plabs daily handoff: start the next session (create_session), `CRON_TZ=Europe/Berlin 52 14 * * *`
-- **Current session: session_01JyJzMXVbrUAhXw75BNyNCX ("Plabs: Nov 18")**, took over 18 November 2026 (02:36 UTC), started by the relay (parent session_01JyJzMVhQhwQ7Ea3HMyJ3FN). Lineage depth 6 of limit 8.
-  - Moved routines: trig_01ErjL8VzaXQ3sPHHZfCeZMe (handoff check) and trig_01Xsn6UTTEEKE2KWS7EATPkv (session start); the old two are deleted. On 18 Nov both moved to Los Angeles schedules at the same instants: `CRON_TZ=America/Los_Angeles 56 4 * * *` and `CRON_TZ=America/Los_Angeles 52 5 * * *`.
-  - Hourly report moved after the owner's allow rule (2f76ede): trig_01HCHLTqENJ1G7bmepMtrQqK, `46 * * * *`; the old trig_01LvzA4YK1HANnbjfntihccc is deleted.
-  - `.claude/settings.json` allows `mcp__claude-code-remote__create_trigger` (owner, 18 Nov), so the next takeover can move routines without the auto-mode check refusing.
-- **HintWise workflow routines** (created 18 Nov at the owner's yes). Each starts a fresh session; leave them alone at a handover:
-  - trig_01Frwv3axDinKYduGTBSQZW8: Monitor daily, 08:13;
-  - trig_01H8BM6km3JuHaMRzFnBivZt: Monitor weekly, Mondays 07:37;
-  - trig_01Ro5iv1fTDphKaY42k72RkZ: Keeper, Thursdays 08:43;
-  - trig_01Uszm2m3KHGusSKDsyMctN2: Marketer, Mondays 10:23, and at each launch.
-
-  The relay's hourly routine is now "PManager hourly check" (trig_01HCHLTqENJ1G7bmepMtrQqK).
-- **Not relay, leave alone:**
-  - the owner's routines: trig_01K986yzFbf3noGkLA6RgZkn (ideas), trig_01BAP9nsXTtxTdpMiwk5GdXE (build), trig_013VN2RNYCwh2k3F2ZjgnK6U (TPT);
-  - switched-off Chess TD one-shots: trig_019FyBvXSAJmnkRySX7Xcnhu, trig_01LEKF5t2KGMD4cYYugJm4cY, trig_01HWrJiGqnb64uMbfxLr2VLp, trig_01S3XupgMqeYd1SyUZE1fTyN;
-  - the SIGCSE poster reminder trig_019diEeyHQKFaGeR69ba2soL, which is off (its session is gone).
+- **Earlier sessions:**
+  - session_01JyJzMZ1aBTZCRkUXLJnRG4 (Nov 8, depth 2);
+  - session_01JyJzMXxeHu9P7By5BXRNJv (Nov 11, depth 3);
+  - session_01JyJzMWixW7SqcHTri4Umng (Nov 13, depth 4);
+  - session_01JyJzMVhQhwQ7Ea3HMyJ3FN (Nov 14, depth 5).
+- **Previous session: session_01JyJzMXVbrUAhXw75BNyNCX ("PManager: Nov 18"),** depth 6 of limit 8.
+  - It took over on 18 Nov at 02:36 UTC and handed over on 18 Nov, by hand, at the owner's request.
+  - It archives itself once you have moved its routines and sent it one line.
+- **The routines to move** (all aimed at that session):
+  - trig_01HCHLTqENJ1G7bmepMtrQqK: PManager hourly check, `46 * * * *`;
+  - trig_01ErjL8VzaXQ3sPHHZfCeZMe: Plabs handoff check: hand over only when due, `CRON_TZ=America/Los_Angeles 56 4 * * *`;
+  - trig_01Xsn6UTTEEKE2KWS7EATPkv: Plabs daily handoff: start the next session (create_session), `CRON_TZ=America/Los_Angeles 52 5 * * *`;
+  - one-shots, due 18 Nov:
+    - trig_01GLzHpWCG4EFr83ZvS6JqTN at 10:12 UTC;
+    - trig_01WGhEV2ZnzgSsbvNoLV2Pr4 at 12:45 UTC;
+    - trig_012vGYu6zEXiKv5VQRrzWjou at 16:25 UTC.
+- **Current session:** none has taken over yet. The session started by hand records itself here, with its lineage.
+- **Leave alone:**
+  - the owner's routines: ideas trig_01K986yzFbf3noGkLA6RgZkn, build trig_01BAP9nsXTtxTdpMiwk5GdXE, TPT trig_013VN2RNYCwh2k3F2ZjgnK6U;
+  - the workflow routines: Monitor daily trig_01Frwv3axDinKYduGTBSQZW8, Monitor weekly trig_01H8BM6km3JuHaMRzFnBivZt, Keeper trig_01Ro5iv1fTDphKaY42k72RkZ, Marketer trig_01Uszm2m3KHGusSKDsyMctN2;
+  - the switched-off Chess TD one-shots and the SIGCSE reminder.
+- **Dated task, 6 January 2027:** reports go back to Los Angeles time. Ask the owner for Los Angeles times for Monitor, Keeper and Marketer, and move them.
