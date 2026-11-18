@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import fixture from './fixtures/usage-report.json';
-import {
-  appRows, decideSend, escapeHtml, FROM, hadCalls, isMonday, longDate, num, ofCap, periodLabel,
+import { alreadySent, appRows, decideSend, escapeHtml, FROM, hadCalls, isMonday, longDate, num, ofCap, periodLabel,
   renderHtml, renderText, shortDate, subjectFor, usd,
 } from '../src/report/format.mjs';
 
@@ -101,5 +100,15 @@ describe('renderHtml', () => {
     expect(html.match(/<table/g)).toHaveLength(2);
     expect(renderHtml({ ...report, apps: [{ ...report.apps[1], slug: 'x<y', month: { calls: 1, users: 1, cost_usd: 1, errors: 0 } }] }, tuesday)).toContain('x&lt;y <span style="color:#a00">(disabled)</span>');
     expect(renderHtml({ ...report, apps: [] }, tuesday)).toContain('No apps are registered');
+  });
+});
+
+describe('alreadySent', () => {
+  it('treats a reused idempotency key with a changed body as already sent', () => {
+    const body = '{"message":"This idempotency key has been used ...","name":"invalid_idempotent_request","statusCode":409}';
+    expect(alreadySent(409, body)).toBe(true);
+    expect(alreadySent(409, '{"name":"concurrent_idempotent_requests"}')).toBe(false);
+    expect(alreadySent(422, body)).toBe(false);
+    expect(alreadySent(200, '')).toBe(false);
   });
 });

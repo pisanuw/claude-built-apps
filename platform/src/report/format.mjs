@@ -69,6 +69,17 @@ function idle(a) {
  * @param {Report} report @param {Date} runDate @param {{ force?: boolean }} [opts]
  * @returns {{ send: boolean, weekly: boolean, reason: string }}
  */
+/**
+ * True when Resend refused a send because this day's idempotency key was
+ * already used with a different body: the day's report has gone out, and a
+ * later run (GitHub can delay a scheduled run by hours, so both runs of one
+ * day, or a late pair and the next day's, can share a UTC date) has nothing
+ * to add. 17 Nov 2026: two late runs failed with this 409.
+ */
+export function alreadySent(status, body) {
+  return status === 409 && /invalid_idempotent_request/.test(String(body));
+}
+
 export function decideSend(report, runDate, opts = {}) {
   const weekly = isMonday(runDate);
   if (opts.force) return { send: true, weekly, reason: 'forced' };

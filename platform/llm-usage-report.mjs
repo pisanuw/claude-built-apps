@@ -27,7 +27,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { decideSend, FROM, renderHtml, renderText, subjectFor } from './src/report/format.mjs';
+import { alreadySent, decideSend, FROM, renderHtml, renderText, subjectFor } from './src/report/format.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -107,6 +107,7 @@ async function send(subject, text, html, idempotencyKey) {
     body: JSON.stringify({ from: FROM, to: [process.env.ADMIN_EMAIL], subject, text, html }),
   });
   const body = await res.text();
+  if (alreadySent(res.status, body)) return null;
   if (!res.ok) throw new Error(`Resend ${res.status}: ${body.slice(0, 300)}`);
   try { return JSON.parse(body).id || ''; } catch { return ''; }
 }
@@ -141,6 +142,10 @@ async function main() {
     return;
   }
   const id = await send(subject, text, renderHtml(report, runDate), `llm-usage-${isoDay}`);
+  if (id === null) {
+    console.log(`Already sent for ${isoDay} (Resend holds this day's idempotency key); nothing to do.`);
+    return;
+  }
   console.log(`Sent "${subject}" for ${isoDay} (${decision.reason})${id ? ` (Resend id ${id})` : ''}.`);
 }
 
