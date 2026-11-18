@@ -58,7 +58,7 @@ The HintWise workflow was adopted on 18 Nov. Its follow-ups:
 - **Tomorrow, 19 Nov, 11:49:** the first project under routines/build-day.md. PManager releases from the inbox.
 - **6 January 2027, a dated task:** the owner's travel ends, and reports go back to Los Angeles time. Ask the owner for Los Angeles times for Monitor (daily and weekly), Keeper and Marketer, and move their schedules.
 - **Owner actions:**
-  - the `owner-approval` environment, with the owner as required reviewer;
+  - done 18 Nov: the `owner-approval` environment has the owner as required reviewer (checked: a gated run waited for review);
   - the RESEND_API secret in pisan-labs/hintwise-workflow, for the weekly email.
 
 Then work through this list in order:
