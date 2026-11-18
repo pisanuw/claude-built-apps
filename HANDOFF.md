@@ -49,7 +49,7 @@ Remaining:
   - it works on a branch and does not merge; it first sends its Anthropic call inventory, costs and plan;
   - PManager's part, each after the owner's yes: the "ypai" sign-in label with sign-in-link and delete-account redeployed, the llm_apps row with the owner's caps, anon-setup, analytics-register, then the merge and deploy;
   - the owner, 06:20 UTC: "1b 2ok 3 will do 4 wait, but want higher caps for ypai for anonymous users". So: streaming is built into the gateway; server-side BYOK stays as an exception; the owner makes HINTWISE_APP_KEY; caps wait for measured costs, with more for anonymous visitors;
-  - Keeper was started at 06:15 UTC to build gateway streaming (session cse_01JyJzMWaP3x4T5U6wmoAhKk, branch fix/platform-gateway-streaming; spec in hintwise-workflow projects/ypai/gateway-streaming.md). It files a release item; deploy-gateway needs the owner's yes;
+  - gateway streaming: NOT STARTED. The Keeper run at 06:15 UTC failed at setup (the incident below). The spec, with a thinking-control addendum, is in hintwise-workflow projects/ypai/gateway-streaming.md; deploy-gateway needs the owner's yes;
   - done by 07:16 UTC (each run approved by the owner in GitHub):
     - analytics-register ypai;
     - ypai in llm_apps (default caps, the 5.5 models, max_tokens 8192; ops/ypai-llm-app.sql);
@@ -66,7 +66,12 @@ Remaining:
     - confirming that "uploadme" is UpvoteMe.
   - the card is hintwise-workflow projects/ypai/README.md.
 - [ ] **Footer logo (owner, 18 Nov):** 60 of the 66 claude-built-apps apps serve the footer from before 11 Nov, which has no logo, because the footer is added at deploy time. The audit is in hintwise-workflow projects/platform/README.md. Redeploying them waits for the owner (item 16).
-- [ ] **One sign-in look, as on UpvoteMe (owner, 18 Nov):** Keeper is building it on branches only (session cse_01JyJzMYsbxk7D51qM5LZtyC; spec in projects/platform/sign-in-buttons.md). It files a release item; not deployed.
+- [ ] **One sign-in look, as on UpvoteMe (owner, 18 Nov; icon-only round buttons on phones, BUILD_ROUTINE.md amended db560d3):** NOT STARTED. The Keeper run failed at setup (see the next item). The spec is hintwise-workflow projects/platform/sign-in-buttons.md. Branches only; not deployed.
+- [ ] **Incident, 18 Nov 07:48 UTC: the workflow routines can't reach GitHub.**
+  - Monitor daily (08:16 Barcelona) and both Keeper runs (gateway streaming; sign-in buttons) stopped at setup: no `add_repo` tool, and GitHub answered 403.
+  - Cause: the routines were created by the previous session, which ran in environment env_0162x…, seeded with repository sources and not in the owner's list. Their fresh sessions get no repositories there.
+  - Fix: recreate Monitor daily, Monitor weekly, Keeper and Marketer in EnvFull (env_01QejuDsvXnG9LCUbFrNHN8s). It waits for the owner's yes (question 19). Then re-run Monitor daily and the two Keeper directives.
+  - Record: hintwise-workflow runs/2026-11-18T0750Z-incident-routines.md.
 
 ## 3. Current state
 
