@@ -1,7 +1,9 @@
 /**
  * Anthropic prices in USD per million tokens (docs/platform.md, section 3).
  * Check against https://platform.claude.com/docs/en/about-claude/pricing when
- * a model is added. Verified 9 Nov 2026.
+ * a model is added. Verified 18 Nov 2026: cache hits are 0.05x input on
+ * claude-opus-5-5 and claude-sonnet-5-5 ($0.20 and $0.10) and 0.1x on
+ * claude-haiku-5-5; cache writes are priced at the 5-minute rate, 1.25x input.
  */
 
 export interface Price {
@@ -19,7 +21,7 @@ export interface Price {
 
 export const PRICES: Readonly<Record<string, Price>> = {
   'claude-opus-5-5': { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
-  'claude-sonnet-5-5': { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
+  'claude-sonnet-5-5': { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 },
   'claude-haiku-5-5': {
     input: 0.1,
     output: 0.5,

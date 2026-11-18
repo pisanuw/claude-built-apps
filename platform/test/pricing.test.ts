@@ -30,8 +30,9 @@ describe('costUsd', () => {
     expect(costUsd('claude-opus-5-5', { cache_creation_input_tokens: M })).toBe(5);
     expect(costUsd('claude-opus-5-5', { input_tokens: 1000, output_tokens: 500 })).toBeCloseTo(0.014, 9);
   });
-  it('bills Sonnet at $2 / $10', () => {
-    expect(costUsd('claude-sonnet-5-5', { input_tokens: M, output_tokens: M, cache_read_input_tokens: M, cache_creation_input_tokens: M })).toBe(14.7);
+  it('bills claude-sonnet-5-5 at $2 / $10, $0.10 cache read, $2.50 cache write per million', () => {
+    expect(costUsd('claude-sonnet-5-5', { input_tokens: M, output_tokens: M, cache_read_input_tokens: M, cache_creation_input_tokens: M })).toBe(14.6);
+    expect(costUsd('claude-sonnet-5-5', { cache_read_input_tokens: M })).toBe(0.1);
   });
   it('bills Haiku at $0.10 / $0.50 up to 100K prompt tokens and $0.50 / $2.50 beyond', () => {
     expect(costUsd('claude-haiku-5-5', { input_tokens: 100_000, output_tokens: 1000 })).toBeCloseTo(0.0105, 9);
