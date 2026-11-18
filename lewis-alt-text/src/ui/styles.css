@@ -42,6 +42,16 @@ h1 { font-size: 1.7rem; margin: 0 0 4px; }
 .top-bar #signin[hidden] { display: none; }
 /* The sign-in panel in this page's colours, light or dark. */
 .hw-signin-panel { background: var(--card); color: var(--text); border-color: var(--border); }
+/* Google's dark-theme buttons on the dark page (branding guidelines: fill #131314, stroke #8E918F, text #E3E3E3), as in qualified-overtime-checker. */
+@media (prefers-color-scheme: dark) {
+  .hw-signin .hw-signin-button { background: #131314; border-color: #8e918f; color: #e3e3e3; }
+  /* Google's dark asset, not the light G's white square. */
+  .hw-signin-google-logo .hw-g-light { display: none; }
+  .hw-signin-google-logo .hw-g-dark { display: block; }
+  .hw-signin-panel input[type='email'] { background: #131314; color: #e3e3e3; border-color: #8e918f; }
+  /* The button's own ring (#0B57D0) is under 3:1 on the dark page: use the page's. */
+  .hw-signin .hw-signin-button:focus-visible { outline-color: var(--focus); }
+}
 h2 { font-size: 1.15rem; margin: 0 0 12px; }
 h3 { font-size: 1rem; margin: 0 0 6px; }
 .lede { margin-top: 0; color: var(--muted); }

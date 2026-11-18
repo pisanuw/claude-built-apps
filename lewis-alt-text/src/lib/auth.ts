@@ -20,6 +20,7 @@
  */
 import type { AuthChangeEvent, Session, SupabaseClient, User } from '@supabase/supabase-js';
 import googleG from './google-g-light.svg?raw';
+import googleGDark from './google-g-dark.svg?raw';
 import { deleteAccountControl, type DeleteOptions } from './account';
 import { ensureSignInStyles } from './signin-styles';
 import { APP_SLUG, getSupabase, supabaseEnv } from './supabase';
@@ -289,7 +290,14 @@ export function defaultRedirect(): string {
 export interface TurnstileApi {
   render(
     el: HTMLElement,
-    opts: { sitekey: string; action: string; callback: (token: string) => void; 'error-callback'?: () => void; 'expired-callback'?: () => void },
+    opts: {
+      sitekey: string;
+      action: string;
+      size?: 'normal' | 'compact';
+      callback: (token: string) => void;
+      'error-callback'?: () => void;
+      'expired-callback'?: () => void;
+    },
   ): string | null | undefined;
   reset(widgetId?: string): void;
   remove?(widgetId?: string): void;
@@ -323,11 +331,26 @@ export function resetTurnstileLoader(): void {
   turnstileLoading = null;
 }
 
+/** The width of Turnstile's normal widget; the compact one is 150px. */
+export const TURNSTILE_NORMAL_WIDTH = 300;
+
+/**
+ * The widget size for a box this wide: compact when the normal widget would
+ * not fit (the panel on a 320px phone), normal otherwise, and normal when the
+ * width is unknown (0: not laid out).
+ */
+export function turnstileSize(width: number): 'normal' | 'compact' {
+  return width > 0 && width < TURNSTILE_NORMAL_WIDTH ? 'compact' : 'normal';
+}
+
 // ---- The panel -----------------------------------------------------------------
 
-/** Google's light G (signin-assets.zip, unmodified), shown through a 20px window on its 40px artboard. */
-export function googleLogoSvg(): string {
-  return googleG.replace(/^<svg width="40" height="40" viewBox="0 0 40 40"/, '<svg width="20" height="20" viewBox="10 10 20 20" focusable="false" aria-hidden="true"');
+/**
+ * Google's G (signin-assets.zip, unmodified: the light asset, or the dark one
+ * with its #131314 square), shown through a 20px window on its 40px artboard.
+ */
+export function googleLogoSvg(theme: 'light' | 'dark' = 'light'): string {
+  return (theme === 'dark' ? googleGDark : googleG).replace(/^<svg width="40" height="40" viewBox="0 0 40 40"/, '<svg width="20" height="20" viewBox="10 10 20 20" focusable="false" aria-hidden="true"');
 }
 
 /** The envelope on the "Magic link" button, the one UpvoteMe shows (Heroicons' mail icon, MIT). */
@@ -371,7 +394,8 @@ export function googleButton(onClick: () => void): HTMLButtonElement {
   const logo = document.createElement('span');
   logo.className = 'hw-signin-google-logo';
   logo.setAttribute('aria-hidden', 'true');
-  logo.innerHTML = googleLogoSvg(); // a static asset bundled with the app
+  // Static assets bundled with the app; the page's CSS shows the dark one on a dark page.
+  logo.innerHTML = `<span class="hw-g-light">${googleLogoSvg()}</span><span class="hw-g-dark">${googleLogoSvg('dark')}</span>`;
   b.append(logo, label(GOOGLE_BUTTON_TEXT));
   b.addEventListener('click', onClick);
   return b;
@@ -460,7 +484,8 @@ let panelCount = 0;
  *   with "Delete my account", and "Sign out".
  * The panel also opens on its own when there is something to read or do: a
  * "Finish signing in" or "Switch to ...?" offer, or a message such as the
- * farewell after "Delete my account". Escape or a click elsewhere closes it.
+ * farewell after "Delete my account". Escape, a click elsewhere, or the
+ * focus moving to another part of the page closes it.
  * On mount it finishes a sign-in link found in the URL. Returns the
  * unsubscribe function.
  */
@@ -534,6 +559,7 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
           api.render(slot, {
             sitekey: siteKey || TURNSTILE_SITE_KEY,
             action: TURNSTILE_ACTION,
+            size: turnstileSize(box.clientWidth),
             callback: (token: string) => {
               if (widget === mine) void submit(pendingEmail, token);
             },
@@ -629,8 +655,13 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
     status.textContent = notice;
     if (user) {
       pendingFinish = null;
+      // Kept only for the sign-out that "Sign in again" starts: a failed one must not leave it for a later sign-out.
+      farewell = '';
       toggle = personButton(user, () => setOpen(!open));
-      const out = barButton('hw-signin-signout', SIGN_OUT_SVG, 'Sign out', () => void signOut(client));
+      const out = barButton('hw-signin-signout', SIGN_OUT_SVG, 'Sign out', () => {
+        farewell = '';
+        void signOut(client);
+      });
       const who = document.createElement('p');
       who.className = 'hw-signin-user';
       who.textContent = `Signed in as ${user.email ?? user.id}`;
@@ -705,17 +736,27 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
     setOpen(open);
   };
 
-  // Escape closes the panel and gives the focus back to its button; a click anywhere else closes it.
+  // Escape closes the panel wherever the focus is: a panel that opened on its
+  // own (the farewell, "Finish signing in") has none inside it. The focus goes
+  // back to the panel's button only when it was in the sign-in controls.
   const onKey = (e: KeyboardEvent): void => {
     if (e.key !== 'Escape' || !open) return;
+    const inside = e.composedPath().includes(el);
     setOpen(false);
-    toggle?.focus();
+    if (inside) toggle?.focus();
+  };
+  // Tabbing (or clicking) out of the controls to another part of the page closes the panel.
+  // A focus that just disappears (relatedTarget null: a re-render, the browser's own UI) does not.
+  const onFocusOut = (e: FocusEvent): void => {
+    const next = e.relatedTarget;
+    if (open && next instanceof Node && !el.contains(next)) setOpen(false);
   };
   // The event's path is fixed when it is dispatched, so a click that re-renders the panel still counts as inside.
   const onClickAway = (e: Event): void => {
     if (open && !e.composedPath().includes(el)) setOpen(false);
   };
-  el.addEventListener('keydown', onKey);
+  doc.addEventListener('keydown', onKey);
+  el.addEventListener('focusout', onFocusOut);
   doc.addEventListener('click', onClickAway);
 
   if (opts.completeFromUrl !== false) {
@@ -744,7 +785,8 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
   const unsubscribe = onAuth((user) => render(user), client);
   return () => {
     unsubscribe();
-    el.removeEventListener('keydown', onKey);
+    doc.removeEventListener('keydown', onKey);
+    el.removeEventListener('focusout', onFocusOut);
     doc.removeEventListener('click', onClickAway);
   };
 }
