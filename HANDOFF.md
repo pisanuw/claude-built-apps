@@ -59,7 +59,7 @@ The HintWise workflow was adopted on 18 Nov. Its follow-ups:
 - **6 January 2027, a dated task:** the owner's travel ends, and reports go back to Los Angeles time. Ask the owner for Los Angeles times for Monitor (daily and weekly), Keeper and Marketer, and move their schedules.
 - **Owner actions:**
   - done 18 Nov: the `owner-approval` environment has the owner as required reviewer (checked: a gated run waited for review);
-  - the RESEND_API secret in pisan-labs/hintwise-workflow, for the weekly email.
+  - done 18 Nov: RESEND_API_KEY, a pisan-labs organization secret shared with hintwise-workflow (a check-only Weekly email run saw it); the first real email goes out Monday 23 Nov.
 
 Then work through this list in order:
 1. **Check the next LLM usage report run** (cron 16:10 and 17:10 UTC; GitHub has delayed these by up to 8 hours). Expect success, or the "Already sent for <day>" line.
