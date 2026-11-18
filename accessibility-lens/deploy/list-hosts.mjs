@@ -9,7 +9,7 @@ async function get(url, token) {
   if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
   return res.json();
 }
-if (process.env.NETLIFY_AUTH_TOKEN) {
+if (process.env.NETLIFY_AUTH_TOKEN) try {
   const sites = [];
   for (let page = 1; page <= 20; page++) {
     const b = await get(`https://api.netlify.com/api/v1/sites?filter=all&per_page=100&page=${page}`, process.env.NETLIFY_AUTH_TOKEN);
@@ -20,6 +20,9 @@ if (process.env.NETLIFY_AUTH_TOKEN) {
   for (const s of sites.sort((a, b) => a.name.localeCompare(b.name))) {
     console.log(`netlify\t${s.name}\t${s.custom_domain || '-'}\t${(s.domain_aliases || []).join(',') || '-'}\t${s.build_settings?.repo_url || '-'}`);
   }
+} catch (e) {
+  // A token limited to single sites cannot list the account (HTTP 401): say so and go on to Render.
+  console.log(`## Netlify: not listed (${e.message})`);
 }
 if (process.env.RENDER_API_KEY) {
   const svcs = await get('https://api.render.com/v1/services?limit=100', process.env.RENDER_API_KEY);
