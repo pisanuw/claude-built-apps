@@ -39,9 +39,9 @@ Done on 18 Nov (details in hintwise-workflow `decisions/2026-11.md`, and in CHAN
 - [x] Chess TD `analytics`: main merged in (a71021b); `pnpm check` green (1870 tests). Not merged into main.
 
 Remaining:
-- [ ] **Today's ideas run (10:51)** is the first from the new Finder file: check it (reminder trig_01GLzHpWCG4EFr83ZvS6JqTN, 11:12).
-- [ ] **Delivery Canary day 7 (11:49):** check its finish, then start Marketer with "delivery-canary" (reminder trig_01WGhEV2ZnzgSsbvNoLV2Pr4, 13:45).
-- [ ] **LLM usage report run:** check it (reminder trig_012vGYu6zEXiKv5VQRrzWjou, 17:25).
+- [ ] **Today's ideas run (10:51)** is the first from the new Finder file: check it (reminder trig_019zhkmv77qSFuWSa2WbdYTc, 11:12).
+- [ ] **Delivery Canary day 7 (11:49):** check its finish, then start Marketer with "delivery-canary" (reminder trig_01HScKA8r6NKjjB2oRJ4sH19, 13:45).
+- [ ] **LLM usage report run:** check it (reminder trig_01V26qt8hJGxsys1YahV7rwQ, 17:25).
 - [ ] **19 Nov, 11:49:** Tagging Doctor day 1 under build-day.md. Watch it; release requests arrive in hintwise-workflow `inbox/`.
 - [ ] **Own-repo analytics branches:** merge only on the owner's word ("2 will do later").
 
@@ -179,16 +179,18 @@ Times are Barcelona time (the owner's current zone), with LA time for LA schedul
   - session_01JyJzMVhQhwQ7Ea3HMyJ3FN (Nov 14, depth 5).
 - **Previous session: session_01JyJzMXVbrUAhXw75BNyNCX ("PManager: Nov 18"),** depth 6 of limit 8.
   - It took over on 18 Nov at 02:36 UTC and handed over on 18 Nov, by hand, at the owner's request.
-  - It archives itself once you have moved its routines and sent it one line.
-- **The routines to move** (all aimed at that session):
-  - trig_01HCHLTqENJ1G7bmepMtrQqK: PManager hourly check, `46 * * * *`;
-  - trig_01ErjL8VzaXQ3sPHHZfCeZMe: Plabs handoff check: hand over only when due, `CRON_TZ=America/Los_Angeles 56 4 * * *`;
-  - trig_01Xsn6UTTEEKE2KWS7EATPkv: Plabs daily handoff: start the next session (create_session), `CRON_TZ=America/Los_Angeles 52 5 * * *`;
+  - Its routines were moved on 18 Nov at 05:30 UTC (06:30 Barcelona time), and it was sent one line so it archives itself.
+- **Current session: session_01JyJzMXY6RAmKb5w3vkqBjo ("PManager: Nov 18"),** started by hand by the owner.
+  - Lineage: depth 0 of limit 8, a new lineage (created 18 Nov 05:28 UTC).
+  - It took over on 18 Nov at 05:30 UTC (06:30 Barcelona time; 21:30 on 17 Nov, Los Angeles time), for the handoff of 18 November (f8641db). No session needs starting for that handoff.
+- **The relay's routines** (all aimed at the current session):
+  - trig_01D3w33bL8kxHA46VLTrnKNc: PManager hourly check, `46 * * * *`;
+  - trig_01PwhDWfkjdf2pxLNMyp52a8: Plabs handoff check: hand over only when due, `CRON_TZ=America/Los_Angeles 56 4 * * *`;
+  - trig_01Ck5e8Yy3vvwQ1BSF6cJnE2: Plabs daily handoff: start the next session (create_session), `CRON_TZ=America/Los_Angeles 52 5 * * *`;
   - one-shots, due 18 Nov:
-    - trig_01GLzHpWCG4EFr83ZvS6JqTN at 10:12 UTC;
-    - trig_01WGhEV2ZnzgSsbvNoLV2Pr4 at 12:45 UTC;
-    - trig_012vGYu6zEXiKv5VQRrzWjou at 16:25 UTC.
-- **Current session:** none has taken over yet. The session started by hand records itself here, with its lineage.
+    - trig_019zhkmv77qSFuWSa2WbdYTc at 10:12 UTC;
+    - trig_01HScKA8r6NKjjB2oRJ4sH19 at 12:45 UTC;
+    - trig_01V26qt8hJGxsys1YahV7rwQ at 16:25 UTC.
 - **Leave alone:**
   - the owner's routines: ideas trig_01K986yzFbf3noGkLA6RgZkn, build trig_01BAP9nsXTtxTdpMiwk5GdXE, TPT trig_013VN2RNYCwh2k3F2ZjgnK6U;
   - the workflow routines: Monitor daily trig_01Frwv3axDinKYduGTBSQZW8, Monitor weekly trig_01H8BM6km3JuHaMRzFnBivZt, Keeper trig_01Ro5iv1fTDphKaY42k72RkZ, Marketer trig_01Uszm2m3KHGusSKDsyMctN2;
