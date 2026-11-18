@@ -686,3 +686,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-18 [doc] hintwise-workflow/ moved to its own private repository, pisan-labs/hintwise-workflow (c03ed21), which the owner created; removed here.
 
 2026-11-18 [decision] Owner approval gate (workflow Q7, owner yes): Supabase admin write commands, the domain/DNS workflows and Retire Netlify site run on environment owner-approval; owner adds himself as required reviewer.
+
+2026-11-18 [decision] From 19 Nov new projects follow pisan-labs/hintwise-workflow routines/build-day.md (owner answers Q1, Q3); Delivery Canary finishes today under Steps 1-5. Build task prompt gets the tier map.

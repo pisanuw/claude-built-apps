@@ -3,6 +3,16 @@
 The scheduled task "Build an idea I choose" (daily 2:49 am Pacific, 11:49 CET)
 reads this file and follows it. Edit the routine here, not in the task.
 
+**Since 19 November 2026** (owner's decision of 18 November 2026), the
+HintWise workflow runs the build. When Step 0 finds no build in progress, or
+the build in progress has a card in pisan-labs/hintwise-workflow `projects/`,
+follow that repository's `routines/build-day.md` (the conductor) instead of
+Steps 1 to 5 below. Read its CHARTER.md and PIPELINE.md first; the tier map is
+in the scheduled task's prompt. Only a build that started before 19 November
+and has no card finishes with Steps 1 to 5. The architecture table, the
+Google sign-in button rules, the deploy rules and the finish checklist below
+still apply to every project, as build-day.md says.
+
 Since 9 November 2026 (owner's decision) the routine builds **one substantial
 project per week** instead of one small app per day. A project takes up to
 seven build days. Each day is a fresh session; the only state it inherits is
@@ -129,8 +139,8 @@ one idea not in implemented.json and with no matching claude-built-apps
 folder, with `complexity` "Multi-week" (never "Weekend MVP", never
 "Multi-month"). Since 2026-11-10 ideas carry `shape` (five marks), `substantial`
 and `buildPlan`; take only `substantial: true`. For older ideas without
-`shape`, judge them yourself against the rubric in daily-project-ideas
-ROUTINE.md (stateful, connected, unattended, engine, shared; two or more
+`shape`, judge them yourself against the rubric in pisan-labs/hintwise-workflow
+roles/finder/ROUTINE.md, Step 4 (stateful, connected, unattended, engine, shared; two or more
 marks) and write the marks into PLAN.md. Order of preference:
 a. a small-business tool: category "Small Business Ops", or an idea whose
    buyer is a small business, solo professional, local service, trade,
