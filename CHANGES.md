@@ -676,3 +676,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-17 [code] analytics-all-apps merged to main 741b225 without a deploy (owner: "merge do not deploy"; the code-analogy-forge line held on branch analytics-code-analogy-forge, since its source deploys on push); 0016 applied (run 44125037294); app-events redeployed with masking (run 44125496750); td.pisan.me not registered (owner OK)
 
 2026-11-17 [decision] Owner: apps in this repo get analytics at their next deploy (no batch redeploy); Chess TD CI trim #227 merged with the nightly Oracle moved to weekly (owner yes, 21:5x Barcelona)
+
+2026-11-18 [doc] Handoff of 18 November on the owner's "/handoff now" (53% context); fact-checked; LLM usage report 409 fix and node_modules link removal landed first

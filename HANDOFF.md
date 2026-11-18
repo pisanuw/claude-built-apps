@@ -2,7 +2,7 @@
 
 This is the rolling handoff for the Plabs relay (session-relay skill). Each handover rewrites it. The last section holds the owner's standing instructions, the relay parameters and Scheduling.
 
-Written 18 November 2026, 03:05 Barcelona time, by session_01JyJzMVhQhwQ7Ea3HMyJ3FN on the owner's "/handoff now". Context was 53% (531,832 of 1,000,000 tokens). It was fact-checked by a subagent against git, the Actions runs and the routines list. Reports to the owner use Barcelona time (Europe/Madrid); the routines use Europe/Berlin crons.
+Written 18 November 2026, 03:05 Barcelona time, by session_01JyJzMVhQhwQ7Ea3HMyJ3FN on the owner's "/handoff now". Context was 53% (531,832 of 1,000,000 tokens). It was fact-checked by a subagent against git, the Actions runs and the routines list. Reports to the owner use Barcelona time (Europe/Madrid). The relay's handoff and session-start routines use Europe/Berlin crons, the hourly report plain UTC, and the owner's routines Los Angeles time.
 
 ## 1. Goal
 
@@ -15,13 +15,13 @@ Owner's words (2026-11-02): "Get people using these projects, advertise these pr
 
 Done since the last handoff (14 Nov):
 - [x] StepWise wave 10, the AI pathway and learning paths (its own session); app-notify sent its first real email on 15 Nov.
-- [x] udebt live with anonymous gateway use (15 Nov). Lewis alt-text is live (15 Nov), with a standalone setup guide for Scott (17 Nov).
-- [x] "Finish signing in" fix against mail scanners using up sign-in links. Deployed for lewis-alt-text, delivery-canary, qualified-overtime-checker and udebt; teacher-catalog-kit has it but is not deployed.
+- [x] udebt live with anonymous gateway use (15 Nov). Lewis alt-text is live (15 Nov). A standalone setup guide (PDF and zip) was sent to the owner for Scott; it is not in any repo.
+- [x] "Finish signing in" fix against mail scanners using up sign-in links. Deployed for lewis-alt-text, delivery-canary, qualified-overtime-checker and udebt (Netlify builds udebt's main; checked live 16 Nov). teacher-catalog-kit has it but is not deployed.
 - [x] First-party analytics:
   - shared/0014 (events), 0015 (summary) and 0016 (own-repo apps) applied;
   - the app-events and app-events-report functions deployed;
   - pisan-analytics shows an "App events" section (pisanuw/dashboards, deployed by the "Deploy dashboards" workflow);
-  - live and confirmed with real rows: MyUni (PR #5) and StepWise.
+  - live and confirmed with real rows: MyUni (PR #5; check run 44080158002) and StepWise (check run 44121998338).
 - [x] Analytics for every app merged to main (741b225), with no deploy:
   - scripts/site-analytics.mjs adds the script at deploy;
   - the deploy registers each app's origin (`analytics-register`);
@@ -40,8 +40,8 @@ In progress / remaining:
 
 ## 3. Current state
 
-- **claude-built-apps:** main 6ba80f2 before this commit. CI on 6ba80f2 was queued at writing; 46450f7 was green.
-- **Clean:** all ten checkouts have no uncommitted or unpushed work, and no process is running.
+- **claude-built-apps:** main 6ba80f2 before the handoff commits. CI on 6ba80f2 is green (run 44220531369; platform 533 tests).
+- **Clean:** all twelve checkouts have no uncommitted or unpushed work, and no process is running. That is the 9 session repos plus daily-project-ideas, a second understanding-debt clone and srayermann/lewis-structures-alt-text.
 - **Branches not merged** (each pushed; merging deploys the app):
   - udebt `analytics`, upvote `analytics`, pastemd `analytics` and `csp-fix`, photo2pgn `analytics`, chess-tournament-director `analytics`, myuni `analytics-masking`;
   - claude-built-apps `analytics-code-analogy-forge` (any change under that folder deploys it).
@@ -49,13 +49,13 @@ In progress / remaining:
 
 ## 4. Next step
 
-First, tell the owner: a clone that pulled claude-built-apps between 17 Nov 16:21 UTC and 18 Nov 02:2x UTC had its platform/node_modules folder replaced by a dangling link. Fix: `rm platform/node_modules; (cd platform && npm ci)`. halflife may be one of them (unverified).
+First, tell the owner: a clone that pulled claude-built-apps between 17 Nov 16:21 UTC and 18 Nov 02:04 UTC had its platform/node_modules folder replaced by a dangling link. Fix: `rm platform/node_modules; (cd platform && npm ci)`. halflife may be one of them (unverified).
 
 Then work through this list in order:
 1. **Check the next LLM usage report run** (cron 16:10 and 17:10 UTC; GitHub has delayed these by up to 8 hours). Expect success, or the "Already sent for <day>" line.
 2. **Merge the own-repo analytics branches only on the owner's word.** Two of them need preparing first:
    - Chess TD `analytics` was cut before #227: merge main into it first.
-   - PasteMD `csp-fix` and `analytics` overlap (netlify.toml, CHANGES, page heads): the second to merge needs its conflicts resolved.
+   - PasteMD `csp-fix` and `analytics` conflict in netlify.toml and CHANGES.md (the page heads merge cleanly): the second to merge needs those resolved.
 3. **Watch the build routine:** Delivery Canary day 7.
 
 ## 5. Decisions and why
@@ -75,7 +75,7 @@ Then work through this list in order:
   - app text must not promise "no tracking";
   - td.pisan.me is not registered (owner OK).
 - **Sign-in links** wait for a "Finish signing in" click when nobody is signed in, because mail scanners (Safe Links) used up the single-use links.
-- **CI minutes:** public repositories cost nothing on standard runners. Chess TD (private) is the one that spends minutes, hence #227.
+- **CI minutes:** public repositories cost nothing on standard runners. Chess TD (private) spends most of the minutes (about 870 job-minutes per 100 runs), hence #227. MyUni is private too, but its runs take about 44 seconds.
 
 ## 6. Tried and rejected
 
@@ -125,7 +125,7 @@ Then work through this list in order:
 
 All times Barcelona (Europe/Madrid):
 - **Relay routines:** hourly status at :46; handoff check at 13:56; session start at 14:52. Ids in Scheduling below.
-- **Owner's routines:** daily ideas (10:51), weekly build (11:49), TPT daily product builder (06:37).
+- **Owner's routines:** ideas (10:51), build (11:49) and TPT daily product builder (06:37), all daily.
 - **Platform jobs:** pg_cron app-notify at 16:17; the LLM usage report at 17:10 and 18:10 (often hours late); halflife's pisan-labs sync at 04:13 (time zone not recorded).
 - **Chess TD:** Oracle weekly, Sunday 04:23; FIDE test image daily (fide-test.yml).
 - **Nothing else:** no subagent or background process is running at this handoff, apart from its fact-check.
