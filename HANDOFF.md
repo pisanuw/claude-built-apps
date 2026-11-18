@@ -71,7 +71,7 @@ Remaining:
     - 23, renewing BACKUP_GITHUB_TOKEN on Render: ypai's offsite backups stopped on 29 Oct;
     - "uploadme" is UpvoteMe (confirmed by the owner's phone screenshot).
   - the card is hintwise-workflow projects/ypai/README.md.
-- [ ] **Footer logo (owner, 18 Nov):** 60 of the 66 claude-built-apps apps serve the footer from before 11 Nov, which has no logo, because the footer is added at deploy time. `node scripts/footer-audit.mjs` lists them. Redeploying them waits for the owner (item 16; recommended: pluck-lab, net-units, elevator-algorithm-lab and cron-cartographer first, then about 10 a day).
+- [ ] **Footer logo (owner, 18 Nov):** 60 apps served the footer without the logo. The owner chose two redeploys a day ("1 do 2 apps a day, your choice"). The queue is hintwise-workflow projects/platform/footer-redeploys.md: his four apps first, then alphabetical. A daily scheduled task, trig_01W7LHJXGx2ekKemn6hPJeBp at 13:23 Barcelona, aimed at this session, deploys the next two and marks them. pluck-lab and net-units were done on 18 Nov (run 44364026321).
 - [x] **One sign-in look, as on UpvoteMe (owner, 18 Nov):** merged as 1380fbc and live on delivery-canary, lewis-alt-text and qualified-overtime-checker (deploy run 44302632204, attempt 3, 14:02 UTC). Release record: hintwise-workflow projects/platform/releases/sign-in-buttons.md.
 - [ ] **Sign-in look, own-repo apps:** udebt, photo2pgn, StepWise; PasteMD after question 22. Not started.
 - [x] **Incident, 18 Nov 12:20 UTC: Netlify refused NETLIFY_AUTH_TOKEN** (the old token ended de05). Resolved at 14:02 UTC: the owner saved a new token in GitHub and his env file. Record: hintwise-workflow runs/2026-11-18T1220Z-incident-netlify-token.md.
@@ -229,7 +229,8 @@ Times are Barcelona time (the owner's current zone), with LA time for LA schedul
   - one-shots, due 18 Nov:
     - trig_019zhkmv77qSFuWSa2WbdYTc at 10:12 UTC;
     - trig_01HScKA8r6NKjjB2oRJ4sH19 at 12:45 UTC (deleted at 11:47 UTC: done early);
-    - trig_01V26qt8hJGxsys1YahV7rwQ at 16:25 UTC.
+    - trig_01V26qt8hJGxsys1YahV7rwQ at 16:25 UTC (done); trig_01R6F7PixNmtCykFpDppX58k at 23:55 UTC (LLM usage report late check);
+  - recurring, added 18 Nov: trig_01W7LHJXGx2ekKemn6hPJeBp, Footer redeploys, two apps a day, `CRON_TZ=Europe/Madrid 23 13 * * *`;
 - **Leave alone:**
   - the owner's routines: ideas trig_01K986yzFbf3noGkLA6RgZkn, build trig_01BAP9nsXTtxTdpMiwk5GdXE, TPT trig_013VN2RNYCwh2k3F2ZjgnK6U;
   - the workflow routines, recreated in EnvFull on 18 Nov (owner, "19 yes"): Monitor daily trig_017ncnNvikFwwEUMzN8k3ix1, Monitor weekly trig_01NMJbSUXu1Pxnb74sQSbFHS, Keeper trig_011fPUzUbmBx8UMYhjtwZCBH, Marketer trig_01Pta3mTcpBNceabkLPScKbi. They reach GitHub only once the owner attaches their repositories in claude.ai (asked 08:00 UTC, 18 Nov);
