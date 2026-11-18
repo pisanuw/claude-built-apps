@@ -40,8 +40,8 @@ Done on 18 Nov (details in hintwise-workflow `decisions/2026-11.md`, and in CHAN
 
 Remaining:
 - [ ] **Today's ideas run (10:51)** is the first from the new Finder file: check it (reminder trig_019zhkmv77qSFuWSa2WbdYTc, 11:12).
-- [ ] **Delivery Canary day 7 (11:49):** check its finish, then start Marketer with "delivery-canary" (reminder trig_01HScKA8r6NKjjB2oRJ4sH19, 13:45).
-  - The build run finished it on 18 Nov at about 11:10 UTC (marked implemented; no app change, no deploy). Pending owner actions: Netlify analytics for delivery-canary; pisan-labs/delivery-canary through the halflife job; when convenient, a first real canary (delivery-canary/HANDOFF.md "Remaining").
+- [x] **Delivery Canary day 7 (11:49):** finished and catalogued (f427cc7, 10:53 UTC; implemented.json in daily-project-ideas 686b447). PManager started the Marketer at 11:47 UTC with the delivery-canary launch text (run session cse_01JyJzMYgo56ToYSQpGDejgB); its drafts arrive in hintwise-workflow marketing/delivery-canary/ with a "Posts ready" inbox item. The reminder trig_01HScKA8r6NKjjB2oRJ4sH19 is deleted.
+  - The build run finished it on 18 Nov at 10:53 UTC (commit f427cc7) (marked implemented; no app change, no deploy). Pending owner actions: Netlify analytics for delivery-canary; pisan-labs/delivery-canary through the halflife job; when convenient, a first real canary (delivery-canary/HANDOFF.md "Remaining").
 - [ ] **LLM usage report run:** check it (reminder trig_01V26qt8hJGxsys1YahV7rwQ, 17:25).
 - [ ] **19 Nov, 11:49:** Tagging Doctor day 1 under build-day.md. Watch it; release requests arrive in hintwise-workflow `inbox/`.
 - [ ] **Own-repo analytics branches:** merge only on the owner's word ("2 will do later").
@@ -222,7 +222,7 @@ Times are Barcelona time (the owner's current zone), with LA time for LA schedul
   - trig_01Ck5e8Yy3vvwQ1BSF6cJnE2: Plabs daily handoff: start the next session (create_session), `CRON_TZ=America/Los_Angeles 52 5 * * *`;
   - one-shots, due 18 Nov:
     - trig_019zhkmv77qSFuWSa2WbdYTc at 10:12 UTC;
-    - trig_01HScKA8r6NKjjB2oRJ4sH19 at 12:45 UTC;
+    - trig_01HScKA8r6NKjjB2oRJ4sH19 at 12:45 UTC (deleted at 11:47 UTC: done early);
     - trig_01V26qt8hJGxsys1YahV7rwQ at 16:25 UTC.
 - **Leave alone:**
   - the owner's routines: ideas trig_01K986yzFbf3noGkLA6RgZkn, build trig_01BAP9nsXTtxTdpMiwk5GdXE, TPT trig_013VN2RNYCwh2k3F2ZjgnK6U;
