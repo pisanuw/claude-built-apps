@@ -15,10 +15,13 @@ interface Note extends Entity {
 const root = document.getElementById('app');
 if (!root) throw new Error('index.html needs <div id="app">');
 
+// Sign-in sits at the right of the top bar (UpvoteMe's look; src/lib/auth.ts mountSignIn).
 root.innerHTML = `
-  <h1>${APP_SLUG}</h1>
+  <header class="top-bar">
+    <h1>${APP_SLUG}</h1>
+    <div id="signin" role="region" aria-label="Account"></div>
+  </header>
   <p>Template placeholder. Replace <code>src/main.ts</code> with the app.</p>
-  <section id="signin" aria-label="Sign in"></section>
   <p id="mode"></p>
   <ul id="notes" aria-label="Notes"></ul>
 `;

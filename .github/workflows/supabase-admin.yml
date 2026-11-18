@@ -28,6 +28,11 @@
 #   anon-setup <arg: slug>   flag --key-sha256=<hex>: the stand-in sign-in visitors+<slug>@hintwise.org and
 #                            platform.llm_app_anon (shared/0013) for anonymous gateway use; anon-off <arg> removes it
 #   account-deletion-test    live test of Delete my account with a throwaway sign-in (masked; counts only)
+#   gateway-check            post-deploy check of llm-gateway as the test app gateway-check (cheapest model,
+#                            $0.05 a day; switched off again at the end of every run): a fresh masked app
+#                            key, a call, a stream, a long stream left early; exits 1 unless llm_usage has
+#                            the 3 rows it expects. Not read-only: it waits for the owner's approval like
+#                            every command that changes something
 #   optout-ready             exit 1 unless platform.email_optout_check answers (deploy-function runs it
 #                            first for sign-in-link and auth-email-hook)
 # Shell commands (Supabase CLI, project dir platform/):
@@ -59,7 +64,7 @@ on:
   workflow_dispatch:
     inputs:
       command:
-        description: 'inspect | sql | apply-shared | migrate | expose-schema | unexpose-schema | check-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | external-hosts | brand-upload | email-optout | admin | optout-ready | account-deletion-test | deploy-function | deploy-gateway | set-gateway-key | set-sign-in-secrets | notify-schedule | email-hook | report-secret | anon-setup | anon-off | analytics-register'
+        description: 'inspect | sql | apply-shared | migrate | expose-schema | unexpose-schema | check-schema | configure-auth | keys | usage | check-google | domain-setup | domain-status | domain-activate | external-hosts | brand-upload | email-optout | admin | optout-ready | account-deletion-test | deploy-function | deploy-gateway | set-gateway-key | set-sign-in-secrets | notify-schedule | email-hook | report-secret | anon-setup | anon-off | analytics-register | gateway-check'
         required: true
         default: 'inspect'
         type: string
@@ -121,8 +126,8 @@ jobs:
           HINTWISE_AUTH_GOOGLE_SECRET: ${{ secrets.HINTWISE_AUTH_GOOGLE_SECRET }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-          # Only brand-upload, optout-ready and account-deletion-test use the service-role key.
-          SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.command == 'brand-upload' || inputs.command == 'optout-ready' || inputs.command == 'account-deletion-test' || inputs.command == 'anon-setup') && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
+          # Only brand-upload, optout-ready, account-deletion-test, anon-setup and gateway-check use the service-role key.
+          SUPABASE_SERVICE_ROLE_KEY: ${{ (inputs.command == 'brand-upload' || inputs.command == 'optout-ready' || inputs.command == 'account-deletion-test' || inputs.command == 'anon-setup' || inputs.command == 'gateway-check') && secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
 
       - name: Mask the address
         if: inputs.command == 'email-optout' || inputs.command == 'admin'

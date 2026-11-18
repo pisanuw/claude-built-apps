@@ -7,10 +7,21 @@
  * platform/src/gateway/ (vitest); this file only wires it.
  *
  * Request:  POST with Authorization: Bearer <user session token> and a JSON
- *           body { app, model?, max_tokens?, system?, messages, tools? }.
+ *           body { app, model?, max_tokens?, system?, messages, tools?,
+ *           thinking?, output_config?, stream? }; thinking and effort from
+ *           the allow-list in src/gateway/thinking.ts.
  * Response: the Messages API response unchanged (200), or a JSON error:
  *           401 auth, 403 app, 400/413 request, 429 cap {scope, resets_at},
  *           502 upstream {name, status, message}.
+ * Stream:   with "stream": true, after the same checks, Anthropic's
+ *           server-sent events unchanged as text/event-stream (200), and one
+ *           llm_usage row when the stream ends (src/gateway/stream.ts). An
+ *           error before the first event is the 502 JSON answer. If the
+ *           caller goes away, the gateway stops sending but reads the
+ *           upstream to its end and records the real usage (waitUntil keeps
+ *           the worker for it). Supabase stops a worker at its wall-clock
+ *           limit (400 s on paid plans); on beforeunload open streams end
+ *           with an error event and are recorded with max_tokens as output.
  * Check:    body { app, check: true } makes no model call and costs nothing:
  *           200 with allowance() from src/gateway/caps.ts (allowed,
  *           uses_credit, scope, resets_at, app_open, the person's own limits,
@@ -28,11 +39,12 @@
  */
 import Anthropic from 'npm:@anthropic-ai/sdk';
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { jsonHeaders, preflight } from '../../../src/gateway/cors.ts';
+import { jsonHeaders, preflight, sseHeaders } from '../../../src/gateway/cors.ts';
 import { appSlug, parseBody, validateRequest, type AppRow } from '../../../src/gateway/validate.ts';
 import { allowance, decide, funding, type Limits, type Spend } from '../../../src/gateway/caps.ts';
 import { ANON_HEADER, appKeyMatches } from '../../../src/gateway/anon.ts';
 import { buildAnthropicParams, describeError, errorRow, usageRow, type UsageRow } from '../../../src/gateway/request.ts';
+import { startRelay, streamRecord, type Relay, type StreamOutcome } from '../../../src/gateway/stream.ts';
 
 // Supabase injects SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY into every
 // function; ANTHROPIC_API_KEY is the function secret set by set-gateway-key.
@@ -79,6 +91,22 @@ async function record(row: UsageRow): Promise<void> {
   const { error } = await admin.from('llm_usage').insert(row);
   if (error) console.error('llm_usage insert failed:', error.message);
 }
+
+async function refund(app: string, userId: string, note: string): Promise<void> {
+  const { error } = await admin.rpc('credit_refund', { p_app: app, p_user: userId, p_note: note });
+  if (error) console.error('credit refund failed:', error.message);
+}
+
+// Supabase's runtime keeps the worker alive for promises passed to waitUntil.
+const runtime = (globalThis as { EdgeRuntime?: { waitUntil(p: Promise<unknown>): void } }).EdgeRuntime;
+
+// Streams still open when the worker is about to stop (wall clock, CPU,
+// memory): end each with an error event and record what it used.
+const openStreams = new Set<Relay>();
+addEventListener('beforeunload', (ev) => {
+  const reason = String((ev as Event & { detail?: { reason?: unknown } }).detail?.reason ?? 'shutdown');
+  for (const s of openStreams) void s.stop({ name: 'Shutdown', status: null, message: `The gateway stopped before the stream ended (${reason}).` });
+});
 
 Deno.serve(async (req: Request): Promise<Response> => {
   const origin = req.headers.get('origin');
@@ -163,6 +191,50 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
+  const failed = async (err: unknown): Promise<Response> => {
+    // A paid call's credit is refunded here, so its row is not paid with it.
+    await record(errorRow(request, user.id, err));
+    if (paid) await refund(request.app, user.id, describeError(err).name);
+    const d = describeError(err);
+    return json(origin, 502, { error: 'upstream', name: d.name, status: d.status, message: d.message });
+  };
+
+  if (request.stream) {
+    // asResponse() gives the raw server-sent events; an HTTP error from
+    // Anthropic throws here, before anything is streamed.
+    const upstream = new AbortController();
+    let res: Response;
+    try {
+      const params = buildAnthropicParams(request) as unknown as Parameters<typeof anthropic.beta.messages.create>[0];
+      res = await anthropic.beta.messages.create(params, { signal: upstream.signal }).asResponse();
+    } catch (err) {
+      return await failed(err);
+    }
+    let relay: Relay | null = null;
+    let ended = false; // a short stream can end inside startRelay, before relay is set
+    const settle = async (outcome: StreamOutcome): Promise<void> => {
+      ended = true;
+      if (relay) openStreams.delete(relay);
+      const work = (async () => {
+        const { row, refund: giveBack } = streamRecord(request, user.id, outcome, paid);
+        await record(row);
+        if (giveBack) await refund(request.app, user.id, outcome.error?.name ?? 'stream');
+      })();
+      runtime?.waitUntil(work);
+      await work;
+    };
+    const started = await startRelay(res.body, { onEnd: settle, abortUpstream: () => upstream.abort() });
+    if (!started.ok) {
+      const e = started.error;
+      return json(origin, 502, { error: 'upstream', name: e.name, status: e.status, message: e.message });
+    }
+    relay = started;
+    if (!ended) openStreams.add(relay);
+    // After the caller leaves, the upstream is still read to its end.
+    runtime?.waitUntil(relay.done);
+    return new Response(relay.body, { status: 200, headers: sseHeaders(origin) });
+  }
+
   try {
     const params = buildAnthropicParams(request) as unknown as Parameters<typeof anthropic.beta.messages.create>[0];
     const response = await anthropic.beta.messages.create(params);
@@ -170,12 +242,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Unchanged, including stop_reason "refusal": the app decides what to show.
     return json(origin, 200, response);
   } catch (err) {
-    await record({ ...errorRow(request, user.id, err), paid_with_credit: paid });
-    if (paid) {
-      const { error: refundError } = await admin.rpc('credit_refund', { p_app: request.app, p_user: user.id, p_note: describeError(err).name });
-      if (refundError) console.error('credit refund failed:', refundError.message);
-    }
-    const d = describeError(err);
-    return json(origin, 502, { error: 'upstream', name: d.name, status: d.status, message: d.message });
+    return await failed(err);
   }
 });

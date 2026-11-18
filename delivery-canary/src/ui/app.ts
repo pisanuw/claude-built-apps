@@ -168,8 +168,9 @@ export function mountApp(root: HTMLElement, deps: AppDeps): { refresh: () => Pro
     h(
       'header',
       { class: 'top' },
-      h('div', {}, h('h1', {}, 'Delivery Canary'), h('p', { class: 'tagline' }, 'Does your download email reach the inbox, and does its link still open the right file? Check one in a minute.')),
-      authEl,
+      // Sign-in at the right of the top row, as on UpvoteMe (src/lib/auth.ts mountSignIn).
+      h('div', { class: 'top-bar' }, h('h1', {}, 'Delivery Canary'), authEl),
+      h('p', { class: 'tagline' }, 'Does your download email reach the inbox, and does its link still open the right file? Check one in a minute.'),
     ),
     h(
       'main',

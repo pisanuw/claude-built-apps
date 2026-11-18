@@ -79,34 +79,26 @@ describe('milestone 3 in the page', () => {
     expect(saved?.settings).toMatchObject({ minimumWage: 16.66, bonusPeriod: 'quarter', bonusAllocation: 'per-hour' });
   });
 
-  it('shows the email sign-in behind a toggle in the header, hidden once signed in', async () => {
+  it('mounts sign-in at the right of the header\'s top bar, and points to it until signed in', async () => {
     let cb: (u: { id: string; email: string | null } | null) => void = () => {};
+    let mounted: HTMLElement | null = null;
     const hooks: AuthHooks = {
       mount: (el) => {
-        const form = document.createElement('form');
-        const input = document.createElement('input');
-        input.type = 'email';
-        form.append(input);
-        el.append(form);
+        mounted = el;
+        el.append(Object.assign(document.createElement('button'), { textContent: 'Magic link' }));
       },
       onUser: (c) => (cb = c),
       accountStore: () => new MemoryFileStore('account'),
     };
     await mount(hooks);
-    const area = root.querySelector('header .top-auth') as HTMLElement;
-    const toggle = area.querySelector('.email-toggle') as HTMLButtonElement;
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    toggle.click();
-    expect(area.classList.contains('email-open')).toBe(true);
-    expect(toggle.textContent).toBe('Hide email sign-in');
-    expect(document.activeElement?.getAttribute('type')).toBe('email');
-    toggle.click();
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    const area = root.querySelector('header .top-bar > .top-auth') as HTMLElement;
+    expect(mounted).toBe(area);
+    expect(area.getAttribute('aria-label')).toBe('Account');
+    expect(area.previousElementSibling?.tagName).toBe('H1');
+    expect(root.querySelector('.email-toggle')).toBeNull(); // the template's "Magic link" opens the email form now
     expect(root.textContent).toContain('Sign in at the top of the page');
     cb({ id: 'u', email: 'a@x.org' });
     await settle();
-    expect(toggle.hidden).toBe(true);
-    expect(area.classList.contains('signed-in')).toBe(true);
     expect(root.textContent).not.toContain('Sign in at the top of the page');
   });
 });

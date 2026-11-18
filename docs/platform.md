@@ -112,9 +112,10 @@ values.
   { redirectTo: location.origin + location.pathname } })`, and for email the
   platform's `sign-in-link` function, not `signInWithOtp` (next section; the
   template's `sendMagicLink` calls it); `onAuthStateChange` drives the UI.
-  The shared template in `platform/templates/app/` has the sign-in panel,
-  with a Google button that follows Google's branding guidelines
-  (BUILD_ROUTINE.md, "Google sign-in button").
+  The shared template in `platform/templates/app/` has the sign-in
+  controls for the right of the top bar (UpvoteMe's look: "Sign in with
+  Google" and "Magic link"), with a Google button that follows Google's
+  branding guidelines (BUILD_ROUTINE.md, "Google sign-in button").
 - **Google sign-in goes through Supabase** (owner, 9 Nov): the browser goes
   to Supabase, then Google, then Supabase's callback, then back to the app.
   No per-app Google setup: one callback URL on the Google client and the
@@ -430,7 +431,7 @@ Ship order, each step a "Supabase admin" dispatch after the owner's yes:
 ## Account deletion
 
 "Delete my account" (platform/templates/app/src/lib/account.ts, shown by
-the sign-in panel under Sign out) lets a signed-in person delete their
+the sign-in panel, in the person's panel next to Sign out) lets a signed-in person delete their
 account. The `delete-account` edge function
 (platform/src/account/delete-service.ts) checks the session token, needs a
 sign-in from the last 15 minutes and the word DELETE, then runs
@@ -480,7 +481,8 @@ model wherever deterministic code does the job.
   link). The browser calls the Supabase Edge Function `llm-gateway`
   (`https://arktxlrlyceffyozdwhq.supabase.co/functions/v1/llm-gateway`) with the
   user's session token and a body `{ app, model?, max_tokens?, system?,
-  messages, tools? }` (a subset of the Messages API). The function:
+  messages, tools?, thinking?, output_config?, stream? }` (a subset of the
+  Messages API). The function:
   1. checks the user (`auth.getUser`) and that `llm_apps` has an enabled row
      for `app`, and that `model` is in its `allowed_models` (default:
      `default_model`);
@@ -492,12 +494,86 @@ model wherever deterministic code does the job.
      'app-user-day' | 'user-day', resets_at }` when any cap is reached
      (since 0007 the user's successful calls in the app are counted too);
   3. calls Anthropic with the `ANTHROPIC_API_KEY` function secret,
-     `max_tokens` capped at the app's `max_tokens` (default 4096), adaptive
-     thinking left at the model default;
+     `max_tokens` capped at the app's `max_tokens` (default 4096), thinking
+     and effort at the model default unless the request sets them (below);
   4. writes one `llm_usage` row (tokens, cost from the pricing table below,
-     ok/error) and returns the Messages API response unchanged.
-  Non-streaming first; streaming with the same accounting is a later
-  milestone.
+     ok/error) and returns the Messages API response unchanged, or with
+     `stream: true` passes the events on (below).
+- **Thinking and effort** (Claude API documentation, checked 18 Nov).
+  - All three models run adaptive thinking when a request has no `thinking`
+    field. So a reply can begin with a `thinking` block (its text is empty
+    by default), and thinking counts toward `max_tokens`.
+  - The gateway passes two settings from an allow-list
+    (`platform/src/gateway/thinking.ts`). Anything else is a 400 before the
+    call.
+    - `output_config: { effort }`: `low`, `medium`, `high`, `xhigh` or
+      `max`, on all three models. The defaults are `medium` on
+      `claude-opus-5-5` and `claude-haiku-5-5` and `high` on
+      `claude-sonnet-5-5`; `low` thinks least.
+    - `thinking: { type }`: `adaptive` on all three. `between_tools` on
+      `claude-sonnet-5-5` and `disabled` on `claude-haiku-5-5` turn
+      thinking before the reply off; both need effort `high` or below.
+    - `claude-opus-5-5` cannot turn thinking off. Lower its effort instead.
+    - No other field inside either object (`display`, `budget_tokens`,
+      `format`), and neither for a model outside the table.
+  - Whatever the setting, read every content block by its `type` (never
+    `content[0]`), and leave room for thinking in `max_tokens`.
+- **Streaming** (owner, 18 Nov: "1b"; YPai first).
+  - The body takes `"stream": true`, a boolean; anything else is a 400.
+    Without it nothing changes.
+  - Every check above runs first. Then the gateway calls Anthropic with
+    streaming and passes its server-sent events on unchanged, as
+    `text/event-stream`, with the same CORS headers.
+  - **Counting** (`platform/src/gateway/stream.ts`):
+    - input and cache tokens and the model come from `message_start` (a
+      fallback model when the refusal fallback ran); output tokens come from
+      `message_delta`, whose counts are cumulative;
+    - exactly one `llm_usage` row is written when the stream ends: `ok` on
+      `message_stop`, an error otherwise;
+    - **when the output is unknown,** the row counts the request's whole
+      `max_tokens` as output: the most the call can cost. That happens when
+      `message_start` came but no final `message_delta`, because the worker
+      ended or the upstream broke or stopped early. The real count is
+      unknown there, and thinking streams no text under the default display,
+      so nothing smaller is safe. An error before `message_start` records no
+      output.
+  - **Errors:**
+    - an error before the first event (an HTTP error, or an `error` event
+      first) is the usual 502 JSON answer;
+    - an `error` event mid-stream is passed on unchanged and recorded;
+    - when the upstream breaks or ends without `message_stop`, the gateway
+      sends an `error` event of type `api_error` itself.
+  - **When the caller goes away** (amended item 5, PManager, 18 Nov
+    08:45Z), the gateway stops sending to it, but it does not stop the model.
+    - It reads the upstream to its end and records the real usage, as for
+      a non-streaming call whose caller leaves.
+    - So closing a stream early saves nothing: the whole reply is generated,
+      paid for and counted. If it reaches `message_stop`, the row is `ok`
+      (a counted call, so the call caps hold), with the note `ClientLeft` in
+      its `error` column.
+    - The worker stays alive for this (`EdgeRuntime.waitUntil`), within its
+      wall-clock limit. If that runs out first, the row counts `max_tokens`,
+      as above.
+  - **Credits:** a reserved credit is refunded when the call fails (an
+    upstream error, a broken stream, a shutdown), and the row then records
+    `paid_with_credit` false, so its cost counts for the person's own caps.
+    A credit is not refunded when the caller goes away; that call ran to its
+    end. The non-streaming path records refunded rows the same way.
+- **Edge Function limits for a long stream** (Supabase documentation,
+  checked 18 Nov).
+  - A worker stops at its wall-clock limit: 150 s on the Free plan, 400 s on
+    paid plans. The limit counts from the worker's start, and a worker can
+    serve several requests, so a stream can be cut before 400 s.
+  - The request idle timeout, 150 s, applies until the response starts (a
+    504). A stream starts at `message_start`.
+  - CPU time is 2 s per request, not counting time spent waiting for I/O.
+    In a Node test, the event parser used 30 to 80 ms of CPU for a
+    128K-token stream.
+  - When the runtime is about to stop the worker (`beforeunload`), the
+    gateway ends each open stream with an `error` event and records it,
+    with `max_tokens` as the output unless `message_delta` had come.
+  - So split work that needs more than a few minutes of output into several
+    calls.
 - **Caps (owner, 9 Nov):** per app $2/day, $10/week, $20/month; per user
   $0.25/day (recommendation taken 9 Nov; change in `llm_apps`). Backstop: a
   monthly spend limit in the Anthropic console (owner action).
@@ -535,17 +611,52 @@ model wherever deterministic code does the job.
   adds or removes admins. Payment (Paddle) is a later slice.
 - **Default model:** `claude-opus-5-5` ($4 in, $20 out per million tokens,
   cache reads $0.20, cache writes 1.25x input), about 100 typical calls per
-  $2 day. Apps may allow `claude-sonnet-5-5` ($2 / $10) or `claude-haiku-5-5`
-  ($0.10 / $0.50, prompts up to 100K tokens) for bulk work. The pricing table
-  is `platform/src/gateway/pricing.ts`; check it against
-  https://platform.claude.com/docs/en/about-claude/pricing when a model is
-  added.
+  $2 day. Apps may allow `claude-sonnet-5-5` ($2 / $10, cache reads $0.10)
+  or `claude-haiku-5-5` ($0.10 / $0.50, prompts up to 100K tokens) for bulk
+  work. The pricing table is `platform/src/gateway/pricing.ts`, checked
+  against https://platform.claude.com/docs/en/about-claude/pricing on 18 Nov;
+  check it again when a model is added. Cache writes are priced at the
+  5-minute rate.
 - Deploying the gateway: `deploy-gateway` in the Supabase admin workflow
   (Supabase CLI via `supabase/setup-cli@v2`, `supabase functions deploy
   llm-gateway`), and `set-gateway-key` writes the `ANTHROPIC_API_KEY` function
   secret from the repo secret of the same name. The gateway's pure logic
-  (caps, pricing, request validation) is in plain TypeScript modules with
-  vitest tests; the Deno entry point only wires them.
+  (caps, pricing, request validation, thinking settings, streaming and its
+  accounting) is in plain TypeScript modules with vitest tests; the Deno
+  entry point only wires them.
+- **Post-deploy check** (owner, 18 Nov: "21b yes"): `gateway-check` in the
+  Supabase admin workflow, after every `deploy-gateway`.
+  - It is not read-only, so it waits for the owner's approval like
+    `deploy-gateway`.
+  - It works as a test app, `gateway-check`, which it upserts and switches
+    on at the start of each run, and switches off at the end of every run,
+    passed or failed, so no one can use it between runs:
+    - only `claude-haiku-5-5`, `max_tokens` 512;
+    - caps of $0.05 a day, $0.20 a week, $0.50 a month and $0.05 a person a
+      day;
+    - the stand-in sign-in `visitors+gateway-check@hintwise.org`, made the
+      way `anon-setup` does.
+  - Each run makes a fresh random app key. The log masks it, and only its
+    sha256 is stored.
+  - It makes three calls in app-key mode, with `thinking` disabled and fixed
+    prompts:
+    - a. a non-streaming call, `max_tokens` 32;
+    - b. a stream read to `message_stop`, `max_tokens` 32;
+    - c. a long stream ("count from one to three hundred in words", far more
+      than its `max_tokens` 512), which it leaves after the first
+      `content_block_delta`. The model then has several seconds of reply
+      left, so the abort reaches the gateway well before `message_stop`.
+  - Then it reads the run's `llm_usage` rows, waiting up to 30 s. It expects
+    exactly three, all `ok`. The third must have the `ClientLeft` note and
+    at least 200 output tokens from `message_delta`, far more than had
+    streamed when the caller left. That proves the gateway read the
+    abandoned stream to its end on the real runtime.
+  - It prints statuses, event counts, tokens, notes and the cost, never the
+    content or a secret. The cost should be about $0.0003; the check fails
+    at $0.01.
+  - It exits 1 on any mismatch, with the reason. "No ClientLeft note" means
+    the reply finished before the abort reached the gateway, so the drain
+    was not tested: run it again.
 
 ## 4. Usage reporting to the owner
 
@@ -635,8 +746,9 @@ In `<slug>/deploy/target.yml`: `supabase: true` when the app has a schema
   implementation uses supabase-js. A Playwright walkthrough of the main flow
   runs against `vite preview` with the in-memory repository.
 - README for the business owner says what is stored, where (Supabase,
-  US East), and how to delete an account: "Delete my account" under the
-  sign-in panel's Sign out (section "Account deletion"). Every table holding
+  US East), and how to delete an account: "Delete my account", in the
+  panel that opens from the person's name next to Sign out (section
+  "Account deletion"). Every table holding
   a user's rows needs a foreign key to `auth.users(id)` (`on delete cascade`,
   or `set null` for rows to keep), or deletion will not find them.
 
@@ -741,8 +853,8 @@ Added with the sign-in links (10 Nov), not exercised live yet:
 - `platform/supabase-admin.mjs`, `.github/workflows/supabase-admin.yml`:
   admin commands (inspect, sql, apply-shared, migrate, expose-schema,
   check-schema, configure-auth, keys, usage, email-hook, brand-upload,
-  email-optout) and the CLI steps deploy-function, deploy-gateway,
-  set-gateway-key and set-sign-in-secrets.
+  email-optout, gateway-check) and the CLI steps deploy-function,
+  deploy-gateway, set-gateway-key and set-sign-in-secrets.
 - `platform/supabase/shared/0001_platform.sql`: schema `platform`;
   `0002_sign_in.sql`: the sign-in log, alerts and their RPCs;
   `0003_email_optout.sql`: the email opt-out list and its RPCs;

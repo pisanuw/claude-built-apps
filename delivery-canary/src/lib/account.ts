@@ -5,8 +5,9 @@
  * shared sign-in service still uses it. It needs a sign-in from the last 15
  * minutes and the word DELETE typed out.
  *
- * Copied unchanged into each app's src/lib/ from platform/templates/app;
- * the sign-in panel (auth.ts) shows deleteAccountControl under "Sign out".
+ * Each app keeps a copy in src/lib/, the same as platform/templates/app's.
+ * The sign-in controls (auth.ts, mountSignIn) show deleteAccountControl in
+ * the signed-in person's panel, next to "Sign out".
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabase, supabaseEnv } from './supabase';
@@ -85,6 +86,12 @@ export async function deleteAccount(confirm: string, opts: DeleteOptions = {}): 
  * box for the word DELETE and the button. `onDone` gets the message to show
  * on the signed-out panel: after the account is gone, or after "Sign in
  * again" when the sign-in was too old.
+ *
+ * Order matters to a panel that re-renders on sign-in changes: after a
+ * deletion, onDone runs once deleteAccount has returned, and its sign-out's
+ * SIGNED_OUT event has usually re-rendered the panel already (this control
+ * is then off the page). After "Sign in again", onDone runs before the
+ * sign-out. mountSignIn handles both (auth.ts, farewellFor).
  */
 export function deleteAccountControl(opts: DeleteOptions & { onDone?: (message: string) => void } = {}): HTMLElement {
   const box = document.createElement('details');

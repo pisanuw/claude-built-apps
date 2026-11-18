@@ -40,10 +40,44 @@ Done on 18 Nov (details in hintwise-workflow `decisions/2026-11.md`, and in CHAN
 
 Remaining:
 - [ ] **Today's ideas run (10:51)** is the first from the new Finder file: check it (reminder trig_019zhkmv77qSFuWSa2WbdYTc, 11:12).
-- [ ] **Delivery Canary day 7 (11:49):** check its finish, then start Marketer with "delivery-canary" (reminder trig_01HScKA8r6NKjjB2oRJ4sH19, 13:45).
+- [x] **Delivery Canary day 7 (11:49):** finished and catalogued (f427cc7, 10:53 UTC; implemented.json in daily-project-ideas 686b447). PManager started the Marketer at 11:47 UTC with the delivery-canary launch text (run session cse_01JyJzMYgo56ToYSQpGDejgB); its drafts arrive in hintwise-workflow marketing/delivery-canary/ with a "Posts ready" inbox item. The reminder trig_01HScKA8r6NKjjB2oRJ4sH19 is deleted.
+  - The build run finished it on 18 Nov at 10:53 UTC (commit f427cc7) (marked implemented; no app change, no deploy). Pending owner actions: Netlify analytics for delivery-canary; pisan-labs/delivery-canary through the halflife job; when convenient, a first real canary (delivery-canary/HANDOFF.md "Remaining").
 - [ ] **LLM usage report run:** check it (reminder trig_01V26qt8hJGxsys1YahV7rwQ, 17:25).
 - [ ] **19 Nov, 11:49:** Tagging Doctor day 1 under build-day.md. Watch it; release requests arrive in hintwise-workflow `inbox/`.
 - [ ] **Own-repo analytics branches:** merge only on the owner's word ("2 will do later").
+- [ ] **YPai onto the platform** (pisanuw/digitalme, ypai.hintwise.org; owner, 18 Nov):
+  - the brief went to its session, session_01JyJzMYC2h8cRGt8cGRNiLz, at 06:05 UTC: gateway behind a reversible switch, Supabase sign-in, footer, analytics, email from ypai@hintwise.org;
+  - it works on a branch and does not merge; it first sends its Anthropic call inventory, costs and plan;
+  - PManager's part, each after the owner's yes: the "ypai" sign-in label with sign-in-link and delete-account redeployed, the llm_apps row with the owner's caps, anon-setup, analytics-register, then the merge and deploy;
+  - the owner, 06:20 UTC: "1b 2ok 3 will do 4 wait, but want higher caps for ypai for anonymous users". So: streaming is built into the gateway; server-side BYOK stays as an exception; the owner makes HINTWISE_APP_KEY; caps wait for measured costs, with more for anonymous visitors;
+  - **gateway streaming: live.** PR #7 merged as 4d6ce5c after Reviewer round 2 APPROVE; deploy-gateway approved by the owner in GitHub. The `gateway-check` command (PR #8, 04cce08) passed on the live gateway at 10:37 UTC (run 44274433127): normal, streamed and abandoned calls each wrote one ok row, and the abandoned stream was counted in full. YPai may use GATEWAY_STREAM=1 after its switch. Records: hintwise-workflow projects/platform/releases/gateway-streaming.md and gateway-check.md, which also list the follow-ups (fallback pricing, the worker-ending path, not tested live);
+  - done by 07:16 UTC (each run approved by the owner in GitHub):
+    - analytics-register ypai;
+    - ypai in llm_apps (default caps, the 5.5 models, max_tokens 8192; ops/ypai-llm-app.sql);
+    - anon-setup ypai (stand-in visitors+ypai@hintwise.org, key prefix 218bfd41);
+    - sign-in-link redeployed with the "ypai" label (b67f570).
+  - **m1 is live:** the footer, analytics and privacy note, through pisanuw/digitalme PR #39, merged at 07:15 UTC (main 4f6a80f) after Reviewer round 3 APPROVE; the release record is in projects/ypai/releases/m1.md;
+  - the delete-account redeploy is live (approved by the owner in GitHub);
+  - slices (ii) sign-in and (iii) gateway are on PR #38: Reviewer APPROVE at e89fc53, CI green. **Merged** on the owner's "1 yes" (release today) at 10:45:43 UTC as digitalme main 08c0cdd; publish-on-merge and tests green; Render redeploying (release record hintwise-workflow projects/ypai/releases/m2.md). LLM_PROVIDER stays direct. Before LLM_PROVIDER=gateway: the before-the-switch list on the card;
+  - still open with the owner:
+    - T2: 5 models, 7 Turnstile, 8 contacts, 9 the Action's secret (all default 07:15 Barcelona, 19 Nov); 22 PasteMD's magic link (default 10:30 Barcelona, 19 Nov); 18 answered (icon-only round buttons on phones);
+    - T3: 16, redeploying the 60 apps with the old footer;
+    - 17 done: the footer audit (scripts/footer-audit.mjs, in CI) is Keeper's weekly check 6;
+    - 24, ypai's caps ($1.00 a person a day for everyone, app caps at the defaults), through an ops SQL file and a gated run; the usage totals from scripts/usage_totals.py on halflife would refine them;
+    - 23, renewing BACKUP_GITHUB_TOKEN on Render: ypai's offsite backups stopped on 29 Oct;
+    - "uploadme" is UpvoteMe (confirmed by the owner's phone screenshot).
+  - the card is hintwise-workflow projects/ypai/README.md.
+- [ ] **Footer logo (owner, 18 Nov):** 60 of the 66 claude-built-apps apps serve the footer from before 11 Nov, which has no logo, because the footer is added at deploy time. `node scripts/footer-audit.mjs` lists them. Redeploying them waits for the owner (item 16; recommended: pluck-lab, net-units, elevator-algorithm-lab and cron-cartographer first, then about 10 a day).
+- [ ] **One sign-in look, as on UpvoteMe (owner, 18 Nov; icon-only round buttons on phones, BUILD_ROUTINE.md amended db560d3):** **merged** to main as 1380fbc at 12:14 UTC on the owner's "deploy" (CI 44302106292 green; gates rerun on the merge). **Not deployed:** run 44302632204 failed at Netlify, 401 Unauthorized, for delivery-canary, lewis-alt-text and qualified-overtime-checker (next item). Rerun its failed jobs once the token is renewed. Later: the own-repo apps (udebt, photo2pgn, StepWise; PasteMD after question 22). Spec: hintwise-workflow projects/platform/sign-in-buttons.md.
+- [ ] **Incident, 18 Nov 12:20 UTC: Netlify refuses NETLIFY_AUTH_TOKEN** (401 on listSites and sites:create; last good use 17 Nov 11:07 UTC). Blocks every Netlify deploy from this repo. The owner was sent the renewal steps at 12:22 UTC. Record: hintwise-workflow runs/2026-11-18T1220Z-incident-netlify-token.md.
+- [x] **Incident, 18 Nov 07:48 UTC: the workflow routines can't reach GitHub.** Resolved: the owner attached the repositories to the routines, and test firings reached GitHub.
+  - Monitor daily (08:16 Barcelona) and both Keeper runs (gateway streaming; sign-in buttons) stopped at setup: no `add_repo` tool, and GitHub answered 403.
+  - Cause: the routines were created by the previous session, which ran in environment env_0162x…, seeded with repository sources and not in the owner's list. Their fresh sessions get no repositories there.
+  - Correction: the environment was not the cause. A routine's session reaches only the repositories attached to the routine in claude.ai; add_repo does not work in a routine run, and create_trigger cannot attach repositories.
+    - The owner was asked at 08:00 UTC to attach them to six routines, his ideas and build routines included: both now need pisan-labs/hintwise-workflow.
+    - The four workflow routines were recreated in EnvFull anyway ("19 yes") and the old ones deleted.
+  - Re-runs ("20 yes"), as subagents of this session: Monitor's digest for 18 Nov; Keeper gateway streaming (branch fix/platform-gateway-streaming); Keeper sign-in buttons (branch fix/platform-sign-in-buttons: the template and the four claude-built-apps apps; apps in their own repositories are a later pass). PManager reviews them afterwards.
+  - Record: hintwise-workflow runs/2026-11-18T0750Z-incident-routines.md.
 
 ## 3. Current state
 
@@ -145,7 +179,7 @@ Times are Barcelona time (the owner's current zone), with LA time for LA schedul
 
 - Own-repo analytics merges: the owner will do them later.
 - Whether deploys will hit the Netlify 401: I don't know. The 17 Nov deploy worked; watch today's.
-- digitalme calls Claude directly with the Anthropic SDK, not through the gateway. Whose key it uses: I don't know.
+- digitalme (ypai) calls Claude directly: answered 18 Nov, it uses its own Anthropic key (built before HintWise). The owner started session_01JyJzMYC2h8cRGt8cGRNiLz to move it onto the platform (section 2).
 
 ## Notes for the next session
 
@@ -189,10 +223,10 @@ Times are Barcelona time (the owner's current zone), with LA time for LA schedul
   - trig_01Ck5e8Yy3vvwQ1BSF6cJnE2: Plabs daily handoff: start the next session (create_session), `CRON_TZ=America/Los_Angeles 52 5 * * *`;
   - one-shots, due 18 Nov:
     - trig_019zhkmv77qSFuWSa2WbdYTc at 10:12 UTC;
-    - trig_01HScKA8r6NKjjB2oRJ4sH19 at 12:45 UTC;
+    - trig_01HScKA8r6NKjjB2oRJ4sH19 at 12:45 UTC (deleted at 11:47 UTC: done early);
     - trig_01V26qt8hJGxsys1YahV7rwQ at 16:25 UTC.
 - **Leave alone:**
   - the owner's routines: ideas trig_01K986yzFbf3noGkLA6RgZkn, build trig_01BAP9nsXTtxTdpMiwk5GdXE, TPT trig_013VN2RNYCwh2k3F2ZjgnK6U;
-  - the workflow routines: Monitor daily trig_01Frwv3axDinKYduGTBSQZW8, Monitor weekly trig_01H8BM6km3JuHaMRzFnBivZt, Keeper trig_01Ro5iv1fTDphKaY42k72RkZ, Marketer trig_01Uszm2m3KHGusSKDsyMctN2;
+  - the workflow routines, recreated in EnvFull on 18 Nov (owner, "19 yes"): Monitor daily trig_017ncnNvikFwwEUMzN8k3ix1, Monitor weekly trig_01NMJbSUXu1Pxnb74sQSbFHS, Keeper trig_011fPUzUbmBx8UMYhjtwZCBH, Marketer trig_01Pta3mTcpBNceabkLPScKbi. They reach GitHub only once the owner attaches their repositories in claude.ai (asked 08:00 UTC, 18 Nov);
   - the switched-off Chess TD one-shots and the SIGCSE reminder.
 - **Dated task, 6 January 2027:** reports go back to Los Angeles time. Ask the owner for Los Angeles times for Monitor, Keeper and Marketer, and move them.

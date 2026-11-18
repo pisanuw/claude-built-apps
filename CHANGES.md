@@ -694,3 +694,15 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-18 [decision] Reporting zone: Los Angeles by default, Barcelona while the owner travels until 6 Jan 2027; relay routines moved from Berlin to LA schedules (same instants).
 
 2026-11-18 [code] Render domain workflow gains a guarded delete (suspended services with no custom domain, name typed twice); owner said yes to deleting the superseded mult-streak and accessibility-lens services.
+
+2026-11-18 [decision] Sign-in look (owner): UpvoteMe layout in every app, two buttons top right; round icon-only buttons below 640 px. BUILD_ROUTINE.md Google button rule amended.
+
+2026-11-18 [code] platform: llm-gateway streams ("stream": true, events unchanged, one llm_usage row per call), passes allow-listed thinking/effort; claude-sonnet-5-5 cache reads $0.10.
+
+2026-11-18 [code] platform: gateway review r1: a stream whose caller left is read to its end and counted; max_tokens when output is unknown; refunded rows not paid_with_credit.
+
+2026-11-18 [code] platform: Supabase admin gateway-check: post-deploy check of llm-gateway as test app gateway-check (a call, a stream, a stream left early; 3 ok rows expected).
+
+2026-11-18 [code] platform: gateway-check review r1: call (c) a long stream at 512 tokens with a 200-token floor; test app switched off after every run; (c) errors printed.
+
+2026-11-18 [code] delivery-canary day 7: finished (Step 5): LICENSE, mirror CI, mirrors and pisan-labs rows, README catalog row, PROJECTS.md write-up; marked implemented; no app change, no deploy.

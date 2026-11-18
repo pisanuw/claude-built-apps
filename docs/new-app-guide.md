@@ -80,9 +80,10 @@ Details: docs/platform.md sections 2 and "Sign-in links".
   - `VITE_SUPABASE_ANON_KEY` from `platform/supabase.json`
 - **Copy the template** from `platform/templates/app/src/lib/`: `supabase.ts`, `auth.ts`, `account.ts`, `llm.ts`, `repository.ts`, `signin-styles.ts` and `google-g-light.svg`, with their tests. Its README shows the `SLUG` replacement.
 - **Google:** `signInWithOAuth` through Supabase. Never add a Google client, a redirect URI or an auth setting for one app. The button follows Google's branding rules (BUILD_ROUTINE.md); the template's button does.
+- **Look:** UpvoteMe's (owner, 18 November 2026): mount the template's `mountSignIn` at the right of the app's top bar. It draws "Sign in with Google" and "Magic link" (round icon buttons below 640 px), and signed in, the person and "Sign out". The template's README, "The sign-in look", has the details.
 - **Email:** through the platform's `sign-in-link` function (the template's `sendMagicLink`), **never `signInWithOtp`**. The email hook refuses that for hintwise.org pages.
 - **New app label:** in option A, run `npm run app-hosts` in `platform/` and commit it (CI fails while it's stale). In option B, add the label to `EXTERNAL_APP_LABELS`. In both cases `sign-in-link` and `delete-account` are then redeployed, or email links and account deletion are refused for the app.
-- **"Delete my account" is required** (`account.ts`, under Sign out).
+- **"Delete my account" is required** (`account.ts`, in the person's panel next to Sign out).
 - Sign-in returns only to `https://*.hintwise.org/**`: not localhost, netlify.app or deploy previews. Tests and the Playwright walkthrough use fakes.
 
 ## 5. Data
@@ -117,6 +118,7 @@ Every HintWise app has the same "built by" footer: the HintWise icon, then the o
 - **Layout:** don't make `body` a row flexbox, or the footer sits beside the app. Column flex and grid are fine (`:host` spans every grid column).
 - **CSP:** a `style-src` without `'unsafe-inline'` must list `FOOTER_STYLE_CSP` (today `'sha256-4VDViIffTKl8oDDJg58VHCVBOHSQm7GPM7eZ1fAKuzc='`). Otherwise the browser drops the style, and the footer shows unstyled and left-aligned (PasteMD, 11 Nov).
 - **Live check:** `curl -s https://<slug>.hintwise.org/ | grep -c data-site-footer` prints 1.
+- **Every app at once:** `node scripts/footer-audit.mjs` compares each live app's footer with `footerHtml()` today (read-only; exit 1 when any app is stale, differs, missing or duplicated). Keeper runs it every week (owner, 18 Nov 2026). A stale footer in an option A app means the app has not been deployed since the footer changed.
 - **Changing the footer:**
   - Only the owner changes the wording. Edit `scripts/site-footer.mjs` and run `node --test scripts/site-footer.test.mjs`.
   - Apps in this repo pick it up on their next deploy; a manual Deploy run with `all` costs credits for every app.
@@ -164,10 +166,31 @@ Details: docs/platform.md section 3.
 - **Spending limits:** see "Spending limits" below.
 - **Request limits:**
   - the body is at most 1,000,000 bytes, so downscale images in the browser;
-  - only `model`, `max_tokens`, `system`, `messages` and `tools` pass through;
-  - no streaming, `tool_choice` or `output_config` (the gateway can be extended);
+  - only `model`, `max_tokens`, `system`, `messages`, `tools`, `thinking`, `output_config` (only `effort`) and `stream` pass through;
+  - no `tool_choice` (the gateway can be extended);
   - `max_tokens` is clamped to the app's limit, 4096 by default;
   - models are the app's `allowed_models`: Opus 5.5, Sonnet 5.5 and Haiku 5.5 by default, with `claude-opus-5-5` used when the request names none.
+- **Thinking** (platform.md section 3 has the table):
+  - All three models think before they answer unless told otherwise. A reply can begin with a `thinking` block whose text is empty, and thinking uses up `max_tokens`.
+  - So read every content block by its `type`, never `content[0].text`, and leave room in `max_tokens`: the API documentation's own one-word classifier on `claude-haiku-5-5` uses `max_tokens: 1024` at effort `low`.
+  - To think less, send `output_config: { effort: "low" }` (`low`, `medium`, `high`, `xhigh` or `max`).
+  - To turn thinking off, send `thinking: { type: "between_tools" }` on `claude-sonnet-5-5` or `thinking: { type: "disabled" }` on `claude-haiku-5-5`, with effort `high` or below. `claude-opus-5-5` cannot turn it off.
+  - Any other setting is a 400 from the gateway.
+- **Streaming:**
+  - Send `"stream": true`. After the same checks, the answer is Anthropic's server-sent events, unchanged, as `text/event-stream`.
+  - Check the `content-type`: an error before the first event is still a JSON answer (502, or a 4xx from the checks).
+  - An `error` event in the stream is a failed call. The gateway sends one itself (type `api_error`) when the upstream breaks.
+  - **How it is counted:**
+    - One `llm_usage` row per call, written when the stream ends.
+    - Input and cache tokens come from `message_start`, and output tokens from `message_delta`.
+    - The cost and the caps work as for any call.
+  - **If the person closes the stream early,** the model does not stop.
+    - The gateway reads the reply to its end, then records and charges all of it as one call: call caps, dollar caps, and a credit if one was spent.
+    - Closing early saves nothing, so stop a reply by not asking for it, or with a smaller `max_tokens`.
+  - **If the reply cannot be read to its end** (the worker stops, or the upstream breaks), the row counts the request's whole `max_tokens` as output. That is the most it can cost, and a long `max_tokens` is charged in full then.
+  - **A refunded credit:** a call that fails with a credit spent gets the credit back, and its cost then counts for the person's own allowance.
+  - Supabase stops a worker after at most 400 s, so keep each streamed reply to a few minutes.
+  - The template's `llm.ts` does not stream. An app that streams parses the events itself, as YPai's backend does.
 - **Visitors who are not signed in** (shared/0013, owner, 15 Nov; udebt first): an app's own server code may call the gateway for them, all counted as one stand-in user. It sends `Authorization: Bearer <the public anon key>` (verify_jwt needs a project JWT) and `x-hintwise-app-key: <secret>`; browsers cannot send that header. The owner makes the secret with `openssl rand -base64 32` (required: random, never a passphrase, because its sha256 appears in the public workflow log), puts it in the app's Netlify env as a secret `HINTWISE_APP_KEY` (Functions scope) and gives Plabs only its sha256 (`printf %s "$KEY" | shasum -a 256`); Plabs runs `anon-setup <slug> --key-sha256=<hex>` after the owner's yes (`anon-off <slug>` undoes it). The per-person caps (`user-day`, and any app-user caps) are then the visitors' shared allowance, inside the app caps; answers carry `anonymous: true`. Put a bot check (Turnstile, verified in the app's function) in front of it.
 - **Calling Claude from scripts:** use the local `claude` CLI. Using an Anthropic API key needs the owner's yes.
 

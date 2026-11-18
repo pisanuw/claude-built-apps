@@ -1,9 +1,10 @@
 /**
  * Request validation for the gateway. The browser sends a subset of the
- * Messages API: { app, model?, max_tokens?, system?, messages, tools? }.
- * Everything here is pure and returns a status plus a message the browser
- * can show; nothing throws on bad input.
+ * Messages API: { app, model?, max_tokens?, system?, messages, tools?,
+ * thinking?, output_config?, stream? }. Everything here is pure and returns a
+ * status plus a message the browser can show; nothing throws on bad input.
  */
+import { checkThinking, type Effort, type ThinkingType } from './thinking.ts';
 
 /** Hard limits on what one call may carry. */
 export const MAX_BODY_BYTES = 1_000_000;
@@ -27,6 +28,12 @@ export interface GatewayRequest {
   system?: string | unknown[];
   messages: unknown[];
   tools?: unknown[];
+  /** Allowed per model in thinking.ts; absent means the model default (adaptive). */
+  thinking?: { type: ThinkingType };
+  /** Only `effort`, allowed per model in thinking.ts. */
+  output_config?: { effort: Effort };
+  /** Server-sent events passed through (stream.ts); absent or false means one JSON answer. */
+  stream?: true;
 }
 
 export type Failure = { ok: false; status: number; error: string };
@@ -71,7 +78,8 @@ function validMessage(m: unknown): string | null {
 /**
  * Checks the body against the app row: model in allowed_models (default the
  * app's default_model), max_tokens clamped to the app's max_tokens, messages
- * well formed and at most MAX_MESSAGES, tools an array if present.
+ * well formed and at most MAX_MESSAGES, tools an array if present, thinking
+ * and effort from the allow-list in thinking.ts, stream a boolean.
  */
 export function validateRequest(body: Record<string, unknown>, app: AppRow): Validated {
   const slug = appSlug(body);
@@ -116,8 +124,16 @@ export function validateRequest(body: Record<string, unknown>, app: AppRow): Val
     tools = body.tools;
   }
 
+  const settings = checkThinking(body, model);
+  if (!settings.ok) return settings;
+
+  if (body.stream !== undefined && typeof body.stream !== 'boolean') return fail(400, '"stream" must be true or false when given.');
+
   const request: GatewayRequest = { app: slug.slug, model, max_tokens, messages };
   if (system !== undefined) request.system = system;
   if (tools !== undefined) request.tools = tools;
+  if (settings.thinking) request.thinking = settings.thinking;
+  if (settings.output_config) request.output_config = settings.output_config;
+  if (body.stream === true) request.stream = true;
   return { ok: true, request };
 }

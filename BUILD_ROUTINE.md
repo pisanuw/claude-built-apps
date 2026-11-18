@@ -66,7 +66,17 @@ custom button, and it must keep to the guideline's custom-button rules
 - Logo: the standard multicolour "G" from Google's pre-approved assets
   (https://developers.google.com/static/identity/images/signin-assets.zip),
   unmodified, at its own size and colours. Never a monochrome, outdated or
-  hand-drawn G, and never the G alone without the button's border and text.
+  hand-drawn G, and never the G alone without the button's border and text,
+  except on narrow screens as below.
+- Layout (owner, 18 November 2026: "I like the version that uploadme has the
+  best where it is in the top right as two separate buttons", and, showing
+  UpvoteMe on a phone, "Upvote me looks like this on mobile which is my
+  preference"): every app with sign-in puts two separate buttons at the
+  right of its top bar, "Sign in with Google" and "Magic link", as
+  https://upvoteme.hintwise.org does. Below 640 px each becomes a round,
+  bordered icon button (the unmodified G, and the envelope) with its full
+  accessible name. This narrow-screen form is the owner's choice; whether
+  Google's guidelines allow an icon-only G was not checked.
 - Theme, matching the page: Light (fill #FFFFFF, 1px inside stroke #747775,
   text #1F1F1F), Dark (#131314, stroke #8E918F, text #E3E3E3) or Neutral
   (#F2F2F2, no stroke, text #1F1F1F).
