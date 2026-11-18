@@ -70,7 +70,10 @@ Remaining:
 - [ ] **Incident, 18 Nov 07:48 UTC: the workflow routines can't reach GitHub.**
   - Monitor daily (08:16 Barcelona) and both Keeper runs (gateway streaming; sign-in buttons) stopped at setup: no `add_repo` tool, and GitHub answered 403.
   - Cause: the routines were created by the previous session, which ran in environment env_0162x…, seeded with repository sources and not in the owner's list. Their fresh sessions get no repositories there.
-  - Fix: recreate Monitor daily, Monitor weekly, Keeper and Marketer in EnvFull (env_01QejuDsvXnG9LCUbFrNHN8s). It waits for the owner's yes (question 19). Then re-run Monitor daily and the two Keeper directives.
+  - Correction: the environment was not the cause. A routine's session reaches only the repositories attached to the routine in claude.ai; add_repo does not work in a routine run, and create_trigger cannot attach repositories.
+    - The owner was asked at 08:00 UTC to attach them to six routines, his ideas and build routines included: both now need pisan-labs/hintwise-workflow.
+    - The four workflow routines were recreated in EnvFull anyway ("19 yes") and the old ones deleted.
+  - Re-runs ("20 yes"), as subagents of this session: Monitor's digest for 18 Nov; Keeper gateway streaming (branch fix/platform-gateway-streaming); Keeper sign-in buttons (branch fix/platform-sign-in-buttons: the template and the four claude-built-apps apps; apps in their own repositories are a later pass). PManager reviews them afterwards.
   - Record: hintwise-workflow runs/2026-11-18T0750Z-incident-routines.md.
 
 ## 3. Current state
@@ -221,6 +224,6 @@ Times are Barcelona time (the owner's current zone), with LA time for LA schedul
     - trig_01V26qt8hJGxsys1YahV7rwQ at 16:25 UTC.
 - **Leave alone:**
   - the owner's routines: ideas trig_01K986yzFbf3noGkLA6RgZkn, build trig_01BAP9nsXTtxTdpMiwk5GdXE, TPT trig_013VN2RNYCwh2k3F2ZjgnK6U;
-  - the workflow routines: Monitor daily trig_01Frwv3axDinKYduGTBSQZW8, Monitor weekly trig_01H8BM6km3JuHaMRzFnBivZt, Keeper trig_01Ro5iv1fTDphKaY42k72RkZ, Marketer trig_01Uszm2m3KHGusSKDsyMctN2;
+  - the workflow routines, recreated in EnvFull on 18 Nov (owner, "19 yes"): Monitor daily trig_017ncnNvikFwwEUMzN8k3ix1, Monitor weekly trig_01NMJbSUXu1Pxnb74sQSbFHS, Keeper trig_011fPUzUbmBx8UMYhjtwZCBH, Marketer trig_01Pta3mTcpBNceabkLPScKbi. They reach GitHub only once the owner attaches their repositories in claude.ai (asked 08:00 UTC, 18 Nov);
   - the switched-off Chess TD one-shots and the SIGCSE reminder.
 - **Dated task, 6 January 2027:** reports go back to Los Angeles time. Ask the owner for Los Angeles times for Monitor, Keeper and Marketer, and move them.
