@@ -5,11 +5,12 @@ reads this file and follows it. Edit the routine here, not in the task.
 
 **Since 19 November 2026** (owner's decision of 18 November 2026), the
 HintWise workflow runs the build. When Step 0 finds no build in progress, or
-the build in progress has a card in pisan-labs/hintwise-workflow `projects/`,
+the build in progress has a folder in pisan-labs/hintwise-workflow `projects/`,
 follow that repository's `routines/build-day.md` (the conductor) instead of
-Steps 1 to 5 below. Read its CHARTER.md and PIPELINE.md first; the tier map is
+Steps 1 to 5 below. Every document of such a project (spec, reviews,
+decisions, handoff) lives in its folder there, not in `<slug>/`. Read its CHARTER.md and PIPELINE.md first; the tier map is
 in the scheduled task's prompt. Only a build that started before 19 November
-and has no card finishes with Steps 1 to 5. The architecture table, the
+and has no folder there finishes with Steps 1 to 5. The architecture table, the
 Google sign-in button rules, the deploy rules and the finish checklist below
 still apply to every project, as build-day.md says.
 
