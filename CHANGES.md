@@ -704,3 +704,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-18 [code] platform: Supabase admin gateway-check: post-deploy check of llm-gateway as test app gateway-check (a call, a stream, a stream left early; 3 ok rows expected).
 
 2026-11-18 [code] platform: gateway-check review r1: call (c) a long stream at 512 tokens with a 200-token floor; test app switched off after every run; (c) errors printed.
+
+2026-11-18 [code] delivery-canary day 7: finished (Step 5): LICENSE, mirror CI, mirrors and pisan-labs rows, README catalog row, PROJECTS.md write-up; marked implemented; no app change, no deploy.

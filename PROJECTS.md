@@ -1277,3 +1277,34 @@ the same TypeScript core through the local claude CLI. 126 vitest tests,
 99.7% statement coverage, and a Playwright walkthrough with the model faked.
 See its [README](./lewis-alt-text/README.md).
 
+
+### [`delivery-canary/`](./delivery-canary)
+
+Delivery Canary for digital shops: for Shopify shop owners who sell
+downloadable files (patterns, ebooks, presets, printables) and find out a
+download email went to Spam, or its link broke, only when a customer writes
+in. The second weekly build (seven build days, 12 to 18 November 2026), on
+the shared platform. One engine checks a delivery email, parsed in the
+browser and never uploaded: where it landed, SPF, DKIM, DMARC and DKIM
+alignment with the From domain, a free-mailbox sender, transit time, the
+delivery app, and the download link, tested server side through an
+SSRF-guarded, DNS-pinned fetch (status, type, size, SHA-256) and compared
+with the shop's baseline file. Three feeds use that engine: a dropped .eml,
+a seed Gmail inbox read over IMAP with a Google app password (read-only,
+Gmail's own placement: Primary, Promotions, other tabs, archived, Spam), and
+canary orders, free tagged draft orders placed through the shop's own Shopify
+Dev Dashboard app (client credentials grant, scopes checked, the secret and
+the canary address sealed together with AES-256-GCM). A Netlify Scheduled
+Function runs weekly or daily canaries, proves itself to key-checked security
+definer functions instead of holding the service-role key, and sends Resend
+alerts (Spam, a failed check, no email, a refused order) and a weekly digest
+with one-click unsubscribe and caps in SQL. A late download order scan reads
+Shopify's Orders CSV through a 12-column allowlist (customer details never
+leave the parser) or the Admin API, and lists paid download orders still
+unfulfilled after a grace period. Data in schema `app_delivery_canary` with
+row level security on every table and rate limits as insert triggers. No LLM:
+every finding is a rule. 552 vitest tests, 99% statement coverage, and six
+Playwright walkthroughs. The seed inbox, Shopify and scheduled paths have run
+only against scripted fakes so far.
+Live: [delivery-canary.hintwise.org](https://delivery-canary.hintwise.org).
+See its [README](./delivery-canary/README.md).

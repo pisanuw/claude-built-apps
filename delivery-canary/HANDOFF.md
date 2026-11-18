@@ -1,4 +1,4 @@
-# Delivery Canary: handoff (day 6 of 7, 2026-11-17)
+# Delivery Canary: handoff (day 7 of 7, 2026-11-18, finished)
 
 Rewritten at the end of every build day by the build routine
 (BUILD_ROUTINE.md). It is the only state the next day's session has, and the
@@ -6,12 +6,15 @@ document the owner pastes into any other session to continue the work.
 
 ## Resume prompt
 
-> Continue building `delivery-canary` in pisanuw/claude-built-apps (branch
-> main; run `git config core.hooksPath .git-hooks`). Read
-> `delivery-canary/HANDOFF.md`, `delivery-canary/docs/PLAN.md`,
-> `docs/platform.md` and the repo CLAUDE.md, then work the next milestone as
-> BUILD_ROUTINE.md "Step 3" describes: implement with tests, review, push to
-> main, update this handoff.
+> Continue `delivery-canary` in pisanuw/claude-built-apps (branch main; run
+> `git config core.hooksPath .git-hooks`). It finished on 2026-11-18 (day 7 of
+> 7) and is marked implemented. Read `delivery-canary/HANDOFF.md` (start with
+> "Remaining and known issues"), `delivery-canary/docs/PLAN.md`,
+> `docs/platform.md` and the repo CLAUDE.md. For `continue delivery-canary`,
+> set the daily-project-ideas placeholder again ("day 1 of 7 (continued)"),
+> pick the next item from "Remaining", and work it as BUILD_ROUTINE.md "Step
+> 3" describes: implement with tests, review, push to main, update this
+> handoff.
 
 ## Goal and customer
 
@@ -109,7 +112,13 @@ Shape marks: stateful, connected, unattended, engine (PLAN.md "Shape").
   card has its own status line, `index.html` has a static shell (h1, what it
   does) for readers without scripts, and Google Sans loads (non-blocking)
   for the Google button. README rewritten for the shop owner; `demo.gif`.
-- Not live yet: milestone 7 (finish).
+- Day 7 (2026-11-18): finished, no app change and no deploy. LICENSE and the
+  mirror's `.github/workflows/ci.yml` added, `delivery-canary delivery-canary`
+  in `.github/mirrors.txt`, a row in `scripts/pisan-labs-repos.csv`, the root
+  README "Tools for small businesses" row, the PROJECTS.md write-up,
+  implemented.json (url, notes, publicNotes), studio.json and
+  `web/media/delivery-canary.jpg` in daily-project-ideas, and the
+  pisanorg/yusuf aiprojects.md section. Quality gates re-run green.
 
 ## Milestones (docs/PLAN.md)
 
@@ -121,7 +130,7 @@ Shape marks: stateful, connected, unattended, engine (PLAN.md "Shape").
 | 4 | Shopify connection and canary order | done | 4 | code review (high, 10 findings) and security review (1 medium, 1 low) fixed; not yet tried against a real shop (open question 5) |
 | 5 | Schedule and alerts | done | 5 | code review (high, 10 findings) and security review (1 medium, 5 low, 3 info) fixed, except the medium's last step (open question 6); first Scheduled Function with this runner |
 | 6 | Polish | done | 6 | code review (high, 9 findings) and whole-app security review (1 medium, 1 low) fixed; accessibility-lens: only "no headings" (static HTML), fixed with the shell |
-| 7 | Finish | next | | |
+| 7 | Finish | done | 7 | BUILD_ROUTINE.md Step 5; live site re-verified (200, footer, health, Scheduled Function heartbeat 10:50 UTC) |
 
 ## How to run and verify
 
@@ -483,20 +492,29 @@ mailbox: IMAP with a Google app password.
 
 ## Remaining and known issues
 
-- Milestone 7 (finish, day 7): BUILD_ROUTINE.md Step 5 (LICENSE, the app's
-  `.github/workflows/ci.yml` copied from bombe-bench's and adjusted, mirrors
-  row, pisan-labs CSV row with topics including claude-code and
-  small-business, root README "Tools for small businesses" row, PROJECTS.md
-  write-up, implemented.json, studio.json and `node scripts/studio_media.js`
-  (uses `demo.gif`), CHANGES.md in both repos, pisanorg/yusuf
-  aiprojects.md, owner actions). Draft publicNotes: "For shops that sell
-  digital files on Shopify. It places a free test order on a schedule,
-  watches a test Gmail inbox for the download email, and emails the owner
-  when that email lands in Spam, never arrives, or its link stops giving the
-  right file. It also checks a single delivery email and finds paid download
-  orders that were never delivered. Limitation: it measures one Gmail inbox,
-  and it has not yet been run against a real shop, so the first real
-  canary may turn up a fix."
+- Owner actions after the finish (2026-11-18), none blocking:
+  a. DNS: nothing (the deploy has served delivery-canary.hintwise.org since
+     day 1).
+  b. pisan-labs/delivery-canary: nothing if the daily halflife job runs (it
+     creates the repo and mirrors it; until then the mirror workflow skips
+     the app with a warning). Manual fallback, on the Mac in
+     claude-built-apps: `git pull && python3 scripts/pisan_labs_setup.py &&
+     gh workflow run mirror.yml --repo pisanuw/claude-built-apps --ref main`.
+  c. Netlify web analytics:
+     https://app.netlify.com/projects/delivery-canary/analytics-and-metrics/analytics
+  d. LLM gateway: not used, nothing to confirm.
+  e. When convenient, the first real canary (open questions 4 and 5): a
+     development store's Dev Dashboard app, a test Gmail with an app
+     password, one canary placed from the live page; report what the cards
+     say, and any failure is the next bug to fix.
+- Sign-in buttons in the UpvoteMe layout (owner, 18 Nov): built for this app
+  on branch fix/platform-sign-in-buttons by the Keeper re-run, held off main
+  until the owner says "deploy" (PManager's item). This finish did not touch
+  the app's sign-in code.
+- Candidates for `continue delivery-canary`: automatic lookup of an
+  "unknown" canary by tag; a "no email" alert for a canary left 'placed'
+  over a day; checking the platform's global email opt-out; DST-proof
+  schedules; Outlook or Yahoo seed inboxes (out of scope in PLAN.md).
 - Deploy run 187 (day 6, commit 6c94de4): migrations 0006 and 0007
   applied, check-schema passed (same advisor warnings by design as day 5),
   job_config 1 row. The Scheduled Function's heartbeat moved to 11:10:22
@@ -624,3 +642,6 @@ mailbox: IMAP with a Google app password.
   regions, static shell, Google Sans, README for the shop owner, demo GIF, a
   phone and keyboard walkthrough); code review (9) and security review (1
   medium, 1 low) fixed; deployed (run 187).
+- Day 7 (2026-11-18): finish (BUILD_ROUTINE.md Step 5): LICENSE, mirror CI,
+  mirrors and pisan-labs rows, catalog row and write-up, implemented.json,
+  Studio entry and image, portfolio section; no app change, no deploy.
