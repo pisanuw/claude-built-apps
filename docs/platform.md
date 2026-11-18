@@ -112,9 +112,10 @@ values.
   { redirectTo: location.origin + location.pathname } })`, and for email the
   platform's `sign-in-link` function, not `signInWithOtp` (next section; the
   template's `sendMagicLink` calls it); `onAuthStateChange` drives the UI.
-  The shared template in `platform/templates/app/` has the sign-in panel,
-  with a Google button that follows Google's branding guidelines
-  (BUILD_ROUTINE.md, "Google sign-in button").
+  The shared template in `platform/templates/app/` has the sign-in
+  controls for the right of the top bar (UpvoteMe's look: "Sign in with
+  Google" and "Magic link"), with a Google button that follows Google's
+  branding guidelines (BUILD_ROUTINE.md, "Google sign-in button").
 - **Google sign-in goes through Supabase** (owner, 9 Nov): the browser goes
   to Supabase, then Google, then Supabase's callback, then back to the app.
   No per-app Google setup: one callback URL on the Google client and the
@@ -430,7 +431,7 @@ Ship order, each step a "Supabase admin" dispatch after the owner's yes:
 ## Account deletion
 
 "Delete my account" (platform/templates/app/src/lib/account.ts, shown by
-the sign-in panel under Sign out) lets a signed-in person delete their
+the sign-in panel, in the person's panel next to Sign out) lets a signed-in person delete their
 account. The `delete-account` edge function
 (platform/src/account/delete-service.ts) checks the session token, needs a
 sign-in from the last 15 minutes and the word DELETE, then runs
@@ -635,8 +636,9 @@ In `<slug>/deploy/target.yml`: `supabase: true` when the app has a schema
   implementation uses supabase-js. A Playwright walkthrough of the main flow
   runs against `vite preview` with the in-memory repository.
 - README for the business owner says what is stored, where (Supabase,
-  US East), and how to delete an account: "Delete my account" under the
-  sign-in panel's Sign out (section "Account deletion"). Every table holding
+  US East), and how to delete an account: "Delete my account", in the
+  panel that opens from the person's name next to Sign out (section
+  "Account deletion"). Every table holding
   a user's rows needs a foreign key to `auth.users(id)` (`on delete cascade`,
   or `set null` for rows to keep), or deletion will not find them.
 
