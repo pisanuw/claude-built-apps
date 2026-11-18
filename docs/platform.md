@@ -623,6 +623,39 @@ model wherever deterministic code does the job.
   (caps, pricing, request validation, thinking settings, streaming and its
   accounting) is in plain TypeScript modules with vitest tests; the Deno
   entry point only wires them.
+- **Post-deploy check** (owner, 18 Nov: "21b yes"): `gateway-check` in the
+  Supabase admin workflow, after every `deploy-gateway`.
+  - It is not read-only, so it waits for the owner's approval like
+    `deploy-gateway`.
+  - It works as a test app, `gateway-check`, which it upserts and switches
+    on at the start of each run, and switches off at the end of every run,
+    passed or failed, so no one can use it between runs:
+    - only `claude-haiku-5-5`, `max_tokens` 512;
+    - caps of $0.05 a day, $0.20 a week, $0.50 a month and $0.05 a person a
+      day;
+    - the stand-in sign-in `visitors+gateway-check@hintwise.org`, made the
+      way `anon-setup` does.
+  - Each run makes a fresh random app key. The log masks it, and only its
+    sha256 is stored.
+  - It makes three calls in app-key mode, with `thinking` disabled and fixed
+    prompts:
+    - a. a non-streaming call, `max_tokens` 32;
+    - b. a stream read to `message_stop`, `max_tokens` 32;
+    - c. a long stream ("count from one to three hundred in words", far more
+      than its `max_tokens` 512), which it leaves after the first
+      `content_block_delta`. The model then has several seconds of reply
+      left, so the abort reaches the gateway well before `message_stop`.
+  - Then it reads the run's `llm_usage` rows, waiting up to 30 s. It expects
+    exactly three, all `ok`. The third must have the `ClientLeft` note and
+    at least 200 output tokens from `message_delta`, far more than had
+    streamed when the caller left. That proves the gateway read the
+    abandoned stream to its end on the real runtime.
+  - It prints statuses, event counts, tokens, notes and the cost, never the
+    content or a secret. The cost should be about $0.0003; the check fails
+    at $0.01.
+  - It exits 1 on any mismatch, with the reason. "No ClientLeft note" means
+    the reply finished before the abort reached the gateway, so the drain
+    was not tested: run it again.
 
 ## 4. Usage reporting to the owner
 
@@ -818,8 +851,8 @@ Added with the sign-in links (10 Nov), not exercised live yet:
 - `platform/supabase-admin.mjs`, `.github/workflows/supabase-admin.yml`:
   admin commands (inspect, sql, apply-shared, migrate, expose-schema,
   check-schema, configure-auth, keys, usage, email-hook, brand-upload,
-  email-optout) and the CLI steps deploy-function, deploy-gateway,
-  set-gateway-key and set-sign-in-secrets.
+  email-optout, gateway-check) and the CLI steps deploy-function,
+  deploy-gateway, set-gateway-key and set-sign-in-secrets.
 - `platform/supabase/shared/0001_platform.sql`: schema `platform`;
   `0002_sign_in.sql`: the sign-in log, alerts and their RPCs;
   `0003_email_optout.sql`: the email opt-out list and its RPCs;
