@@ -678,3 +678,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-17 [decision] Owner: apps in this repo get analytics at their next deploy (no batch redeploy); Chess TD CI trim #227 merged with the nightly Oracle moved to weekly (owner yes, 21:5x Barcelona)
 
 2026-11-18 [doc] Handoff of 18 November on the owner's "/handoff now" (53% context); fact-checked; LLM usage report 409 fix and node_modules link removal landed first
+
+2026-11-18 [decision] .claude/settings.json allows mcp__claude-code-remote__create_trigger (owner, 18 Nov): the auto-mode check refused moving the hourly report routine.
