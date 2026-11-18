@@ -44,6 +44,11 @@ Remaining:
 - [ ] **LLM usage report run:** check it (reminder trig_01V26qt8hJGxsys1YahV7rwQ, 17:25).
 - [ ] **19 Nov, 11:49:** Tagging Doctor day 1 under build-day.md. Watch it; release requests arrive in hintwise-workflow `inbox/`.
 - [ ] **Own-repo analytics branches:** merge only on the owner's word ("2 will do later").
+- [ ] **YPai onto the platform** (pisanuw/digitalme, ypai.hintwise.org; owner, 18 Nov):
+  - the brief went to its session, session_01JyJzMYC2h8cRGt8cGRNiLz, at 06:05 UTC: gateway behind a reversible switch, Supabase sign-in, footer, analytics, email from ypai@hintwise.org;
+  - it works on a branch and does not merge; it first sends its Anthropic call inventory, costs and plan;
+  - PManager's part, each after the owner's yes: the "ypai" sign-in label with sign-in-link and delete-account redeployed, the llm_apps row with the owner's caps, anon-setup, analytics-register, then the merge and deploy;
+  - open with the owner: gateway streaming, server-side BYOK, caps, anonymous visitors.
 
 ## 3. Current state
 
@@ -145,7 +150,7 @@ Times are Barcelona time (the owner's current zone), with LA time for LA schedul
 
 - Own-repo analytics merges: the owner will do them later.
 - Whether deploys will hit the Netlify 401: I don't know. The 17 Nov deploy worked; watch today's.
-- digitalme calls Claude directly with the Anthropic SDK, not through the gateway. Whose key it uses: I don't know.
+- digitalme (ypai) calls Claude directly: answered 18 Nov, it uses its own Anthropic key (built before HintWise). The owner started session_01JyJzMYC2h8cRGt8cGRNiLz to move it onto the platform (section 2).
 
 ## Notes for the next session
 
