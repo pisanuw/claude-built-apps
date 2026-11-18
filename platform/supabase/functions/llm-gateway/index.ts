@@ -17,10 +17,11 @@
  *           server-sent events unchanged as text/event-stream (200), and one
  *           llm_usage row when the stream ends (src/gateway/stream.ts). An
  *           error before the first event is the 502 JSON answer. If the
- *           caller goes away, the upstream call stops and the tokens seen so
- *           far are recorded. Supabase stops a worker at its wall-clock
+ *           caller goes away, the gateway stops sending but reads the
+ *           upstream to its end and records the real usage (waitUntil keeps
+ *           the worker for it). Supabase stops a worker at its wall-clock
  *           limit (400 s on paid plans); on beforeunload open streams end
- *           with an error event and are recorded.
+ *           with an error event and are recorded with max_tokens as output.
  * Check:    body { app, check: true } makes no model call and costs nothing:
  *           200 with allowance() from src/gateway/caps.ts (allowed,
  *           uses_credit, scope, resets_at, app_open, the person's own limits,
@@ -43,7 +44,7 @@ import { appSlug, parseBody, validateRequest, type AppRow } from '../../../src/g
 import { allowance, decide, funding, type Limits, type Spend } from '../../../src/gateway/caps.ts';
 import { ANON_HEADER, appKeyMatches } from '../../../src/gateway/anon.ts';
 import { buildAnthropicParams, describeError, errorRow, usageRow, type UsageRow } from '../../../src/gateway/request.ts';
-import { refundsCredit, startRelay, streamRow, type Relay, type StreamOutcome } from '../../../src/gateway/stream.ts';
+import { startRelay, streamRecord, type Relay, type StreamOutcome } from '../../../src/gateway/stream.ts';
 
 // Supabase injects SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY into every
 // function; ANTHROPIC_API_KEY is the function secret set by set-gateway-key.
@@ -191,7 +192,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const failed = async (err: unknown): Promise<Response> => {
-    await record({ ...errorRow(request, user.id, err), paid_with_credit: paid });
+    // A paid call's credit is refunded here, so its row is not paid with it.
+    await record(errorRow(request, user.id, err));
     if (paid) await refund(request.app, user.id, describeError(err).name);
     const d = describeError(err);
     return json(origin, 502, { error: 'upstream', name: d.name, status: d.status, message: d.message });
@@ -214,8 +216,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       ended = true;
       if (relay) openStreams.delete(relay);
       const work = (async () => {
-        await record({ ...streamRow(request, user.id, outcome), paid_with_credit: paid });
-        if (paid && refundsCredit(outcome)) await refund(request.app, user.id, outcome.error?.name ?? 'stream');
+        const { row, refund: giveBack } = streamRecord(request, user.id, outcome, paid);
+        await record(row);
+        if (giveBack) await refund(request.app, user.id, outcome.error?.name ?? 'stream');
       })();
       runtime?.waitUntil(work);
       await work;
@@ -227,6 +230,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     relay = started;
     if (!ended) openStreams.add(relay);
+    // After the caller leaves, the upstream is still read to its end.
+    runtime?.waitUntil(relay.done);
     return new Response(relay.body, { status: 200, headers: sseHeaders(origin) });
   }
 

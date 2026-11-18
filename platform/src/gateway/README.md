@@ -13,7 +13,7 @@ with `.ts` extensions and only wires them to supabase-js and the Anthropic SDK.
 | `thinking.ts` | `checkThinking`: the allow-list for `thinking.type` and `output_config.effort` per model (`claude-opus-5-5`: adaptive only; `claude-sonnet-5-5`: also `between_tools`; `claude-haiku-5-5`: also `disabled`; thinking off needs effort `high` or below) |
 | `cors.ts` | `https://*.hintwise.org` and `http://localhost:5173`; `preflight`, `jsonHeaders`, `sseHeaders` |
 | `request.ts` | `buildAnthropicParams` (server-side refusal fallback behind `SERVER_SIDE_FALLBACK`, not for Haiku), `usageRow`, `errorRow` |
-| `stream.ts` | `SseMeter` (usage from `message_start` and `message_delta`), `startRelay` (events passed through unchanged; an error before the first event comes back as a JSON failure; caller abort, upstream errors, shutdown), `streamRow`, `refundsCredit` |
+| `stream.ts` | `SseMeter` (usage from `message_start` and `message_delta`), `startRelay` (events passed through unchanged; an error before the first event comes back as a JSON failure; after the caller leaves the upstream is read to its end; upstream errors, shutdown), `streamRow` (`max_tokens` as output when there was no final `message_delta`), `refundsCredit`, `streamRecord` (a refunded row is not `paid_with_credit`) |
 
 Tests: `platform/test/*.test.ts` (`npm run coverage` in `platform/`).
 

@@ -9,19 +9,20 @@
  * - complete: message_stop arrived and no `error` event. ok; no refund.
  * - failed: Anthropic sent an `error` event (passed on unchanged), or the
  *   upstream stream broke or ended before message_stop, or the function is
- *   shutting down. ok=false with the tokens seen so far; a credit is
- *   refunded. When the gateway, not Anthropic, ends the stream early, it
- *   first sends the caller an Anthropic-style `error` event (api_error).
- * - aborted: the caller went away. The upstream call is stopped and the
- *   tokens seen so far are recorded, ok=false. The credit is not refunded:
- *   the caller chose to stop, and a non-streaming call whose caller leaves is
- *   charged in full as well.
+ *   shutting down. ok=false; a credit is refunded. When the gateway, not
+ *   Anthropic, ends the stream early, it first sends the caller an
+ *   Anthropic-style `error` event (api_error).
  *
- * Without a final message_delta the output count is unknown, so the row
- * takes the larger of message_start's count and an estimate from the
- * streamed deltas (text, thinking, tool input): one token per
- * BYTES_PER_TOKEN UTF-8 bytes. Thinking that streams no text (the default
- * display "omitted") is not in the estimate.
+ * When the caller goes away, the relay stops sending to it but keeps reading
+ * the upstream to its end, so the row has the real usage, as for a
+ * non-streaming call whose caller leaves. A stream that then reaches
+ * message_stop is complete (ok, a counted call), with a note that the caller
+ * left (`clientLeft`).
+ *
+ * Without a final message_delta after message_start (the function is ending,
+ * or the upstream broke or ended early), the output count is unknown, and
+ * thinking under the default display streams no text. So the row counts the
+ * request's max_tokens as the output: the most it can be.
  *
  * An error before the first event (the stream breaks or ends empty, or its
  * first event is `error`) is not streamed: startRelay returns it, and the
@@ -47,6 +48,8 @@ export interface MeterState {
   events: number;
   /** The first event's type: normally message_start; "error" when the call failed at once. */
   first: string | null;
+  /** message_start arrived: the model began, so output may be billed. */
+  started: boolean;
   /** The model that answers, from message_start (a server-side fallback may differ from the request). */
   model: string | null;
   usage: StreamTokens;
@@ -56,37 +59,12 @@ export interface MeterState {
   stopReason: string | null;
   /** An `error` event's error object. */
   error: { type: string; message: string } | null;
-  /** UTF-8 bytes of the text, thinking and tool-input deltas. */
-  deltaBytes: number;
 }
 
 const TOKEN_FIELDS = ['input_tokens', 'output_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens'] as const;
-const DELTA_FIELDS = ['text', 'thinking', 'partial_json'] as const;
-
-/** The output estimate's divisor: about 4 bytes a token in English, 3 in CJK text, so this errs high. */
-export const BYTES_PER_TOKEN = 3;
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const count = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(v) : null);
-
-/** UTF-8 length of a string without allocating. */
-export function utf8Bytes(s: string): number {
-  let n = 0;
-  for (let i = 0; i < s.length; i += 1) {
-    const c = s.charCodeAt(i);
-    if (c < 0x80) n += 1;
-    else if (c < 0x800) n += 2;
-    else if (c >= 0xd800 && c <= 0xdbff && i + 1 < s.length) {
-      n += 4; // a surrogate pair
-      i += 1;
-    } else n += 3;
-  }
-  return n;
-}
-
-export function estimatedOutputTokens(state: MeterState): number {
-  return Math.ceil(state.deltaBytes / BYTES_PER_TOKEN);
-}
 
 /**
  * An incremental parser of a server-sent event stream (the WHATWG rules:
@@ -97,13 +75,13 @@ export class SseMeter {
   readonly state: MeterState = {
     events: 0,
     first: null,
+    started: false,
     model: null,
     usage: { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
     outputFinal: false,
     stopped: false,
     stopReason: null,
     error: null,
-    deltaBytes: 0,
   };
   private readonly decoder = new TextDecoder();
   private buffer = '';
@@ -170,6 +148,7 @@ export class SseMeter {
     s.events += 1;
     if (s.first === null) s.first = type;
     if (type === 'message_start') {
+      s.started = true;
       const m = isObject(p.message) ? p.message : {};
       if (typeof m.model === 'string' && m.model) s.model = m.model;
       this.tokens(m.usage, false);
@@ -182,12 +161,6 @@ export class SseMeter {
     } else if (type === 'error') {
       const e = isObject(p.error) ? p.error : {};
       s.error = { type: typeof e.type === 'string' && e.type ? e.type : 'error', message: typeof e.message === 'string' ? e.message : '' };
-    } else if (type === 'content_block_delta') {
-      const d = isObject(p.delta) ? p.delta : {};
-      for (const f of DELTA_FIELDS) {
-        const v = d[f];
-        if (typeof v === 'string') s.deltaBytes += utf8Bytes(v);
-      }
     }
   }
 
@@ -210,12 +183,14 @@ export interface UpstreamError {
   message: string;
 }
 
-export type StreamEnd = 'complete' | 'failed' | 'aborted';
+export type StreamEnd = 'complete' | 'failed';
 
 export interface StreamOutcome {
   end: StreamEnd;
   /** False when nothing was streamed and the caller gets a JSON error instead. */
   streamed: boolean;
+  /** The caller closed the stream before message_stop; the upstream was read on without it. */
+  clientLeft: boolean;
   meter: MeterState;
   /** Why it did not complete; null when complete. */
   error: UpstreamError | null;
@@ -224,7 +199,7 @@ export interface StreamOutcome {
 export interface RelayOptions {
   /** Called exactly once, when the stream ends for any reason; the stream closes after it settles. */
   onEnd(outcome: StreamOutcome): Promise<void> | void;
-  /** Stops the upstream call (the entry aborts the SDK request). */
+  /** Stops the upstream call (the entry aborts the SDK request): on an early error and on shutdown, not when the caller leaves. */
   abortUpstream?(): void;
 }
 
@@ -234,6 +209,8 @@ export interface Relay {
   body: ReadableStream<Uint8Array>;
   /** Ends the stream now (the function is shutting down): an error event to the caller, a failed outcome. */
   stop(error: UpstreamError): Promise<void>;
+  /** Settles once onEnd has, also after the caller left: the entry keeps the worker alive for it. */
+  done: Promise<void>;
 }
 
 export type RelayStart = Relay | { ok: false; error: UpstreamError };
@@ -271,9 +248,10 @@ export function errorEvent(message: string, type: string = 'api_error'): string 
  */
 export async function startRelay(upstream: ReadableStream<Uint8Array> | null, opts: RelayOptions): Promise<RelayStart> {
   const meter = new SseMeter();
+  let clientLeft = false;
   const settle = async (end: StreamEnd, streamed: boolean, error: UpstreamError | null): Promise<void> => {
     try {
-      await opts.onEnd({ end, streamed, meter: meter.state, error });
+      await opts.onEnd({ end, streamed, clientLeft, meter: meter.state, error });
     } catch (err) {
       console.error('stream onEnd failed:', describeError(err).message);
     }
@@ -322,8 +300,12 @@ export async function startRelay(upstream: ReadableStream<Uint8Array> | null, op
   const encoder = new TextEncoder();
   let finished = false;
   let out: ReadableStreamDefaultController<Uint8Array> | null = null;
-  // `out` is cleared in cancel(), and this stream is never errored, so the
-  // controller is open whenever `out` is set.
+  let settled!: () => void; // set at once by the Promise executor
+  const whenDone = new Promise<void>((resolve) => {
+    settled = resolve;
+  });
+  // `out` is cleared when the caller cancels and after the close, and this
+  // stream is never errored, so the controller is open whenever `out` is set.
   const toCaller = (send: (c: ReadableStreamDefaultController<Uint8Array>) => void): void => {
     if (out) send(out);
   };
@@ -335,6 +317,8 @@ export async function startRelay(upstream: ReadableStream<Uint8Array> | null, op
     if (notice !== null) toCaller((c) => c.enqueue(encoder.encode(errorEvent(notice))));
     await settle(end, true, error);
     toCaller((c) => c.close());
+    out = null;
+    settled();
   };
   const ended = (): Promise<void> => {
     const s = meter.state;
@@ -343,12 +327,38 @@ export async function startRelay(upstream: ReadableStream<Uint8Array> | null, op
     const e = streamError('The upstream stream ended before message_stop.');
     return finish('failed', e, e.message);
   };
-  // Stopped early (caller gone, or shutdown): complete if message_stop came already.
-  const cut = (end: 'failed' | 'aborted', error: UpstreamError, notice: boolean): Promise<void> => {
+
+  // One read: the meter sees every chunk; the caller gets it while it is there.
+  const step = async (): Promise<void> => {
+    let r: ReadableStreamReadResult<Uint8Array>;
+    try {
+      r = await reader.read();
+    } catch (err) {
+      if (finished) return;
+      const d = describeError(err);
+      const e = { ...d, message: `The upstream stream broke: ${d.message}`.slice(0, 500) };
+      return finish('failed', e, e.message);
+    }
+    if (finished) return;
+    if (r.done) {
+      meter.end();
+      return ended();
+    }
+    const chunk = r.value;
+    meter.push(chunk);
+    toCaller((c) => c.enqueue(chunk));
+  };
+  // Reads run one at a time and in order, whether the caller's pull asks for
+  // them or the drain after the caller left.
+  let reads: Promise<void> = Promise.resolve();
+  const next = (): Promise<void> => (reads = reads.then(step));
+
+  // The function is ending: stop the upstream. Complete if message_stop came already.
+  const stop = (error: UpstreamError): Promise<void> => {
     if (finished) return Promise.resolve();
     release();
     if (meter.state.stopped && !meter.state.error) return finish('complete', null, null);
-    return finish(end, error, notice ? error.message : null);
+    return finish('failed', error, error.message);
   };
 
   const body = new ReadableStream<Uint8Array>({
@@ -357,46 +367,41 @@ export async function startRelay(upstream: ReadableStream<Uint8Array> | null, op
       for (const chunk of pending) controller.enqueue(chunk);
       return done ? ended() : undefined;
     },
-    async pull(controller) {
-      let r: ReadableStreamReadResult<Uint8Array>;
-      try {
-        r = await reader.read();
-      } catch (err) {
-        if (finished) return;
-        const d = describeError(err);
-        const e = { ...d, message: `The upstream stream broke: ${d.message}`.slice(0, 500) };
-        return finish('failed', e, e.message);
-      }
-      if (finished) return;
-      if (r.done) {
-        meter.end();
-        return ended();
-      }
-      meter.push(r.value);
-      controller.enqueue(r.value);
+    pull() {
+      return next();
     },
     cancel() {
-      out = null; // the caller closed it: nothing more can be sent
-      return cut('aborted', { name: 'ClientAbort', status: null, message: 'The caller closed the stream before message_stop.' }, false);
+      // The caller left: send nothing more, but read the upstream to its end,
+      // so the row has the real usage.
+      out = null;
+      if (finished) return;
+      if (!meter.state.stopped) clientLeft = true;
+      void (async () => {
+        while (!finished) await next();
+      })();
     },
   });
 
-  return { ok: true, body, stop: (error) => cut('failed', error, true) };
+  return { ok: true, body, stop, done: whenDone };
 }
 
-/** The llm_usage row for a stream; the entry sets paid_with_credit, as for usageRow. */
+/** The llm_usage row for a stream; streamRecord sets paid_with_credit. */
 export function streamRow(req: GatewayRequest, userId: string | null, outcome: StreamOutcome): UsageRow {
   const m = outcome.meter;
   const model = m.model || req.model;
-  const estimate = estimatedOutputTokens(m);
-  const estimated = !m.outputFinal && estimate > m.usage.output_tokens;
-  const output_tokens = estimated ? estimate : m.usage.output_tokens;
+  // After message_start with no final message_delta, the output is unknown
+  // and hidden thinking streamed no bytes: count the most it can be.
+  const bounded = m.started && !m.outputFinal;
+  const output_tokens = bounded ? req.max_tokens : m.usage.output_tokens;
   const { input_tokens, cache_read_input_tokens, cache_creation_input_tokens } = m.usage;
-  let error: string | null = null;
-  if (outcome.end !== 'complete') {
+  const ok = outcome.end === 'complete';
+  const notes: string[] = [];
+  if (!ok) {
     const e = outcome.error ?? streamError('The stream did not complete.');
-    error = `${e.name}${e.status ? ` ${e.status}` : ''}${estimated ? ' (output tokens estimated)' : ''}: ${e.message}`.slice(0, 500);
+    notes.push(`${e.name}${e.status ? ` ${e.status}` : ''}: ${e.message}`);
   }
+  if (outcome.clientLeft) notes.push(ok ? 'ClientLeft: the caller closed the stream before message_stop; the reply was read to its end' : 'the caller had closed the stream');
+  if (bounded) notes.push('output_tokens is max_tokens (no final message_delta)');
   return {
     app: req.app,
     user_id: userId,
@@ -406,8 +411,8 @@ export function streamRow(req: GatewayRequest, userId: string | null, outcome: S
     cache_read_tokens: cache_read_input_tokens,
     cache_write_tokens: cache_creation_input_tokens,
     cost_usd: costUsd(model, { input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens }),
-    ok: outcome.end === 'complete',
-    error,
+    ok,
+    error: notes.length ? notes.join('; ').slice(0, 500) : null,
     paid_with_credit: false,
   };
 }
@@ -415,4 +420,14 @@ export function streamRow(req: GatewayRequest, userId: string | null, outcome: S
 /** A reserved credit goes back when the call failed (Anthropic or the gateway ended it), not when the caller left. */
 export function refundsCredit(outcome: StreamOutcome): boolean {
   return outcome.end === 'failed';
+}
+
+/**
+ * The row and the refund for a stream paid (or not) with a credit. A
+ * refunded row is not paid with the credit, so paid_with_credit is false and
+ * its cost counts for the person's own caps.
+ */
+export function streamRecord(req: GatewayRequest, userId: string | null, outcome: StreamOutcome, paid: boolean): { row: UsageRow; refund: boolean } {
+  const refund = paid && refundsCredit(outcome);
+  return { row: { ...streamRow(req, userId, outcome), paid_with_credit: paid && !refund }, refund };
 }

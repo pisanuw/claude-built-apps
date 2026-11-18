@@ -50,7 +50,9 @@ const n = (v: number | null | undefined): number => (typeof v === 'number' && Nu
 /**
  * Price table for a model. An unknown model (for example one the owner added
  * to allowed_models before this table, or a fallback model named by the API)
- * is billed at Opus prices, the dearest, so the caps still bind.
+ * is billed at the default model's prices. That is not always the dearest:
+ * an older fallback model can cost more ($5 / $25 per million), so such a
+ * call is understated. Pricing fallback models is a follow-up.
  */
 export function priceFor(model: string): { price: Price; known: boolean } {
   const price = PRICES[model];
