@@ -9,7 +9,7 @@ idle $7/month services collapse into one.
 | Prefix | App | Status |
 |---|---|---|
 | `/mult-streak/` | [mult-streak](../mult-streak/) multiplication-streak game | live |
-| `/chat/` | chatwithdigitalme (separate repo) | reserved, answers 501 |
+| `/chat/` | chatwithdigitalme (separate repo) | reserved, answers 501; **will not move** (checked 2026-11-18): it is a Python/FastAPI Docker app with scikit-learn and a SQLite database on a Render disk, and this hub is one Node process with no disk |
 | `/dsa/` | dsa-instructor (separate repo) | **stays standalone** — redirects to <https://ypdsa.pisan.me> |
 
 dsa-instructor will NOT move into the hub (decided 2026-08): it is a
