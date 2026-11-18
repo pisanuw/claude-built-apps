@@ -27,6 +27,22 @@ describe('buildAnthropicParams', () => {
     expect(p.tools).toEqual([{ name: 't' }]);
     expect(Object.keys(p).sort()).toEqual(['betas', 'fallbacks', 'max_tokens', 'messages', 'model', 'system', 'tools']);
   });
+  it('passes a validated thinking or effort setting and stream through', () => {
+    const sonnet = buildAnthropicParams({ ...req, model: 'claude-sonnet-5-5', thinking: { type: 'between_tools' }, output_config: { effort: 'low' }, stream: true });
+    expect(sonnet).toEqual({
+      model: 'claude-sonnet-5-5',
+      max_tokens: 1000,
+      messages: req.messages,
+      thinking: { type: 'between_tools' },
+      output_config: { effort: 'low' },
+      stream: true,
+      betas: [FALLBACK_BETA],
+      fallbacks: 'default',
+    });
+    expect(buildAnthropicParams({ ...req, model: 'claude-haiku-5-5', thinking: { type: 'disabled' } })).toEqual({
+      model: 'claude-haiku-5-5', max_tokens: 1000, messages: req.messages, thinking: { type: 'disabled' },
+    });
+  });
 });
 
 describe('usageRow', () => {

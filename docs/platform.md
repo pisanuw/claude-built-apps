@@ -480,7 +480,8 @@ model wherever deterministic code does the job.
   link). The browser calls the Supabase Edge Function `llm-gateway`
   (`https://arktxlrlyceffyozdwhq.supabase.co/functions/v1/llm-gateway`) with the
   user's session token and a body `{ app, model?, max_tokens?, system?,
-  messages, tools? }` (a subset of the Messages API). The function:
+  messages, tools?, thinking?, output_config?, stream? }` (a subset of the
+  Messages API). The function:
   1. checks the user (`auth.getUser`) and that `llm_apps` has an enabled row
      for `app`, and that `model` is in its `allowed_models` (default:
      `default_model`);
@@ -492,12 +493,86 @@ model wherever deterministic code does the job.
      'app-user-day' | 'user-day', resets_at }` when any cap is reached
      (since 0007 the user's successful calls in the app are counted too);
   3. calls Anthropic with the `ANTHROPIC_API_KEY` function secret,
-     `max_tokens` capped at the app's `max_tokens` (default 4096), adaptive
-     thinking left at the model default;
+     `max_tokens` capped at the app's `max_tokens` (default 4096), thinking
+     and effort at the model default unless the request sets them (below);
   4. writes one `llm_usage` row (tokens, cost from the pricing table below,
-     ok/error) and returns the Messages API response unchanged.
-  Non-streaming first; streaming with the same accounting is a later
-  milestone.
+     ok/error) and returns the Messages API response unchanged, or with
+     `stream: true` passes the events on (below).
+- **Thinking and effort** (Claude API documentation, checked 18 Nov).
+  - All three models run adaptive thinking when a request has no `thinking`
+    field. So a reply can begin with a `thinking` block (its text is empty
+    by default), and thinking counts toward `max_tokens`.
+  - The gateway passes two settings from an allow-list
+    (`platform/src/gateway/thinking.ts`). Anything else is a 400 before the
+    call.
+    - `output_config: { effort }`: `low`, `medium`, `high`, `xhigh` or
+      `max`, on all three models. The defaults are `medium` on
+      `claude-opus-5-5` and `claude-haiku-5-5` and `high` on
+      `claude-sonnet-5-5`; `low` thinks least.
+    - `thinking: { type }`: `adaptive` on all three. `between_tools` on
+      `claude-sonnet-5-5` and `disabled` on `claude-haiku-5-5` turn
+      thinking before the reply off; both need effort `high` or below.
+    - `claude-opus-5-5` cannot turn thinking off. Lower its effort instead.
+    - No other field inside either object (`display`, `budget_tokens`,
+      `format`), and neither for a model outside the table.
+  - Whatever the setting, read every content block by its `type` (never
+    `content[0]`), and leave room for thinking in `max_tokens`.
+- **Streaming** (owner, 18 Nov: "1b"; YPai first).
+  - The body takes `"stream": true`, a boolean; anything else is a 400.
+    Without it nothing changes.
+  - Every check above runs first. Then the gateway calls Anthropic with
+    streaming and passes its server-sent events on unchanged, as
+    `text/event-stream`, with the same CORS headers.
+  - **Counting** (`platform/src/gateway/stream.ts`):
+    - input and cache tokens and the model come from `message_start` (a
+      fallback model when the refusal fallback ran); output tokens come from
+      `message_delta`, whose counts are cumulative;
+    - exactly one `llm_usage` row is written when the stream ends: `ok` on
+      `message_stop`, an error otherwise;
+    - **when the output is unknown,** the row counts the request's whole
+      `max_tokens` as output: the most the call can cost. That happens when
+      `message_start` came but no final `message_delta`, because the worker
+      ended or the upstream broke or stopped early. The real count is
+      unknown there, and thinking streams no text under the default display,
+      so nothing smaller is safe. An error before `message_start` records no
+      output.
+  - **Errors:**
+    - an error before the first event (an HTTP error, or an `error` event
+      first) is the usual 502 JSON answer;
+    - an `error` event mid-stream is passed on unchanged and recorded;
+    - when the upstream breaks or ends without `message_stop`, the gateway
+      sends an `error` event of type `api_error` itself.
+  - **When the caller goes away** (amended item 5, PManager, 18 Nov
+    08:45Z), the gateway stops sending to it, but it does not stop the model.
+    - It reads the upstream to its end and records the real usage, as for
+      a non-streaming call whose caller leaves.
+    - So closing a stream early saves nothing: the whole reply is generated,
+      paid for and counted. If it reaches `message_stop`, the row is `ok`
+      (a counted call, so the call caps hold), with the note `ClientLeft` in
+      its `error` column.
+    - The worker stays alive for this (`EdgeRuntime.waitUntil`), within its
+      wall-clock limit. If that runs out first, the row counts `max_tokens`,
+      as above.
+  - **Credits:** a reserved credit is refunded when the call fails (an
+    upstream error, a broken stream, a shutdown), and the row then records
+    `paid_with_credit` false, so its cost counts for the person's own caps.
+    A credit is not refunded when the caller goes away; that call ran to its
+    end. The non-streaming path records refunded rows the same way.
+- **Edge Function limits for a long stream** (Supabase documentation,
+  checked 18 Nov).
+  - A worker stops at its wall-clock limit: 150 s on the Free plan, 400 s on
+    paid plans. The limit counts from the worker's start, and a worker can
+    serve several requests, so a stream can be cut before 400 s.
+  - The request idle timeout, 150 s, applies until the response starts (a
+    504). A stream starts at `message_start`.
+  - CPU time is 2 s per request, not counting time spent waiting for I/O.
+    In a Node test, the event parser used 30 to 80 ms of CPU for a
+    128K-token stream.
+  - When the runtime is about to stop the worker (`beforeunload`), the
+    gateway ends each open stream with an `error` event and records it,
+    with `max_tokens` as the output unless `message_delta` had come.
+  - So split work that needs more than a few minutes of output into several
+    calls.
 - **Caps (owner, 9 Nov):** per app $2/day, $10/week, $20/month; per user
   $0.25/day (recommendation taken 9 Nov; change in `llm_apps`). Backstop: a
   monthly spend limit in the Anthropic console (owner action).
@@ -535,17 +610,19 @@ model wherever deterministic code does the job.
   adds or removes admins. Payment (Paddle) is a later slice.
 - **Default model:** `claude-opus-5-5` ($4 in, $20 out per million tokens,
   cache reads $0.20, cache writes 1.25x input), about 100 typical calls per
-  $2 day. Apps may allow `claude-sonnet-5-5` ($2 / $10) or `claude-haiku-5-5`
-  ($0.10 / $0.50, prompts up to 100K tokens) for bulk work. The pricing table
-  is `platform/src/gateway/pricing.ts`; check it against
-  https://platform.claude.com/docs/en/about-claude/pricing when a model is
-  added.
+  $2 day. Apps may allow `claude-sonnet-5-5` ($2 / $10, cache reads $0.10)
+  or `claude-haiku-5-5` ($0.10 / $0.50, prompts up to 100K tokens) for bulk
+  work. The pricing table is `platform/src/gateway/pricing.ts`, checked
+  against https://platform.claude.com/docs/en/about-claude/pricing on 18 Nov;
+  check it again when a model is added. Cache writes are priced at the
+  5-minute rate.
 - Deploying the gateway: `deploy-gateway` in the Supabase admin workflow
   (Supabase CLI via `supabase/setup-cli@v2`, `supabase functions deploy
   llm-gateway`), and `set-gateway-key` writes the `ANTHROPIC_API_KEY` function
   secret from the repo secret of the same name. The gateway's pure logic
-  (caps, pricing, request validation) is in plain TypeScript modules with
-  vitest tests; the Deno entry point only wires them.
+  (caps, pricing, request validation, thinking settings, streaming and its
+  accounting) is in plain TypeScript modules with vitest tests; the Deno
+  entry point only wires them.
 
 ## 4. Usage reporting to the owner
 

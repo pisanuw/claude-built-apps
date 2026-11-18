@@ -696,3 +696,7 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-18 [code] Render domain workflow gains a guarded delete (suspended services with no custom domain, name typed twice); owner said yes to deleting the superseded mult-streak and accessibility-lens services.
 
 2026-11-18 [decision] Sign-in look (owner): UpvoteMe layout in every app, two buttons top right; round icon-only buttons below 640 px. BUILD_ROUTINE.md Google button rule amended.
+
+2026-11-18 [code] platform: llm-gateway streams ("stream": true, events unchanged, one llm_usage row per call), passes allow-listed thinking/effort; claude-sonnet-5-5 cache reads $0.10.
+
+2026-11-18 [code] platform: gateway review r1: a stream whose caller left is read to its end and counted; max_tokens when output is unknown; refunded rows not paid_with_credit.

@@ -20,15 +20,25 @@ export interface AnthropicParams {
   messages: unknown[];
   system?: string | unknown[];
   tools?: unknown[];
+  thinking?: GatewayRequest['thinking'];
+  output_config?: GatewayRequest['output_config'];
+  stream?: true;
   betas?: string[];
   fallbacks?: 'default';
 }
 
-/** The `client.beta.messages.create` params. No thinking or temperature: the model defaults apply. */
+/**
+ * The `client.beta.messages.create` params. `thinking` and `output_config`
+ * only when the request set them (validated in thinking.ts); otherwise the
+ * model defaults apply. Never a temperature.
+ */
 export function buildAnthropicParams(req: GatewayRequest, fallback: boolean = SERVER_SIDE_FALLBACK): AnthropicParams {
   const params: AnthropicParams = { model: req.model, max_tokens: req.max_tokens, messages: req.messages };
   if (req.system !== undefined) params.system = req.system;
   if (req.tools !== undefined) params.tools = req.tools;
+  if (req.thinking !== undefined) params.thinking = req.thinking;
+  if (req.output_config !== undefined) params.output_config = req.output_config;
+  if (req.stream) params.stream = true;
   if (fallback && FALLBACK_MODELS.includes(req.model)) {
     params.betas = [FALLBACK_BETA];
     params.fallbacks = 'default';

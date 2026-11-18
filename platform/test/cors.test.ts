@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { corsHeaders, HINTWISE_ONLY, isAllowedOrigin, isHintwiseOrigin, jsonHeaders, preflight } from '../src/gateway/cors.ts';
+import { corsHeaders, HINTWISE_ONLY, isAllowedOrigin, isHintwiseOrigin, jsonHeaders, preflight, sseHeaders } from '../src/gateway/cors.ts';
 
 describe('hintwise-only CORS (sign-in-link)', () => {
   it('drops the dev server and keeps hintwise.org', () => {
@@ -61,5 +61,15 @@ describe('headers', () => {
     expect(h['content-type']).toMatch(/^application\/json/);
     expect(h['access-control-allow-origin']).toBe('https://x.hintwise.org');
     expect(jsonHeaders(null)['access-control-allow-origin']).toBeUndefined();
+  });
+});
+
+describe('sseHeaders', () => {
+  it('has the same CORS as JSON answers, an event-stream type and no caching', () => {
+    const h = sseHeaders('https://x.hintwise.org');
+    expect(h).toEqual({ ...corsHeaders('https://x.hintwise.org'), 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache' });
+    expect(h['access-control-allow-origin']).toBe(jsonHeaders('https://x.hintwise.org')['access-control-allow-origin']);
+    expect(sseHeaders('https://evil.example')['access-control-allow-origin']).toBeUndefined();
+    expect(sseHeaders('http://localhost:5173', HINTWISE_ONLY)['access-control-allow-origin']).toBeUndefined();
   });
 });
