@@ -50,7 +50,23 @@ Remaining:
   - PManager's part, each after the owner's yes: the "ypai" sign-in label with sign-in-link and delete-account redeployed, the llm_apps row with the owner's caps, anon-setup, analytics-register, then the merge and deploy;
   - the owner, 06:20 UTC: "1b 2ok 3 will do 4 wait, but want higher caps for ypai for anonymous users". So: streaming is built into the gateway; server-side BYOK stays as an exception; the owner makes HINTWISE_APP_KEY; caps wait for measured costs, with more for anonymous visitors;
   - Keeper was started at 06:15 UTC to build gateway streaming (session cse_01JyJzMWaP3x4T5U6wmoAhKk, branch fix/platform-gateway-streaming; spec in hintwise-workflow projects/ypai/gateway-streaming.md). It files a release item; deploy-gateway needs the owner's yes;
-  - still open with the owner: 5 models, 6 max_tokens 8192 (T3), 7 Turnstile, 8 contacts, 9 the Action's secret; and registering ypai in llm_apps before the caps are set. The card is hintwise-workflow projects/ypai/README.md.
+  - done by 07:16 UTC (each run approved by the owner in GitHub):
+    - analytics-register ypai;
+    - ypai in llm_apps (default caps, the 5.5 models, max_tokens 8192; ops/ypai-llm-app.sql);
+    - anon-setup ypai (stand-in visitors+ypai@hintwise.org, key prefix 218bfd41);
+    - sign-in-link redeployed with the "ypai" label (b67f570).
+  - **m1 is live:** the footer, analytics and privacy note, through pisanuw/digitalme PR #39, merged at 07:15 UTC (main 4f6a80f) after Reviewer round 3 APPROVE; the release record is in projects/ypai/releases/m1.md;
+  - waiting for the owner's approval in GitHub: the delete-account redeploy (claude-built-apps run 44252907821);
+  - slices (ii) sign-in and (iii) gateway are on PR #38 (head 031aa14). A Reviewer with security-review is running on b7759b7..f88cd7d. CI is red there (mypy: an unused ignore in llm_client.py), and the YPai session is fixing it. Its release needs the owner's yes (item 15);
+  - still open with the owner:
+    - T2: 5 models, 7 Turnstile, 8 contacts, 9 the Action's secret (all default 07:15 Barcelona, 19 Nov), and 18 the icon-only Google button on phones (default 08:05 Barcelona, 19 Nov);
+    - T3: 16, redeploying the 60 apps with the old footer;
+    - 17, the footer audit in Keeper's checks (a rule change);
+    - the caps, which need the usage totals from scripts/usage_totals.py on halflife;
+    - confirming that "uploadme" is UpvoteMe.
+  - the card is hintwise-workflow projects/ypai/README.md.
+- [ ] **Footer logo (owner, 18 Nov):** 60 of the 66 claude-built-apps apps serve the footer from before 11 Nov, which has no logo, because the footer is added at deploy time. The audit is in hintwise-workflow projects/platform/README.md. Redeploying them waits for the owner (item 16).
+- [ ] **One sign-in look, as on UpvoteMe (owner, 18 Nov):** Keeper is building it on branches only (session cse_01JyJzMYsbxk7D51qM5LZtyC; spec in projects/platform/sign-in-buttons.md). It files a release item; not deployed.
 
 ## 3. Current state
 
