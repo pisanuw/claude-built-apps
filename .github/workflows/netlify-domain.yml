@@ -24,6 +24,8 @@ on:
 jobs:
   set-domain:
     runs-on: ubuntu-latest
+    # Waits for the owner's approval on the owner-approval environment (owner's decision, 18 November 2026).
+    environment: owner-approval
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

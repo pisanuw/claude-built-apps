@@ -684,3 +684,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-18 [plan] Drafted hintwise-workflow/ (owner request): ten roles, charter, pipeline, routines; moves to its own repo once created; 11 open questions in OPEN-QUESTIONS.md.
 
 2026-11-18 [doc] hintwise-workflow/ moved to its own private repository, pisan-labs/hintwise-workflow (c03ed21), which the owner created; removed here.
+
+2026-11-18 [decision] Owner approval gate (workflow Q7, owner yes): Supabase admin write commands, the domain/DNS workflows and Retire Netlify site run on environment owner-approval; owner adds himself as required reviewer.

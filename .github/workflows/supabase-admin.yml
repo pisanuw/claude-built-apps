@@ -79,12 +79,24 @@ on:
         default: ''
         type: string
 
-concurrency:
-  group: supabase-admin
-  cancel-in-progress: false
-
 jobs:
+  # Commands that change something wait for the owner's approval on the
+  # owner-approval environment (owner's decision, 18 November 2026). Read-only
+  # commands skip the wait. The concurrency group sits on the run job, so a run
+  # waiting for approval does not hold up the others.
+  approve:
+    if: ${{ !contains(fromJSON('["inspect","check-schema","keys","usage","check-google","domain-status","external-hosts"]'), inputs.command) }}
+    runs-on: ubuntu-latest
+    environment: owner-approval
+    steps:
+      - run: echo "Approved for ${{ inputs.command }}"
+
   run:
+    needs: approve
+    if: ${{ always() && (needs.approve.result == 'success' || needs.approve.result == 'skipped') }}
+    concurrency:
+      group: supabase-admin
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     permissions:
       # keys --write commits platform/supabase.json (public URL and anon key).

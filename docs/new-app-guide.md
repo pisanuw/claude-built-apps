@@ -66,6 +66,7 @@ The GitHub secrets (Netlify, Render, Cloudflare, Supabase, Resend, Anthropic) li
 | **Retire Netlify site** | deletes a site and only the CNAMEs pointing at it; refuses while target.yml exists | only on the owner's word |
 
 Rules:
+- **The owner's approval gate** (owner's decision, 18 November 2026): Supabase admin (every command except the read-only inspect, check-schema, keys, usage, check-google, domain-status and external-hosts), Attach custom domain, Set Netlify domain, Remove Netlify domain, Set CNAME, Render domain, Redirect rule, Migrate domains and Retire Netlify site run on the `owner-approval` environment: each run waits until the owner approves it in GitHub (Actions, the run, "Review deployments"). Deploy and the read-only workflows do not wait.
 - **Netlify deploys cost credits.** Never redeploy every app for a small change; let each app pick it up on its next deploy unless the owner asks.
 - **The owner says yes before any production change:** deploying a function, applying a migration, changing DNS, or a deploy the owner didn't ask for. Pushing to main is fine.
 - In option A, write `netlify.customDomain: <slug>.pisan.me` in target.yml. The runner swaps in hintwise.org (`scripts/domains.mjs`). Link only the hintwise.org address.
