@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Session, User } from '@supabase/supabase-js';
 import asset from '../src/lib/google-g-light.svg?raw';
+import { DELETED_MESSAGE, SIGN_IN_AGAIN } from '../src/lib/account';
 import { ensureSignInStyles, SIGN_IN_CSS as css, SIGN_IN_STYLE_ID } from '../src/lib/signin-styles';
 import {
   BROWSER_ID_KEY,
@@ -12,9 +13,13 @@ import {
   ensureProfile,
   EXPIRED_LINK,
   formatRetryAt,
+  ENVELOPE_SVG,
   GOOGLE_BUTTON_TEXT,
   googleButton,
   googleLogoSvg,
+  initialOf,
+  MAGIC_LINK_TEXT,
+  magicLinkButton,
   loadTurnstile,
   maskEmail,
   validHint,
@@ -38,14 +43,21 @@ import {
 
 type Listener = (event: string, session: Session | null) => void;
 
-/** A fake of the supabase-js auth surface the sign-in code uses. */
-function fakeAuth(session: Session | null = null) {
+/**
+ * A fake of the supabase-js auth surface the sign-in code uses. With
+ * signOutEmits, signOut sends SIGNED_OUT to the listener before it resolves,
+ * as supabase-js does.
+ */
+function fakeAuth(session: Session | null = null, { signOutEmits = false } = {}) {
   let listener: Listener | null = null;
   const unsubscribe = vi.fn();
   const auth = {
     signInWithOAuth: vi.fn(async () => ({ data: { provider: 'google', url: 'https://accounts.google.com/o' }, error: null })),
     verifyOtp: vi.fn(async () => ({ data: { user: null, session: null }, error: null as { message: string } | null })),
-    signOut: vi.fn(async () => ({ error: null })),
+    signOut: vi.fn(async () => {
+      if (signOutEmits) listener?.('SIGNED_OUT', null);
+      return { error: null };
+    }),
     getSession: vi.fn(async () => ({ data: { session }, error: null })),
     onAuthStateChange: vi.fn((cb: Listener) => {
       listener = cb;
@@ -290,11 +302,12 @@ describe('loadTurnstile', () => {
 });
 
 describe('the Google button (branding guidelines)', () => {
-  it('says "Continue with Google" next to Google\'s G', () => {
+  it('says "Sign in with Google" next to Google\'s G, as on UpvoteMe', () => {
     const onClick = vi.fn();
     const b = googleButton(onClick);
-    expect(GOOGLE_BUTTON_TEXT).toBe('Continue with Google');
-    expect(b.textContent?.trim()).toBe('Continue with Google');
+    expect(GOOGLE_BUTTON_TEXT).toBe('Sign in with Google');
+    expect(b.textContent?.trim()).toBe('Sign in with Google');
+    expect(b.querySelector('.hw-signin-label')!.textContent).toBe('Sign in with Google');
     expect(b.type).toBe('button');
     const svg = b.querySelector('.hw-signin-google-logo svg')!;
     expect(svg).toBeTruthy();
@@ -337,8 +350,10 @@ describe('the Google button (branding guidelines)', () => {
     mountSignIn(root, { client, redirectTo: 'https://x/', completeFromUrl: false });
     return flush().then(() => {
       const google = root.querySelector('.hw-signin-google')!;
+      const magic = root.querySelector('.hw-signin-magic')!;
       const email = root.querySelector('.hw-signin-email')!;
       expect(google.classList.contains('hw-signin-button')).toBe(true);
+      expect(magic.classList.contains('hw-signin-button')).toBe(true);
       expect(email.classList.contains('hw-signin-button')).toBe(true);
       // The block is on the page, once, first in <head>.
       expect(document.head.firstElementChild?.id).toBe(SIGN_IN_STYLE_ID);
@@ -346,6 +361,39 @@ describe('the Google button (branding guidelines)', () => {
       ensureSignInStyles();
       expect(document.querySelectorAll(`#${SIGN_IN_STYLE_ID}`)).toHaveLength(1);
     });
+  });
+});
+
+describe('the bar buttons below 640 px (the owner\'s choice for phones)', () => {
+  it('turns every bar button into a round 40px icon button in one media query, its label kept for screen readers', () => {
+    const blocks = css.match(/@media[^{]*\{/g) ?? [];
+    expect(blocks).toEqual(['@media (max-width: 639.98px) {']);
+    const narrow = css.slice(css.indexOf('@media'));
+    expect(narrow).toMatch(/\.hw-signin-icon \{\s*width: 40px;\s*padding: 0 9px;\s*\}/);
+    expect(narrow).toMatch(/\.hw-signin-icon \.hw-signin-label \{[^}]*position: absolute;[^}]*clip: rect\(0, 0, 0, 0\);/);
+    // 40px wide, 40px high, radius 20px: a circle with its border.
+    expect(css).toMatch(/\n\.hw-signin-button \{[^}]*height: 40px;[^}]*border: 1px solid #747775;[^}]*border-radius: 20px;/);
+    for (const b of [googleButton(() => undefined), magicLinkButton(() => undefined)]) {
+      expect(b.classList.contains('hw-signin-icon')).toBe(true);
+      expect(b.querySelector('.hw-signin-label')).toBeTruthy();
+    }
+  });
+  it('gives "Magic link" the envelope UpvoteMe shows', () => {
+    const onClick = vi.fn();
+    const b = magicLinkButton(onClick);
+    expect(MAGIC_LINK_TEXT).toBe('Magic link');
+    expect(b.type).toBe('button');
+    expect(b.textContent).toBe('Magic link');
+    expect(b.querySelector('.hw-signin-glyph')!.getAttribute('aria-hidden')).toBe('true');
+    expect(b.querySelector('.hw-signin-glyph')!.innerHTML).toBe(ENVELOPE_SVG.replace(/\/>/g, '></path>'));
+    b.click();
+    expect(onClick).toHaveBeenCalled();
+  });
+  it('shows the person\'s initial', () => {
+    expect(initialOf({ id: 'u1', email: 'ann@example.com' })).toBe('A');
+    expect(initialOf({ id: 'u2', email: undefined })).toBe('U');
+    expect(initialOf({ id: '', email: '' })).toBe('?');
+    expect(initialOf({ id: ' ', email: undefined })).toBe('?');
   });
 });
 
@@ -372,16 +420,65 @@ describe('mountSignIn', () => {
     return f;
   };
 
-  it('renders the signed-out panel: Google button and an email form', async () => {
+  const panel = () => root.querySelector<HTMLElement>('.hw-signin-panel')!;
+
+  it('renders the signed-out bar: "Sign in with Google" and "Magic link", with the email form in a closed panel', async () => {
     const { client, auth } = fakeAuth();
     mountSignIn(root, { client, redirectTo: 'https://x.hintwise.org/app/' });
     await flush();
     expect(root.classList.contains('hw-signin')).toBe(true);
-    expect(button('Continue with Google')).toBeTruthy();
-    expect(root.querySelector('input[type=email]')).toBeTruthy();
+    expect([...root.children].map((c) => c.className)).toEqual([
+      'hw-signin-button hw-signin-icon hw-signin-google',
+      'hw-signin-button hw-signin-icon hw-signin-magic',
+      'hw-signin-panel',
+    ]);
+    const magic = button('Magic link');
+    expect(panel().hidden).toBe(true);
+    expect(magic.getAttribute('aria-expanded')).toBe('false');
+    expect(magic.getAttribute('aria-controls')).toBe(panel().id);
+    expect(panel().querySelector('input[type=email]')).toBeTruthy();
     expect(button('Email me a sign-in link').type).toBe('submit');
-    button('Continue with Google').click();
+    button('Sign in with Google').click();
     expect(auth.signInWithOAuth).toHaveBeenCalledWith({ provider: 'google', options: { redirectTo: 'https://x.hintwise.org/app/', queryParams: { prompt: 'select_account' } } });
+  });
+  it('opens the email form from "Magic link", and closes it with Escape, a click elsewhere or the button again', async () => {
+    const { client } = fakeAuth();
+    document.body.append(Object.assign(document.createElement('p'), { id: 'elsewhere' }));
+    const off = mountSignIn(root, { client, redirectTo: 'https://x/', completeFromUrl: false });
+    await flush();
+    const magic = button('Magic link');
+    magic.click();
+    expect(panel().hidden).toBe(false);
+    expect(magic.getAttribute('aria-expanded')).toBe('true');
+    expect(document.activeElement).toBe(panel().querySelector('input[type=email]'));
+    root.querySelector('input')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(panel().hidden).toBe(false); // only Escape closes it
+    root.querySelector('input')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(panel().hidden).toBe(true);
+    expect(document.activeElement).toBe(magic);
+    root.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); // closed already: nothing to do
+    magic.click();
+    panel().querySelector('input')!.click(); // a click inside keeps it open
+    expect(panel().hidden).toBe(false);
+    document.getElementById('elsewhere')!.click();
+    expect(panel().hidden).toBe(true);
+    expect(magic.getAttribute('aria-expanded')).toBe('false');
+    magic.click();
+    magic.click();
+    expect(panel().hidden).toBe(true);
+    off();
+    magic.click();
+    document.getElementById('elsewhere')!.click(); // unmounted: the page's clicks are no longer watched
+    expect(panel().hidden).toBe(false);
+  });
+  it('keeps the panel open across a re-render for the same visitor', async () => {
+    const f = fakeAuth();
+    mountSignIn(root, { client: f.client, redirectTo: 'https://x/', completeFromUrl: false });
+    await flush();
+    button('Magic link').click();
+    f.emit(null);
+    expect(panel().hidden).toBe(false);
+    expect(button('Magic link').getAttribute('aria-expanded')).toBe('true');
   });
   it('sends the link and says where to look; ignores an empty email', async () => {
     const sendLink = vi.fn(async () => ({ status: 'sent' }) as SignInLinkResult);
@@ -395,6 +492,7 @@ describe('mountSignIn', () => {
     expect(button('Email me a sign-in link').disabled).toBe(true);
     await flush();
     expect(statusText()).toBe('Check ann@example.com for a sign-in link.');
+    expect(panel().hidden).toBe(false); // a message opens the panel, so it is seen
     expect(button('Email me a sign-in link').disabled).toBe(false);
   });
   it('says when another link may be asked for, in local time', async () => {
@@ -418,7 +516,7 @@ describe('mountSignIn', () => {
     submit('ann@example.com');
     await flush();
     expect(statusText()).toBe('This address asked HintWise not to send it email.');
-    expect(button('Continue with Google')).toBeTruthy();
+    expect(button('Sign in with Google')).toBeTruthy();
     expect(button('Email me a sign-in link').disabled).toBe(false);
   });
   it('shows the error when the link cannot be sent', async () => {
@@ -514,7 +612,7 @@ describe('mountSignIn', () => {
         t.solve(`tok-${i}`);
         await flush();
       }
-      expect(statusText()).toBe('The check did not pass. Try again later, or continue with Google.');
+      expect(statusText()).toBe('The check did not pass. Try again later, or sign in with Google.');
       expect(t.api.remove).toHaveBeenCalled();
       submit('ann@example.com'); // the visitor asks again: a fresh start
       await flush();
@@ -571,7 +669,9 @@ describe('mountSignIn', () => {
     await flush();
     expect(f.auth.verifyOtp).not.toHaveBeenCalled();
     expect(root.querySelector('.hw-signin-note')!.textContent).toBe('Your sign-in link is ready.');
-    expect(button('Continue with Google')).toBeTruthy(); // the other ways stay on the page
+    expect(panel().hidden).toBe(false); // opened on its own: the link is waiting for a click
+    expect(panel().firstElementChild!.className).toBe('hw-signin-note');
+    expect(button('Sign in with Google')).toBeTruthy(); // the other ways stay on the page
     button('Finish signing in').click();
     expect(button('Finish signing in').disabled).toBe(true);
     await flush();
@@ -606,6 +706,7 @@ describe('mountSignIn', () => {
     expect(root.querySelector('.hw-signin-user')!.textContent).toBe('Signed in as ann@example.com');
     const sw = button('Switch to b***@example.org?');
     expect(sw).toBeTruthy();
+    expect(panel().hidden).toBe(false);
     expect(f.auth.verifyOtp).not.toHaveBeenCalled();
     sw.click();
     await flush();
@@ -651,6 +752,38 @@ describe('mountSignIn', () => {
     await flush();
     expect(button('Switch to b***@example.org?')).toBeTruthy();
   });
+  it('shows the person and "Sign out" when signed in; the person opens a panel with "Delete my account"', async () => {
+    const { client } = fakeAuth(session);
+    mountSignIn(root, { client, redirectTo: 'https://x/' });
+    await flush();
+    expect([...root.children].map((c) => c.className)).toEqual([
+      'hw-signin-button hw-signin-icon hw-signin-person',
+      'hw-signin-button hw-signin-icon hw-signin-signout',
+      'hw-signin-panel',
+    ]);
+    const person = root.querySelector<HTMLButtonElement>('.hw-signin-person')!;
+    expect(person.title).toBe('ann@example.com');
+    expect(person.querySelector('.hw-signin-avatar')!.textContent).toBe('A');
+    expect(person.querySelector('.hw-signin-avatar')!.getAttribute('aria-hidden')).toBe('true');
+    expect(person.querySelector('.hw-signin-label')!.textContent).toBe('Signed in as ann@example.com');
+    expect(person.querySelector('.hw-signin-sr')!.textContent).toBe('Signed in as ');
+    expect(button('Sign out').querySelector('.hw-signin-label')!.textContent).toBe('Sign out');
+    expect(panel().hidden).toBe(true);
+    expect(person.getAttribute('aria-controls')).toBe(panel().id);
+    person.click();
+    expect(panel().hidden).toBe(false);
+    expect(person.getAttribute('aria-expanded')).toBe('true');
+    expect(document.activeElement).not.toBe(panel().querySelector('input')); // nothing to type: the focus stays
+    expect(panel().querySelector('.hw-signin-user')!.textContent).toBe('Signed in as ann@example.com');
+    expect(panel().querySelector('.hw-account-delete summary')!.textContent).toBe('Delete my account');
+  });
+  it('names a person without an address by their id', async () => {
+    const { client } = fakeAuth({ access_token: 't', user: { id: 'u9' } as User } as Session);
+    mountSignIn(root, { client, redirectTo: 'https://x/', completeFromUrl: false });
+    await flush();
+    expect(root.querySelector<HTMLButtonElement>('.hw-signin-person')!.title).toBe('u9');
+    expect(root.querySelector('.hw-signin-person .hw-signin-label')!.textContent).toBe('Signed in as u9');
+  });
   it('switches to the signed-in state and back, with sign-out', async () => {
     const { client, auth, emit, unsubscribe } = fakeAuth(session);
     const off = mountSignIn(root, { client, redirectTo: 'https://x/' });
@@ -684,11 +817,48 @@ describe('mountSignIn', () => {
     expect(root.querySelector('.hw-signin-status')!.textContent).toBe('Data gone, sign-in kept.');
     emit(null);
   });
+  it('shows the farewell when the sign-out\'s own SIGNED_OUT event re-renders the panel before deleteAccount returns', async () => {
+    const { client, auth } = fakeAuth(session, { signOutEmits: true });
+    const env = { VITE_SUPABASE_URL: 'https://auth.hintwise.org', VITE_SUPABASE_ANON_KEY: 'anon' };
+    const f = (async () => new Response(JSON.stringify({ status: 'deleted' }), { status: 200 })) as unknown as typeof fetch;
+    mountSignIn(root, { client, redirectTo: 'https://x/', deleteOptions: { env, fetch: f } });
+    await flush();
+    root.querySelector<HTMLButtonElement>('.hw-signin-person')!.click();
+    const box = root.querySelector('.hw-account-delete')!;
+    const input = box.querySelector('input')!;
+    input.value = 'DELETE';
+    input.dispatchEvent(new Event('input'));
+    box.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await vi.waitFor(() => expect(auth.signOut).toHaveBeenCalledWith({ scope: 'local' }));
+    await flush();
+    expect(box.isConnected).toBe(false); // the signed-out panel replaced the control
+    expect(button('Magic link')).toBeTruthy();
+    expect(statusText()).toBe(DELETED_MESSAGE);
+    expect(panel().hidden).toBe(false); // opened, so the farewell is seen
+  });
+  it('shows "Sign in again" on the signed-out panel when the sign-out emits at once', async () => {
+    const { client, auth } = fakeAuth(session, { signOutEmits: true });
+    const env = { VITE_SUPABASE_URL: 'https://auth.hintwise.org', VITE_SUPABASE_ANON_KEY: 'anon' };
+    const f = (async () => new Response(JSON.stringify({ status: 'reauth', message: 'Sign in again first.' }), { status: 401 })) as unknown as typeof fetch;
+    mountSignIn(root, { client, redirectTo: 'https://x/', deleteOptions: { env, fetch: f } });
+    await flush();
+    const box = root.querySelector('.hw-account-delete')!;
+    const input = box.querySelector('input')!;
+    input.value = 'DELETE';
+    input.dispatchEvent(new Event('input'));
+    box.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await vi.waitFor(() => expect([...box.querySelectorAll('button')].some((b) => b.textContent === 'Sign in again')).toBe(true));
+    [...box.querySelectorAll('button')].find((b) => b.textContent === 'Sign in again')!.click();
+    expect(auth.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    await flush();
+    expect(statusText()).toBe(SIGN_IN_AGAIN);
+    expect(panel().hidden).toBe(false);
+  });
   it('defaults the redirect to this page', async () => {
     const { client, auth } = fakeAuth();
     mountSignIn(root, { client });
     await flush();
-    button('Continue with Google').click();
+    button('Sign in with Google').click();
     expect(auth.signInWithOAuth).toHaveBeenCalledWith({ provider: 'google', options: { redirectTo: location.origin + location.pathname, queryParams: { prompt: 'select_account' } } });
   });
 });

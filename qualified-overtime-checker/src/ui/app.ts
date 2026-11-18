@@ -157,18 +157,9 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
   const status = h('p', { class: 'status', role: 'status', 'aria-live': 'polite' });
   const privacy = h('p', { class: 'privacy' });
   const filesSec = h('section', { class: 'card', 'aria-labelledby': 'files-h' });
-  // Sign-in sits at the top right: the Google button, and the email-link form
-  // behind "Use email instead" (both from src/lib/auth.ts mountSignIn).
-  const authBox = h('div', { class: 'auth' });
-  const emailToggle = h('button', { type: 'button', class: 'link email-toggle', 'aria-expanded': 'false', text: 'Use email instead' });
-  const authArea = h('div', { class: 'top-auth', role: 'region', 'aria-label': 'Sign in' }, authBox, emailToggle);
-  emailToggle.addEventListener('click', () => {
-    const open = !authArea.classList.contains('email-open');
-    authArea.classList.toggle('email-open', open);
-    emailToggle.setAttribute('aria-expanded', String(open));
-    emailToggle.textContent = open ? 'Hide email sign-in' : 'Use email instead';
-    if (open) (authBox.querySelector('input[type="email"]') as HTMLInputElement | null)?.focus();
-  });
+  // Sign-in sits at the right of the top bar, as on UpvoteMe: "Sign in with
+  // Google" and "Magic link", whose panel holds the email form (src/lib/auth.ts mountSignIn).
+  const authArea = h('div', { class: 'top-auth', role: 'region', 'aria-label': 'Account' });
   const employerSec = h('section', { class: 'card', 'aria-labelledby': 'employer-h' });
   const hoursSec = h('section', { class: 'card', 'aria-labelledby': 'hours-h' });
   const reportedSec = h('section', { class: 'card', 'aria-labelledby': 'reported-h' });
@@ -893,12 +884,10 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
 
   if (deps.auth) {
     const auth = deps.auth;
-    auth.mount(authBox);
+    auth.mount(authArea);
     auth.onUser((u) => {
       const was = user;
       user = u;
-      authArea.classList.toggle('signed-in', u !== null);
-      emailToggle.hidden = u !== null;
       const switched = was !== null && (u === null || u.id !== was.id);
       files.setAccount(u ? auth.accountStore() : null);
       renderPrivacy();

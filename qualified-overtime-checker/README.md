@@ -86,8 +86,8 @@ them is dropped as soon as the file is read, before any column is matched,
 and is never saved or exported. Files in your account are
 kept in HintWise's database (Supabase, United States East) and only your
 account can read them. The Delete button removes a file at once; to remove
-your account and everything in it, email builder@hintwise.org from the
-address you signed in with.
+your account and everything in it, open your name at the top right (next to
+"Sign out") and choose "Delete my account".
 
 The app is free.
 

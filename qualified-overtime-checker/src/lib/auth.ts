@@ -11,6 +11,10 @@
  * ?token_hash=...&type=email, which completeSignInFromUrl turns into a
  * session in any browser.
  *
+ * mountSignIn draws UpvoteMe's look for the right of the app's top bar:
+ * "Sign in with Google" and "Magic link", or, signed in, the person and
+ * "Sign out" (round icon buttons below 640 px; signin-styles.ts).
+ *
  * Every function takes its client, fetch, storage or loader as an optional
  * last argument so tests pass fakes; the defaults are the real ones.
  */
@@ -33,7 +37,9 @@ export const TURNSTILE_SITE_KEY = '0x4AAAAAAF7YqIR2_9E_hu1x';
 export const TURNSTILE_ACTION = 'sign-in';
 /** Explicit rendering: the panel stays on the page after a submit and renders the widget itself. */
 export const TURNSTILE_SCRIPT = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-export const GOOGLE_BUTTON_TEXT = 'Continue with Google';
+/** The Google button's text, as on UpvoteMe (one of the three the branding guidelines allow). */
+export const GOOGLE_BUTTON_TEXT = 'Sign in with Google';
+export const MAGIC_LINK_TEXT = 'Magic link';
 /** Failed checks in a row before the panel stops resubmitting new tokens on its own. */
 export const MAX_FAILED_CHECKS = 3;
 
@@ -328,28 +334,89 @@ export function googleLogoSvg(theme: 'light' | 'dark' = 'light'): string {
   return (theme === 'dark' ? googleGDark : googleG).replace(/^<svg width="40" height="40" viewBox="0 0 40 40"/, '<svg width="20" height="20" viewBox="10 10 20 20" focusable="false" aria-hidden="true"');
 }
 
-/** The light Google button of the branding guidelines: G, then "Continue with Google". */
+/** The envelope on the "Magic link" button, the one UpvoteMe shows (Heroicons' mail icon, MIT). */
+export const ENVELOPE_SVG =
+  '<svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" focusable="false" aria-hidden="true">' +
+  '<path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>' +
+  '<path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg>';
+
+/** A door with an arrow leaving it, on the "Sign out" button. */
+export const SIGN_OUT_SVG =
+  '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true">' +
+  '<path d="M8 3.5H5.5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2H8"/><path d="M12.5 6.5 16 10l-3.5 3.5M16 10H8"/></svg>';
+
+/** The label of a top-bar button: visually hidden below 640 px, and always its accessible name. */
+function label(text: string): HTMLSpanElement {
+  const span = document.createElement('span');
+  span.className = 'hw-signin-label';
+  span.textContent = text;
+  return span;
+}
+
+/** A top-bar button: an icon, then its label (a round icon button on phones). */
+function barButton(kind: string, icon: string, text: string, onClick: () => void): HTMLButtonElement {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = `hw-signin-button hw-signin-icon ${kind}`;
+  const glyph = document.createElement('span');
+  glyph.className = 'hw-signin-glyph';
+  glyph.setAttribute('aria-hidden', 'true');
+  glyph.innerHTML = icon; // static markup from this file
+  b.append(glyph, label(text));
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+/** The light Google button of the branding guidelines: G, then "Sign in with Google". */
 export function googleButton(onClick: () => void): HTMLButtonElement {
   const b = document.createElement('button');
   b.type = 'button';
-  b.className = 'hw-signin-button hw-signin-google';
+  b.className = 'hw-signin-button hw-signin-icon hw-signin-google';
   const logo = document.createElement('span');
   logo.className = 'hw-signin-google-logo';
   logo.setAttribute('aria-hidden', 'true');
   // Static assets bundled with the app; the page's CSS shows the dark one on a dark page.
   logo.innerHTML = `<span class="hw-g-light">${googleLogoSvg()}</span><span class="hw-g-dark">${googleLogoSvg('dark')}</span>`;
-  const label = document.createElement('span');
-  label.textContent = GOOGLE_BUTTON_TEXT;
-  b.append(logo, label);
+  b.append(logo, label(GOOGLE_BUTTON_TEXT));
   b.addEventListener('click', onClick);
   return b;
 }
 
-function button(label: string, onClick: () => void, type: 'button' | 'submit' = 'button'): HTMLButtonElement {
+/** The "Magic link" button: the envelope, then its label. It opens the email form. */
+export function magicLinkButton(onClick: () => void): HTMLButtonElement {
+  return barButton('hw-signin-magic', ENVELOPE_SVG, MAGIC_LINK_TEXT, onClick);
+}
+
+/** The first letter of the address (or id), shown in the person's round badge. */
+export function initialOf(user: Pick<User, 'id' | 'email'>): string {
+  return (user.email || user.id || '?').trim().charAt(0).toUpperCase() || '?';
+}
+
+/** The signed-in person: a badge with their initial, then their address. It opens their panel. */
+function personButton(user: User, onClick: () => void): HTMLButtonElement {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'hw-signin-button hw-signin-icon hw-signin-person';
+  b.title = user.email ?? user.id;
+  const badge = document.createElement('span');
+  badge.className = 'hw-signin-avatar';
+  badge.setAttribute('aria-hidden', 'true');
+  badge.textContent = initialOf(user);
+  const text = label(user.email ?? user.id);
+  const sr = document.createElement('span');
+  sr.className = 'hw-signin-sr';
+  sr.textContent = 'Signed in as ';
+  text.prepend(sr);
+  b.append(badge, text);
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+function button(text: string, onClick: () => void, type: 'button' | 'submit' = 'button'): HTMLButtonElement {
   const b = document.createElement('button');
   b.type = type;
   b.className = 'hw-signin-button';
-  b.textContent = label;
+  b.textContent = text;
   if (type === 'button') b.addEventListener('click', onClick);
   return b;
 }
@@ -386,10 +453,19 @@ function profileClientFor(client: AuthClient, opt: ProfileClient | false | undef
   return typeof maybe.schema === 'function' ? (maybe as ProfileClient) : null;
 }
 
+let panelCount = 0;
+
 /**
- * Renders the sign-in panel with plain DOM: the Google button, an email
- * field for a sign-in link (with the Turnstile check when the function asks
- * for it), and, once signed in, the user's email with a sign-out button.
+ * Renders the sign-in controls with plain DOM, for the right of the app's
+ * top bar (UpvoteMe's look):
+ * - signed out: "Sign in with Google" and "Magic link". "Magic link" opens a
+ *   panel under the buttons with the email form for a sign-in link (and the
+ *   Turnstile check when the function asks for it);
+ * - signed in: the person (their initial and address), which opens a panel
+ *   with "Delete my account", and "Sign out".
+ * The panel also opens on its own when there is something to read or do: a
+ * "Finish signing in" or "Switch to ...?" offer, or a message such as the
+ * farewell after "Delete my account". Escape or a click elsewhere closes it.
  * On mount it finishes a sign-in link found in the URL. Returns the
  * unsubscribe function.
  */
@@ -400,6 +476,8 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
   const sendLink = opts.sendLink ?? ((email: string, to: string, o: { turnstileToken?: string }) => sendMagicLink(email, to, o));
   const getTurnstile = opts.loadTurnstile ?? (() => loadTurnstile());
   const formatTime = opts.formatTime ?? ((iso: string) => formatRetryAt(iso));
+  const doc = el.ownerDocument;
+  const panelId = `hw-signin-panel-${(panelCount += 1)}`;
   let profiled: string | null = null;
   // Kept across re-renders of the signed-out panel.
   let notice = '';
@@ -408,6 +486,10 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
   let status: HTMLElement | null = null;
   let challengeBox: HTMLElement | null = null;
   let send: HTMLButtonElement | null = null;
+  /** The panel under the bar, the button that opens it, and whether it is open (kept across re-renders). */
+  let panel: HTMLElement | null = null;
+  let toggle: HTMLButtonElement | null = null;
+  let open = false;
   let turnstile: TurnstileApi | null = null;
   /** The widget on the page, or on its way; callbacks of any other one are ignored. */
   let widget: { id: string | null } | null = null;
@@ -419,12 +501,22 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
   let pendingFinish: { label: string; accept: () => Promise<CompleteResult> } | null = null;
   let shownUser: User | null = null;
   let shownUserId: string | null = null;
-  ensureSignInStyles(el.ownerDocument);
+  ensureSignInStyles(doc);
   el.classList.add('hw-signin');
 
+  const setOpen = (value: boolean, focusField = false): void => {
+    open = value;
+    if (!panel || !toggle) return;
+    panel.hidden = !value;
+    toggle.setAttribute('aria-expanded', String(value));
+    if (value && focusField) panel.querySelector<HTMLInputElement>('input[type="email"]')?.focus();
+  };
+
+  /** Shows a message in the panel (and opens it, so the message is seen). */
   const say = (text: string): void => {
     notice = text;
     if (status) status.textContent = text;
+    if (text) setOpen(true);
   };
 
   const dropWidget = (): void => {
@@ -484,7 +576,7 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
       if (failedChecks >= MAX_FAILED_CHECKS) {
         // The widget would hand out new tokens and this would loop: stop until the visitor asks again.
         dropWidget();
-        say('The check did not pass. Try again later, or continue with Google.');
+        say('The check did not pass. Try again later, or sign in with Google.');
       } else {
         say(result.failed ? 'The check did not pass. Try it once more.' : 'One more step: complete the check below to get your link.');
         if (challengeBox) showChallenge(result.siteKey, challengeBox);
@@ -496,6 +588,17 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
     }
     if (send) send.disabled = false;
   }
+
+  /**
+   * After "Delete my account": deleteAccount ends the session before it
+   * returns, so the sign-out's auth event has usually re-rendered the
+   * signed-out panel already. Then the farewell goes straight to its status;
+   * otherwise it waits for that render.
+   */
+  const farewellFor = (message: string): void => {
+    if (shownUserId === null) say(message);
+    else farewell = message;
+  };
 
   const render = (user: User | null): void => {
     dropWidget();
@@ -519,21 +622,31 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
       // Keep an offer made before the first signed-in view (onAuth's first render shows it).
       if (shownUserId !== null) pendingSwitch = null;
       shownUserId = user?.id ?? null;
+      // The new state's panel opens only for something to read or do.
+      open = Boolean(notice) || (user ? pendingSwitch !== null : pendingFinish !== null);
     }
+    panel = document.createElement('div');
+    panel.className = 'hw-signin-panel';
+    panel.id = panelId;
+    status = document.createElement('p');
+    status.className = 'hw-signin-status';
+    status.setAttribute('role', 'status');
+    status.textContent = notice;
     if (user) {
       pendingFinish = null;
+      toggle = personButton(user, () => setOpen(!open));
+      const out = barButton('hw-signin-signout', SIGN_OUT_SVG, 'Sign out', () => void signOut(client));
       const who = document.createElement('p');
       who.className = 'hw-signin-user';
       who.textContent = `Signed in as ${user.email ?? user.id}`;
-      el.append(who, button('Sign out', () => void signOut(client)));
-      el.append(deleteAccountControl({ ...opts.deleteOptions, client, onDone: (message) => { farewell = message; } }));
+      panel.append(who);
       if (pendingSwitch) {
         const offer = pendingSwitch;
         if (offer.note) {
           const note = document.createElement('p');
           note.className = 'hw-signin-note';
           note.textContent = offer.note;
-          el.append(note);
+          panel.append(note);
         }
         const sw = button(offer.label, () => {
           pendingSwitch = null;
@@ -543,70 +656,82 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
           });
         });
         sw.classList.add('hw-signin-switch');
-        el.append(sw);
+        panel.append(sw);
       }
-      status = document.createElement('p');
-      status.className = 'hw-signin-status';
-      status.setAttribute('role', 'status');
-      status.textContent = notice;
-      el.append(status);
-      return;
-    }
-    pendingSwitch = null;
-    if (pendingFinish) {
-      const offer = pendingFinish;
-      const note = document.createElement('p');
-      note.className = 'hw-signin-note';
-      note.textContent = 'Your sign-in link is ready.';
-      const finish = button(offer.label, () => {
-        pendingFinish = null;
-        finish.disabled = true;
-        void offer.accept().then((r) => {
-          if (r.status === 'error') say(r.message);
-          render(shownUser);
+      panel.append(status, deleteAccountControl({ ...opts.deleteOptions, client, onDone: farewellFor }));
+      el.append(toggle, out, panel);
+    } else {
+      pendingSwitch = null;
+      const google = googleButton(() => void signInWithGoogle(redirectTo, client));
+      toggle = magicLinkButton(() => setOpen(!open, true));
+      if (pendingFinish) {
+        const offer = pendingFinish;
+        const note = document.createElement('p');
+        note.className = 'hw-signin-note';
+        note.textContent = 'Your sign-in link is ready.';
+        const finish = button(offer.label, () => {
+          pendingFinish = null;
+          finish.disabled = true;
+          void offer.accept().then((r) => {
+            if (r.status === 'error') say(r.message);
+            render(shownUser);
+          });
         });
+        finish.classList.add('hw-signin-switch', 'hw-signin-finish');
+        panel.append(note, finish);
+      }
+
+      const form = document.createElement('form');
+      const input = document.createElement('input');
+      input.type = 'email';
+      input.required = true;
+      input.autocomplete = 'email';
+      input.placeholder = 'you@example.com';
+      input.setAttribute('aria-label', 'Email for a sign-in link');
+      send = button('Email me a sign-in link', () => undefined, 'submit');
+      send.classList.add('hw-signin-email');
+      form.append(input, send);
+
+      challengeBox = document.createElement('div');
+      challengeBox.className = 'hw-signin-challenge';
+
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const email = input.value.trim();
+        if (!email) return;
+        failedChecks = 0;
+        void submit(email);
       });
-      finish.classList.add('hw-signin-switch', 'hw-signin-finish');
-      el.append(note, finish);
+
+      panel.append(form, challengeBox, status);
+      el.append(google, toggle, panel);
     }
-    const google = googleButton(() => void signInWithGoogle(redirectTo, client));
-
-    const form = document.createElement('form');
-    const input = document.createElement('input');
-    input.type = 'email';
-    input.required = true;
-    input.autocomplete = 'email';
-    input.placeholder = 'you@example.com';
-    input.setAttribute('aria-label', 'Email for a sign-in link');
-    send = button('Email me a sign-in link', () => undefined, 'submit');
-    send.classList.add('hw-signin-email');
-    form.append(input, send);
-
-    challengeBox = document.createElement('div');
-    challengeBox.className = 'hw-signin-challenge';
-
-    status = document.createElement('p');
-    status.className = 'hw-signin-status';
-    status.setAttribute('role', 'status');
-    status.textContent = notice;
-
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const email = input.value.trim();
-      if (!email) return;
-      failedChecks = 0;
-      void submit(email);
-    });
-
-    el.append(google, form, challengeBox, status);
+    toggle.setAttribute('aria-controls', panelId);
+    setOpen(open);
   };
+
+  // Escape closes the panel and gives the focus back to its button; a click anywhere else closes it.
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.key !== 'Escape' || !open) return;
+    setOpen(false);
+    toggle?.focus();
+  };
+  // The event's path is fixed when it is dispatched, so a click that re-renders the panel still counts as inside.
+  const onClickAway = (e: Event): void => {
+    if (open && !e.composedPath().includes(el)) setOpen(false);
+  };
+  el.addEventListener('keydown', onKey);
+  doc.addEventListener('click', onClickAway);
 
   if (opts.completeFromUrl !== false) {
     void completeSignInFromUrl(client, opts.window ?? window).then((r) => {
       if (r.status === 'error') say(r.message);
       if (r.status === 'finish') {
         pendingFinish = { label: r.hint ? `Finish signing in as ${r.hint}` : 'Finish signing in', accept: r.accept };
-        if (!shownUserId) render(shownUser);
+        if (!shownUserId) {
+          open = true;
+          render(shownUser);
+        }
       }
       if (r.status === 'confirm' || r.status === 'kept') {
         pendingSwitch =
@@ -614,9 +739,17 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
             ? { note: '', label: `Switch to ${r.hint}?`, accept: r.accept }
             : { note: `Already signed in as ${r.current}`, label: 'Use the link instead', accept: r.accept };
         // If the signed-in view is not drawn yet, onAuth's first render shows the offer.
-        if (shownUserId) render(shownUser);
+        if (shownUserId) {
+          open = true;
+          render(shownUser);
+        }
       }
     });
   }
-  return onAuth((user) => render(user), client);
+  const unsubscribe = onAuth((user) => render(user), client);
+  return () => {
+    unsubscribe();
+    el.removeEventListener('keydown', onKey);
+    doc.removeEventListener('click', onClickAway);
+  };
 }

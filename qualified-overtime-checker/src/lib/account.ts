@@ -85,6 +85,12 @@ export async function deleteAccount(confirm: string, opts: DeleteOptions = {}): 
  * box for the word DELETE and the button. `onDone` gets the message to show
  * on the signed-out panel: after the account is gone, or after "Sign in
  * again" when the sign-in was too old.
+ *
+ * Order matters to a panel that re-renders on sign-in changes: after a
+ * deletion, onDone runs once deleteAccount has returned, and its sign-out's
+ * SIGNED_OUT event has usually re-rendered the panel already (this control
+ * is then off the page). After "Sign in again", onDone runs before the
+ * sign-out. mountSignIn handles both (auth.ts, farewellFor).
  */
 export function deleteAccountControl(opts: DeleteOptions & { onDone?: (message: string) => void } = {}): HTMLElement {
   const box = document.createElement('details');
