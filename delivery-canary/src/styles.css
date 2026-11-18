@@ -22,7 +22,14 @@ h1 { font-size: 1.75rem; margin: 0; }
 h2 { font-size: 1.25rem; margin: 0 0 0.75rem; }
 h3 { font-size: 1.1rem; margin: 0 0 0.25rem; }
 a { color: var(--accent); }
-.top { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; }
+.top { margin-bottom: 1rem; }
+/* The title at the left, sign-in at the right; on a narrow phone sign-in wraps and stays at the right. */
+.top-bar { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; justify-content: space-between; align-items: center; }
+.top-bar h1 { min-width: 0; overflow-wrap: anywhere; }
+.top-bar #signin { margin-left: auto; }
+.top-bar #signin .hint { margin: 0; }
+/* The page loads Google Sans for the bar's own labels only: an address and the panel's buttons use the page's font. */
+.hw-signin-person .hw-signin-label, .hw-signin-panel .hw-signin-button { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
 .tagline { margin: 0.25rem 0 0; color: var(--muted); max-width: 34rem; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; margin: 0 0 1rem; }
 .block { display: block; font-weight: 600; margin: 0.5rem 0 0.25rem; }
