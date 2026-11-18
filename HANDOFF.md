@@ -48,7 +48,9 @@ Remaining:
   - the brief went to its session, session_01JyJzMYC2h8cRGt8cGRNiLz, at 06:05 UTC: gateway behind a reversible switch, Supabase sign-in, footer, analytics, email from ypai@hintwise.org;
   - it works on a branch and does not merge; it first sends its Anthropic call inventory, costs and plan;
   - PManager's part, each after the owner's yes: the "ypai" sign-in label with sign-in-link and delete-account redeployed, the llm_apps row with the owner's caps, anon-setup, analytics-register, then the merge and deploy;
-  - open with the owner: gateway streaming, server-side BYOK, caps, anonymous visitors.
+  - the owner, 06:20 UTC: "1b 2ok 3 will do 4 wait, but want higher caps for ypai for anonymous users". So: streaming is built into the gateway; server-side BYOK stays as an exception; the owner makes HINTWISE_APP_KEY; caps wait for measured costs, with more for anonymous visitors;
+  - Keeper was started at 06:15 UTC to build gateway streaming (session cse_01JyJzMWaP3x4T5U6wmoAhKk, branch fix/platform-gateway-streaming; spec in hintwise-workflow projects/ypai/gateway-streaming.md). It files a release item; deploy-gateway needs the owner's yes;
+  - still open with the owner: 5 models, 6 max_tokens 8192 (T3), 7 Turnstile, 8 contacts, 9 the Action's secret; and registering ypai in llm_apps before the caps are set. The card is hintwise-workflow projects/ypai/README.md.
 
 ## 3. Current state
 
