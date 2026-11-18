@@ -49,7 +49,16 @@ In progress / remaining:
 
 ## 4. Next step
 
-First, tell the owner: a clone that pulled claude-built-apps between 17 Nov 16:21 UTC and 18 Nov 02:04 UTC had its platform/node_modules folder replaced by a dangling link. Fix: `rm platform/node_modules; (cd platform && npm ci)`. halflife may be one of them (unverified).
+Done on 18 Nov: the owner was told how to repair the dangling platform/node_modules link.
+
+The HintWise workflow was adopted on 18 Nov. Its follow-ups:
+- **Today's ideas run (10:51)** is the first from roles/finder/ROUTINE.md: check it.
+- **Delivery Canary** finishes today, 11:49, under BUILD_ROUTINE.md Steps 1 to 5. Then start the Marketer routine with "delivery-canary".
+- **Picker's shortlist** for the next project goes to the owner (T2, 24 hours).
+- **Tomorrow, 19 Nov, 11:49:** the first project under routines/build-day.md. PManager releases from the inbox.
+- **Owner actions:**
+  - the `owner-approval` environment, with the owner as required reviewer;
+  - the RESEND_API secret in pisan-labs/hintwise-workflow, for the weekly email.
 
 Then work through this list in order:
 1. **Check the next LLM usage report run** (cron 16:10 and 17:10 UTC; GitHub has delayed these by up to 8 hours). Expect success, or the "Already sent for <day>" line.
@@ -142,7 +151,13 @@ All times Barcelona (Europe/Madrid):
 - **Ask first, and wait, before:** writing production data, deploying to production unless asked, spending money, deleting the unrestorable, rotating secrets, rewriting shared history, publishing outside the session. Pushing to main and deleting merged branches are fine.
 - **Questions:** numbered, with a recommendation, in message text. With a recommendation and no answer in 15 minutes, take it and say how to undo it (never for the ask-first list). Set a send_later check-in for 15 minutes.
 - **Times:** Barcelona time (Europe/Madrid) in reports and chat (owner, 17 Nov, "until further notice").
-- **Quiet hours:** when an hourly check finds nothing new, print nothing.
+- **Reports** (owner, 18 Nov; replaces the hourly status report):
+  - PManager sends a "Needs you" card at about 09:00 and 18:00 Barcelona time when something waits on the owner, and at once for an incident;
+  - Monitor's routines send the daily digest and the weekly retrospective;
+  - the weekly email goes to builder@hintwise.org.
+- **The HintWise workflow is adopted** (owner, 18 Nov; pisan-labs/hintwise-workflow).
+  - This relay session is its PManager: roles/pmanager/ROLE.md.
+  - Its decisions go in that repository's `decisions/`.
 - **Repo rules:** CHANGES.md is append-only, `YYYY-MM-DD [type] text`. Conventional Commits. No model names in repo artifacts. Run lint and tests before committing.
 - **Keys:** the owner's key only through the gateway; never in Netlify or in an app.
 
@@ -171,6 +186,13 @@ All times Barcelona (Europe/Madrid):
   - Moved routines: trig_01ErjL8VzaXQ3sPHHZfCeZMe (handoff check, `CRON_TZ=Europe/Berlin 56 13 * * *`) and trig_01Xsn6UTTEEKE2KWS7EATPkv (session start, `CRON_TZ=Europe/Berlin 52 14 * * *`); the old two are deleted.
   - Hourly report moved after the owner's allow rule (2f76ede): trig_01HCHLTqENJ1G7bmepMtrQqK, `46 * * * *`; the old trig_01LvzA4YK1HANnbjfntihccc is deleted.
   - `.claude/settings.json` allows `mcp__claude-code-remote__create_trigger` (owner, 18 Nov), so the next takeover can move routines without the auto-mode check refusing.
+- **HintWise workflow routines** (created 18 Nov at the owner's yes). Each starts a fresh session; leave them alone at a handover:
+  - trig_01Frwv3axDinKYduGTBSQZW8: Monitor daily, 08:13;
+  - trig_01H8BM6km3JuHaMRzFnBivZt: Monitor weekly, Mondays 07:37;
+  - trig_01Ro5iv1fTDphKaY42k72RkZ: Keeper, Thursdays 08:43;
+  - trig_01Uszm2m3KHGusSKDsyMctN2: Marketer, Mondays 10:23, and at each launch.
+
+  The relay's hourly routine is now "PManager hourly check" (trig_01HCHLTqENJ1G7bmepMtrQqK).
 - **Not relay, leave alone:**
   - the owner's routines: trig_01K986yzFbf3noGkLA6RgZkn (ideas), trig_01BAP9nsXTtxTdpMiwk5GdXE (build), trig_013VN2RNYCwh2k3F2ZjgnK6U (TPT);
   - switched-off Chess TD one-shots: trig_019FyBvXSAJmnkRySX7Xcnhu, trig_01LEKF5t2KGMD4cYYugJm4cY, trig_01HWrJiGqnb64uMbfxLr2VLp, trig_01S3XupgMqeYd1SyUZE1fTyN;
