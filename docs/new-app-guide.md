@@ -117,6 +117,7 @@ Every HintWise app has the same "built by" footer: the HintWise icon, then the o
 - **Layout:** don't make `body` a row flexbox, or the footer sits beside the app. Column flex and grid are fine (`:host` spans every grid column).
 - **CSP:** a `style-src` without `'unsafe-inline'` must list `FOOTER_STYLE_CSP` (today `'sha256-4VDViIffTKl8oDDJg58VHCVBOHSQm7GPM7eZ1fAKuzc='`). Otherwise the browser drops the style, and the footer shows unstyled and left-aligned (PasteMD, 11 Nov).
 - **Live check:** `curl -s https://<slug>.hintwise.org/ | grep -c data-site-footer` prints 1.
+- **Every app at once:** `node scripts/footer-audit.mjs` compares each live app's footer with `footerHtml()` today (read-only; exit 1 when any app is stale, differs, missing or duplicated). Keeper runs it every week (owner, 18 Nov 2026). A stale footer in an option A app means the app has not been deployed since the footer changed.
 - **Changing the footer:**
   - Only the owner changes the wording. Edit `scripts/site-footer.mjs` and run `node --test scripts/site-footer.test.mjs`.
   - Apps in this repo pick it up on their next deploy; a manual Deploy run with `all` costs credits for every app.
