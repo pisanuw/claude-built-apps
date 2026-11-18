@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Read-only: list every Netlify site (name, URL, custom domain, aliases, repo)
- * and every Render service (name, URL, custom domains, repo). Writes nothing.
+ * and every Render service (name, URL, custom domains, repo, plan, suspended). Writes nothing.
  * Env: NETLIFY_AUTH_TOKEN, RENDER_API_KEY. Run by the "List hosts" workflow.
  */
 async function get(url, token) {
@@ -30,6 +30,6 @@ if (process.env.RENDER_API_KEY) {
       const d = await get(`https://api.render.com/v1/services/${s.id}/custom-domains?limit=50`, process.env.RENDER_API_KEY);
       domains = d.map((x) => x.customDomain.name).join(',') || '-';
     } catch { /* not a web service */ }
-    console.log(`render\t${s.name}\t${s.serviceDetails?.url || '-'}\t${domains}\t${s.repo || '-'}`);
+    console.log(`render\t${s.name}\t${s.type || '-'}\t${s.serviceDetails?.plan || '-'}\t${s.suspended || '-'}\t${s.serviceDetails?.url || '-'}\t${domains}\t${s.repo || '-'}`);
   }
 }
