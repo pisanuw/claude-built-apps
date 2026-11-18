@@ -1,12 +1,13 @@
 # Render helpers for the hintwise.org move: add a custom domain, set one env
-# var, start a deploy, or show a service. Values are not printed.
+# var, start a deploy, show a service, or delete a suspended one (owner's yes,
+# 18 November 2026). Values are not printed.
 name: Render domain
 
 on:
   workflow_dispatch:
     inputs:
       command:
-        description: 'add-domain | set-env | deploy | show'
+        description: 'add-domain | set-env | deploy | show | delete (a suspended service with no custom domain; arg1 repeats the name)'
         required: true
         type: string
       service:

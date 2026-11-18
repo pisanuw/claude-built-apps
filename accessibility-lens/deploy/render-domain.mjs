@@ -5,6 +5,8 @@
  *   set-env <service> <KEY> <value>    set one env var (others untouched)
  *   deploy <service>                   start a deploy
  *   show <service>                     print custom domains and env var names
+ *   delete <service> <service>         delete a service: only a suspended one with no
+ *                                      custom domain, and only when the name is typed twice
  * Env: RENDER_API_KEY. Run by the "Render domain" workflow. Logs before/after.
  */
 const API = 'https://api.render.com/v1';
@@ -40,6 +42,15 @@ if (cmd === 'add-domain') {
 } else if (cmd === 'deploy') {
   const d = await api(`/services/${svc.id}/deploys`, { method: 'POST', body: '{}' });
   console.log(`Deploy started: ${d.id || JSON.stringify(d).slice(0, 200)}`);
+} else if (cmd === 'delete') {
+  // Deleting cannot be undone: only a suspended service with no custom domain, named twice.
+  if (a !== name) die('usage: delete <service> <service> (type the name twice)');
+  if (svc.suspended !== 'suspended') die(`${name} is ${svc.suspended}: only a suspended service can be deleted here`);
+  if ((await domains()).length) die(`${name} still has custom domains: remove them first`);
+  console.log(`Deleting ${svc.name} (${svc.id}), ${svc.type}, repo ${svc.repo || '-'}, created ${svc.createdAt || '-'}.`);
+  await api(`/services/${svc.id}`, { method: 'DELETE' });
+  console.log(`::notice::Deleted Render service ${name}.`);
+  process.exit(0);
 } else if (cmd !== 'show') die(`unknown command ${cmd}`);
 console.log(`Domains after: ${(await domains()).join(', ') || 'none'}`);
 if (cmd === 'show' || cmd === 'set-env') {
