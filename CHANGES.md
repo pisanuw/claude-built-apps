@@ -702,3 +702,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-18 [code] platform: gateway review r1: a stream whose caller left is read to its end and counted; max_tokens when output is unknown; refunded rows not paid_with_credit.
 
 2026-11-18 [code] platform: Supabase admin gateway-check: post-deploy check of llm-gateway as test app gateway-check (a call, a stream, a stream left early; 3 ok rows expected).
+
+2026-11-18 [code] platform: gateway-check review r1: call (c) a long stream at 512 tokens with a 200-token floor; test app switched off after every run; (c) errors printed.

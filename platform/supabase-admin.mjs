@@ -103,17 +103,21 @@
  *                           (scripts/site-analytics.mjs)
  *   gateway-check           the post-deploy check of the LLM gateway, end to
  *                           end, as the test app `gateway-check` (cheapest
- *                           model, $0.05 a day): upserts its llm_apps row,
- *                           makes or reuses its stand-in sign-in, stores the
- *                           sha256 of a fresh app key (masked, never printed),
- *                           then makes a non-streaming call, a stream read to
- *                           message_stop, and a stream it leaves after the
- *                           first content_block_delta, and checks the three
+ *                           model, $0.05 a day): upserts its llm_apps row
+ *                           (switched on), makes or reuses its stand-in
+ *                           sign-in, stores the sha256 of a fresh app key
+ *                           (masked, never printed), then makes a
+ *                           non-streaming call and a stream read to
+ *                           message_stop (32 tokens each), and a long stream
+ *                           (512 tokens) it leaves after the first
+ *                           content_block_delta, and checks the three
  *                           llm_usage rows: all ok, the third with the
- *                           ClientLeft note (the gateway read it to its end).
- *                           Prints statuses, counts, tokens and cost only;
- *                           exits 1 on any mismatch. Needs
- *                           SUPABASE_SERVICE_ROLE_KEY and the access token
+ *                           ClientLeft note and at least 200 output tokens
+ *                           (the gateway read it to its end). The test app is
+ *                           switched off at the end of every run. Prints
+ *                           statuses, counts, tokens and cost only; exits 1
+ *                           on any mismatch. Needs SUPABASE_SERVICE_ROLE_KEY
+ *                           and the access token
  *   optout-ready            exit 1 unless platform.email_optout_check answers
  *                           (0003 applied); the workflow runs it before it
  *                           deploys sign-in-link or auth-email-hook, which
@@ -1347,7 +1351,9 @@ select jsonb_build_object('slug', a.slug, 'has_user', a.user_id is not null, 'ke
 /**
  * Creates (or reuses) the stand-in sign-in visitors+<slug>@hintwise.org and
  * bans it from interactive sign-in; returns its id. `who` names the command
- * in error messages (anon-setup, gateway-check).
+ * in error messages (anon-setup, gateway-check). It throws rather than
+ * calling fail(), so gateway-check's finally still runs; the dispatcher
+ * prints a throw as the same ::error:: line and exits 1.
  */
 async function ensureStandIn(slug, key, who) {
   const email = anonEmail(slug);
@@ -1358,14 +1364,14 @@ async function ensureStandIn(slug, key, who) {
   if (!uid) {
     const res = await fetch(`${base}/auth/v1/admin/users`, { method: 'POST', headers: admin, body: JSON.stringify({ email, email_confirm: true, ban_duration: STAND_IN_BAN, user_metadata: { stand_in_for: `${slug} visitors who are not signed in` } }) });
     const body = await res.json().catch(() => null);
-    if (res.status !== 200 || !body?.id) fail(`${who}: creating ${email} answered HTTP ${res.status}`);
+    if (res.status !== 200 || !body?.id) throw new Error(`${who}: creating ${email} answered HTTP ${res.status}`);
     uid = body.id;
     console.log(`Created the stand-in sign-in ${email}.`);
   } else {
     console.log(`Reusing the stand-in sign-in ${email}.`);
   }
   const res = await fetch(`${base}/auth/v1/admin/users/${uid}`, { method: 'PUT', headers: admin, body: JSON.stringify({ ban_duration: STAND_IN_BAN }) });
-  if (res.status !== 200) fail(`${who}: banning ${email} from interactive sign-in answered HTTP ${res.status}`);
+  if (res.status !== 200) throw new Error(`${who}: banning ${email} from interactive sign-in answered HTTP ${res.status}`);
   console.log(`${email} is banned from interactive sign-in (the gateway does not need it to sign in).`);
   return uid;
 }
@@ -1410,15 +1416,28 @@ async function analyticsRegister(slug, origin) {
 export const CHECK_APP = 'gateway-check';
 export const CHECK_MODEL = 'claude-haiku-5-5';
 export const CHECK_URL = 'https://auth.hintwise.org/functions/v1/llm-gateway';
+/** The app row's limit, which call (c) uses in full. */
+export const CHECK_APP_MAX_TOKENS = 512;
+/** Calls (a) and (b): short and cheap. */
 export const CHECK_MAX_TOKENS = 32;
-// Longer than 32 tokens, so the third call is still generating when it leaves.
 export const CHECK_PROMPT = 'Count from one to one hundred in words, separated by commas.';
+// Call (c): a reply far longer than 512 tokens (about 1,800 to three hundred),
+// so it is still generating, for several seconds, when the caller leaves.
+export const CHECK_LEFT_PROMPT = 'Count from one to three hundred in words, separated by commas.';
+/**
+ * Call (c)'s row must show at least this much output. The caller leaves after
+ * the first content_block_delta, a few tokens in; a full reply runs to 512
+ * (one to one hundred in words is already about 250). So 200 can only come
+ * from reading the stream on after the caller left, and leaves room for a
+ * reply that ends early.
+ */
+export const CHECK_LEFT_MIN_OUTPUT = 200;
 export const CHECK_CALLS = ['a non-streaming', 'b streamed', 'c streamed, caller left'];
 
-/** Pure: the idempotent upsert of the test app's row (only the cheapest model, 64 tokens, small caps). */
+/** Pure: the idempotent upsert of the test app's row, switched on (only the cheapest model, 512 tokens, small caps). */
 export function gatewayCheckAppSql() {
   return `insert into platform.llm_apps (slug, enabled, default_model, allowed_models, max_tokens, cap_day_usd, cap_week_usd, cap_month_usd, cap_user_day_usd)
-values (${lit(CHECK_APP)}, true, ${lit(CHECK_MODEL)}, array[${lit(CHECK_MODEL)}], 64, 0.05, 0.20, 0.50, 0.05)
+values (${lit(CHECK_APP)}, true, ${lit(CHECK_MODEL)}, array[${lit(CHECK_MODEL)}], ${CHECK_APP_MAX_TOKENS}, 0.05, 0.20, 0.50, 0.05)
 on conflict (slug) do update set enabled = excluded.enabled, default_model = excluded.default_model, allowed_models = excluded.allowed_models,
   max_tokens = excluded.max_tokens, cap_day_usd = excluded.cap_day_usd, cap_week_usd = excluded.cap_week_usd,
   cap_month_usd = excluded.cap_month_usd, cap_user_day_usd = excluded.cap_user_day_usd;
@@ -1427,10 +1446,27 @@ select jsonb_build_object('slug', slug, 'enabled', enabled, 'allowed_models', al
   from platform.llm_apps where slug = ${lit(CHECK_APP)};`;
 }
 
-/** Pure: one check call's body. Thinking off: the cheapest model allows it at its default effort. */
-export function gatewayCheckBody(stream) {
-  const body = { app: CHECK_APP, model: CHECK_MODEL, max_tokens: CHECK_MAX_TOKENS, thinking: { type: 'disabled' }, messages: [{ role: 'user', content: CHECK_PROMPT }] };
-  return stream ? { ...body, stream: true } : body;
+/** Pure: the SQL that switches the test app off again, at the end of every run. */
+export function gatewayCheckOffSql() {
+  return `update platform.llm_apps set enabled = false where slug = ${lit(CHECK_APP)};
+select jsonb_build_object('slug', slug, 'enabled', enabled)::text as result from platform.llm_apps where slug = ${lit(CHECK_APP)};`;
+}
+
+/**
+ * Pure: the body of call 'a' (non-streaming), 'b' (a stream read to its end)
+ * or 'c' (a long stream the caller leaves). Thinking off: the cheapest model
+ * allows it at its default effort.
+ */
+export function gatewayCheckBody(call) {
+  const left = call === 'c';
+  const body = {
+    app: CHECK_APP,
+    model: CHECK_MODEL,
+    max_tokens: left ? CHECK_APP_MAX_TOKENS : CHECK_MAX_TOKENS,
+    thinking: { type: 'disabled' },
+    messages: [{ role: 'user', content: left ? CHECK_LEFT_PROMPT : CHECK_PROMPT }],
+  };
+  return call === 'a' ? body : { ...body, stream: true };
 }
 
 /** Pure: the types of the complete server-sent events in `text`, in order; a trailing partial event is left out. */
@@ -1470,7 +1506,7 @@ export function matchCheckRows(rows) {
   const problems = [];
   const lines = rows.map((r, i) => `${CHECK_CALLS[i] ?? `extra row ${i + 1}`}: ok ${r.ok}, note ${r.error ? JSON.stringify(String(r.error).slice(0, 160)) : 'none'}, input ${r.input_tokens}, output ${r.output_tokens}, cost $${Number(r.cost_usd).toFixed(6)}`);
   if (rows.length !== 3) {
-    const hint = rows.length === 2 ? ': the stream the caller left has no row, so the gateway did not finish reading it or its insert' : '';
+    const hint = rows.length === 2 ? ': the stream the caller left has no row; if call (c) answered 200, the gateway did not finish reading it or its insert' : '';
     problems.push(`expected 3 llm_usage rows for ${CHECK_APP} since the run started, found ${rows.length}${hint}`);
   }
   rows.slice(0, 2).forEach((r, i) => {
@@ -1483,7 +1519,9 @@ export function matchCheckRows(rows) {
     if (note.includes('max_tokens')) problems.push(`${CHECK_CALLS[2]}: counted at max_tokens with no message_delta, so the gateway stopped reading after the caller left (the worker ended?)`);
     else if (c.ok !== true) problems.push(`${CHECK_CALLS[2]}: expected ok, got note ${JSON.stringify(c.error)}`);
     else if (!note.startsWith('ClientLeft')) problems.push(`${CHECK_CALLS[2]}: no ClientLeft note, so the abort reached the gateway only after message_stop and the drain was not tested; run the check again`);
-    if (!(Number(c.output_tokens) > 0)) problems.push(`${CHECK_CALLS[2]}: no output tokens recorded`);
+    if (!(Number(c.output_tokens) >= CHECK_LEFT_MIN_OUTPUT)) {
+      problems.push(`${CHECK_CALLS[2]}: output ${c.output_tokens} tokens, not clearly more than had streamed when the caller left (expected at least ${CHECK_LEFT_MIN_OUTPUT} of up to ${CHECK_APP_MAX_TOKENS})`);
+    }
   }
   const total = Math.round(rows.reduce((sum, r) => sum + (Number(r.cost_usd) || 0), 0) * 1e6) / 1e6;
   if (total >= 0.01) problems.push(`the total cost $${total.toFixed(6)} is not under $0.01`);
@@ -1505,7 +1543,30 @@ async function gatewayCheck() {
   const since = queryResult(await sql(`select jsonb_build_object('t', now())::text as result`))?.t;
   if (!since) fail('gateway-check: could not read the database time');
 
-  console.log(`1. Test app: ${JSON.stringify(queryResult(await sql(gatewayCheckAppSql())))}`);
+  const problems = [];
+  let stillOn = false;
+  try {
+    await gatewayCheckSteps(key, anon, since, problems);
+  } finally {
+    // On success, on a mismatch and on a thrown error alike: no one can use
+    // the test app between runs (the upsert switches it on again).
+    try {
+      console.log(`7. Test app switched off: ${JSON.stringify(queryResult(await sql(gatewayCheckOffSql())))}`);
+    } catch (e) {
+      stillOn = true;
+      console.log(`::error::gateway-check: could not switch the test app off; run update platform.llm_apps set enabled = false where slug = '${CHECK_APP}': ${String(e.message || e).slice(0, 200)}`);
+    }
+  }
+  if (problems.length || stillOn) {
+    for (const p of problems) console.log(`::error::gateway-check: ${p}`);
+    process.exit(1);
+  }
+  console.log('gateway-check passed.');
+}
+
+/** gateway-check's steps 1 to 6; mismatches go to `problems`, an unexpected error throws. */
+async function gatewayCheckSteps(key, anon, since, problems) {
+  console.log(`1. Test app, switched on: ${JSON.stringify(queryResult(await sql(gatewayCheckAppSql())))}`);
   console.log('2. Stand-in sign-in:');
   const uid = await ensureStandIn(CHECK_APP, key, 'gateway-check');
   const appKey = crypto.randomBytes(32).toString('base64');
@@ -1513,36 +1574,35 @@ async function gatewayCheck() {
   console.log(`3. A fresh app key, its sha256 stored: ${JSON.stringify(queryResult(await sql(anonSetupSql(CHECK_APP, uid, sha256(appKey)))))}`);
 
   const headers = { authorization: `Bearer ${anon}`, 'x-hintwise-app-key': appKey, 'content-type': 'application/json' };
-  const post = (stream, signal = AbortSignal.timeout(60_000)) => fetch(CHECK_URL, { method: 'POST', headers, body: JSON.stringify(gatewayCheckBody(stream)), signal });
-  const problems = [];
+  const post = (call, signal = AbortSignal.timeout(60_000)) => fetch(CHECK_URL, { method: 'POST', headers, body: JSON.stringify(gatewayCheckBody(call)), signal });
+  const says = async (res) => {
+    try {
+      return gatewaySays(JSON.parse(await res.text()));
+    } catch {
+      return '';
+    }
+  };
   const report = (name, ok, detail) => {
     console.log(`   ${ok ? 'ok  ' : 'FAIL'} ${name}: ${detail}`);
     if (!ok) problems.push(`${name}: ${detail}`);
   };
-  console.log(`4. Three calls to ${CHECK_URL} (${CHECK_MODEL}, max_tokens ${CHECK_MAX_TOKENS}, thinking off):`);
+  console.log(`4. Three calls to ${CHECK_URL} (${CHECK_MODEL}, thinking off; max_tokens ${CHECK_MAX_TOKENS}, ${CHECK_MAX_TOKENS} and ${CHECK_APP_MAX_TOKENS}):`);
 
-  const a = await post(false);
+  const a = await post('a');
   const aBody = await a.json().catch(() => null);
   const texts = Array.isArray(aBody?.content) ? aBody.content.filter((b) => b?.type === 'text').length : 0;
   report(CHECK_CALLS[0], a.status === 200 && aBody?.type === 'message' && texts > 0, `HTTP ${a.status}, ${texts} text block(s) ${a.status === 200 ? '' : gatewaySays(aBody)}`.trim());
 
-  const b = await post(true);
+  const b = await post('b');
   const bType = b.headers.get('content-type') || '';
-  const bText = await b.text();
-  const bTypes = b.status === 200 ? sseEventTypes(bText) : [];
-  let bSays = '';
-  if (b.status !== 200) {
-    try {
-      bSays = gatewaySays(JSON.parse(bText));
-    } catch {
-      bSays = '';
-    }
-  }
+  const bTypes = b.status === 200 ? sseEventTypes(await b.text()) : [];
+  const bSays = b.status === 200 ? '' : await says(b);
   report(CHECK_CALLS[1], b.status === 200 && bType.startsWith('text/event-stream') && sseComplete(bTypes), `HTTP ${b.status}, ${bType || 'no content-type'}, ${bTypes.length} events, the last ${bTypes.at(-1) ?? 'none'} ${bSays}`.trim());
 
   const leave = new AbortController();
-  const c = await post(true, AbortSignal.any([leave.signal, AbortSignal.timeout(60_000)]));
+  const c = await post('c', AbortSignal.any([leave.signal, AbortSignal.timeout(60_000)]));
   let cTypes = [];
+  let cSays = '';
   if (c.status === 200 && c.body) {
     const reader = c.body.getReader();
     const decoder = new TextDecoder();
@@ -1561,15 +1621,17 @@ async function gatewayCheck() {
     } catch {
       // the abort
     }
+  } else {
+    cSays = await says(c);
   }
   const cLeft = c.status === 200 && cTypes.includes('content_block_delta') && !cTypes.includes('message_stop');
-  report(CHECK_CALLS[2], cLeft, `HTTP ${c.status}, left after ${cTypes.length} events${cTypes.includes('message_stop') ? ', but message_stop had already arrived' : ''}`);
+  report(CHECK_CALLS[2], cLeft, `HTTP ${c.status}, left after ${cTypes.length} events${cTypes.includes('message_stop') ? ', but message_stop had already arrived' : ''} ${cSays}`.trim());
 
-  console.log('5. The llm_usage rows from this run (waiting up to 20 s for the third):');
+  console.log('5. The llm_usage rows from this run (waiting up to 30 s for the third):');
   const rowsSql = `select coalesce(jsonb_agg(jsonb_build_object('ok', ok, 'error', error, 'input_tokens', input_tokens, 'output_tokens', output_tokens, 'cost_usd', cost_usd) order by id), '[]'::jsonb)::text as result
   from platform.llm_usage where app = ${lit(CHECK_APP)} and user_id = ${lit(uid)}::uuid and created_at >= ${lit(since)}::timestamptz`;
   let rows = [];
-  for (let waited = 0; waited < 20; waited += 5) {
+  for (let waited = 0; waited < 30; waited += 5) {
     await new Promise((r) => setTimeout(r, 5000));
     rows = queryResult(await sql(rowsSql)) ?? [];
     if (rows.length >= 3) break;
@@ -1578,11 +1640,6 @@ async function gatewayCheck() {
   for (const line of matched.lines) console.log(`   ${line}`);
   problems.push(...matched.problems);
   console.log(`6. Total cost: $${matched.total.toFixed(6)}`);
-  if (problems.length) {
-    for (const p of problems) console.log(`::error::gateway-check: ${p}`);
-    process.exit(1);
-  }
-  console.log('gateway-check passed.');
 }
 
 // ---- main -----------------------------------------------------------------
