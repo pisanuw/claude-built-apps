@@ -140,8 +140,11 @@ export const SIGN_IN_CSS = `
   z-index: 1000;
   box-sizing: border-box;
   display: grid;
+  /* One column exactly as wide as the inside: the email field's own width must not widen it on a 320px phone. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.75rem;
-  width: 20rem;
+  /* 21.5rem leaves 309px inside, room for Turnstile's 300px widget; narrower phones get its compact form. */
+  width: 21.5rem;
   max-width: calc(100vw - 32px);
   padding: 16px;
   background: #FFFFFF;
