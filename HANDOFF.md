@@ -2,317 +2,173 @@
 
 This is the rolling handoff for the Plabs relay (session-relay skill). Each handover rewrites it. The last section holds the owner's standing instructions, the relay parameters and Scheduling.
 
-Written 14 November 2026 by session_01JyJzMWixW7SqcHTri4Umng, on the owner's "do handoff", and fact-checked the same day by a subagent against git, the Actions runs and the routines list.
-
-Times carry their zone. Commit times are Europe/Berlin (the routine time zone); reports to the owner use Europe/Madrid (Barcelona time; owner, 17 Nov 2026, "until further notice").
-
-Not verified:
-- upvote's Netlify build on Node 24 (the site answers 200);
-- live-together's deploy (its live address is unknown here);
-- Resend accepting app-notify's List-Unsubscribe headers (first real email).
+Written 18 November 2026, 03:05 Barcelona time, by session_01JyJzMVhQhwQ7Ea3HMyJ3FN on the owner's "/handoff now". Context was 53% (531,832 of 1,000,000 tokens). It was fact-checked by a subagent against git, the Actions runs and the routines list. Reports to the owner use Barcelona time (Europe/Madrid); the routines use Europe/Berlin crons.
 
 ## 1. Goal
 
 Owner's words (2026-11-02): "Get people using these projects, advertise these projects to get customers that may want me to build similar projects for them." "One way to be noticed is for github repos to be noticed, forked and get stars."
+- The offer is paid custom builds, part-time: "I care more about connections and being useful than money." "Built by Claude" is the headline. Customers: small businesses, startups, edtech, universities. Every app lives at `<app>.hintwise.org`.
+- Since 9 Nov the build routine builds one substantial project a week (BUILD_ROUTINE.md). This relay session runs the shared platform, the status reports and the owner's requests across repos.
+- Latest request (17 Nov): "add analytics to the rest of the apps but do not deploy them, add it on a branch if necessary", then "merge do not deploy" and "3 ok": apps in this repo get analytics at their next deploy, with no batch redeploy.
 
-- The offer is paid custom builds, part-time: "I care more about connections and being useful than money."
-- "Built by Claude" is the headline.
-- Customer priority: small businesses, startups, edtech, universities.
-- Domain: hintwise.org. Every app has been at `<app>.hintwise.org` since 8 Nov (docs/hintwise-migration.md).
+## 2. Status
 
-Since 9 Nov the build routine builds one substantial project a week on a shared platform (section 14). This relay session runs the platform, the status reports and the owner's requests.
+Done since the last handoff (14 Nov):
+- [x] StepWise wave 10, the AI pathway and learning paths (its own session); app-notify sent its first real email on 15 Nov.
+- [x] udebt live with anonymous gateway use (15 Nov). Lewis alt-text is live (15 Nov), with a standalone setup guide for Scott (17 Nov).
+- [x] "Finish signing in" fix against mail scanners using up sign-in links. Deployed for lewis-alt-text, delivery-canary, qualified-overtime-checker and udebt; teacher-catalog-kit has it but is not deployed.
+- [x] First-party analytics:
+  - shared/0014 (events), 0015 (summary) and 0016 (own-repo apps) applied;
+  - the app-events and app-events-report functions deployed;
+  - pisan-analytics shows an "App events" section (pisanuw/dashboards, deployed by the "Deploy dashboards" workflow);
+  - live and confirmed with real rows: MyUni (PR #5) and StepWise.
+- [x] Analytics for every app merged to main (741b225), with no deploy:
+  - scripts/site-analytics.mjs adds the script at deploy;
+  - the deploy registers each app's origin (`analytics-register`);
+  - ids and quoted text are masked, and a `data-mask` option covers short share codes.
+- [x] StepWise deployed 17 Nov 18:19 UTC (main d83c070): credits aligned with each page's column; notes-only pushes skip CI.
+- [x] Chess TD CI trim, PR #227 (45899b1): the full suite runs once per code version, and the scheduled Oracle is weekly (Sun 03:23 UTC).
+- [x] Delivery Canary days 4 to 6 (build routine).
+- [x] 18 Nov:
+  - the LLM usage report treats a reused Resend key as already sent (6ba80f2);
+  - the platform/node_modules link committed by mistake in d36dd1d is removed (0b04807).
 
-## 2. What is live (14 November)
+In progress / remaining:
+- [ ] Own-repo analytics branches await the owner's merge; merging deploys each app (section 4).
+- [ ] Watch the first analytics rows for each newly deployed app on pisan-analytics.
+- [ ] Delivery Canary day 7, the last build day: 18 Nov 11:49 Berlin (build routine).
 
-- **Apps:**
-  - claude-built-apps has 65 deploy targets (*/deploy/target.yml), and the apps answer 200 under `<app>.hintwise.org`.
-  - Every monorepo app gets the shared footer (scripts/site-footer.mjs) at deploy. Own-repo apps embed the same markup, checked by a sha256 test.
-  - pisan-labs mirrors sync on each push, and daily from halflife (04:13, zone not recorded; unverified).
-- **Toolchain:** CI, the deploy job and all ops workflows run on Node 24, with actions/checkout, setup-node and setup-python v7 and supabase/setup-cli v2.
-  - The first production deploy on Node 24 was Delivery Canary day 3: Deploy run 181, 14 Nov 12:16 Berlin.
-  - CI has a concurrency group (`ci-<ref>`, cancel-in-progress): a superseded run on main shows as cancelled, which is not a failure.
-  - CI on main is green at f8909ae.
-- **Shared platform** (docs/platform.md; platform/):
-  - **Supabase** project `arktxlrlyceffyozdwhq`, served on **auth.hintwise.org**.
-    - Schema `platform`, and per-app schemas `app_<slug>` with RLS.
-    - Migrations go through `supabase-admin.mjs migrate <slug>`, then `expose-schema` and `check-schema`.
-  - **Sign-in:** Google and email, through the sign-in-link Edge Function. The Send Email hook has been on since 11 Nov.
-  - **llm-gateway:** the owner's Anthropic key behind caps; bring-your-own-key is always offered. It has:
-    - reading caps (shared/0007);
-    - check mode `{app, check: true}`, which makes no model call;
-    - credits, reserved before the call and refunded on failure (shared/0008);
-    - `platform.app_users`, recording who used each app (shared/0009).
-  - **credits-grant:** admins grant credits or list an app's people (shared/0010). The owner is the only admin.
-  - **app-notify** (shared/0011, 0012):
-    - The email-optout and app-notify functions are deployed.
-    - pg_cron job app-notify-daily runs at 15:17 UTC.
-    - **StepWise is registered and enabled**, with `seeded_at` null until the first run.
-    - The feed is https://stepwise.hintwise.org/notify-feed.json: 4 items, the newest being the AI and LLMs release of 14 Nov. The first run absorbs all four silently.
-- **photo2pgn** (pisan-labs/photo2pgn, its own repo and its own relay session_01JyJzMW9Bz6EAJvfv2NPJQd) is live at photo2pgn.hintwise.org. See section 4.
-- **delivery-canary** (delivery-canary.hintwise.org) is the weekly build, day 3 of 7 done on 14 Nov:
-  - day 1: delivery-email check;
-  - day 2: late download orders;
-  - day 3: seed inbox check over IMAP, with a sealed app password and migration 0003.
+## 3. Current state
 
-  Its own handoff is delivery-canary/HANDOFF.md.
-- **Own-repo apps on the platform:**
-  - UpvoteMe (pisanuw/upvote, main af3c376, now on Node 24);
-  - PasteMD (pisanuw/pastemd);
-  - StepWise (stepwise.hintwise.org, its own session session_01JyJzMZ3W1yMJWwuFJ1PTXM). StepWise's live footer still lacks the logo mark; the fix waits on StepWise's `next` (section 5).
-- **MeetMe:** its Resend webhook is at https://meetme.hintwise.org/api/webhooks/resend.
-  - The owner changed it on 14 Nov after Resend disabled the pisan.me one, and a bounce test passed.
-  - Digital Yusuf's inbound webhook (chatwithdigitalme.onrender.com) never used pisan.me and answers correctly.
-- **Brand:** the HintWise logo and kit are in platform/brand/. The footer mark reaches each app on its next deploy.
-- **Heads at handoff:** claude-built-apps main f8909ae (before this commit), upvote af3c376, live-together 9abd470.
+- **claude-built-apps:** main 6ba80f2 before this commit. CI on 6ba80f2 was queued at writing; 46450f7 was green.
+- **Clean:** all ten checkouts have no uncommitted or unpushed work, and no process is running.
+- **Branches not merged** (each pushed; merging deploys the app):
+  - udebt `analytics`, upvote `analytics`, pastemd `analytics` and `csp-fix`, photo2pgn `analytics`, chess-tournament-director `analytics`, myuni `analytics-masking`;
+  - claude-built-apps `analytics-code-analogy-forge` (any change under that folder deploys it).
+- **StepWise:** next 643ab0b, main d83c070.
 
-## 3. Landed since the last handoff (13 Nov 14:29 Berlin → 14 Nov), this session
+## 4. Next step
 
-- **13 Nov:**
-  - Names and app counts in the admin list (15:33, 1b6fc57). photo2pgn's "List users" was deployed by its session.
-  - **app-notify:**
-    - per-app email opt-out tokens with RFC 8058 one-click, and the sender (merged 16:06, 0de473e);
-    - the notify_opted_in fix (16:14, fb53875);
-    - the notify-schedule command (16:45, dbb4259), and the daily schedule turned on;
-    - the StepWise opt-in count and registration SQL (20:50, 2cfaaaa), and StepWise switched on (~21:50).
-  - fide-lookup.hintwise.org (19:06, docs).
-  - **GitHub Actions off Node 20** (owner's yes):
-    - action versions to v7, and setup-cli to v2 (22:38, e035174);
-    - Node 22 for the 24 app jobs still on Node 20 (one commit each), site-footer, the deploy job and 13 ops workflows (22:41–22:45, cb09594..831fa2f). The other 43 jobs were already on 22.
-- **14 Nov:**
-  - Node 20 leftovers moved to 22 (08:15, dedd348).
-  - The **CI concurrency group** (08:21, b6c27dc), which the owner asked for.
-  - **Node 24 everywhere in the monorepo** (owner's yes; Node 22 support ends April 2027). Commits fcab628..33e852c at 08:32–08:33:
-    - 67 app jobs, one commit each, 61 of them with the app's mirror CI file;
-    - site-footer, the deploy job and all ops/admin workflows;
-    - .env.example, and accessibility-lens's .nvmrc, render.yaml and Dockerfile;
-    - heap-arena-replay and program-alarm-1202 lockfiles regenerated for npm 11 (platform entries only).
-  - **upvote** af3c376 (08:20): the Netlify build and CI on Node 24, actions v7. It has no concurrency group yet.
-  - **live-together** (08:23):
-    - 179813c fixes CI, which had failed on every run since its first (9 Sep), by running `next typegen` before tsc;
-    - 9abd470 moves the actions to v7.
-  - **StepWise's AI and LLMs pathway** (33 pages) went live. Its session did this. Its release is in the feed, and app-notify's first run seeds it, so it is never emailed.
-  - **Delivery Canary day 3** (build routine, 12:07–12:19; Deploy run 181, ddcab1a): seed inbox check over IMAP and `/api/seed-reach`.
-  - **StepWise footer fix:** the StepWise session committed the logo markup (2234 bytes, sha256 487cb295…491e) on StepWise's `next` (2b57417).
-    - The owner chose to ship it with the wave-10 deploy rather than deploy it alone.
-  - The **MeetMe webhook diagnosis** (owner fixed it in Resend). The migration doc now warns that outside webhooks don't follow the 301 (13:42, f8909ae).
-  - The owner received the HintWise logo files from platform/brand/.
+First, tell the owner: a clone that pulled claude-built-apps between 17 Nov 16:21 UTC and 18 Nov 02:2x UTC had its platform/node_modules folder replaced by a dangling link. Fix: `rm platform/node_modules; (cd platform && npm ci)`. halflife may be one of them (unverified).
 
-## 4. photo2pgn (its own session drives it; Plabs does the platform)
+Then work through this list in order:
+1. **Check the next LLM usage report run** (cron 16:10 and 17:10 UTC; GitHub has delayed these by up to 8 hours). Expect success, or the "Already sent for <day>" line.
+2. **Merge the own-repo analytics branches only on the owner's word.** Two of them need preparing first:
+   - Chess TD `analytics` was cut before #227: merge main into it first.
+   - PasteMD `csp-fix` and `analytics` overlap (netlify.toml, CHANGES, page heads): the second to merge needs its conflicts resolved.
+3. **Watch the build routine:** Delivery Canary day 7.
 
-The app is live and listed. The owner's choices are all applied:
-- max_tokens 12000;
-- per person, 3 readings a day and 9 a week; cross-app $1.00/day per person;
-- app ceiling $1/day, $5/week, $10/month;
-- saved games (`app_photo2pgn.games`, own-row RLS);
-- public readings through the gateway only;
-- credits: 1 credit = 1 sheet;
-- the admin panel with "List users" (names and games counts).
+## 5. Decisions and why
 
-On 13 Nov the owner confirmed a real grant, a reading and "My games" on two devices.
+- **Mirrors:** the monorepo is the source of truth. pisan-labs repos are `git subtree split` mirrors (mirror.yml + .github/mirrors.txt).
+- **Netlify credits:** a push to main deploys only targets whose target.yml changed, plus shortcut-sprint and code-analogy-forge source. Runner and footer changes deploy nothing until the next deploy. Docs-only commits carry `[skip netlify]`.
+- **Addresses:** `<app>.hintwise.org` everywhere. target.yml keeps `customDomain: <app>.pisan.me`, and the runner swaps in APP_DOMAIN. Outside webhooks must use hintwise.org; they don't follow the 301.
+- **Runtime:** Node 24 for CI, deploy and ops (owner yes, 14 Nov).
+- **Public pages** are for customers: no scores, build times or test counts.
+- **Email:** sign-in through sign-in-link only, never `signInWithOtp`. App mail is from `<slug>@hintwise.org`.
+- **Gateway spending:** dollar caps per app (day, week, month), optional per-person caps, and credits after the free allowance (owner, 12–13 Nov).
+- **Secrets:** the 9 Nov JWT exposure is accepted; **do not raise rotation again**. Never rotate EMAIL_OPTOUT_SECRET or SIGN_IN_HASH_KEY. Never replace DELIVERY_CANARY_KEY.
+- **Analytics** (owner, 17 Nov: "my own endpoint"):
+  - first-party and cookieless; the visitor id is a daily salted hash, and the IP is never stored;
+  - nothing is sent under Global Privacy Control, Do Not Track or `navigator.webdriver`;
+  - apps here get it at deploy (`analytics: false` opts out); own-repo apps copy hw-events.js byte for byte, pinned by a sha256 test;
+  - app text must not promise "no tracking";
+  - td.pisan.me is not registered (owner OK).
+- **Sign-in links** wait for a "Finish signing in" click when nobody is signed in, because mail scanners (Safe Links) used up the single-use links.
+- **CI minutes:** public repositories cost nothing on standard runners. Chess TD (private) is the one that spends minutes, hence #227.
 
-Still open, none of it blocking Plabs:
-- **Paddle (slice 2)** needs the owner's account and prices (proposed: 20 credits for $5, 50 for $10, never expire). Before selling, raise the $1/day app cap, since paid readings count against it.
-- **Chess TD's request for a scoresheet-reading API.** photo2pgn recommends sharing its reading code instead. If Chess TD reads through the gateway, it needs its own llm_apps row and caps (the owner's numbers).
-- **The halflife CLI reader** gets no jobs now. The owner handles its charge; Plabs builds no charge or refund mode.
+## 6. Tried and rejected
 
-## 5. Next, in order
+- A second SQL copy of the gateway cap rules: rejected; check mode reuses `decide()`.
+- Redeploying all apps on a runner edit: it ran Netlify out of credits on 2 Nov.
+- A database trigger on auth.users: Supabase refuses it.
+- Removing Chess TD's CI on main: rejected, because Render deploys main only after the checks pass. The check stays, but is fast when the same code already passed.
+- Leaving paste, topic and join pages without analytics: replaced by `data-mask`.
+- Sending a test beacon into production to prove the pipeline: not done; real visits proved it.
 
-1. **Done 14 Nov:** app-notify's first StepWise run (15:17 UTC) answered 200, seeded 4 items, sent 0 (`ops/notify-status.sql`). Kept for the record:
-   app-notify's first StepWise run (14 Nov 15:17 UTC). The check is the one-shot scheduled task at **15:35 UTC** (trig_015eWrrXcnGemydViFztasop; the takeover moves it). Expected:
-   - `notify-schedule status`: the cron job succeeded and app-notify answered HTTP 200;
-   - `platform.notify_apps.seeded_at` is set for stepwise;
-   - 4 rows in `notify_items_seen` and 0 in `notify_sends`. The feed gained the AI and LLMs release on 14 Nov; the scheduled task's prompt was updated from 3 to 4.
+## 7. Constraints and gotchas
 
-   If not, find the root cause and tell the owner. Seeding done is news once.
-2. **StepWise wave 10 and the footer logo.** Deployed 22:08 UTC 14 Nov (StepWise main fb02fc9, CI run 239; logo mark 1, footer 1 on all 276 sitemap pages per its session; footer sha256 matches footerHtml(stepwise); feed 5 items, newest 2026-11-14-coding-interviews). The first real app-notify email went out 15 Nov 15:17 UTC: 1 sent, 0 failed, HTTP 200, row status sent (Resend accepted the List-Unsubscribe headers); items_seen 5.
-   - The StepWise session is building wave 10: 39 pages, on the owner's "Implement all and then merge and deploy". Its scheduled check, "Wave 10 build check (every 30 min)", runs until done or 21 Nov. It is a chain of one-shots, each with a new id.
-   - When all pages are merged, that session adds a release to src/releases.ts, moves main and runs the live check. Then it messages **session_01JyJzMWixW7SqcHTri4Umng, the previous Plabs session**, which won't be working any more.
-   - So check it yourself. In an hourly check, run `curl -s https://stepwise.hintwise.org/ | grep -c 'class="mark"'`: 1 means the footer logo is live (and `data-site-footer` must still count 1). Tell the owner once.
-   - **That release is app-notify's first real email.** After it goes live, the next 15:17 UTC run should send to the opted-in people (0 opted in on 13 Nov, so possibly nobody).
-   - Check `notify_sends` and the app-notify answer, and whether Resend accepted the List-Unsubscribe headers.
-3. **udebt** (pisanuw/understanding-debt, own repo, its session session_01JyJzMYGFTUG3wn6vdqEMb9; owner's yes 15 Nov to every DEPLOY.md step). Plabs steps done 15 Nov: 1 migrations + expose-schema, 2 SHARED_TABLES + check-schema passed, 3 EXTERNAL_APP_LABELS + sign-in-link and delete-account redeployed, 7 three samples loaded, 8 gateway row (Sonnet; since 15 Nov 16:00 UTC $1.00/day per person via udebt, app $5/$20/$40, udebt-llm-caps-2.sql). Netlify site `udebt` imported by the owner 15 Nov; step 4 done (attach-domain run 43707819659; https://udebt.hintwise.org 200 with TLS, footer 1, CSP header, /api/excerpt 401); step 6: SUPABASE_URL set (run 43708157714), SUPABASE_ANON_KEY must be set by the owner in the Netlify dashboard (the workflow takes URLs only), then a redeploy. Render `udebt-api` (srv-dbspb1gae00c738mrmi0, free) created by the owner 15 Nov; step 5 done (set-cname run 43708624056, render-domain add-domain run 43708662283, verified). DEPLOY.md automatic checks pass 11:24 UTC: footer 1, CSP header, udebt-api.hintwise.org/healthz ok, /api/excerpt 401. Anon key fixed by the owner 15 Nov ~17:00 UTC; a signed-in quiz graded (llm_usage 16:58 UTC, $0.0049). Anonymous visitors: gateway anonymous mode (shared/0013, x-hintwise-app-key) live 15 Nov 17:20 UTC, stand-in visitors+udebt@hintwise.org (banned from interactive sign-in), shared allowance = udebt cap_user_day_usd $1.00, no Turnstile (owner); HINTWISE_APP_KEY is a Netlify secret. The UDebt session turns on VITE_UDEBT_ANON_MODEL and deploys; then check the stand-in's first llm_usage row. Check: `curl -s -o /dev/null -w '%{http_code}' https://udebt.netlify.app/` and `https://udebt-api.onrender.com/healthz` (both 404 at 11:07 UTC 15 Nov).
-4. **lewis-alt-text** (Lewis Structures alt text; its session session_01JyJzMY5cjawi1RpmbD5RVP; source prompt from srayermann/Lewis-Structures-Alt-Text): live 15 Nov at lewis-alt-text.hintwise.org (option A folder, 727dc74, Deploy 43740334178), sign-in functions redeployed, caps set (ops/lewis-alt-text-llm-caps.sql: 20 calls/day/person, $1.50 cross-app, app $3/$15/$40, Opus). Not verified: a real gateway call.
-5. **upvote:** add the CI concurrency group with its next real change, never alone, because a push triggers a Netlify build.
-6. **Watch the build routine** (11:49 CET daily). Delivery Canary day 4 is next, on 15 Nov.
-7. **Logo rollout:** the shared footer mark reaches apps on each deploy. Don't redeploy all apps (credits). Favicons and social images come later.
-
-## 6. Waiting on the owner
-
-Nothing is due now. These offers were made on 14 Nov and are unanswered; they have no default, so don't build them unasked:
-1. A weekly drift check comparing own-repo apps' live footers with `footerHtml(slug)`.
-2. A redirect from the old fide-lookup.onrender.com address.
-
-Older, not confirmed since 8 Nov:
-- test Google sign-in on MeetMe, Chess TD and Digital Yusuf;
-- re-run `scripts/pisan_labs_setup.py` locally for the pisan-labs homepages;
-- post launch drafts 1–7 (docs/launch-drafts.md), one at a time;
-- Qualified Overtime Checker follow-ups (qualified-overtime-checker/HANDOFF.md).
-
-## 7. Dated tasks
-
-- **14 Nov 15:35 UTC** (one-shot scheduled task trig_015eWrrXcnGemydViFztasop): check that app-notify's first StepWise run seeded (item 1 of section 5).
-- **Each day 11:49 CET:** the build routine advances the weekly project (Delivery Canary day 4 on 15 Nov).
-- **By 21 Nov:** StepWise's wave 10 ends (its session's scheduled check). Then the footer logo goes live and app-notify sends its first email (item 2 of section 5).
-
-## 8. Decisions and why
-
-- **Mirrors:** the monorepo is the source of truth. pisan-labs repos are `git subtree split` mirrors (mirror.yml + .github/mirrors.txt). Each mirrored folder carries its own LICENSE and an inert ci.yml.
-- **Netlify deploys cost credits.**
-  - A push deploys only targets whose target.yml changed, plus the shortcut-sprint and code-analogy-forge source.
-  - Runner and footer changes need a manual Deploy run.
-  - Docs-only commits carry `[skip netlify]`.
-- **Addresses:** every app's primary address is `<app>.hintwise.org`. target.yml keeps `customDomain: <app>.pisan.me`, and the runner swaps in APP_DOMAIN.
-  - **Webhooks and callbacks registered in outside services must use the hintwise.org address.** Senders like Resend (Svix) don't follow the pisan.me 301 (docs/hintwise-migration.md, "Known side effects").
-- **Node 24** is the runtime for CI, the deploy job, upvote's Netlify build and the ops workflows. Support for Node 24 ends April 2028. Owner's yes, 14 Nov.
-  - live-together stays on Node 22.
-  - npm 11 rejects lockfiles that lack the per-platform optional entries; regenerate with npm 11 and check that only platform entries change.
-- **Public pages** are written for customers: no scores, competitors, build time or test counts.
-- **Builds:** small business first for ideas and builds. One substantial project a week on the usual architecture (BUILD_ROUTINE.md). All accounts are paid. Auth, RLS, functions and email get a security review.
-- **Email:** no Resend sending subdomains. App mail comes from `<slug>@hintwise.org`, sign-in mail from sign-in@hintwise.org.
-- **Google sign-in buttons** follow Google's branding guidelines; the template's button is correct.
-- **Sign-in mail:** the email hook is on. Apps send sign-in through sign-in-link, never `signInWithOtp`.
-- **Gateway spending** (owner, 12–13 Nov):
-  - Each app has dollar caps (day, week, month) as a ceiling, plus optional per-person caps in dollars or readings.
-  - Credits pay once the free allowance is used up, never past the app ceiling. They are taken before the call and refunded on failure.
-  - `platform.llm_apps` is readable by any signed-in user by design; check-schema treats it as shared.
-- **Admins** (`platform.admins`) may grant credits and list an app's people. They are changed only by the Supabase admin workflow, never by apps.
-- **Secrets:** the JWT secret exposure of 9 Nov is a risk the owner accepts; **do not raise rotation again**. Never rotate EMAIL_OPTOUT_SECRET or SIGN_IN_HASH_KEY. Never replace DELIVERY_CANARY_KEY once stored.
-- **What needs a yes:** a deploy needs no yes when the owner asked for the change. Any other production deploy, database change or Netlify build waits for a yes.
-
-## 9. Tried and rejected
-
-- **A second SQL copy of the cap rules** for the check mode: rejected. The check mode reuses `decide()`/`allowance()`.
-- **A separate `seen()` RPC** for photo2pgn: not needed. The gateway records each visit on every check and reading.
-- **Redeploying all apps on every deploy.mjs edit:** it ran Netlify out of credits on 2 Nov.
-- **A database trigger on auth.users:** Supabase refuses it. Apps call `platform.ensure_profile()` after sign-in.
-- **Deploying the StepWise footer fix alone:** the owner chose to ship it with wave 10 (14 Nov).
-
-## 10. Constraints and gotchas
-
-- **Commits:** Conventional Commits, enforced by `.git-hooks/commit-msg` (`git config core.hooksPath .git-hooks`).
-- **Pushing:** other machines and sessions push to main. `git fetch` before work and before pushing; merge, never force-push.
+- **Commits:** Conventional Commits (`.git-hooks/commit-msg`; `git config core.hooksPath .git-hooks`). `git fetch` before work and before pushing; never force-push main.
 - **Supabase admin workflow:**
-  - Dispatch one run at a time.
-  - Its logs are public: nothing secret or personal may be printed.
-  - `sql` prints only the **last** statement's result.
-- **Settings and secrets:** repo settings can't be written from a cloud session. Secrets are set in the repo, never pasted in chat.
-- **Never import the deploy runner (accessibility-lens/deploy/deploy.mjs) to test it:** it calls `main()` on import. Use `node --check`.
-- **Reading CI conclusions:** with the concurrency group, a superseded run's jobs show as cancelled. A helper that counts every non-success as failed will mislead; read each job's conclusion.
-- **Netlify:** a new domain gets its certificate after the ssl request. The live check is the runner's HTTP 200 over real TLS.
-- **Edge Function HTML:** Supabase serves it only on auth.hintwise.org.
-- **Unmerged remote branches** (old, none needed now; not for deletion):
-  - claude/magical-cray-8vo07d (1 Nov 00:41 Berlin; Four Ghosts shipped another way);
-  - feat/account-deletion and feat/email-footer-optout (11 Nov).
+  - one run at a time;
+  - its logs are public: print counts and aggregates only;
+  - `sql` takes a committed file.
+- **Never print secrets or put them in workflow inputs.** Never ask the owner to paste a key.
+- **Worktrees:** never commit a node_modules link. `.gitignore` now says `node_modules` without the slash, so it also covers links.
+- **Playwright and analytics:** headless Chromium sets `navigator.webdriver`, so the script sends nothing. Tests override it, and must route or block auth.hintwise.org outright: pagehide beacons can slip past `page.route`.
+- **The app-events endpoint answers 204 either way;** only a stored row proves the pipeline. It also drops headless user agents, so nothing from a test is stored.
+- **CI concurrency:** a superseded run shows as cancelled, which is not a failure.
+- **StepWise:** main moves only when Yusuf says "deploy" (fast-forward to a green `next`; 15 Netlify credits).
+- **MyUni:** pytest is not installed in this container.
 
-## 11. How to run and verify
+## 8. How to run and verify
 
-- **Per app** (from its folder): `npm ci && npm run lint && npm run typecheck && npm run coverage && npm run build`.
-- **Platform** (platform/): `npm run lint && npm run typecheck && npm run coverage`, plus `npm run check-scripts` and `npm run check-app-hosts`.
-- **Footer tests:** `node --test scripts/site-footer.test.mjs`.
-- **Supabase admin:** Actions > Supabase admin > Run workflow. The commands are listed atop .github/workflows/supabase-admin.yml.
-  - app-notify: `notify-schedule status|on|off`.
-  - Credits totals: `sql` with `platform/supabase/ops/credits-status.sql`.
-- **Live check:** `curl -s https://<app>.hintwise.org/ | grep -c data-site-footer`.
+- **App** (its folder): `npm ci && npm run lint && npm run typecheck && npm run coverage && npm run build`.
+- **Platform** (platform/): `npm run lint && npm run typecheck && npx vitest run && npm run check-scripts`. 533 tests passed on 18 Nov.
+- **Footer and analytics injector:** `node --test scripts/site-footer.test.mjs scripts/site-analytics.test.mjs`.
+- **Analytics counts:** Supabase admin, `sql platform/supabase/ops/app-events-check.sql` (counts only).
+- **Live footer:** `curl -s https://<app>.hintwise.org/ | grep -c data-site-footer` prints 1.
 
-## 12. Key files
+## 9. Key files
 
-- **Top level:** README.md, PROJECTS.md, BUILD_ROUTINE.md, docs/new-app-guide.md, docs/platform.md, docs/hintwise-migration.md.
-- **Supabase admin:** platform/supabase-admin.mjs + .github/workflows/supabase-admin.yml.
-- **SQL:**
-  - platform/supabase/shared/*.sql (0001–0012; 0006–0012 added this cycle);
-  - platform/supabase/ops/ (caps, backfills, credits-status, notify-stepwise-optins, notify-register-stepwise).
-- **Code:**
-  - platform/src/gateway/, platform/src/credits/, platform/src/notify/;
-  - platform/supabase/functions/ (llm-gateway, credits-grant, sign-in-link, email-optout, app-notify, …).
-- **Footer and brand:** scripts/site-footer.mjs (`footerHtml(slug)`, LOGO_SVG); platform/brand/.
-- **Records:** */deploy/target.yml; CHANGES.md, BRIEFING.md.
+- docs/platform.md ("First-party analytics") and docs/new-app-guide.md: the platform and the per-app rules.
+- platform/src/analytics/ (hw-events.js, events.ts, service.ts, report.ts): the analytics client and endpoints.
+- scripts/site-analytics.mjs and scripts/site-footer.mjs: injected into every Netlify app at deploy.
+- accessibility-lens/deploy/deploy.mjs: the deploy runner (never import it in a test; it runs main).
+- platform/supabase-admin.mjs and .github/workflows/supabase-admin.yml: database admin.
+- .github/workflows/deploy-dashboards.yml: deploys pisan-analytics.
+- platform/supabase/shared/0001–0016 (schema) and platform/supabase/ops/ (read-only queries).
+- platform/llm-usage-report.mjs: the daily usage email.
+- CHANGES.md, BRIEFING.md, BUILD_ROUTINE.md.
 
-## 13. Background jobs
+## 10. Background jobs
 
-- **Relay routines** (Scheduling below).
-- The owner's **ideas** (10:51 CET) and **build** (11:49 CET) routines.
-- The **halflife** pisan-labs sync (04:13, zone not recorded).
-- The **notify-implemented email** (9:10am Pacific; not in list_triggers, probably a local Cowork task, unverified).
-- **pg_cron** app-notify-daily (15:17 UTC).
-- **StepWise's wave-10 check** (its session, every 30 min).
+All times Barcelona (Europe/Madrid):
+- **Relay routines:** hourly status at :46; handoff check at 13:56; session start at 14:52. Ids in Scheduling below.
+- **Owner's routines:** daily ideas (10:51), weekly build (11:49), TPT daily product builder (06:37).
+- **Platform jobs:** pg_cron app-notify at 16:17; the LLM usage report at 17:10 and 18:10 (often hours late); halflife's pisan-labs sync at 04:13 (time zone not recorded).
+- **Chess TD:** Oracle weekly, Sunday 04:23; FIDE test image daily (fide-test.yml).
+- **Nothing else:** no subagent or background process is running at this handoff, apart from its fact-check.
 
-No subagents are running at this handoff, apart from this handoff's fact-check.
+## 11. Open questions
 
-## 14. Weekly builds and platform
-
-The build routine (BUILD_ROUTINE.md) picks a substantial idea, small business first. It builds one milestone a day for up to 7 days, in fresh sessions resuming from `<slug>/HANDOFF.md`.
-
-The relay session supports the builds: migrations for own-repo apps, platform features, and reviews of anything touching auth or email.
-
-**Aborted builds (do not pick or resume):** daily-project-ideas `ideas/2026-11-10.json` #1, "Off-TPT Catalog Kit" (folder `teacher-catalog-kit/`).
+1. When should the own-repo analytics branches merge? Each merge deploys that app. No answer yet.
+2. Which halflife jobs, if any, need platform/node_modules? I don't know.
+3. Older offers with no answer: a weekly footer drift check; a redirect for fide-lookup.onrender.com; testing Google sign-in on MeetMe, Chess TD and Digital Yusuf; posting launch drafts 1–7.
 
 ## Notes for the next session
 
 ### Owner's standing instructions
-- **Ask first, and wait for the answer, before:**
-  - writing production data;
-  - deploying to production, unless asked;
-  - spending money;
-  - deleting the unrestorable;
-  - rotating secrets;
-  - rewriting shared history;
-  - publishing outside the session.
-
-  Pushing to main and deleting already-merged branches are fine.
-- **Questions:** number them, with a recommendation, in message text (no blocking dialogs).
-  - With a recommendation and no answer in 15 minutes, take it and say how to undo it (never for the explicit-yes list).
-  - Set a send_later check-in for 15 minutes when something waits on an answer.
-- **Times in Barcelona time** (Europe/Madrid) in reports and chat (owner, 17 Nov 2026, "until further notice"; was Lisbon). Routines keep their Europe/Berlin crons.
-- **Quiet hours are silent.** When an hourly check finds nothing new, print nothing at all: no file, no message, not even a "nothing changed" line.
-- **Public pages** are for customers. Never invent facts about the owner in his voice.
-- **Repo rules:**
-  - CHANGES.md is append-only, `YYYY-MM-DD [type] text` (≤200 chars).
-  - Conventional Commits.
-  - No model names in repo artifacts.
-  - Run the repo's lint and tests before committing.
-- **Secrets:** never ask the owner to paste tokens or keys in chat. Never print secret values. Never put a secret in a workflow input (inputs and logs are public).
-- **The owner's key** is used only through the gateway: no Anthropic key in Netlify or in apps.
+- **Ask first, and wait, before:** writing production data, deploying to production unless asked, spending money, deleting the unrestorable, rotating secrets, rewriting shared history, publishing outside the session. Pushing to main and deleting merged branches are fine.
+- **Questions:** numbered, with a recommendation, in message text. With a recommendation and no answer in 15 minutes, take it and say how to undo it (never for the ask-first list). Set a send_later check-in for 15 minutes.
+- **Times:** Barcelona time (Europe/Madrid) in reports and chat (owner, 17 Nov, "until further notice").
+- **Quiet hours:** when an hourly check finds nothing new, print nothing.
+- **Repo rules:** CHANGES.md is append-only, `YYYY-MM-DD [type] text`. Conventional Commits. No model names in repo artifacts. Run lint and tests before committing.
+- **Keys:** the owner's key only through the gateway; never in Netlify or in an app.
 
 ### Relay parameters (session-relay skill)
 | Parameter | Value |
 |---|---|
-| Repository | pisanuw/claude-built-apps (also daily-project-ideas, pisanorg/yusuf, pisan-labs/chess-tournament-director, pisanuw/upvote, pisanuw/pastemd, pisanuw/live-together; read-only: dashboards, chess-analyzer, meetme) |
+| Repository | pisanuw/claude-built-apps; also daily-project-ideas, pisanorg/yusuf, pisan-labs/chess-tournament-director, pisanuw/upvote, pisanuw/pastemd, pisanuw/understanding-debt, pisanuw/myuni, pisan-labs/photo2pgn, pisan-labs/visualizing-data-structures; read-only dashboards, chess-analyzer |
 | Handoff document | HANDOFF.md (this file) |
 | Routine time zone | Europe/Berlin |
 | Report time zone | Europe/Madrid (Barcelona) |
 | Handover check | 13:56 Europe/Berlin |
 | Session start | 14:52 Europe/Berlin |
-| Handoff marker | a commit on main titled `docs: the handoff of <D Month>` (this project pushes docs to main, no PR); no other commit may use that subject |
+| Handoff marker | a commit on main titled `docs: the handoff of <D Month>`; no other commit may use that subject |
 | Merge rule | push to main after `node --test scripts/site-footer.test.mjs` passes |
 
 ### Scheduling
-- **Earlier sessions:**
-  - session_01JyJzMZ1aBTZCRkUXLJnRG4 ("Plabs: Nov 8"), depth 2, handed over 11 Nov.
-  - session_01JyJzMXxeHu9P7By5BXRNJv ("Plabs: Nov 11"), depth 3, handed over 13 Nov.
-- **Previous session: session_01JyJzMWixW7SqcHTri4Umng ("Plabs: Nov 13")**, lineage **depth 4 of limit 8**.
-  - It took over 13 Nov (created 14:42 UTC).
-  - It handed over on **14 November 2026** on the owner's "do handoff". Context was 17% (172,317 of 1,000,000 tokens) after a compaction, about 40% just before it.
-  - The next session is depth 5 of 8.
-- **Current session: session_01JyJzMVhQhwQ7Ea3HMyJ3FN ("Plabs: Nov 14")**, depth 5 of limit 8, created by the session-start routine at 13:52 UTC; took over on **14 November 2026** (~14:55 Berlin). It moved the relay routines to itself:
-  - trig_01LvzA4YK1HANnbjfntihccc: Plabs hourly status report, `46 * * * *`
-  - trig_01DYgx6NLAWauCztLtCdzwBd: Plabs handoff check, `CRON_TZ=Europe/Berlin 56 13 * * *`
-  - trig_016QHHijGtC5VWcSzZUN4nuQ: Plabs session start, `CRON_TZ=Europe/Berlin 52 14 * * *`
-  - trig_01YQvQ3KNT6JZYj7ht5YGFCe: one-shot, 14 Nov 15:35 UTC, check app-notify's first StepWise run
-
-  The previous session's four routines below and its three switched-off one-shots were deleted at the takeover.
-- **Relay routines** aimed at the previous session. The new session re-aims them at itself and deletes these:
-  - trig_01Ha16psPae9zfPmEzUyXpbf: Plabs hourly status report, `46 * * * *`
-  - trig_01D4x4ngY3WRG9wZYV3dA5j6: "Plabs handoff check: hand over only when due", `CRON_TZ=Europe/Berlin 56 13 * * *`
-  - trig_017bkQRUNEsvvyRBTV36EasF: "Plabs daily handoff: start the next session (create_session)", `CRON_TZ=Europe/Berlin 52 14 * * *`
-  - trig_015eWrrXcnGemydViFztasop: one-shot, 14 Nov 15:35 UTC, check app-notify's first StepWise run (move it; it is due after the takeover)
-- **One-shots switched off before firing** aimed at the previous session. Don't copy them; their times are past and create_trigger would refuse. Delete them if allowed, otherwise leave them:
-  - trig_01TTez9ePuDawBi6pWBRi4fF (Check StepWise footer; superseded by the wave-10 choice);
-  - trig_01Gb4mMS4eb2LgSv3qUoGFhs (Node 24 default; done);
-  - trig_01GYK6xXv1n2nkzJXfmA9YMa (Actions upgrade default; done).
-- **The routines of session_01JyJzMXxeHu9P7By5BXRNJv are switched off, not deleted:** trig_01DF97CqMqhDtJLS2LiVwjc5, trig_01Wxj14aKZPbxNMZZ4cFqDy5 and trig_01FBwDwP9XRuBfkaCzyRPVg4. They are harmless; the owner can delete them in the scheduled-tasks list.
+- **Earlier sessions:** session_01JyJzMZ1aBTZCRkUXLJnRG4 (Nov 8, depth 2); session_01JyJzMXxeHu9P7By5BXRNJv (Nov 11, depth 3); session_01JyJzMWixW7SqcHTri4Umng (Nov 13, depth 4).
+- **Previous session: session_01JyJzMVhQhwQ7Ea3HMyJ3FN ("Plabs: Nov 14")**, lineage depth 5 of limit 8.
+  - Created 14 Nov 13:52 UTC; handed over 18 November 2026 on the owner's "/handoff now", at 53% context.
+  - The next session is depth 6 of 8.
+  - Its routines, all aimed at it, are to be re-aimed by the new session, which then deletes these:
+    - trig_01LvzA4YK1HANnbjfntihccc: Plabs hourly status report, `46 * * * *`
+    - trig_01DYgx6NLAWauCztLtCdzwBd: Plabs handoff check: hand over only when due, `CRON_TZ=Europe/Berlin 56 13 * * *`
+    - trig_016QHHijGtC5VWcSzZUN4nuQ: Plabs daily handoff: start the next session (create_session), `CRON_TZ=Europe/Berlin 52 14 * * *`
+- **Current session:** none has taken over yet. A session started by hand records itself here, and the 14:52 session-start routine then does nothing.
 - **Not relay, leave alone:**
-  - the owner's ideas (trig_01K986yzFbf3noGkLA6RgZkn) and build (trig_01BAP9nsXTtxTdpMiwk5GdXE) routines;
-  - StepWise's "Wave 10 build check (every 30 min)" (a chain of one-shots aimed at session_01JyJzMZ3W1yMJWwuFJ1PTXM);
-  - the Chess Analyzer relay (session_01JyJzMW2LydoTGLuH3HbqJj) and the DSA relay (session_01JyJzMZHUPmTC2BduJoFef2);
-  - the Chess TD routines (all switched off);
-  - TPT daily product builder, the research-map one-shot (off), and the SIGCSE poster reminder.
+  - the owner's routines: trig_01K986yzFbf3noGkLA6RgZkn (ideas), trig_01BAP9nsXTtxTdpMiwk5GdXE (build), trig_013VN2RNYCwh2k3F2ZjgnK6U (TPT);
+  - switched-off Chess TD one-shots: trig_019FyBvXSAJmnkRySX7Xcnhu, trig_01LEKF5t2KGMD4cYYugJm4cY, trig_01HWrJiGqnb64uMbfxLr2VLp, trig_01S3XupgMqeYd1SyUZE1fTyN;
+  - the SIGCSE poster reminder trig_019diEeyHQKFaGeR69ba2soL, which is off (its session is gone).
