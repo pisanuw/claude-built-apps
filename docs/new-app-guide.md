@@ -179,8 +179,15 @@ Details: docs/platform.md section 3.
   - Send `"stream": true`. After the same checks, the answer is Anthropic's server-sent events, unchanged, as `text/event-stream`.
   - Check the `content-type`: an error before the first event is still a JSON answer (502, or a 4xx from the checks).
   - An `error` event in the stream is a failed call. The gateway sends one itself (type `api_error`) when the upstream breaks.
-  - **How it is counted:** one `llm_usage` row per call, written when the stream ends. Input and cache tokens come from `message_start` and output tokens from `message_delta`; the cost and the caps work as for any call.
-  - If the person closes the stream early, the gateway stops the call and records the tokens seen so far; a credit spent on it is not given back.
+  - **How it is counted:**
+    - One `llm_usage` row per call, written when the stream ends.
+    - Input and cache tokens come from `message_start`, and output tokens from `message_delta`.
+    - The cost and the caps work as for any call.
+  - **If the person closes the stream early,** the model does not stop.
+    - The gateway reads the reply to its end, then records and charges all of it as one call: call caps, dollar caps, and a credit if one was spent.
+    - Closing early saves nothing, so stop a reply by not asking for it, or with a smaller `max_tokens`.
+  - **If the reply cannot be read to its end** (the worker stops, or the upstream breaks), the row counts the request's whole `max_tokens` as output. That is the most it can cost, and a long `max_tokens` is charged in full then.
+  - **A refunded credit:** a call that fails with a credit spent gets the credit back, and its cost then counts for the person's own allowance.
   - Supabase stops a worker after at most 400 s, so keep each streamed reply to a few minutes.
   - The template's `llm.ts` does not stream. An app that streams parses the events itself, as YPai's backend does.
 - **Visitors who are not signed in** (shared/0013, owner, 15 Nov; udebt first): an app's own server code may call the gateway for them, all counted as one stand-in user. It sends `Authorization: Bearer <the public anon key>` (verify_jwt needs a project JWT) and `x-hintwise-app-key: <secret>`; browsers cannot send that header. The owner makes the secret with `openssl rand -base64 32` (required: random, never a passphrase, because its sha256 appears in the public workflow log), puts it in the app's Netlify env as a secret `HINTWISE_APP_KEY` (Functions scope) and gives Plabs only its sha256 (`printf %s "$KEY" | shasum -a 256`); Plabs runs `anon-setup <slug> --key-sha256=<hex>` after the owner's yes (`anon-off <slug>` undoes it). The per-person caps (`user-day`, and any app-user caps) are then the visitors' shared allowance, inside the app caps; answers carry `anonymous: true`. Put a bot check (Turnstile, verified in the app's function) in front of it.

@@ -528,22 +528,36 @@ model wherever deterministic code does the job.
       fallback model when the refusal fallback ran); output tokens come from
       `message_delta`, whose counts are cumulative;
     - exactly one `llm_usage` row is written when the stream ends: `ok` on
-      `message_stop`, an error otherwise, with the tokens seen so far;
-    - without a final `message_delta`, the output count is estimated from
-      the streamed text, thinking and tool input, at one token per 3 UTF-8
-      bytes. Thinking that streamed no text is not in the estimate.
+      `message_stop`, an error otherwise;
+    - **when the output is unknown,** the row counts the request's whole
+      `max_tokens` as output: the most the call can cost. That happens when
+      `message_start` came but no final `message_delta`, because the worker
+      ended or the upstream broke or stopped early. The real count is
+      unknown there, and thinking streams no text under the default display,
+      so nothing smaller is safe. An error before `message_start` records no
+      output.
   - **Errors:**
     - an error before the first event (an HTTP error, or an `error` event
       first) is the usual 502 JSON answer;
     - an `error` event mid-stream is passed on unchanged and recorded;
     - when the upstream breaks or ends without `message_stop`, the gateway
       sends an `error` event of type `api_error` itself.
-  - **When the caller goes away,** the gateway stops the upstream call and
-    records the tokens seen so far.
+  - **When the caller goes away** (amended item 5, PManager, 18 Nov
+    08:45Z), the gateway stops sending to it, but it does not stop the model.
+    - It reads the upstream to its end and records the real usage, as for
+      a non-streaming call whose caller leaves.
+    - So closing a stream early saves nothing: the whole reply is generated,
+      paid for and counted. If it reaches `message_stop`, the row is `ok`
+      (a counted call, so the call caps hold), with the note `ClientLeft` in
+      its `error` column.
+    - The worker stays alive for this (`EdgeRuntime.waitUntil`), within its
+      wall-clock limit. If that runs out first, the row counts `max_tokens`,
+      as above.
   - **Credits:** a reserved credit is refunded when the call fails (an
-    upstream error, a broken stream, a shutdown). It is not refunded when
-    the caller goes away, because a non-streaming call whose caller goes
-    away is charged in full too.
+    upstream error, a broken stream, a shutdown), and the row then records
+    `paid_with_credit` false, so its cost counts for the person's own caps.
+    A credit is not refunded when the caller goes away; that call ran to its
+    end. The non-streaming path records refunded rows the same way.
 - **Edge Function limits for a long stream** (Supabase documentation,
   checked 18 Nov).
   - A worker stops at its wall-clock limit: 150 s on the Free plan, 400 s on
@@ -555,7 +569,8 @@ model wherever deterministic code does the job.
     In a Node test, the event parser used 30 to 80 ms of CPU for a
     128K-token stream.
   - When the runtime is about to stop the worker (`beforeunload`), the
-    gateway ends each open stream with an `error` event and records it.
+    gateway ends each open stream with an `error` event and records it,
+    with `max_tokens` as the output unless `message_delta` had come.
   - So split work that needs more than a few minutes of output into several
     calls.
 - **Caps (owner, 9 Nov):** per app $2/day, $10/week, $20/month; per user
