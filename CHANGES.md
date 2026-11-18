@@ -694,3 +694,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-18 [decision] Reporting zone: Los Angeles by default, Barcelona while the owner travels until 6 Jan 2027; relay routines moved from Berlin to LA schedules (same instants).
 
 2026-11-18 [code] Render domain workflow gains a guarded delete (suspended services with no custom domain, name typed twice); owner said yes to deleting the superseded mult-streak and accessibility-lens services.
+
+2026-11-18 [decision] Sign-in look (owner): UpvoteMe layout in every app, two buttons top right; round icon-only buttons below 640 px. BUILD_ROUTINE.md Google button rule amended.
