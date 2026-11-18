@@ -98,6 +98,29 @@ describe('validateRequest', () => {
     expect(validateRequest({ ...good, tools: Array.from({ length: MAX_TOOLS + 1 }, () => ({})) }, app)).toMatchObject({ ok: false, error: /65 entries/ });
     expect(validateRequest({ ...good, tools: [] }, app)).toMatchObject({ ok: true, request: { tools: [] } });
   });
+  it('takes "stream" as a boolean only, and sets it only when true', () => {
+    expect(validateRequest({ ...good, stream: true }, app)).toEqual({
+      ok: true,
+      request: { app: 'demo-app', model: 'claude-opus-5-5', max_tokens: 4096, messages: good.messages, stream: true },
+    });
+    const off = validateRequest({ ...good, stream: false }, app);
+    expect(off.ok && 'stream' in off.request).toBe(false);
+    for (const stream of ['true', 1, null, {}]) {
+      expect(validateRequest({ ...good, stream }, app)).toEqual({ ok: false, status: 400, error: '"stream" must be true or false when given.' });
+    }
+  });
+  it('passes an allowed thinking or effort setting through, and refuses the rest', () => {
+    const all = { ...app, allowed_models: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-new'] };
+    expect(validateRequest({ ...good, model: 'claude-haiku-5-5', max_tokens: 50, thinking: { type: 'disabled' } }, all)).toEqual({
+      ok: true,
+      request: { app: 'demo-app', model: 'claude-haiku-5-5', max_tokens: 50, messages: good.messages, thinking: { type: 'disabled' } },
+    });
+    expect(validateRequest({ ...good, output_config: { effort: 'low' } }, all)).toMatchObject({ ok: true, request: { output_config: { effort: 'low' } } });
+    expect(validateRequest({ ...good, thinking: { type: 'disabled' } }, all)).toMatchObject({ ok: false, status: 400, error: /not allowed for claude-opus-5-5/ });
+    expect(validateRequest({ ...good, model: 'claude-new', thinking: { type: 'adaptive' } }, all)).toMatchObject({ ok: false, status: 400, error: /not supported/ });
+    const none = validateRequest(good, all);
+    expect(none.ok && ('thinking' in none.request || 'output_config' in none.request)).toBe(false);
+  });
   it('reports a bad app slug first', () => {
     expect(validateRequest({ messages: good.messages }, app)).toMatchObject({ ok: false, error: /"app" is required/ });
   });

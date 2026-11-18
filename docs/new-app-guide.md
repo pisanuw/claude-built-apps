@@ -165,10 +165,24 @@ Details: docs/platform.md section 3.
 - **Spending limits:** see "Spending limits" below.
 - **Request limits:**
   - the body is at most 1,000,000 bytes, so downscale images in the browser;
-  - only `model`, `max_tokens`, `system`, `messages` and `tools` pass through;
-  - no streaming, `tool_choice` or `output_config` (the gateway can be extended);
+  - only `model`, `max_tokens`, `system`, `messages`, `tools`, `thinking`, `output_config` (only `effort`) and `stream` pass through;
+  - no `tool_choice` (the gateway can be extended);
   - `max_tokens` is clamped to the app's limit, 4096 by default;
   - models are the app's `allowed_models`: Opus 5.5, Sonnet 5.5 and Haiku 5.5 by default, with `claude-opus-5-5` used when the request names none.
+- **Thinking** (platform.md section 3 has the table):
+  - All three models think before they answer unless told otherwise. A reply can begin with a `thinking` block whose text is empty, and thinking uses up `max_tokens`.
+  - So read every content block by its `type`, never `content[0].text`, and leave room in `max_tokens`: the API documentation's own one-word classifier on `claude-haiku-5-5` uses `max_tokens: 1024` at effort `low`.
+  - To think less, send `output_config: { effort: "low" }` (`low`, `medium`, `high`, `xhigh` or `max`).
+  - To turn thinking off, send `thinking: { type: "between_tools" }` on `claude-sonnet-5-5` or `thinking: { type: "disabled" }` on `claude-haiku-5-5`, with effort `high` or below. `claude-opus-5-5` cannot turn it off.
+  - Any other setting is a 400 from the gateway.
+- **Streaming:**
+  - Send `"stream": true`. After the same checks, the answer is Anthropic's server-sent events, unchanged, as `text/event-stream`.
+  - Check the `content-type`: an error before the first event is still a JSON answer (502, or a 4xx from the checks).
+  - An `error` event in the stream is a failed call. The gateway sends one itself (type `api_error`) when the upstream breaks.
+  - **How it is counted:** one `llm_usage` row per call, written when the stream ends. Input and cache tokens come from `message_start` and output tokens from `message_delta`; the cost and the caps work as for any call.
+  - If the person closes the stream early, the gateway stops the call and records the tokens seen so far; a credit spent on it is not given back.
+  - Supabase stops a worker after at most 400 s, so keep each streamed reply to a few minutes.
+  - The template's `llm.ts` does not stream. An app that streams parses the events itself, as YPai's backend does.
 - **Visitors who are not signed in** (shared/0013, owner, 15 Nov; udebt first): an app's own server code may call the gateway for them, all counted as one stand-in user. It sends `Authorization: Bearer <the public anon key>` (verify_jwt needs a project JWT) and `x-hintwise-app-key: <secret>`; browsers cannot send that header. The owner makes the secret with `openssl rand -base64 32` (required: random, never a passphrase, because its sha256 appears in the public workflow log), puts it in the app's Netlify env as a secret `HINTWISE_APP_KEY` (Functions scope) and gives Plabs only its sha256 (`printf %s "$KEY" | shasum -a 256`); Plabs runs `anon-setup <slug> --key-sha256=<hex>` after the owner's yes (`anon-off <slug>` undoes it). The per-person caps (`user-day`, and any app-user caps) are then the visitors' shared allowance, inside the app caps; answers carry `anonymous: true`. Put a bot check (Turnstile, verified in the app's function) in front of it.
 - **Calling Claude from scripts:** use the local `claude` CLI. Using an Anthropic API key needs the owner's yes.
 

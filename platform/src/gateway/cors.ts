@@ -51,3 +51,8 @@ export function preflight(origin: string | null | undefined, opts: CorsOptions =
 export function jsonHeaders(origin: string | null | undefined, opts: CorsOptions = {}): Record<string, string> {
   return { ...corsHeaders(origin, opts), 'content-type': 'application/json; charset=utf-8' };
 }
+
+/** Headers for a stream of server-sent events (the gateway's `stream: true`): the same CORS, never cached. */
+export function sseHeaders(origin: string | null | undefined, opts: CorsOptions = {}): Record<string, string> {
+  return { ...corsHeaders(origin, opts), 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache' };
+}
