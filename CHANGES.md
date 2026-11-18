@@ -680,3 +680,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-18 [doc] Handoff of 18 November on the owner's "/handoff now" (53% context); fact-checked; LLM usage report 409 fix and node_modules link removal landed first
 
 2026-11-18 [decision] .claude/settings.json allows mcp__claude-code-remote__create_trigger (owner, 18 Nov): the auto-mode check refused moving the hourly report routine.
+
+2026-11-18 [plan] Drafted hintwise-workflow/ (owner request): ten roles, charter, pipeline, routines; moves to its own repo once created; 11 open questions in OPEN-QUESTIONS.md.
