@@ -49,25 +49,26 @@ Remaining:
   - it works on a branch and does not merge; it first sends its Anthropic call inventory, costs and plan;
   - PManager's part, each after the owner's yes: the "ypai" sign-in label with sign-in-link and delete-account redeployed, the llm_apps row with the owner's caps, anon-setup, analytics-register, then the merge and deploy;
   - the owner, 06:20 UTC: "1b 2ok 3 will do 4 wait, but want higher caps for ypai for anonymous users". So: streaming is built into the gateway; server-side BYOK stays as an exception; the owner makes HINTWISE_APP_KEY; caps wait for measured costs, with more for anonymous visitors;
-  - gateway streaming: NOT STARTED. The Keeper run at 06:15 UTC failed at setup (the incident below). The spec, with a thinking-control addendum, is in hintwise-workflow projects/ypai/gateway-streaming.md; deploy-gateway needs the owner's yes;
+  - **gateway streaming: live.** PR #7 merged as 4d6ce5c after Reviewer round 2 APPROVE; deploy-gateway approved by the owner in GitHub. The `gateway-check` command (PR #8, 04cce08) passed on the live gateway at 10:37 UTC (run 44274433127): normal, streamed and abandoned calls each wrote one ok row, and the abandoned stream was counted in full. YPai may use GATEWAY_STREAM=1 after its switch. Records: hintwise-workflow projects/platform/releases/gateway-streaming.md and gateway-check.md, which also list the follow-ups (fallback pricing, the worker-ending path, not tested live);
   - done by 07:16 UTC (each run approved by the owner in GitHub):
     - analytics-register ypai;
     - ypai in llm_apps (default caps, the 5.5 models, max_tokens 8192; ops/ypai-llm-app.sql);
     - anon-setup ypai (stand-in visitors+ypai@hintwise.org, key prefix 218bfd41);
     - sign-in-link redeployed with the "ypai" label (b67f570).
   - **m1 is live:** the footer, analytics and privacy note, through pisanuw/digitalme PR #39, merged at 07:15 UTC (main 4f6a80f) after Reviewer round 3 APPROVE; the release record is in projects/ypai/releases/m1.md;
-  - waiting for the owner's approval in GitHub: the delete-account redeploy (claude-built-apps run 44252907821);
-  - slices (ii) sign-in and (iii) gateway are on PR #38 (head 031aa14). A Reviewer with security-review is running on b7759b7..f88cd7d. CI is red there (mypy: an unused ignore in llm_client.py), and the YPai session is fixing it. Its release needs the owner's yes (item 15);
+  - the delete-account redeploy is live (approved by the owner in GitHub);
+  - slices (ii) sign-in and (iii) gateway are on PR #38: Reviewer APPROVE at e89fc53, CI green. Its release waits for the owner (item 15; recommended 19 Nov, one deploy per app per day). Before LLM_PROVIDER=gateway: the before-the-switch list on the card;
   - still open with the owner:
-    - T2: 5 models, 7 Turnstile, 8 contacts, 9 the Action's secret (all default 07:15 Barcelona, 19 Nov), and 18 the icon-only Google button on phones (default 08:05 Barcelona, 19 Nov);
+    - T2: 5 models, 7 Turnstile, 8 contacts, 9 the Action's secret (all default 07:15 Barcelona, 19 Nov); 22 PasteMD's magic link (default 10:30 Barcelona, 19 Nov); 18 answered (icon-only round buttons on phones);
     - T3: 16, redeploying the 60 apps with the old footer;
-    - 17, the footer audit in Keeper's checks (a rule change);
-    - the caps, which need the usage totals from scripts/usage_totals.py on halflife;
-    - confirming that "uploadme" is UpvoteMe.
+    - 17 done: the footer audit (scripts/footer-audit.mjs, in CI) is Keeper's weekly check 6;
+    - 24, ypai's caps ($1.00 a person a day for everyone, app caps at the defaults), through an ops SQL file and a gated run; the usage totals from scripts/usage_totals.py on halflife would refine them;
+    - 23, renewing BACKUP_GITHUB_TOKEN on Render: ypai's offsite backups stopped on 29 Oct;
+    - "uploadme" is UpvoteMe (confirmed by the owner's phone screenshot).
   - the card is hintwise-workflow projects/ypai/README.md.
-- [ ] **Footer logo (owner, 18 Nov):** 60 of the 66 claude-built-apps apps serve the footer from before 11 Nov, which has no logo, because the footer is added at deploy time. The audit is in hintwise-workflow projects/platform/README.md. Redeploying them waits for the owner (item 16).
-- [ ] **One sign-in look, as on UpvoteMe (owner, 18 Nov; icon-only round buttons on phones, BUILD_ROUTINE.md amended db560d3):** NOT STARTED. The Keeper run failed at setup (see the next item). The spec is hintwise-workflow projects/platform/sign-in-buttons.md. Branches only; not deployed.
-- [ ] **Incident, 18 Nov 07:48 UTC: the workflow routines can't reach GitHub.**
+- [ ] **Footer logo (owner, 18 Nov):** 60 of the 66 claude-built-apps apps serve the footer from before 11 Nov, which has no logo, because the footer is added at deploy time. `node scripts/footer-audit.mjs` lists them. Redeploying them waits for the owner (item 16; recommended: pluck-lab, net-units, elevator-algorithm-lab and cron-cartographer first, then about 10 a day).
+- [ ] **One sign-in look, as on UpvoteMe (owner, 18 Nov; icon-only round buttons on phones, BUILD_ROUTINE.md amended db560d3):** built on branch fix/platform-sign-in-buttons (head da5f868): the template, delivery-canary, lewis-alt-text, qualified-overtime-checker. Reviewer round 2 APPROVE, CI 69/69. Held off main until the owner says "deploy". teacher-catalog-kit left alone (aborted). Later: the own-repo apps (udebt, photo2pgn, StepWise; PasteMD after question 22). Spec: hintwise-workflow projects/platform/sign-in-buttons.md.
+- [x] **Incident, 18 Nov 07:48 UTC: the workflow routines can't reach GitHub.** Resolved: the owner attached the repositories to the routines, and test firings reached GitHub.
   - Monitor daily (08:16 Barcelona) and both Keeper runs (gateway streaming; sign-in buttons) stopped at setup: no `add_repo` tool, and GitHub answered 403.
   - Cause: the routines were created by the previous session, which ran in environment env_0162x…, seeded with repository sources and not in the owner's list. Their fresh sessions get no repositories there.
   - Correction: the environment was not the cause. A routine's session reaches only the repositories attached to the routine in claude.ai; add_repo does not work in a routine run, and create_trigger cannot attach repositories.
