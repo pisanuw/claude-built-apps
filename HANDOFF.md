@@ -57,7 +57,7 @@ Remaining:
     - sign-in-link redeployed with the "ypai" label (b67f570).
   - **m1 is live:** the footer, analytics and privacy note, through pisanuw/digitalme PR #39, merged at 07:15 UTC (main 4f6a80f) after Reviewer round 3 APPROVE; the release record is in projects/ypai/releases/m1.md;
   - the delete-account redeploy is live (approved by the owner in GitHub);
-  - slices (ii) sign-in and (iii) gateway are on PR #38: Reviewer APPROVE at e89fc53, CI green. The owner said yes ("Yes to release #38", typed in the YPai session at 10:38 UTC). Merge set for 19 Nov 07:40 Barcelona (reminder trig_013hJTLB3MbJ3WS7euCzqErk, one deploy per app per day), earlier if he says "today". Before LLM_PROVIDER=gateway: the before-the-switch list on the card;
+  - slices (ii) sign-in and (iii) gateway are on PR #38: Reviewer APPROVE at e89fc53, CI green. **Merged** on the owner's "1 yes" (release today) at 10:45:43 UTC as digitalme main 08c0cdd; publish-on-merge and tests green; Render redeploying (release record hintwise-workflow projects/ypai/releases/m2.md). LLM_PROVIDER stays direct. Before LLM_PROVIDER=gateway: the before-the-switch list on the card;
   - still open with the owner:
     - T2: 5 models, 7 Turnstile, 8 contacts, 9 the Action's secret (all default 07:15 Barcelona, 19 Nov); 22 PasteMD's magic link (default 10:30 Barcelona, 19 Nov); 18 answered (icon-only round buttons on phones);
     - T3: 16, redeploying the 60 apps with the old footer;
