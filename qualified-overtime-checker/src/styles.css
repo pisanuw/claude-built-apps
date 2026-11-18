@@ -119,25 +119,9 @@ button.danger { color: var(--bad); }
   table.files > tbody > tr > td[data-label] { display: flex; justify-content: space-between; gap: 1rem; }
   table.files > tbody > tr > td[data-label]::before { content: attr(data-label); color: var(--muted); font-size: 0.85rem; }
 }
-/* Header: title left, sign-in top right (wraps under the title on phones). */
-.top-bar { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0.75rem 1.5rem; margin-bottom: 0.5rem; }
-.top-bar h1 { margin: 0; flex: 1 1 18rem; }
-.top-auth { display: grid; justify-items: end; gap: 0.35rem; max-width: 26rem; }
-.top-auth .hw-signin { justify-items: end; gap: 0.5rem; max-width: none; }
-.top-auth .hw-signin form, .top-auth .hw-signin-challenge { display: none; }
-.top-auth.email-open .hw-signin form { display: flex; }
-.top-auth.email-open .hw-signin-challenge:not(:empty) { display: block; }
-.top-auth .hw-signin-status:empty { display: none; }
-.top-auth .hw-signin-status, .top-auth .hw-signin-user { margin: 0; font-size: 0.9rem; text-align: right; }
-.top-auth.signed-in .hw-signin { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
-.top-auth .email-toggle { font-size: 0.9rem; }
-.top-auth .hw-signin-button { justify-self: end; }
-@media (max-width: 40rem) {
-  .top-auth, .top-auth .hw-signin { justify-items: start; }
-  .top-auth .hw-signin-button { justify-self: start; }
-  .top-auth .hw-signin-status, .top-auth .hw-signin-user { text-align: left; }
-  .top-auth.signed-in .hw-signin { justify-content: flex-start; }
-}
+/* Header: title left, sign-in at the right of the top bar (UpvoteMe's look); a long title wraps beside the buttons. */
+.top-bar { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.5rem; }
+.top-bar h1 { margin: 0; flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .more { margin: 0.5rem 0 0; }
 .more summary { cursor: pointer; font-weight: 600; }
 .more .grid { margin-top: 0.75rem; }
@@ -180,6 +164,8 @@ button.danger { color: var(--bad); }
   :root:not([data-theme='light']) .hw-signin-google-logo .hw-g-light { display: none; }
   :root:not([data-theme='light']) .hw-signin-google-logo .hw-g-dark { display: block; }
   :root:not([data-theme='light']) .hw-signin input[type='email'] { background: #131314; color: #e3e3e3; border-color: #8e918f; }
+  /* The sign-in panel on the dark page. */
+  :root:not([data-theme='light']) .hw-signin-panel { background: var(--card); color: var(--text); border-color: var(--line); }
 }
 .scroll:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 h2[tabindex='-1']:focus { outline: none; }

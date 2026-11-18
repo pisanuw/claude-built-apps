@@ -42,8 +42,8 @@ answer under Context and run it again.
 - **Your own key**, if you paste one, stays in this browser's local storage
   and is sent only to api.anthropic.com. "Forget key" removes it.
 
-**Deleting your account:** sign in, then "Delete my account" under "Sign
-out". It deletes your HintWise account and your data in every HintWise app.
+**Deleting your account:** sign in, open your name at the top right (next
+to "Sign out"), then "Delete my account". It deletes your HintWise account and your data in every HintWise app.
 
 ## Command line
 

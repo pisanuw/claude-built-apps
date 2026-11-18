@@ -78,9 +78,10 @@ Every card has a sample you can try without an account.
 - **Link tests:** to test a download link on another site, the link goes to
   our server, which downloads the file once and returns its size and
   fingerprint. The file itself is not kept.
-- The page loads one font, for the "Continue with Google" button, from
-  Google Fonts.
-- To delete everything: "Delete my account" under Sign out. To stop a
+- The page loads one font, for the sign-in buttons ("Sign in with Google",
+  "Magic link", "Sign out"), from Google Fonts.
+- To delete everything: "Delete my account", in the panel that opens from
+  your name at the top right, next to Sign out. To stop a
   shop's canaries: turn the schedule off, or disconnect the shop.
 
 ## Limits

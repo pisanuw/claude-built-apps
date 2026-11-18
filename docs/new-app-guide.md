@@ -80,9 +80,10 @@ Details: docs/platform.md sections 2 and "Sign-in links".
   - `VITE_SUPABASE_ANON_KEY` from `platform/supabase.json`
 - **Copy the template** from `platform/templates/app/src/lib/`: `supabase.ts`, `auth.ts`, `account.ts`, `llm.ts`, `repository.ts`, `signin-styles.ts` and `google-g-light.svg`, with their tests. Its README shows the `SLUG` replacement.
 - **Google:** `signInWithOAuth` through Supabase. Never add a Google client, a redirect URI or an auth setting for one app. The button follows Google's branding rules (BUILD_ROUTINE.md); the template's button does.
+- **Look:** UpvoteMe's (owner, 18 November 2026): mount the template's `mountSignIn` at the right of the app's top bar. It draws "Sign in with Google" and "Magic link" (round icon buttons below 640 px), and signed in, the person and "Sign out". The template's README, "The sign-in look", has the details.
 - **Email:** through the platform's `sign-in-link` function (the template's `sendMagicLink`), **never `signInWithOtp`**. The email hook refuses that for hintwise.org pages.
 - **New app label:** in option A, run `npm run app-hosts` in `platform/` and commit it (CI fails while it's stale). In option B, add the label to `EXTERNAL_APP_LABELS`. In both cases `sign-in-link` and `delete-account` are then redeployed, or email links and account deletion are refused for the app.
-- **"Delete my account" is required** (`account.ts`, under Sign out).
+- **"Delete my account" is required** (`account.ts`, in the person's panel next to Sign out).
 - Sign-in returns only to `https://*.hintwise.org/**`: not localhost, netlify.app or deploy previews. Tests and the Playwright walkthrough use fakes.
 
 ## 5. Data
