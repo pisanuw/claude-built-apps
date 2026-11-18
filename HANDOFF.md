@@ -63,7 +63,11 @@ Remaining:
     - T2: 5 models, 7 Turnstile, 8 contacts, 9 the Action's secret (all default 07:15 Barcelona, 19 Nov); 22 PasteMD's magic link (default 10:30 Barcelona, 19 Nov); 18 answered (icon-only round buttons on phones);
     - T3: 16, redeploying the 60 apps with the old footer;
     - 17 done: the footer audit (scripts/footer-audit.mjs, in CI) is Keeper's weekly check 6;
-    - 24, ypai's caps ($1.00 a person a day for everyone, app caps at the defaults), through an ops SQL file and a gated run; the usage totals from scripts/usage_totals.py on halflife would refine them;
+    - 24 done: ypai's caps are $5 a day, $25 a week, $100 a month and $2 a person a day (owner, 15:28 UTC; ops/ypai-caps.sql, run 44336170890);
+  - **Incident, 18 Nov 14:48 UTC:** model replies failed. Render's ANTHROPIC_API_KEY answered 401, and the owner switched LLM_PROVIDER=gateway at about 15:20 UTC. On the gateway two YPai bugs show:
+    - the 5.5 models think by default, so small max_tokens calls (and a 300-token main reply) return no text;
+    - the empty reply is kept in the history, and the gateway then refuses that conversation (400).
+    The YPai session is fixing both. PManager recommended direct mode with a new key until the fix ships. Record: hintwise-workflow runs/2026-11-18T1450Z-incident-ypai-key.md;
     - 23, renewing BACKUP_GITHUB_TOKEN on Render: ypai's offsite backups stopped on 29 Oct;
     - "uploadme" is UpvoteMe (confirmed by the owner's phone screenshot).
   - the card is hintwise-workflow projects/ypai/README.md.
