@@ -167,7 +167,9 @@ All times Barcelona (Europe/Madrid):
     - trig_01LvzA4YK1HANnbjfntihccc: Plabs hourly status report, `46 * * * *`
     - trig_01DYgx6NLAWauCztLtCdzwBd: Plabs handoff check: hand over only when due, `CRON_TZ=Europe/Berlin 56 13 * * *`
     - trig_016QHHijGtC5VWcSzZUN4nuQ: Plabs daily handoff: start the next session (create_session), `CRON_TZ=Europe/Berlin 52 14 * * *`
-- **Current session:** none has taken over yet. A session started by hand records itself here, and the 14:52 session-start routine then does nothing.
+- **Current session: session_01JyJzMXVbrUAhXw75BNyNCX ("Plabs: Nov 18")**, took over 18 November 2026 (02:36 UTC), started by the relay (parent session_01JyJzMVhQhwQ7Ea3HMyJ3FN). Lineage depth 6 of limit 8.
+  - Moved routines: trig_01ErjL8VzaXQ3sPHHZfCeZMe (handoff check, `CRON_TZ=Europe/Berlin 56 13 * * *`) and trig_01Xsn6UTTEEKE2KWS7EATPkv (session start, `CRON_TZ=Europe/Berlin 52 14 * * *`); the old two are deleted.
+  - Not moved: the hourly report trig_01LvzA4YK1HANnbjfntihccc still points at the previous session; creating its copy was refused by the permission classifier and waits for the owner.
 - **Not relay, leave alone:**
   - the owner's routines: trig_01K986yzFbf3noGkLA6RgZkn (ideas), trig_01BAP9nsXTtxTdpMiwk5GdXE (build), trig_013VN2RNYCwh2k3F2ZjgnK6U (TPT);
   - switched-off Chess TD one-shots: trig_019FyBvXSAJmnkRySX7Xcnhu, trig_01LEKF5t2KGMD4cYYugJm4cY, trig_01HWrJiGqnb64uMbfxLr2VLp, trig_01S3XupgMqeYd1SyUZE1fTyN;
