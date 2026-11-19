@@ -1,5 +1,5 @@
 /**
- * Plain words for the source's comments, and a named suggested fix for each
+ * Plain words for the source's comments (tag names such as <Div> stay), and a named suggested fix for each
  * package or class finding (AC-1). The curated fixes name only replacements
  * that the pinned status data lists as compatible; a test checks this.
  */
@@ -21,7 +21,6 @@ export function plainWords(markdown: string | undefined): string {
     .replace(/__([^_]+)__/g, '$1')
     .replace(/(^|[\s(])\*([^*\s][^*]*)\*/g, '$1$2')
     .replace(/`([^`]*)`/g, '$1')
-    .replace(/<[^>]+>/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }

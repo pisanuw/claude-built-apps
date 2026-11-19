@@ -91,6 +91,17 @@ describe('isStudentRecord (AC-15)', () => {
     ['upgrades.tex', false],
     ['grade-scale.tex', false],
     ['main.tex', false],
+    // R1.1-9: camel case, and a name that is all extension.
+    ['FinalGrades.xlsx', true],
+    ['MidtermGrades.csv', true],
+    ['ClassRoster.csv', true],
+    ['fallStudents.txt', true],
+    ['.grades', true],
+    ['Student Roster.xlsx', true],
+    ['roster_fall.txt', true],
+    ['grades2025.csv', true],
+    ['UpgradesList.tex', false],
+    ['StudentHandout.tex', false],
   ])('%s -> %s', (name, want) => {
     expect(isStudentRecord(name)).toBe(want);
   });

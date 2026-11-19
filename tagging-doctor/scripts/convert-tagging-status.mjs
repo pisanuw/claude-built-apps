@@ -26,6 +26,20 @@ const GROUP = {
   unchecked: 'unknown',
 };
 
+const PAGE = 'https://latex3.github.io/tagging-project/tagging-status/';
+
+/**
+ * The status page has a row (id = name) for each package and class, and none
+ * for a library: a babel language links to babel's row, a TikZ library to
+ * tikz's, any other library to the page itself.
+ */
+function linkFor(e) {
+  if (e.type !== 'library') return `${PAGE}#${encodeURIComponent(e.name)}`;
+  if (e.name.startsWith('babel-')) return `${PAGE}#babel`;
+  if (e.name.startsWith('tikzlibrary-')) return `${PAGE}#tikz`;
+  return PAGE;
+}
+
 const [, , input, commit, retrieved] = process.argv;
 if (!input || !/^[0-9a-f]{40}$/.test(commit ?? '') || !/^\d{4}-\d{2}-\d{2}$/.test(retrieved ?? '')) {
   console.error('usage: convert-tagging-status.mjs <tagging-status.yml> <40-hex commit> <YYYY-MM-DD>');
@@ -48,7 +62,7 @@ const entries = raw
       type: e.type,
       status: e.status,
       group: GROUP[e.status] ?? 'unknown',
-      link: `https://latex3.github.io/tagging-project/tagging-status/#${encodeURIComponent(e.name)}`,
+      link: linkFor(e),
     };
     if (typeof e.comments === 'string' && e.comments.trim()) out.comment = e.comments.trim().replace(/\s+/g, ' ');
     if (Array.isArray(e.subpackages) && e.subpackages.length) out.subpackages = e.subpackages.map(String);

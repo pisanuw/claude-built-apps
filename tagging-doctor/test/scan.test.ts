@@ -326,8 +326,11 @@ describe('suggested fixes', () => {
   });
 
   it('turns the source\'s markdown into plain words', () => {
-    expect(plainWords('**broken** and `\\begin{x}` see [the list](https://x) *now* <b>x</b>')).toBe('broken and \\begin{x} see the list now x');
+    expect(plainWords('**broken** and `\\begin{x}` see [the list](https://x) *now*')).toBe('broken and \\begin{x} see the list now');
     expect(plainWords(undefined)).toBe('');
+    // R1.1-8: PDF tag names stay.
+    expect(plainWords('Produces empty `<Div>`s.')).toBe('Produces empty <Div>s.');
+    expect(plainWords(idx.lookup('listliketab', 'package')?.entry.comment)).toContain('<Div>');
   });
 });
 

@@ -15,13 +15,23 @@ export interface ProjectWarning {
 /** Above this, a text file is listed but not read (the scan stays within its 3 seconds). */
 export const MAX_TEXT_BYTES = 4 * 1024 * 1024;
 
-const STUDENT_RECORD = /(^|[^a-z])(grades|gradebooks?|rosters?|students)([^a-z]|$)/i;
+const RECORD_WORDS = new Set(['grades', 'gradebook', 'gradebooks', 'roster', 'rosters', 'students']);
 
-/** True for a file named like a student record (AC-15): grades, gradebook, roster, students, any extension. */
+/**
+ * True for a file named like a student record (AC-15): grades, gradebook,
+ * roster or students as a word of the name, any extension. Words are split at
+ * anything not a letter and at camel case (FinalGrades, ClassRoster); a name
+ * that is all extension (.grades) is read whole.
+ */
 export function isStudentRecord(path: string): boolean {
   const base = path.split('/').pop() ?? path;
-  const stem = base.includes('.') ? base.slice(0, base.lastIndexOf('.')) : base;
-  return STUDENT_RECORD.test(stem);
+  const dot = base.lastIndexOf('.');
+  const stem = dot > 0 ? base.slice(0, dot) : base;
+  const words = stem
+    .replace(/([a-z])(?=[A-Z])/g, (m) => `${m} `)
+    .split(/[^A-Za-z]+/)
+    .map((w) => w.toLowerCase());
+  return words.some((w) => RECORD_WORDS.has(w));
 }
 
 /** True for an entry name that is absolute or has a `..` segment (AC-6). */

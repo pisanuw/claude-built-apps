@@ -20,7 +20,20 @@ describe('the status data file (AC-62, section 4)', () => {
     expect([...words].sort()).toEqual(['compatible', 'currently-incompatible', 'no-support', 'partially-compatible', 'unchecked']);
     for (const e of d.entries) expect(e.group).toBe(groupOf(e.status));
     expect(d.entries.length).toBeGreaterThan(2000);
-    for (const e of d.entries) expect(e.link).toBe(`https://latex3.github.io/tagging-project/tagging-status/#${encodeURIComponent(e.name)}`);
+    for (const e of d.entries.filter((x) => x.type !== 'library')) {
+      expect(e.link).toBe(`https://latex3.github.io/tagging-project/tagging-status/#${encodeURIComponent(e.name)}`);
+    }
+  });
+
+  it('R1.1-10: links a library entry to its parent\'s row, which the status page has, or to the page', () => {
+    const page = 'https://latex3.github.io/tagging-project/tagging-status/';
+    const libs = d.entries.filter((x) => x.type === 'library');
+    expect(libs.length).toBe(218);
+    for (const e of libs) {
+      const want = e.name.startsWith('babel-') ? `${page}#babel` : e.name.startsWith('tikzlibrary-') ? `${page}#tikz` : page;
+      expect(e.link, e.name).toBe(want);
+    }
+    expect(libs.find((x) => x.name === 'ext.tagging')?.link).toBe(page);
   });
 
   it('has the entries the milestone-1 criteria rely on', () => {
