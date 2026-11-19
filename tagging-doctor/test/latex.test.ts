@@ -43,6 +43,8 @@ describe('review round 1: the reader', () => {
     blankComments('\\begin{comment}\\end{comment}'.repeat(50_000));
     blankComments('\\verb|'.repeat(100_000));
     blankComments('\\url{'.repeat(100_000));
+    blankComments('\\verb{'.repeat(100_000));
+    blankComments('\\lstinline['.repeat(100_000));
     expect(performance.now() - t0).toBeLessThan(3000);
   });
 

@@ -28,6 +28,16 @@ export function blankComments(src: string): string {
   nextNl[n] = n;
   for (let k = n - 1; k >= 0; k--) nextNl[k] = src.charCodeAt(k) === 10 ? k : nextNl[k + 1];
   const word = (at: number, w: string) => src.startsWith(w, at) && !isLetter(src[at + w.length]);
+  // The next index of a character at or after `from`; each character's search
+  // only moves forward, so repeated lookups stay linear.
+  const found = new Map<string, number>();
+  const nextOf = (ch: string, from: number): number => {
+    const hit = found.get(ch);
+    if (hit !== undefined && (hit >= from || hit === -1)) return hit === -1 ? n : hit;
+    const k = src.indexOf(ch, from);
+    found.set(ch, k);
+    return k === -1 ? n : k;
+  };
 
   /** Blanks a delimited argument starting at j (its delimiter); returns where to go on. */
   const blankInline = (j: number): number => {
@@ -35,13 +45,10 @@ export function blankComments(src: string): string {
     if (d === undefined || d === '\n' || d === ' ' || isLetter(d)) return j;
     const close = d === '{' ? '}' : d;
     const stop = Math.min(nextNl[j + 1 > n ? n : j + 1], j + 1 + MAX_INLINE);
-    for (let k = j + 1; k < stop; k++) {
-      if (src[k] === close) {
-        for (let x = j + 1; x < k; x++) out[x] = ' ';
-        return k + 1;
-      }
-    }
-    return j;
+    const k = nextOf(close, j + 1);
+    if (k >= stop) return j;
+    for (let x = j + 1; x < k; x++) out[x] = ' ';
+    return k + 1;
   };
 
   let i = 0;
@@ -57,8 +64,8 @@ export function blankComments(src: string): string {
         let j = i + 10;
         if (src[j] === '[') {
           const stop = Math.min(nextNl[j], j + MAX_INLINE);
-          const close = src.indexOf(']', j);
-          if (close >= 0 && close < stop) j = close + 1;
+          const close = nextOf(']', j);
+          if (close < stop) j = close + 1;
         }
         i = Math.max(blankInline(j), i + 2);
         continue;
@@ -69,8 +76,7 @@ export function blankComments(src: string): string {
         while (src[j] === ' ') j++;
         if (src[j] === '{') {
           const stop = Math.min(nextNl[j], j + MAX_URL);
-          let k = j + 1;
-          while (k < stop && src[k] !== '}') k++;
+          const k = nextOf('}', j + 1);
           if (k < stop) {
             i = k + 1;
             continue;
