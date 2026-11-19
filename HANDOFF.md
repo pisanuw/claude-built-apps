@@ -228,11 +228,9 @@ Times are Barcelona time (the owner's current zone), with LA time for LA schedul
   - trig_01D3w33bL8kxHA46VLTrnKNc: PManager hourly check, `46 * * * *`;
   - trig_01PwhDWfkjdf2pxLNMyp52a8: Plabs handoff check: hand over only when due, `CRON_TZ=America/Los_Angeles 56 4 * * *`;
   - trig_01Ck5e8Yy3vvwQ1BSF6cJnE2: Plabs daily handoff: start the next session (create_session), `CRON_TZ=America/Los_Angeles 52 5 * * *`;
-  - one-shots, due 18 Nov:
-    - trig_019zhkmv77qSFuWSa2WbdYTc at 10:12 UTC;
-    - trig_01HScKA8r6NKjjB2oRJ4sH19 at 12:45 UTC (deleted at 11:47 UTC: done early);
-    - trig_01V26qt8hJGxsys1YahV7rwQ at 16:25 UTC (done); trig_01R6F7PixNmtCykFpDppX58k at 23:55 UTC (LLM usage report late check);
   - recurring, added 18 Nov: trig_01W7LHJXGx2ekKemn6hPJeBp, Footer redeploys, two apps a day, `CRON_TZ=Europe/Madrid 23 13 * * *`;
+  - one-shot: trig_0156DPbYvHFbU89bjsgiq2qV, YPai #47 release day, 20 Nov 08:00 UTC (09:00 Barcelona). The 18 Nov one-shots have all fired.
+- **Handover checks:** 19 Nov, 12:56 UTC: no handover. Context was 101,271 of 500,000 (20%) after an auto-compaction; the session was 1 day 7 hours old. The owner set `CLAUDE_CODE_AUTO_COMPACT_WINDOW=500000` on the environment (seen 19 Nov; compaction point 441,600). Q23 (19 Nov): whether the check's 50% should count against 1,000,000.
 - **Leave alone:**
   - the owner's routines: ideas trig_01K986yzFbf3noGkLA6RgZkn, build trig_01BAP9nsXTtxTdpMiwk5GdXE, TPT trig_013VN2RNYCwh2k3F2ZjgnK6U;
   - the workflow routines, recreated in EnvFull on 18 Nov (owner, "19 yes"): Monitor daily trig_017ncnNvikFwwEUMzN8k3ix1, Monitor weekly trig_01NMJbSUXu1Pxnb74sQSbFHS, Keeper trig_011fPUzUbmBx8UMYhjtwZCBH, Marketer trig_01Pta3mTcpBNceabkLPScKbi. They reach GitHub only once the owner attaches their repositories in claude.ai (asked 08:00 UTC, 18 Nov);
