@@ -56,3 +56,16 @@ npm run build
 ```
 
 CI (`.github/workflows/ci.yml`) runs all three packages on every push and PR.
+
+## Compact Instructions
+
+For long-running sessions, the PManager relay among them. When summarizing the conversation, keep:
+
+- the owner's exact words for every approval or answer still being acted on, with the time and where each was given (this session, or another session's transcript);
+- every open question to the owner: its number, when it was raised, the recommendation and the default time;
+- each pull request under review or waiting to release: repository, number, head SHA, review round and verdict;
+- workflow runs and deploys in flight, and what was promised to the owner next;
+- scheduled task ids and what each does;
+- corrections already made, so they are not repeated.
+
+After a compaction, re-read HANDOFF.md ("Notes for the next session" and the open items) and the last 30 lines of hintwise-workflow `decisions/2026-11.md` (or the current month's file) before acting.
