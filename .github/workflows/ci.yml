@@ -2032,6 +2032,42 @@ jobs:
       - name: Build
         run: npm run build
 
+  tagging-doctor:
+    name: tagging-doctor
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tagging-doctor
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: tagging-doctor/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test with coverage
+        run: npm run coverage
+
+      - name: Build
+        run: npm run build
+
+      - name: Install Playwright's Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Playwright walkthrough
+        run: npm run e2e
+
   platform:
     name: platform
     runs-on: ubuntu-latest
