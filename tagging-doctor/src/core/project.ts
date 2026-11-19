@@ -19,19 +19,24 @@ const RECORD_WORDS = new Set(['grades', 'gradebook', 'gradebooks', 'roster', 'ro
 
 /**
  * True for a file named like a student record (AC-15): grades, gradebook,
- * roster or students as a word of the name, any extension. Words are split at
- * anything not a letter and at camel case (FinalGrades, ClassRoster); a name
- * that is all extension (.grades) is read whole.
+ * roster or students in the name, any extension, in any case. The name
+ * without extension is cut into runs of letters; a run counts when it is a
+ * record word as a whole (GradeBook, GRADEBOOK, grades2025), or when one of its
+ * camel-case parts is (FinalGrades, CSRoster), or two neighbouring parts or
+ * runs joined are (GradeBook, grade-book, Grade Book). A name that is all
+ * extension (.grades) is read whole.
  */
 export function isStudentRecord(path: string): boolean {
   const base = path.split('/').pop() ?? path;
   const dot = base.lastIndexOf('.');
   const stem = dot > 0 ? base.slice(0, dot) : base;
-  const words = stem
-    .replace(/([a-z])(?=[A-Z])/g, (m) => `${m} `)
-    .split(/[^A-Za-z]+/)
-    .map((w) => w.toLowerCase());
-  return words.some((w) => RECORD_WORDS.has(w));
+  const parts: string[] = [];
+  for (const run of stem.split(/[^A-Za-z]+/).filter(Boolean)) {
+    if (RECORD_WORDS.has(run.toLowerCase())) return true;
+    // Camel case, keeping an acronym whole: CSRoster -> CS, Roster.
+    parts.push(...run.split(/(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])/).map((w) => w.toLowerCase()));
+  }
+  return parts.some((w, i) => RECORD_WORDS.has(w) || (i > 0 && RECORD_WORDS.has(parts[i - 1] + w)));
 }
 
 /** True for an entry name that is absolute or has a `..` segment (AC-6). */

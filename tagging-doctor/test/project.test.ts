@@ -102,8 +102,50 @@ describe('isStudentRecord (AC-15)', () => {
     ['grades2025.csv', true],
     ['UpgradesList.tex', false],
     ['StudentHandout.tex', false],
+    // R1.2-1: the spec's own word in camel case, and words after capitals.
+    ['GradeBook.xlsx', true],
+    ['gradeBook.csv', true],
+    ['GradeBooks.xlsx', true],
+    ['GradeBook.tex', true],
+    ['Gradebook.xlsx', true],
+    ['GRADEBOOK.xlsx', true],
+    ['CSRoster.csv', true],
+    ['CSEGrades.csv', true],
+    // R1.2-1: "grade book" as two words.
+    ['grade-book.xlsx', true],
+    ['grade_book.xlsx', true],
+    ['Grade Book.xlsx', true],
+    ['grade.tex', false],
+    ['book.tex', false],
+    ['grade-scale-book.tex', false],
   ])('%s -> %s', (name, want) => {
     expect(isStudentRecord(name)).toBe(want);
+  });
+});
+
+describe('R1.2-1: every name the round-1 rule left out is still left out', () => {
+  // The rule as reviewed at 48d40d5.
+  const ROUND1 = /(^|[^a-z])(grades|gradebooks?|rosters?|students)([^a-z]|$)/i;
+  const round1 = (path: string) => {
+    const base = path.split('/').pop() ?? path;
+    const stem = base.includes('.') ? base.slice(0, base.lastIndexOf('.')) : base;
+    return ROUND1.test(stem);
+  };
+  const words = ['grades', 'gradebook', 'gradebooks', 'roster', 'rosters', 'students', 'grade', 'student', 'book', 'upgrades', 'handout'];
+  const cases = (w: string) => [w, w.toUpperCase(), w[0].toUpperCase() + w.slice(1), w.replace('book', 'Book')];
+  const names: string[] = [];
+  for (const w of words) {
+    for (const v of cases(w)) {
+      for (const [pre, post] of [['', ''], ['fall-', ''], ['', '_2025'], ['Final ', ''], ['2025', ''], ['x.', '']]) {
+        for (const ext of ['.csv', '.xlsx', '.tex', '']) names.push(`${pre}${v}${post}${ext}`);
+      }
+    }
+  }
+
+  it('checks a list of names both ways', () => {
+    const caughtBefore = names.filter(round1);
+    expect(caughtBefore.length).toBeGreaterThan(100);
+    expect(caughtBefore.filter((n) => !isStudentRecord(n))).toEqual([]);
   });
 });
 
