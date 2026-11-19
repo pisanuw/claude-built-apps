@@ -319,6 +319,96 @@ describe('review round 1', () => {
   });
 });
 
+describe('review round 2', () => {
+  const zipA = () => rawZip([{ name: 'main.tex', data: DOC('\\usepackage{tabu}') }]);
+  const zipB = () => rawZip([{ name: 'main.tex', data: DOC('\\title{x}') }]);
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const shown = (q: (s: string) => HTMLElement) => `${q('#result-h').textContent} | ${q('#result .doc-name').textContent} | ${q('#error').textContent}`;
+  const B_SHOWN = 'No known blockers | Document: main.tex in b.zip | ';
+
+  it('R1.2-7: a drop goes stale while its file is read, and does not load the package list', async () => {
+    let loads = 0;
+    const { app, q } = setup({ loadStatus: async () => (loads++, idx) });
+    const a = app.handleFile(file('a.zip', zipA(), 30));
+    await app.handleFile(file('b.zip', zipB()));
+    await a;
+    expect(shown(q)).toBe(B_SHOWN);
+    expect(loads).toBe(1);
+  });
+
+  it('R1.2-7: a drop goes stale while the package list loads, and reads none of its files', async () => {
+    let t = 0;
+    const now = vi.spyOn(Date, 'now').mockImplementation(() => (t += 40));
+    let calls = 0;
+    let bDone = false;
+    let pausesAfterB = 0;
+    const many = rawZip(Array.from({ length: 5 }, (_, i) => ({ name: `f${i}.tex`, data: 'text' })));
+    const { app, q } = setup({
+      loadStatus: async () => (calls++ === 0 ? (await sleep(40), idx) : idx),
+      pause: async () => void (bDone && pausesAfterB++),
+    });
+    const a = app.handleFile(file('a.zip', many));
+    await sleep(10);
+    await app.handleFile(file('b.zip', zipB()));
+    bDone = true;
+    await a;
+    now.mockRestore();
+    expect(shown(q)).toBe(B_SHOWN);
+    expect(pausesAfterB).toBe(0);
+  });
+
+  it('R1.2-7: a drop goes stale while its package-list load fails', async () => {
+    let calls = 0;
+    const { app, q } = setup({ loadStatus: async () => { if (calls++ === 0) { await sleep(40); throw new Error('lost'); } return idx; } });
+    const a = app.handleFile(file('a.zip', zipA()));
+    await sleep(10);
+    await app.handleFile(file('b.zip', zipB()));
+    await a;
+    expect(shown(q)).toBe(B_SHOWN);
+  });
+
+  it('R1.2-7: a drop goes stale while it reads its files, and stops reading early (R1.2-8)', async () => {
+    const many = rawZip(Array.from({ length: 30 }, (_, i) => ({ name: `f${i}.tex`, data: 'text' })));
+    let t = 0;
+    const now = vi.spyOn(Date, 'now').mockImplementation(() => (t += 40));
+    let pauses = 0;
+    let second: Promise<void> | null = null;
+    const { app, q } = setup({
+      pause: async () => {
+        pauses++;
+        if (!second) second = app.handleFile(file('b.zip', zipB()));
+      },
+    });
+    await app.handleFile(file('a.zip', many));
+    // The stale drop left the page alone (no "No .tex file" from its cut-short read).
+    expect(q('#error').textContent).toBe('');
+    await second;
+    now.mockRestore();
+    expect(shown(q)).toBe(B_SHOWN);
+    // The stale drop stopped at its first pause; it did not read its other 29 files.
+    expect(pauses).toBeLessThan(5);
+  });
+
+  it('R1.2-7: a stale drop that fails shows nothing', async () => {
+    const { app, q } = setup();
+    const a = app.handleFile({ name: 'a.zip', arrayBuffer: async () => { await sleep(30); throw new Error('read failed'); } });
+    await app.handleFile(file('b.zip', zipB()));
+    await a;
+    expect(shown(q)).toBe(B_SHOWN);
+  });
+
+  it('R1.2-8: a result clears the "drop one file" message', async () => {
+    const { app, q } = setup();
+    const a = app.handleFile(file('b.zip', zipB(), 30));
+    const two = new Event('drop');
+    Object.defineProperty(two, 'dataTransfer', { value: { files: [file('a.tex', text('x')), file('b.tex', text('y'))] } });
+    q('#drop').dispatchEvent(two);
+    expect(q('#error').textContent).toMatch(/^Drop one zip/);
+    await a;
+    expect(shown(q)).toBe(B_SHOWN);
+  });
+});
+
 describe('browserDownload', () => {
   it('clicks a temporary link to a blob', () => {
     vi.useFakeTimers();

@@ -181,8 +181,10 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       const p = openProject(file.name, bytes);
       const found = await findMainFiles(p, (done, total) => {
         if (!stale()) status.textContent = `Reading file ${done} of ${total}`;
-      }, deps.pause);
+      }, deps.pause, stale);
       if (stale()) return;
+      // A message left by a drop of two files during this scan no longer applies.
+      error.replaceChildren();
       // Everything the screen shows comes from this drop from here on.
       index = loaded;
       project = p;

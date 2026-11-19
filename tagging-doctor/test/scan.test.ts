@@ -12,6 +12,8 @@ import {
   verdictFor,
   type DocumentScan,
 } from '../src/core/scan';
+import { findingTitle } from '../src/core/report';
+import type { Finding } from '../src/core/scan';
 import { rawZip, statusIndex, text, zipFixture } from './helpers';
 
 const idx = statusIndex();
@@ -409,8 +411,46 @@ describe('review round 1: the scan', () => {
 
   it('R1.1-14: a file left out as a student record is named as such, not as missing', () => {
     const p = openProject('p.zip', zipFixture('students'));
-    const f = scanDocument(p, 'main.tex', idx).findings.find((x) => x.rule === 'missing-file');
+    const f = scanDocument(p, 'main.tex', idx).findings.find((x) => x.rule === 'left-out-file');
     expect(f?.message).toBe('students is in the zip but was left out as a student record, so the scan did not read it.');
+  });
+});
+
+describe('review round 2: the scan', () => {
+  it('R1.2-2: only an \\end{document} outside every brace group ends the main file', () => {
+    const a = scanTex('\\documentclass{article}\\newcommand{\\finish}{\\end{document}}\\usepackage{tabu}\\title{x}\\begin{document}\nText\n\\finish');
+    expect(byPkg(a, 'tabu')).toHaveLength(1);
+    const b = scanTex('\\documentclass{article}\\title{x}\\begin{document}\n\\mintinline{latex}|\\end{document}|\n\\includegraphics{a.png}\n\\end{document}\n\\usepackage{tabu}');
+    expect(b.figures.images).toBe(1);
+    expect(byPkg(b, 'tabu')).toEqual([]);
+  });
+
+  it('R1.2-4: two different missing files written the same way give two warnings', () => {
+    const p = openProject('p.zip', rawZip([
+      { name: 'main.tex', data: '\\documentclass{article}\\title{x}\\begin{document}\\subfile{a/part}\\subfile{b/part}\\input{gone}\\input{gone}\\end{document}' },
+      { name: 'a/part.tex', data: '\\input{intro}' },
+      { name: 'b/part.tex', data: '\\input{intro}' },
+    ]));
+    const w = scanDocument(p, 'main.tex', idx).findings.filter((f) => f.rule === 'missing-file').map((f) => f.path);
+    expect(w.sort()).toEqual(['a/part.tex', 'b/part.tex', 'main.tex']);
+  });
+
+  it('R1.2-5: an \\input of a left-out file has its own rule and heading', () => {
+    const p = openProject('p.zip', rawZip([
+      { name: 'main.tex', data: '\\documentclass{article}\\title{x}\\begin{document}\\input{StudentsGuide}\\end{document}' },
+      { name: 'StudentsGuide.tex', data: 'x' },
+    ]));
+    const f = scanDocument(p, 'main.tex', idx).findings.find((x) => x.message.includes('left out'));
+    expect(f?.rule).toBe('left-out-file');
+    expect(findingTitle(f as Finding)).toBe('File left out as a student record');
+  });
+
+  it('R1.2-8: a long line\'s excerpt shows the command', () => {
+    const s = scanTex(`\\documentclass{article}\n${'x'.repeat(300)}\\usepackage{tabu} and more\n\\begin{document}\\end{document}`);
+    const ex = byPkg(s, 'tabu')[0].excerpt ?? '';
+    expect(ex).toContain('\\usepackage{tabu}');
+    expect(ex.length).toBeLessThanOrEqual(200);
+    expect(ex.startsWith('…')).toBe(true);
   });
 });
 

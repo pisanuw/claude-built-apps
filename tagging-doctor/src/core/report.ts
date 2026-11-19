@@ -112,6 +112,7 @@ const RULE_TITLES: Partial<Record<Finding['rule'], string>> = {
   'no-language': 'No document language',
   'no-title': 'No title',
   'missing-file': 'File not in the zip',
+  'left-out-file': 'File left out as a student record',
   'outside-project': 'File outside the project',
   'include-parent-path': '\\include of a file above the main file’s folder',
   'outside-program': 'Needs an outside program',

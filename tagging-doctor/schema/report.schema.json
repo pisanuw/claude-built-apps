@@ -124,6 +124,7 @@
             "no-language",
             "no-title",
             "missing-file",
+            "left-out-file",
             "outside-project",
             "include-parent-path",
             "outside-program"

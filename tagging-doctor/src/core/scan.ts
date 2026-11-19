@@ -31,6 +31,7 @@ export type Rule =
   | 'no-language'
   | 'no-title'
   | 'missing-file'
+  | 'left-out-file'
   | 'outside-project'
   | 'include-parent-path'
   | 'outside-program';
@@ -169,16 +170,22 @@ interface Ctx {
   beamer: boolean;
 }
 
-/** The line around an offset, at most 200 characters; it looks at most 200 back and 200 ahead, so it stays fast on one huge line. */
+/**
+ * The line around an offset, at most 200 characters. On a long line it starts
+ * about 60 characters before the offset (with an ellipsis), so it shows what
+ * was flagged; it never looks further than 200 characters either way.
+ */
 function excerptAt(text: string, offset: number): string {
   let start = offset;
-  const lo = Math.max(0, offset - 200);
+  const lo = Math.max(0, offset - 60);
   while (start > lo && text[start - 1] !== '\n') start--;
+  const cut = start > 0 && text[start - 1] !== '\n';
   let end = offset;
   const hi = Math.min(text.length, offset + 200);
   while (end < hi && text[end] !== '\n') end++;
-  const line = text.slice(start, end).trim();
-  return line.length > 200 ? `${line.slice(0, 199)}…` : line;
+  let line = text.slice(start, end).trim();
+  if (cut) line = `\u2026${line}`;
+  return line.length > 200 ? `${line.slice(0, 199)}\u2026` : line;
 }
 
 interface Where {
@@ -286,8 +293,9 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
   let src = blankComments(text);
   if (role === 'main') {
     // TeX stops reading the main file at \end{document}.
-    const end = /\\end\s*\{document\}/.exec(src);
-    if (end) src = src.slice(0, end.index + end[0].length) + src.slice(end.index + end[0].length).replace(/[^\n]/g, ' ');
+    // Only one outside every brace group: not one inside a macro definition.
+    const stopAt = topLevelEndDocument(src);
+    if (stopAt >= 0) src = src.slice(0, stopAt) + src.slice(stopAt).replace(/[^\n]/g, ' ');
   }
   const lineOf = lineIndex(src);
   const at = (offset: number): Where => ({ path, line: lineOf(offset), excerpt: excerptAt(text, offset) });
@@ -405,6 +413,25 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
   }
 }
 
+/** The offset just after the first \end{document} at brace depth 0, or -1. */
+function topLevelEndDocument(src: string): number {
+  const re = /\\end\s*\{document\}/g;
+  let depth = 0;
+  let from = 0;
+  for (let m = re.exec(src); m; m = re.exec(src)) {
+    for (let k = from; k < m.index; k++) {
+      const c = src[k];
+      if (c === '\\') k++;
+      else if (c === '{') depth++;
+      else if (c === '}' && depth > 0) depth--;
+    }
+    from = m.index + m[0].length;
+    if (depth === 0) return from;
+    // The match's own braces balance, so the depth after it is unchanged.
+  }
+  return -1;
+}
+
 /** An `alt` or `actualtext` with some text, or `artifact` (decorative). */
 function hasAltKey(kv: Map<string, string>): boolean {
   const filled = (k: string) => (kv.get(k) ?? '').replace(/^\{([\s\S]*)\}$/, '$1').trim() !== '';
@@ -473,7 +500,10 @@ function includeFile(ctx: Ctx, c: Command, base: string, fromBase: string, ref: 
   const shown = c.args.length === 2 ? `${c.args[0]}${c.args[1]}` : r;
   // One warning per path, however often a file names it.
   if (found.kind !== 'found') {
-    const key = `${found.kind}:${shown}`;
+    // The key is where the reference points, not how it is written: the same
+    // text in two folders names two files.
+    const first = resolvePath(bases[0], names[0]);
+    const key = `${found.kind}:${first.kind === 'inside' ? first.path : shown}`;
     if (ctx.seenNames.has(key)) return;
     ctx.seenNames.add(key);
   }
@@ -492,7 +522,7 @@ function includeFile(ctx: Ctx, c: Command, base: string, fromBase: string, ref: 
       }),
     );
     if (leftOut) {
-      warn(ctx, 'missing-file', where, `${shown} is in the zip but was left out as a student record, so the scan did not read it.`, {
+      warn(ctx, 'left-out-file', where, `${shown} is in the zip but was left out as a student record, so the scan did not read it.`, {
         name: 'Rename the file, or remove it',
         detail: 'If it is course material, rename it so its name does not look like a student record (grades, gradebook, roster, students); if it holds student data, remove it and the line that reads it.',
       });
@@ -635,6 +665,8 @@ export async function findMainFiles(
   project: Project,
   onProgress: (done: number, total: number) => void = () => {},
   pause: () => Promise<void> = () => Promise.resolve(),
+  /** True once the caller no longer wants the answer (a newer drop): reading stops. */
+  cancelled: () => boolean = () => false,
 ): Promise<string[]> {
   const candidates = project.paths.filter((p) => ['tex', 'ltx'].includes(extOf(p)));
   const out: string[] = [];
@@ -643,6 +675,7 @@ export async function findMainFiles(
     onProgress(i + 1, candidates.length);
     if (Date.now() - last > 30) {
       await pause();
+      if (cancelled()) return [];
       last = Date.now();
     }
     const text = project.text(candidates[i]);
