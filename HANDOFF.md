@@ -44,7 +44,7 @@ Remaining:
   - The build run finished it on 18 Nov at 10:53 UTC (commit f427cc7) (marked implemented; no app change, no deploy). Pending owner actions: Netlify analytics for delivery-canary; pisan-labs/delivery-canary through the halflife job; when convenient, a first real canary (delivery-canary/HANDOFF.md "Remaining").
 - [ ] **LLM usage report run:** check it (reminder trig_01V26qt8hJGxsys1YahV7rwQ, 17:25).
 - [x] **19 Nov, 11:49:** Tagging Doctor day 1 under build-day.md. Milestone 1 (the in-browser scan) was merged as cc9f135 at 14:48 UTC under standing authorizations 2 and 3. Deploy run 44547696311 succeeded, and https://tagging-doctor.hintwise.org is live with the footer (hintwise-workflow projects/tagging-doctor/releases/m1.md).
-- [ ] **Tagging Doctor's first-deploy steps:** Supabase admin deploy-function sign-in-link (run 44547822655) and delete-account (run 44547856165) wait for the owner's approval (card sent 14:49 UTC). Check that both end green, and record them in releases/m1.md. Milestone 2 adds sign-in and needs both.
+- [x] **Tagging Doctor's first-deploy steps:** the owner approved both runs. sign-in-link 44547822655 succeeded at 17:02 UTC and delete-account 44547856165 at 17:03 UTC. delete-account now accepts the app's origin (400, not 403).
 - [ ] **Own-repo analytics branches:** merge only on the owner's word ("2 will do later").
 - [ ] **YPai onto the platform** (pisanuw/digitalme, ypai.hintwise.org; owner, 18 Nov):
   - the brief went to its session, session_01JyJzMYC2h8cRGt8cGRNiLz, at 06:05 UTC: gateway behind a reversible switch, Supabase sign-in, footer, analytics, email from ypai@hintwise.org;
