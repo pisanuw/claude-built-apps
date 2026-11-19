@@ -1,0 +1,17 @@
+\DocumentMetadata{lang=en-US}
+\documentclass{mycourse}
+\usepackage{course}
+\input{../common/preamble}
+\title{Linear algebra notes}
+\begin{document}
+\input{chapters/intro}
+\include{chapters/ch1}
+\subfile{parts/part1}
+\import{shared/}{defs}
+\InputIfFileExists{chapters/extra}{}{}
+\input{chapters/missing}
+\input{../../outside}
+\input{/etc/passwd}
+\include{../common/appendix}
+\input chapters/bare
+\end{document}
