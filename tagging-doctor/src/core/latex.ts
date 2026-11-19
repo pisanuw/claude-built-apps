@@ -7,18 +7,20 @@
 /** Environments whose contents are not LaTeX commands. */
 const VERBATIM_ENVS = ['verbatim', 'verbatim*', 'Verbatim', 'lstlisting', 'minted', 'comment', 'filecontents', 'filecontents*'];
 
-/** Longest argument of \verb or \lstinline the reader blanks; past it, the line is read as LaTeX. */
+/** Longest argument of \verb, \Verb, \lstinline or \mintinline the reader blanks; past it, the line is read as LaTeX. */
 const MAX_INLINE = 1000;
-/** Longest \url{...} or \href first argument in which a % is not a comment. */
+/** Longest \url, \nolinkurl, \path or \href address in which a % is not a comment. */
 const MAX_URL = 2000;
 
 const isLetter = (c: string | undefined) => c !== undefined && ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'));
 
 /**
  * The source with comments, verbatim environments, and the arguments of
- * \verb, \verb* and \lstinline replaced by spaces, newlines kept, so offsets
- * and line numbers match the original. A % inside \url{...} or the first
- * argument of \href is part of the address, not a comment. Linear time.
+ * \verb, \verb*, \Verb, \lstinline and \mintinline replaced by spaces,
+ * newlines kept, so offsets and line numbers match the original. A % inside
+ * \url{...}, \nolinkurl{...}, \path{...} or the first argument of \href is
+ * part of the address, not a comment. Linear time: a brace argument ends where
+ * groupEnds says, and a delimiter ends at the next use of the same character.
  */
 export function blankComments(src: string): string {
   const n = src.length;
@@ -28,27 +30,42 @@ export function blankComments(src: string): string {
   nextNl[n] = n;
   for (let k = n - 1; k >= 0; k--) nextNl[k] = src.charCodeAt(k) === 10 ? k : nextNl[k + 1];
   const word = (at: number, w: string) => src.startsWith(w, at) && !isLetter(src[at + w.length]);
-  // The next index of a character at or after `from`; each character's search
-  // only moves forward, so repeated lookups stay linear.
-  const found = new Map<string, number>();
-  const nextOf = (ch: string, from: number): number => {
-    const hit = found.get(ch);
-    if (hit !== undefined && (hit >= from || hit === -1)) return hit === -1 ? n : hit;
-    const k = src.indexOf(ch, from);
-    found.set(ch, k);
-    return k === -1 ? n : k;
+  const ends = groupEnds(src);
+  // nextSame[i]: the next index after i holding the same character (n if none).
+  const nextSame = new Int32Array(n).fill(n);
+  const last = new Map<number, number>();
+  for (let k = n - 1; k >= 0; k--) {
+    const code = src.charCodeAt(k);
+    nextSame[k] = last.get(code) ?? n;
+    last.set(code, k);
+  }
+  /** Where the argument that opens at j closes, if it does before `stop`. */
+  const closeOf = (j: number, stop: number): number => {
+    const k = src[j] === '{' || src[j] === '[' ? ends[j] : nextSame[j];
+    return k >= 0 && k < stop ? k : -1;
   };
 
   /** Blanks a delimited argument starting at j (its delimiter); returns where to go on. */
   const blankInline = (j: number): number => {
     const d = src[j];
     if (d === undefined || d === '\n' || d === ' ' || isLetter(d)) return j;
-    const close = d === '{' ? '}' : d;
-    const stop = Math.min(nextNl[j + 1 > n ? n : j + 1], j + 1 + MAX_INLINE);
-    const k = nextOf(close, j + 1);
-    if (k >= stop) return j;
+    const k = closeOf(j, Math.min(nextNl[j + 1 > n ? n : j + 1], j + 1 + MAX_INLINE));
+    if (k < 0) return j;
     for (let x = j + 1; x < k; x++) out[x] = ' ';
     return k + 1;
+  };
+  /** Skips an optional [...] (and, for \mintinline, the {language}) after a command. */
+  const skipOptions = (j: number, language: boolean): number => {
+    const stop = Math.min(nextNl[j], j + MAX_INLINE);
+    if (src[j] === '[') {
+      const k = closeOf(j, stop);
+      if (k >= 0) j = k + 1;
+    }
+    if (language && src[j] === '{') {
+      const k = closeOf(j, stop);
+      if (k >= 0) j = k + 1;
+    }
+    return j;
   };
 
   let i = 0;
@@ -60,24 +77,19 @@ export function blankComments(src: string): string {
         i = Math.max(blankInline(j), i + 2);
         continue;
       }
-      if (word(i + 1, 'lstinline')) {
-        let j = i + 10;
-        if (src[j] === '[') {
-          const stop = Math.min(nextNl[j], j + MAX_INLINE);
-          const close = nextOf(']', j);
-          if (close < stop) j = close + 1;
-        }
+      const inline = word(i + 1, 'lstinline') ? 'lstinline' : word(i + 1, 'mintinline') ? 'mintinline' : word(i + 1, 'Verb') ? 'Verb' : '';
+      if (inline) {
+        const j = skipOptions(i + 1 + inline.length + (inline === 'Verb' && src[i + 5] === '*' ? 1 : 0), inline === 'mintinline');
         i = Math.max(blankInline(j), i + 2);
         continue;
       }
-      const urlCmd = word(i + 1, 'url') ? 4 : word(i + 1, 'href') ? 5 : 0;
+      const urlCmd = ['url', 'nolinkurl', 'path', 'href'].find((w) => word(i + 1, w));
       if (urlCmd) {
-        let j = i + urlCmd;
+        let j = i + 1 + urlCmd.length;
         while (src[j] === ' ') j++;
         if (src[j] === '{') {
-          const stop = Math.min(nextNl[j], j + MAX_URL);
-          const k = nextOf('}', j + 1);
-          if (k < stop) {
+          const k = closeOf(j, Math.min(nextNl[j], j + MAX_URL));
+          if (k >= 0) {
             i = k + 1;
             continue;
           }

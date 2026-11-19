@@ -48,6 +48,27 @@ describe('review round 1: the reader', () => {
     expect(performance.now() - t0).toBeLessThan(3000);
   });
 
+  it('R1.2-3: \\mintinline, \\Verb, \\nolinkurl, \\path, and braces inside an argument', () => {
+    const read = (line: string) => findCommands(blankComments(line), specs).map((c) => c.args[0]);
+    expect(read('\\mintinline{latex}|\\usepackage{tabu}| \\usepackage{a}')).toEqual(['a']);
+    expect(read('\\mintinline[fontsize=x]{latex}{\\usepackage{tabu}} \\usepackage{a}')).toEqual(['a']);
+    expect(read('\\Verb|\\usepackage{tabu}| \\usepackage{a}')).toEqual(['a']);
+    expect(read('\\Verb[x]!\\usepackage{tabu}! \\usepackage{a}')).toEqual(['a']);
+    expect(read('\\nolinkurl{a%b} \\usepackage{tabu}')).toEqual(['tabu']);
+    expect(read('\\path{a%b} \\usepackage{tabu}')).toEqual(['tabu']);
+    expect(read('\\lstinline{a{b}%c} \\usepackage{tabu}')).toEqual(['tabu']);
+    expect(read('\\href{http://a/{x}%20y}{t} \\usepackage{tabu}')).toEqual(['tabu']);
+    expect(read('\\pathological \\Verbatim % \\usepackage{no}')).toEqual([]);
+  });
+
+  it('R1.2-6: many different \\verb delimiters stay linear', () => {
+    let src = '';
+    for (let c = 0x0800; src.length < 2_000_000; c = c >= 0xcfff ? 0x0800 : c + 1) src += `\\verb${String.fromCharCode(c)}`;
+    const t0 = performance.now();
+    blankComments(src);
+    expect(performance.now() - t0).toBeLessThan(1500);
+  });
+
   it('R1.1-11: still reads a long but closed argument', () => {
     const long = `\\title{${'x'.repeat(5000)}}`;
     expect(findCommands(long, specs)[0].args[0]).toHaveLength(5000);
