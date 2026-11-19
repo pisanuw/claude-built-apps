@@ -718,3 +718,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-19 [code] accessibility-lens: express 4.22.3 (server range ^4.22.3), body-parser 1.20.9, proxy-addr 2.0.8, qs 6.16.2, form-data 4.0.6 and ws 8.23.0 (both through jsdom) for the proxy-addr (critical), body-parser, form-data and ws (high) and qs (moderate) advisories; production audit 5 -> 0; not deployed.
 
 2026-11-19 [note] PManager: Nov 19 (session_01JyJzMZdo2cwHjA4hcPLrcu, depth 1 of 8) took over at 18:47 UTC and moved the five relay routines to itself.
+
+2026-11-19 [note] The YPai relay handed over: YPai: Nov 19 is session_01JyJzMYdcL21t1LrX7eujSq (routines moved 18:53 UTC). Workflow PRs #2 and #3 approved by a fresh Reviewer; carded to the owner at 19:06 UTC.
