@@ -706,3 +706,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-18 [code] platform: gateway-check review r1: call (c) a long stream at 512 tokens with a 200-token floor; test app switched off after every run; (c) errors printed.
 
 2026-11-18 [code] delivery-canary day 7: finished (Step 5): LICENSE, mirror CI, mirrors and pisan-labs rows, README catalog row, PROJECTS.md write-up; marked implemented; no app change, no deploy.
+
+2026-11-19 [code] mult-streak: express 4.22.3 (range ^4.22.3), body-parser 1.20.9, proxy-addr 2.0.8, qs 6.16.2 for the proxy-addr (critical), body-parser (high) and qs (moderate) advisories; production audit 3 -> 0; its code runs inside backend-hub; not deployed.
