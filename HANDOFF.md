@@ -45,6 +45,11 @@ Remaining:
 - [ ] **LLM usage report run:** check it (reminder trig_01V26qt8hJGxsys1YahV7rwQ, 17:25).
 - [x] **19 Nov, 11:49:** Tagging Doctor day 1 under build-day.md. Milestone 1 (the in-browser scan) was merged as cc9f135 at 14:48 UTC under standing authorizations 2 and 3. Deploy run 44547696311 succeeded, and https://tagging-doctor.hintwise.org is live with the footer (hintwise-workflow projects/tagging-doctor/releases/m1.md).
 - [x] **Tagging Doctor's first-deploy steps:** the owner approved both runs. sign-in-link 44547822655 succeeded at 17:02 UTC and delete-account 44547856165 at 17:03 UTC. delete-account now accepts the app's origin (400, not 403).
+- [x] **Express security updates (PR #9), on the owner's yes (18:46 card, "3 yes"):** merged as 009a518 with `[skip render]` at 17:56 UTC. backend-hub was deployed by run 44582576617, and Render deploy dep-dbvjh47f3r2c73celit0 went live at 17:59 UTC; health is ok. backend-hub's address is https://backend-hub-wk2e.onrender.com.
+- [ ] **Express on Netlify:** accessibility-lens and emoji-lingua take the 20 Nov footer slots, and mult-streak-edge the 21 Nov slot (hintwise-workflow projects/platform/footer-redeploys.md, order change). Append each outcome to projects/platform/releases/express-advisories.md.
+- [ ] **Platform follow-up, Render health check:** for Render, deploy.mjs checks health about a second after triggering, against the old instance. It should wait until the deploy is live.
+- [ ] **MyUni PR #6 (the owner said yes, 18:46 card, "2 yes"):** waits on check (b), the functions' Node version (nodemailer 10.6.0 needs Node 20 or newer; nothing in the repository pins it). The Netlify token in the session env file answers 401, so the owner is asked to read the Deploy Preview's build log. Mark the PR ready, then merge.
+- [x] **Tagging Doctor Q7 (the owner said yes, 18:46 card, "1 yes"):** the platform.llm_apps row, default caps, goes in with milestone 2. Check it against release criterion 4 at that release.
 - [ ] **Own-repo analytics branches:** merge only on the owner's word ("2 will do later").
 - [ ] **YPai onto the platform** (pisanuw/digitalme, ypai.hintwise.org; owner, 18 Nov):
   - the brief went to its session, session_01JyJzMYC2h8cRGt8cGRNiLz, at 06:05 UTC: gateway behind a reversible switch, Supabase sign-in, footer, analytics, email from ypai@hintwise.org;
