@@ -722,3 +722,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-19 [note] The YPai relay handed over: YPai: Nov 19 is session_01JyJzMYdcL21t1LrX7eujSq (routines moved 18:53 UTC). Workflow PRs #2 and #3 approved by a fresh Reviewer; carded to the owner at 19:06 UTC.
 
 2026-11-19 [code] platform: Render deploys now wait for the new deploy to go live (fail on build_failed etc., 20 min timeout) before the health check; render-wait.mjs + tests.
+
+2026-11-19 [note] lewis-alt-text: owner verified the CLI live (login through /terminal/, status, alt text through the gateway); deploy run 44545724344
