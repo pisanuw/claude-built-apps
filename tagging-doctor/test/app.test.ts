@@ -5,9 +5,14 @@ import { rawZip, statusIndex, text, zipFixture } from './helpers';
 
 const idx = statusIndex();
 
-function file(name: string, bytes: Uint8Array): DroppedFile {
-  return { name, arrayBuffer: async () => bytes.slice().buffer };
+function file(name: string, bytes: Uint8Array, ms = 0): DroppedFile {
+  return {
+    name,
+    arrayBuffer: () => new Promise<ArrayBuffer>((r) => setTimeout(() => r(bytes.slice().buffer), ms)),
+  };
 }
+
+const DOC = (pre: string) => `\\documentclass{article}${pre}\\begin{document}\\end{document}`;
 
 function setup(over: Partial<AppDeps> = {}) {
   document.body.innerHTML = '<div id="app"></div>';
@@ -182,8 +187,8 @@ describe('the scan screen', () => {
   });
 
   it('shows a plain message for an unexpected failure', async () => {
-    const { app, q } = setup({ loadStatus: async () => { throw new Error('boom'); } });
-    await app.handleFile(file('blockers.zip', zipFixture('blockers')));
+    const { app, q } = setup();
+    await app.handleFile({ name: 'p.zip', arrayBuffer: async () => { throw new Error('read failed'); } });
     expect(q('#error').textContent).toBe('Something went wrong while reading this file. Try again, or make the zip again.');
   });
 
@@ -240,6 +245,77 @@ describe('the scan screen', () => {
     const { app, q } = setup();
     await app.handleFile(file('lecture.tex', text('\\documentclass{article}\\begin{document}\\end{document}')));
     expect(q('#result .doc-name').textContent).toBe('Document: lecture.tex');
+  });
+});
+
+describe('review round 1', () => {
+  it('R1.1-1: a second drop during the first shows only the second project, whichever finishes first', async () => {
+    const zipA = rawZip([{ name: 'main.tex', data: DOC('\\usepackage{tabu}') }]);
+    const zipB = rawZip([{ name: 'main.tex', data: DOC('\\title{x}') }]);
+    for (const [ma, mb] of [[30, 5], [5, 30]]) {
+      const { app, q } = setup();
+      const a = app.handleFile(file('a.zip', zipA, ma));
+      const b = app.handleFile(file('b.zip', zipB, mb));
+      await Promise.all([a, b]);
+      expect(`${q('#result-h').textContent} | ${q('#result .doc-name').textContent}`).toBe('No known blockers | Document: main.tex in b.zip');
+    }
+  });
+
+  it('R1.1-2: with no main file, the warnings that explain why are shown', async () => {
+    const cases: [Uint8Array, RegExp][] = [
+      [rawZip([{ name: 'roster.tex', data: DOC('') }, { name: 'grades.csv', data: 'x' }]), /Remove student records from course folders: roster\.tex, grades\.csv/],
+      [rawZip([{ name: '../course/main.tex', data: DOC('') }]), /Skipped \.\.\/course\/main\.tex: its path points outside the zip\./],
+      [rawZip([{ name: 'main.tex', data: DOC(''), method: 12 }]), /main\.tex uses a compression method the scan cannot read/],
+    ];
+    for (const [bytes, re] of cases) {
+      const { app, q } = setup();
+      await app.handleFile(file('p.zip', bytes));
+      expect(q('#error').textContent).toContain('No .tex file with \\documentclass was found');
+      expect(q('#error').textContent).toMatch(/About the files you dropped/);
+      expect(q('#error').textContent).toMatch(re);
+    }
+  });
+
+  it('R1.1-3: a failed load of the package list says so, and the next drop works', async () => {
+    let calls = 0;
+    const { app, q } = setup({ loadStatus: async () => { if (calls++ === 0) throw new Error('chunk failed'); return idx; } });
+    await app.handleFile(file('blockers.zip', zipFixture('blockers')));
+    expect(q('#error').textContent).toBe('The package list could not be loaded. Check your connection and drop the file again. Your file was not sent anywhere.');
+    expect(q('#error').textContent).not.toMatch(/make the zip again/);
+    await app.handleFile(file('blockers.zip', zipFixture('blockers')));
+    expect(q('#result-h').textContent).toBe('2 blockers found');
+  });
+
+  it('R1.1-4: a scan started from a button shows its error', async () => {
+    const z = rawZip([
+      { name: 'a.tex', data: DOC('\\usepackage{my}') },
+      { name: 'b.tex', data: DOC('') },
+      { name: 'my.sty', data: new Uint8Array(1024 * 1024), method: 8, declaredSize: 10 },
+    ]);
+    const { app, q, button } = setup();
+    await app.handleFile(file('p.zip', z));
+    expect(q('#status').textContent).toBe('This zip holds 2 documents. Choose one, or scan all.');
+    const onError = vi.fn();
+    window.addEventListener('error', onError);
+    button('Scan a.tex').click();
+    window.removeEventListener('error', onError);
+    expect(q('#error').textContent).toMatch(/my\.sty expands to more than the size/);
+    expect(q('#result-h').textContent).toBe('Could not scan');
+    expect(q('#docs').hidden).toBe(true);
+    expect(q('#status').textContent).toBe('');
+    // "Scan all" goes through the same path.
+    await app.handleFile(file('p.zip', z));
+    button('Scan all').click();
+    expect(q('#error').textContent).toMatch(/expands to more than the size/);
+  });
+
+  it('R1.1-13: the counts lines use the singular for one', async () => {
+    const { app, q } = setup();
+    const src = '\\DocumentMetadata{lang=en-US}\\documentclass{article}\\title{x}\\usepackage{tabu}\\usepackage{titlesec}\\usepackage{mysterypkg}'
+      + '\\begin{document}\\includegraphics{a.png}\\begin{tikzpicture}\\end{tikzpicture}\\end{document}';
+    await app.handleFile(file('p.zip', rawZip([{ name: 'main.tex', data: src }])));
+    expect(q('#result .counts').textContent).toBe('1 blocker, 1 warning, 1 unknown, 1 working with tagging.');
+    expect(q('.figures').textContent).toBe('1 image (1 without alt text), 1 TikZ picture (1 without alt text).');
   });
 });
 

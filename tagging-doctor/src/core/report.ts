@@ -53,6 +53,21 @@ export function buildReport(
   };
 }
 
+/** "1 blocker" or "2 blockers". */
+export function plural(n: number, one: string, many = `${one}s`): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/** The counts line next to the verdict. */
+export function countsLine(s: Pick<DocumentScan['summary'], 'blockers' | 'warnings' | 'unknown' | 'ok'>): string {
+  return `${plural(s.blockers, 'blocker')}, ${plural(s.warnings, 'warning')}, ${s.unknown} unknown, ${s.ok} working with tagging.`;
+}
+
+/** The figures line. */
+export function figuresLine(f: Pick<DocumentScan['figures'], 'images' | 'imagesWithoutAlt' | 'tikz' | 'tikzWithoutAlt'>): string {
+  return `${plural(f.images, 'image')} (${f.imagesWithoutAlt} without alt text), ${plural(f.tikz, 'TikZ picture')} (${f.tikzWithoutAlt} without alt text).`;
+}
+
 export function reportJson(report: ScanReport): string {
   return `${JSON.stringify(report, null, 2)}\n`;
 }
@@ -121,15 +136,11 @@ function documentHtml(d: DocumentScan, level: number): string {
   const h = (n: number) => `h${Math.min(6, level + n)}`;
   const out: string[] = [];
   out.push(`<section class="doc"><${h(0)}>${escapeHtml(d.mainFile)}: ${escapeHtml(d.summary.verdict)}</${h(0)}>`);
-  out.push(
-    `<p class="counts">${d.summary.blockers} blockers, ${d.summary.warnings} warnings, ${d.summary.unknown} unknown, ${d.summary.ok} working with tagging.</p>`,
-  );
+  out.push(`<p class="counts">${countsLine(d.summary)}</p>`);
   for (const n of d.summary.notes) out.push(`<p class="note">${escapeHtml(n)}</p>`);
   const fg = d.figures;
   out.push(`<${h(1)}>Figures</${h(1)}>`);
-  out.push(
-    `<p>${fg.images} images (${fg.imagesWithoutAlt} without alt text), ${fg.tikz} TikZ pictures (${fg.tikzWithoutAlt} without alt text).</p>`,
-  );
+  out.push(`<p>${figuresLine(fg)}</p>`);
   const missing = fg.list.filter((x) => !x.hasAlt);
   if (missing.length) {
     out.push('<table><caption>Figures without alt text</caption><thead><tr><th scope="col">Kind</th><th scope="col">Where</th><th scope="col">File</th></tr></thead><tbody>');

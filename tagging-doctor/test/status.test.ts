@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import data from '../src/data/tagging-status.json';
-import { groupOf, loadStatus, StatusIndex, type StatusData } from '../src/core/status';
+import { clearStatusCache, groupOf, loadStatus, StatusIndex, type StatusData } from '../src/core/status';
 import { statusIndex } from './helpers';
 
 const d = data as unknown as StatusData;
@@ -65,6 +65,15 @@ describe('StatusIndex.lookup', () => {
     ] });
     expect(i.lookup('x', 'package')?.entry.link).toBe('l1');
   });
+  it('R1.1-3: does not keep a failed load, so the next call tries again', async () => {
+    clearStatusCache();
+    const bad = () => Promise.reject(new Error('chunk failed'));
+    await expect(loadStatus(bad)).rejects.toThrow('chunk failed');
+    const good = await loadStatus(() => Promise.resolve({ default: data }));
+    expect(good.data.asOf).toBe(d.asOf);
+    clearStatusCache();
+  });
+
   it('loads the data file once, as its own chunk', async () => {
     const a = await loadStatus();
     expect(a.data.asOf).toBe(d.asOf);

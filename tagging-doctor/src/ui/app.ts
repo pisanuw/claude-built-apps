@@ -5,7 +5,7 @@
  * AppDeps, so tests run it under jsdom.
  */
 import { openProject, type Project } from '../core/project';
-import { buildReport, downloadName, GROUP_HELP, GROUP_TITLES, reportHtml, reportJson, where, findingTitle } from '../core/report';
+import { buildReport, countsLine, downloadName, figuresLine, GROUP_HELP, GROUP_TITLES, reportHtml, reportJson, where, findingTitle } from '../core/report';
 import { COULD_NOT_SCAN, findMainFiles, scanDocument, type DocumentScan, type Finding } from '../core/scan';
 import { plainWords } from '../core/fixes';
 import type { Group, StatusIndex } from '../core/status';
@@ -30,6 +30,8 @@ export interface DroppedFile {
 }
 
 export const EMPTY_TEXT = 'Drop a zip of your LaTeX project, or one .tex file. Nothing is uploaded: the scan runs in your browser.';
+export const LOAD_FAILED = 'The package list could not be loaded. Check your connection and drop the file again. Your file was not sent anywhere.';
+
 export const NO_MAIN_TEXT = 'No .tex file with \\documentclass was found';
 
 interface Choice {
@@ -150,19 +152,42 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     error.replaceChildren(el('p', {}, message));
   }
 
+  /** Each drop gets a number; a drop that is no longer the newest stops at its next await. */
+  let generation = 0;
+
   async function handleFile(file: DroppedFile): Promise<void> {
+    const run = ++generation;
+    const stale = () => run !== generation;
     reset();
-    status.textContent = `Reading ${file.name}…`;
+    project = null;
+    status.textContent = `Reading ${file.name}\u2026`;
     const started = deps.now().getTime();
     try {
       if ((file.size ?? 0) > LIMITS.maxFileBytes) {
         throw new ZipError('too-big', 'This file is larger than 20 MB. Remove large images or PDFs from the zip and try again.');
       }
       const bytes = new Uint8Array(await file.arrayBuffer());
-      index = await deps.loadStatus();
-      project = openProject(file.name, bytes);
-      const p = project;
-      mains = await findMainFiles(p, (done, total) => (status.textContent = `Reading file ${done} of ${total}`), deps.pause);
+      if (stale()) return;
+      let loaded: StatusIndex;
+      try {
+        loaded = await deps.loadStatus();
+      } catch {
+        if (stale()) return;
+        status.textContent = '';
+        renderCouldNotScan(LOAD_FAILED);
+        return;
+      }
+      if (stale()) return;
+      const p = openProject(file.name, bytes);
+      const found = await findMainFiles(p, (done, total) => {
+        if (!stale()) status.textContent = `Reading file ${done} of ${total}`;
+      }, deps.pause);
+      if (stale()) return;
+      // Everything the screen shows comes from this drop from here on.
+      index = loaded;
+      project = p;
+      mains = found;
+      scans = new Map();
       if (!mains.length) {
         status.textContent = '';
         renderNoMain();
@@ -181,11 +206,39 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
         ? `Scan finished in ${secs} s: ${scans.size === 1 ? 'one document' : `${scans.size} documents`}.`
         : `This zip holds ${mains.length} documents. Choose one, or scan all.`;
     } catch (e) {
-      status.textContent = '';
-      project = null;
-      const message = e instanceof ZipError ? e.message : 'Something went wrong while reading this file. Try again, or make the zip again.';
-      renderCouldNotScan(message);
+      if (stale()) return;
+      failed(e);
     }
+  }
+
+  /** Any error from reading or scanning: a plain message, and the page stays usable. */
+  function failed(e: unknown) {
+    status.textContent = '';
+    project = null;
+    docsEl.hidden = true;
+    allEl.hidden = true;
+    const message = e instanceof ZipError ? e.message : 'Something went wrong while reading this file. Try again, or make the zip again.';
+    renderCouldNotScan(message);
+  }
+
+  /** Runs a button's scan with the same error handling as a drop. */
+  function guarded(fn: () => void): () => void {
+    return () => {
+      try {
+        fn();
+      } catch (e) {
+        failed(e);
+      }
+    };
+  }
+
+  function projectWarnings(p: Project): HTMLElement {
+    const sec = el('div', { class: 'project-warnings' });
+    sec.append(el('h3', {}, 'About the files you dropped'));
+    const ul = el('ul');
+    for (const w of p.warnings) ul.append(el('li', {}, w.message));
+    sec.append(ul);
+    return sec;
   }
 
   function renderCouldNotScan(message: string) {
@@ -199,6 +252,8 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     const again = el('button', { type: 'button' }, 'Choose another file');
     again.addEventListener('click', () => input.click());
     error.replaceChildren(p, again);
+    const proj = project as Project;
+    if (proj.warnings.length) error.append(projectWarnings(proj));
   }
 
   function renderDocs() {
@@ -206,18 +261,18 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     const h = el('h2', { id: 'docs-h' }, `This zip holds ${mains.length} documents`);
     const intro = el('p', {}, 'Choose one to see its findings, or scan them all for a summary of each.');
     const all = el('button', { type: 'button', class: 'primary', id: 'scan-all' }, 'Scan all');
-    all.addEventListener('click', () => {
+    all.addEventListener('click', guarded(() => {
       scanAll(shown);
       status.textContent = `Scanned all ${mains.length} documents.`;
-    });
+    }));
     const ul = el('ul', { class: 'doc-list' });
     for (const m of mains) {
       const li = el('li');
       const b = el('button', { type: 'button', 'data-doc': m }, `Scan ${m}`);
-      b.addEventListener('click', () => {
+      b.addEventListener('click', guarded(() => {
         scanOne(m);
         status.textContent = `Scanned ${m}.`;
-      });
+      }));
       li.append(b);
       ul.append(li);
     }
@@ -273,7 +328,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       const td = el('td');
       const b = el('button', { type: 'button', 'data-show': m }, m === shown ? 'Shown below' : 'Show details');
       b.setAttribute('aria-label', `Show details of ${m}`);
-      b.addEventListener('click', () => scanOne(m));
+      b.addEventListener('click', guarded(() => scanOne(m)));
       td.append(b);
       tr.append(td);
       body.append(tr);
@@ -318,32 +373,13 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     const out: HTMLElement[] = [];
     out.push(el('h2', { id: 'result-h' }, s.summary.verdict));
     out.push(el('p', { class: 'doc-name' }, `Document: ${main}${p.name !== main ? ` in ${p.name}` : ''}`));
-    out.push(
-      el(
-        'p',
-        { class: 'counts' },
-        `${s.summary.blockers} blockers, ${s.summary.warnings} warnings, ${s.summary.unknown} unknown, ${s.summary.ok} working with tagging.`,
-      ),
-    );
+    out.push(el('p', { class: 'counts' }, countsLine(s.summary)));
     for (const n of s.summary.notes) out.push(el('p', { class: 'note' }, n));
-    if (p.warnings.length) {
-      const sec = el('div', { class: 'project-warnings' });
-      sec.append(el('h3', {}, 'About the files you dropped'));
-      const ul = el('ul');
-      for (const w of p.warnings) ul.append(el('li', {}, w.message));
-      sec.append(ul);
-      out.push(sec);
-    }
+    if (p.warnings.length) out.push(projectWarnings(p));
     if (!scannedAll) out.push(downloads());
     const fg = s.figures;
     out.push(el('h3', {}, 'Figures'));
-    out.push(
-      el(
-        'p',
-        { class: 'figures' },
-        `${fg.images} images (${fg.imagesWithoutAlt} without alt text), ${fg.tikz} TikZ pictures (${fg.tikzWithoutAlt} without alt text).`,
-      ),
-    );
+    out.push(el('p', { class: 'figures' }, figuresLine(fg)));
     for (const g of ['blocker', 'warning', 'unknown', 'ok'] as Group[]) out.push(groupSection(s, g));
     out.push(
       el(

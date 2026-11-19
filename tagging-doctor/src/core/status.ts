@@ -88,8 +88,21 @@ export class StatusIndex {
 
 let cached: Promise<StatusIndex> | null = null;
 
-/** Loads the data file once, as its own chunk, so the first page stays small. */
-export function loadStatus(): Promise<StatusIndex> {
-  cached ??= import('../data/tagging-status.json').then((m) => new StatusIndex((m.default ?? m) as unknown as StatusData));
+/**
+ * Loads the data file once, as its own chunk, so the first page stays small.
+ * A failed load is not kept, so the next drop tries again.
+ */
+export function loadStatus(load: () => Promise<{ default?: unknown }> = () => import('../data/tagging-status.json')): Promise<StatusIndex> {
+  cached ??= load()
+    .then((m) => new StatusIndex((m.default ?? m) as unknown as StatusData))
+    .catch((e: unknown) => {
+      cached = null;
+      throw e;
+    });
   return cached;
+}
+
+/** For tests: forget the loaded data. */
+export function clearStatusCache(): void {
+  cached = null;
 }
