@@ -130,7 +130,7 @@ Still open (section 4 has the next steps):
    - Q7 yes (the gateway row, default caps): check it against release criterion 4 at milestone 2's release.
 5. **20 Nov, 13:23 Barcelona: footer redeploys** (trig_01Ke73kgrjfBaZf3WaSUzzJM). The order changed for the express fix: 20 Nov accessibility-lens and emoji-lingua; 21 Nov mult-streak-edge and accessibility-fleet-log (projects/platform/footer-redeploys.md). Append the outcome for each express app (accessibility-lens, emoji-lingua, mult-streak-edge) to projects/platform/releases/express-advisories.md.
 6. **YPai #48** (digitalme gateway retries, 7af6120): round 3, the last, after #47 merges and main is merged into claude/gateway-retries. Release 21 Nov, on the owner's yes of 06:55:32 UTC.
-7. **Platform follow-up:** deploy.mjs's Render path health-checks about a second after triggering, against the old instance (run 44582576617). It should wait until the deploy is live. This is platform work: a directive, Builder, a fresh Reviewer, PManager's release.
+7. **Platform follow-up, done 19 Nov:** deploy.mjs now waits for the Render deploy to go live before the health check (c32ad8c, Reviewer APPROVE; no app redeployed). Three minor follow-ups (superseded deploy, 202 with no id, 4xx retries) are in hintwise-workflow projects/platform/README.md, 2026-11-19T19:45Z; first real use is the next Render deploy.
 
 ## 5. Decisions and why
 
