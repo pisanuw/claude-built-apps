@@ -714,3 +714,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-19 [code] emoji-lingua: express 4.22.3 (range ^4.22.3), body-parser 1.20.9, proxy-addr 2.0.8, qs 6.16.2 for the proxy-addr (critical), body-parser (high) and qs (moderate) advisories; production audit 3 -> 0; not deployed.
 
 2026-11-19 [code] mult-streak-edge: express 4.22.3 (range ^4.22.3), body-parser 1.20.9, proxy-addr 2.0.8, qs 6.16.2 for the proxy-addr (critical), body-parser (high) and qs (moderate) advisories; production audit 3 -> 0; not deployed.
+
+2026-11-19 [code] accessibility-lens: express 4.22.3 (server range ^4.22.3), body-parser 1.20.9, proxy-addr 2.0.8, qs 6.16.2, form-data 4.0.6 and ws 8.23.0 (both through jsdom) for the proxy-addr (critical), body-parser, form-data and ws (high) and qs (moderate) advisories; production audit 5 -> 0; not deployed.
