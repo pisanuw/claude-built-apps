@@ -35,6 +35,7 @@ import { injectFooterIntoDir } from '../../scripts/site-footer.mjs';
 import { analyticsOrigin, injectAnalyticsIntoDir } from '../../scripts/site-analytics.mjs';
 import { ensureDomainDns, keepOldAlias, resolves } from './cloudflare-dns.mjs';
 import { appDomainFor, oldDomainFor } from '../../scripts/domains.mjs';
+import { waitForRenderDeploy } from './render-wait.mjs';
 
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
@@ -253,6 +254,7 @@ async function deployRender(cfg) {
       body: JSON.stringify({ clearCache: 'do_not_clear' }),
     });
     log(`Deploy triggered: ${deploy?.id ?? '(no id)'} status=${deploy?.status ?? 'queued'}`);
+    await waitForRenderLive(token, found.id, deploy?.id, cfg.projectName);
     const url = found.serviceDetails?.url;
     if (url) {
       ghNotice(`${cfg.projectName} (render): ${url}`);
@@ -291,11 +293,46 @@ async function deployRender(cfg) {
   });
   const svc = created?.service ?? created;
   log(`Created service ${svc?.id ?? '(unknown id)'}. Render will build and deploy it.`);
+  if (!svc?.id) fail(`Render did not return an id for the new service "${cfg.projectName}".`);
+  // The create response does not carry the first deploy's id; waitForRenderLive
+  // finds it with GET /services/{id}/deploys?limit=1.
+  await waitForRenderLive(token, svc.id, undefined, cfg.projectName);
   const createdUrl = svc?.serviceDetails?.url;
   if (createdUrl) {
     ghNotice(`${cfg.projectName} (render): ${createdUrl}`);
     await verifyRenderHealth(createdUrl, r.healthCheckPath ?? '/api/health', cfg.projectName);
   }
+}
+
+/**
+ * Wait until a Render deploy is live before any health check: until then the
+ * old instance still serves traffic and would pass it. With no deployId (a
+ * newly created service) the service's latest deploy is used. A failed or
+ * timed-out deploy fails the job.
+ */
+async function waitForRenderLive(token, serviceId, deployId, projectName) {
+  let id = deployId;
+  const result = await waitForRenderDeploy({
+    label: `${projectName} deploy`,
+    log,
+    fetchStatus: async () => {
+      if (!id) {
+        const list = await renderFetch(token, `/services/${serviceId}/deploys?limit=1`);
+        id = list?.[0]?.deploy?.id;
+        if (!id) return undefined;
+        log(`Waiting on deploy ${id}.`);
+      }
+      const d = await renderFetch(token, `/services/${serviceId}/deploys/${id}`);
+      return d?.status ?? d?.deploy?.status;
+    },
+  });
+  if (!result.ok) {
+    fail(
+      `${result.message} Service ${serviceId}${id ? `, deploy ${id}` : ''}; ` +
+        'the previous version may still be serving. Check the Render dashboard.',
+    );
+  }
+  log(`${projectName} deploy ${id} is live.`);
 }
 
 /**
