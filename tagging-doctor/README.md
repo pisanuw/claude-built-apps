@@ -1,170 +1,101 @@
-# App template
+# Tagging Doctor
 
-The baseline for a weekly HintWise app (design: `docs/platform.md`): Vite,
-TypeScript, vitest with 85% coverage thresholds, ESLint, Playwright, and the
-three platform pieces as small modules under `src/lib/`.
+**https://tagging-doctor.hintwise.org**
 
-## Copying it
+Tagging Doctor tells you what stops your LaTeX course materials (lecture notes,
+problem sets, exams) from producing a tagged PDF, the kind a screen reader can
+follow. Drop a zip of a project, or one `.tex` file, and in a few seconds you
+see each class and package that blocks tagging, the file and line where it is
+loaded, what the LaTeX Project says about it, and a suggested fix.
 
-From the repo root, with the new app's slug (lowercase, dashes):
+The scan runs in your browser. Nothing is uploaded.
 
-```bash
-slug=my-new-app
-cp -r platform/templates/app "$slug"
-cd "$slug"
-# tagging-doctor -> the slug everywhere (APP_SLUG stays a constant name); app_tagging_doctor -> app_ plus the slug with underscores
-grep -rl tagging-doctor . | xargs perl -pi -e "s/app_tagging_doctor/app_${slug//-/_}/g; s/(?<!APP_)tagging-doctor/$slug/g"
-mv supabase/migrations/0001_init.sql.example supabase/migrations/0001_init.sql
-mv deploy/target.yml.example deploy/target.yml
-npm install
-git add -f package-lock.json   # the root .gitignore excludes lockfiles; npm ci needs it
-```
+## How to use it
 
-Then edit:
+1. Zip the folder that holds your project (the main `.tex` file and everything
+   it reads), or pick one `.tex` file.
+2. Drop it on the page, or choose it with **Choose files**.
+3. If the zip holds several documents (a whole course), pick one, or choose
+   **Scan all** for one summary row per document.
+4. Read the blockers first, then the warnings. **Download report** gives you a
+   single HTML file to hand to your accessibility office; **Download JSON**
+   gives the same findings as data.
 
-- `package.json` description, `index.html` title, `src/main.ts` (the
-  placeholder shell), the `README.md` for the business owner.
-- `supabase/migrations/0001_init.sql`: the app's tables (keep `user_id ...
-  default auth.uid()`, the RLS policies and the grants on every table).
-  Uncomment the `platform.llm_apps` insert if the app uses the gateway.
-  Delete the `supabase/` folder and set `supabase: false` (or drop the key)
-  in `target.yml` if the app stores nothing server-side.
-- `deploy/target.yml`: `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from
-  `platform/supabase.json` (if that file does not exist yet, build behind the
-  in-memory repository and list the dependency in HANDOFF.md).
-- `.env.example` stays; a local `.env` with the same two values is git-ignored.
+## What the scan checks
 
-## What is in `src/lib/`
+- Every file the main file reaches: `\input`, `\include`, `\subfile`,
+  `\import`, `\subimport`, `\InputIfFileExists`, and your own class and style
+  files (a shared `course.sty` is read too, with what it loads).
+- Each class and package, against the LaTeX Project's tagging status list:
+  blockers (no support, or not yet compatible), warnings (works in part),
+  unknown (not checked, or not in the list; never shown as fine), and those
+  that work.
+- The preamble: whether `\DocumentMetadata` is there and comes first, the
+  pdfTeX-only `inputenc` and `fontenc`, the document language and a title.
+- Figures: how many `\includegraphics` and `tikzpicture` uses have no alt text.
+- Parts that need a program outside TeX (EPS figures, `svg`, `minted`,
+  `pythontex`, `gnuplottex`, `\tikzexternalize`).
 
-| File | What it gives the app |
+## What it does not do
+
+- It does not certify a document. "No known blockers" means none of
+  the packages it found is listed as a problem; only a compile with tagging on
+  and a PDF/UA check can show how the PDF turns out.
+- It does not change your files.
+- It does not move Beamer slides to another class. Beamer cannot be tagged; the
+  LaTeX Project recommends the `ltx-talk` class for tagged slides.
+- Many common packages (`caption`, `pgfplots`, `algorithm2e`, `minted`) are
+  blockers today, and others (`amsmath`, `hyperref`, `tikz`) work only in part,
+  so most real course documents will show "N blockers found". That is the
+  honest state of tagging in LaTeX, and it changes as the LaTeX Project updates
+  its list.
+
+## What is stored
+
+Nothing. Files named like student records (`grades`, `gradebook`, `roster`,
+`students`, any extension) are left out of the scan and never read; remove
+them from course folders. Visits are counted without cookies.
+
+## Limits
+
+A zip of at most 20 MB, 2000 files and 100 MB unpacked. Password-protected
+zips cannot be read.
+
+## Credits
+
+The package and class data is a converted copy of the LaTeX Project's
+[tagging status list](https://latex3.github.io/tagging-project/tagging-status/)
+(`latex3/tagging-project`, `_data/tagging-status.yml`), under the LaTeX
+Project Public License, version 1.3c or later. The copy's date, commit and
+source are in `src/data/tagging-status.json` and on every report.
+
+## For developers
+
+Vite and TypeScript, no framework. The scan is pure TypeScript in `src/core/`:
+
+| File | What it does |
 |---|---|
-| `supabase.ts` | `getSupabase()` (one client, `db.schema` = the app's schema), `hasSupabase()`, `APP_SLUG`, `APP_SCHEMA` |
-| `auth.ts` | `signInWithGoogle`, `sendMagicLink` (the platform's `sign-in-link` function, never `signInWithOtp`), `completeSignInFromUrl`, `signOut`, `onAuth`, `currentToken`, and `mountSignIn(el)`: plain-DOM sign-in for the right of the top bar, as on UpvoteMe ("Sign in with Google" and "Magic link", whose panel holds the email form and the Turnstile check when asked for; signed in, the person, whose panel holds "Delete my account", and "Sign out") |
-| `signin-styles.ts`, `google-g-light.svg` | the panel's CSS block (added to the page once) and Google's light G, unmodified from signin-assets.zip |
-| `llm.ts` | `ask({system, messages, model?})` in the visitor's mode: `byok` (their key in localStorage `hintwise.anthropicKey`, browser SDK), `gateway` (the owner's key through `llm-gateway` with the session token), `off`; `CapReached` carries the scope and reset time |
-| `repository.ts` | `Repository<T>` (list/get/put/remove), `InMemoryRepository` for tests and `vite preview`, `SupabaseRepository` over one table (the database fills `user_id`) |
-
-## Rules
-
-- Tests never touch the network: pass fakes (`AuthClient`, `AskDeps`, a fake
-  `SupabaseClient`) as the modules' last arguments, as `test/` does. The
-  Playwright walkthrough (`npm run e2e`) runs against `vite preview` built
-  without Supabase env, so the app must work with the in-memory repository.
-- Bring-your-own-key is always offered; the owner's key only through the
-  gateway and its caps; deterministic code wherever it does the job.
-- Do not add the "built by" footer; the deploy injects it. Keep `body` a block
-  or column layout.
-- Quality gates before every push: `npm run lint && npm run typecheck &&
-  npm run coverage && npm run build`.
-
-## Checking the template itself
-
-The template is not a package in CI. To check it, copy it somewhere outside
-the repo, install, and run the gates:
+| `zip.ts` | Reads the zip's directory, checks the limits, inflates one entry at a time with a hard stop at its declared size |
+| `project.ts` | Which entries may be read (no `..` paths, no student records); reads text lazily |
+| `latex.ts` | Comments, commands, arguments, paths |
+| `scan.ts` | Main-file detection, the file walk, the status lookups and the preamble checks |
+| `status.ts` | The status data and its mapping to groups |
+| `report.ts` | The HTML and JSON downloads (`schema/report.schema.json`) |
+| `outzip.ts` | The one place that builds a zip of a project (for the later upload and patch) |
 
 ```bash
-cp -r platform/templates/app /tmp/tmpl-check && cd /tmp/tmpl-check
-npm install && npm run lint && npm run typecheck && npm run coverage && npm run build
+npm ci
+npm run lint && npm run typecheck && npm run coverage && npm run build
+npm run e2e        # Playwright against vite preview
 ```
 
-## Email sign-in links
+To refresh the status data from a newer commit of the list:
 
-`sendMagicLink(email, redirectTo)` posts `{ email, redirectTo, app, browserId }`
-to `<VITE_SUPABASE_URL>/functions/v1/sign-in-link` with the anon key as
-`apikey`. `browserId` is kept in localStorage `hintwise.browserId`. The
-answer is typed: `{status:'sent'}`, `{status:'wait', retryAt}` (shown in the
-visitor's local time), `{status:'challenge', siteKey}`,
-`{status:'suppressed', message}` (the address used the "Stop all email from
-HintWise" link in an email footer: no link is sent, the panel shows the
-message, and Google sign-in still works) or `{status:'error', message}`.
+```bash
+git ls-remote https://github.com/latex3/tagging-project refs/heads/main
+curl -o /tmp/ts.yml https://raw.githubusercontent.com/latex3/tagging-project/<commit>/_data/tagging-status.yml
+npm run status-data -- /tmp/ts.yml <commit> <YYYY-MM-DD>
+```
 
-On a challenge, the panel loads Cloudflare Turnstile once
-(`api.js?render=explicit`) and renders the widget into the panel with
-`action: 'sign-in'`. It sends the request again with the token and resets
-the widget after every request. After three failed checks in a row it stops
-until the visitor asks again.
-
-The emailed link comes back to the page with
-`?token_hash=...&type=email&email_hint=a***@example.com`. `mountSignIn` (or
-`completeSignInFromUrl` in an app with its own UI) takes those out of the
-address bar, then acts on who is signed in:
-- nobody: it calls `verifyOtp`, so the link works in any browser;
-- an account with the same masked address: it keeps the session, says
-  "Already signed in as a***@example.com" and offers "Use the link instead"
-  (masks collide, so the link is never dropped silently);
-- another account: it asks first, with the button "Switch to
-  a***@example.com?", so a link someone else sent cannot silently swap
-  accounts.
-
-An `email_hint` that does not look like `a***@example.com` (`EMAIL_HINT`,
-at most 260 characters) is ignored.
-
-`redirectTo` must be a page of a deployed app: sign-in-link only accepts the
-labels in `platform/src/signin/app-hosts.ts`. After the new app's first
-deploy, run `npm run app-hosts` in `platform/`, commit, and redeploy
-sign-in-link. The contract and the limits are in
-`platform/src/signin/README.md`.
-
-## The sign-in look
-
-The owner's look is UpvoteMe's (https://upvoteme.hintwise.org; BUILD_ROUTINE.md,
-"Google sign-in button", 18 November 2026). Mount `mountSignIn` in an element
-at the right of the app's top bar (`src/main.ts` and `index.html` show one):
-
-- Signed out: two separate outlined pill buttons, "Sign in with Google" and
-  "Magic link" (an envelope). "Magic link" opens a small panel under the
-  buttons with the email form; Escape, a click elsewhere or the button again
-  closes it. (UpvoteMe asks for the address in a browser prompt; the panel
-  is here because it also holds the Turnstile check and the messages.)
-- Signed in: the person (a round badge with their initial, then their
-  address) and "Sign out". The person opens a panel with "Signed in as ...",
-  any message, and "Delete my account".
-- The panel opens on its own when there is something to read or do:
-  "Finish signing in", "Switch to ...?", or a message such as the farewell
-  after "Delete my account".
-- Below 640 px each bar button is a round, bordered, 40px icon button; its
-  label is visually hidden and stays its accessible name. This is the one
-  `@media` block in `signin-styles.ts`, so showing the labels again is a
-  one-block change.
-- The panel is absolutely placed under the bar's right edge, 21.5rem wide
-  (room for Turnstile's 300px widget) and at most the viewport's width less
-  32px. On a phone too narrow for that widget, Turnstile renders its compact
-  form. So keep the sign-in element at the right of the bar: in a flex bar,
-  `.hw-signin` keeps its width (`flex: none`), and `margin-left: auto` keeps
-  it at the right when the bar wraps.
-- Escape closes the panel wherever the focus is, and so does the focus
-  moving to another part of the page.
-- An app with a dark theme restyles the bar's buttons and `.hw-signin-panel`
-  too (qualified-overtime-checker and lewis-alt-text show how, with Google's
-  dark values and dark G).
-
-## The Google button
-
-It follows Google's branding guidelines (BUILD_ROUTINE.md, "Google sign-in
-button"):
-
-- the text "Sign in with Google";
-- Google's standard G, unmodified (`src/lib/google-g-light.svg` is the
-  light icon from signin-assets.zip, shown through a 20px window);
-- the light theme: #FFFFFF fill, 1px #747775 border, #1F1F1F text;
-- 14px/20px type at weight 500;
-- 12px before the logo, 10px after it, 12px after the text;
-- a pill shape;
-- the same size and weight as the "Magic link" button;
-- below 640 px, the G alone in its round bordered button, with "Sign in
-  with Google" as its accessible name (the owner's choice for phones;
-  whether Google's guidelines allow an icon-only G was not checked).
-
-The font stack is `'Google Sans', Roboto, Arial, sans-serif`. The template
-loads no external fonts, so Roboto or Arial stand in unless the app already
-loads Google Sans from Google Fonts. Do not restyle the button. For a dark
-page, use the guideline's dark values and the dark asset from the same zip.
-`test/auth.test.ts` pins the text, the G (byte for byte) and the border.
-
-## Profiles
-
-The platform keeps one `platform.profiles` row per user, but it has no trigger
-on Supabase's `auth.users` (the shared project does not allow one). The
-sign-in panel (`mountSignIn`) calls `ensureProfile()` from `src/lib/auth.ts`
-once per signed-in user; an app with its own sign-in UI calls it itself. It
-never throws; a missing profile row does not stop the app.
+Fixtures for the tests are small projects in `test/fixtures/`; the tests zip
+them on the fly.

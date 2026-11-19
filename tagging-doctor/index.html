@@ -3,15 +3,44 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>tagging-doctor</title>
+    <title>Tagging Doctor: what stops your LaTeX from a tagged PDF</title>
+    <meta name="description" content="Drop a LaTeX project and see, in your browser, which classes and packages block a tagged PDF, with the file, the line and a suggested fix." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 1000'%3E%3Crect width='1000' height='1000' rx='250' fill='%23312E81'/%3E%3Cg transform='translate%280 1000%29 scale%281 -1%29'%3E%3Cpath fill='%23FFFFFF' d='M557 253V442Q557 467 541 483Q525 499 501 499Q484 499 471 492Q458 485 450 472Q443 459 443 442L403 461Q403 500 419 529Q435 558 465 574Q494 590 532 590Q571 590 600 574Q629 558 645 530Q661 502 661 465V253ZM339 253V747H443V253Z'/%3E%3Cpath fill='%23FF7A45' d='M750 893 L781 781 L893 750 L781 719 L750 607 L719 719 L607 750 L719 781Z'/%3E%3C/g%3E%3C/svg%3E%0A" />
     <style>
       /* Keep body a column (or a plain block): the deploy adds a footer after #app. */
-      body { margin: 0; font: 16px/1.5 system-ui, sans-serif; color: #1a1a1a; background: #fff; }
-      #app { max-width: 48rem; margin: 0 auto; padding: 1.5rem 1rem; }
-      /* The top bar: the app's name at the left, sign-in at the right (it stays at the right when it wraps). */
+      :root { --ink: #1a1a1a; --muted: #4a4a4a; --line: #767676; --accent: #312e81; --bg: #fff; --soft: #f4f4f7; }
+      body { margin: 0; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); }
+      #app { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem; }
       .top-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
-      .top-bar h1 { margin: 0; min-width: 0; overflow-wrap: anywhere; }
-      /* The sign-in panel adds its own styles: src/lib/signin-styles.ts. */
+      .top-bar h1 { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: 1.6rem; color: var(--accent); }
+      h2 { font-size: 1.3rem; margin: 1.5rem 0 0.5rem; }
+      h3 { font-size: 1.1rem; margin: 1.25rem 0 0.4rem; }
+      .lede { font-size: 1.05rem; }
+      .drop { border: 2px dashed var(--line); border-radius: 0.75rem; padding: 1rem 1.25rem; background: var(--soft); }
+      .drop.over { border-color: var(--accent); background: #ecebff; }
+      .drop h2 { margin-top: 0; }
+      button { font: inherit; padding: 0.45rem 0.9rem; border-radius: 0.5rem; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+      button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid #1a4fa0; outline-offset: 2px; }
+      .status { min-height: 1.5em; color: var(--muted); }
+      .error p { color: #b3261e; font-weight: 600; }
+      .note { font-weight: 600; }
+      .doc-list { list-style: none; padding: 0; display: grid; gap: 0.4rem; }
+      .doc-list button { max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+      table { border-collapse: collapse; width: 100%; margin: 0.5rem 0; }
+      th, td { border: 1px solid var(--line); padding: 0.3rem 0.5rem; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+      caption { text-align: left; font-weight: 600; }
+      .table-wrap { overflow-x: auto; }
+      ul.findings { list-style: none; padding: 0; }
+      li.finding { border-left: 4px solid var(--line); padding: 0.25rem 0.75rem; margin: 0.6rem 0; }
+      li.blocker { border-color: #b3261e; } li.warning { border-color: #8a5300; } li.unknown { border-color: #4a4a8a; } li.ok { border-color: #1e6b34; }
+      .f-title { margin-bottom: 0.2rem; overflow-wrap: anywhere; }
+      .where, .source, .meta, .help { color: var(--muted); font-size: 0.92rem; }
+      .excerpt { background: var(--soft); padding: 0.3rem 0.5rem; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.85rem; }
+      details.group > summary { font-weight: 600; font-size: 1.1rem; margin: 1.25rem 0 0.4rem; cursor: pointer; }
+      .downloads { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+      a { color: #1a4fa0; }
+      p, li { overflow-wrap: anywhere; }
     </style>
   </head>
   <body>
