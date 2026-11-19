@@ -115,7 +115,7 @@ Still open (section 4 has the next steps):
    - F1 (a yes typed in another session; not the review's finding F1, the Watchdog alarms) is already applied on main by the owner's instruction (CHARTER.md, Communication, 93947b1). PR B leaves F1 out; keep main's sentence where the branch's CHARTER.md edits overlap it.
    - A fresh Reviewer (top tier) checks each PR before the owner merges. Only the owner merges. PR #1 stays open as the source.
    - After each merge, do hand-off items H1 to H5 in projects/workflow/pmanager-handoff.md (on the branch). H1 includes the ledger lines for the review session's answers, "1a 2 agree 3 agree 4 yes".
-2. **20 Nov, 09:00 Barcelona (08:00 UTC): YPai #47 release,** scheduled task trig_0156DPbYvHFbU89bjsgiq2qV. Its prompt has the steps.
+2. **20 Nov, 09:00 Barcelona (08:00 UTC): YPai #47 release,** scheduled task trig_01TWYbtNXsPnDxP6vCuo4wZN. Its prompt has the steps.
    - The owner approved the GATEWAY_STREAM=1 set-env run in advance (ledger 2026-11-19T14:35Z). The owner must still click Approve in GitHub between 09:00 and 10:00 Barcelona: send the link.
    - Merge #47 (5da03a6) with a merge commit without `[skip netlify]`, at 10:00 Barcelona or as soon as the run has finished.
    - The sender stays as it is (owner, "Stream only"). Send no chat message yourself (a reply is a paid call); ask the owner to try one.
@@ -128,7 +128,7 @@ Still open (section 4 has the next steps):
    - day 2 starts at 02:49 Los Angeles time (11:49 Barcelona): milestone 2, with the app's first migration;
    - the T2 scope defaults (Q2 to Q6, Q8, Q9) are taken at 2026-11-20T11:50 UTC (12:50 Barcelona) unless the owner answers (inbox/2026-11-19-tagging-doctor-spec-t2.md); a paid Render plan (Q5) stays T3;
    - Q7 yes (the gateway row, default caps): check it against release criterion 4 at milestone 2's release.
-5. **20 Nov, 13:23 Barcelona: footer redeploys** (trig_01W7LHJXGx2ekKemn6hPJeBp). The order changed for the express fix: 20 Nov accessibility-lens and emoji-lingua; 21 Nov mult-streak-edge and accessibility-fleet-log (projects/platform/footer-redeploys.md). Append the outcome for each express app (accessibility-lens, emoji-lingua, mult-streak-edge) to projects/platform/releases/express-advisories.md.
+5. **20 Nov, 13:23 Barcelona: footer redeploys** (trig_01Ke73kgrjfBaZf3WaSUzzJM). The order changed for the express fix: 20 Nov accessibility-lens and emoji-lingua; 21 Nov mult-streak-edge and accessibility-fleet-log (projects/platform/footer-redeploys.md). Append the outcome for each express app (accessibility-lens, emoji-lingua, mult-streak-edge) to projects/platform/releases/express-advisories.md.
 6. **YPai #48** (digitalme gateway retries, 7af6120): round 3, the last, after #47 merges and main is merged into claude/gateway-retries. Release 21 Nov, on the owner's yes of 06:55:32 UTC.
 7. **Platform follow-up:** deploy.mjs's Render path health-checks about a second after triggering, against the old instance (run 44582576617). It should wait until the deploy is live. This is platform work: a directive, Builder, a fresh Reviewer, PManager's release.
 
@@ -269,13 +269,13 @@ Also open, no action now:
 - **Previous session: session_01JyJzMXY6RAmKb5w3vkqBjo ("PManager: Nov 18"),** lineage depth 0 of limit 8 (a new lineage, started by hand by the owner).
   - Created 18 Nov 05:28 UTC; took over 18 Nov 05:30 UTC (06:30 Barcelona time), for the handoff of 18 November (f8641db).
   - Handed over on 19 Nov at about 18:45 UTC (19:45 Barcelona time), at the owner's suggestion. It starts the next session with create_session, so that session should read depth 1 (check with get_session).
-- **Current session:** to be written by the new session at takeover.
-- **The relay's routines** (all aimed at the previous session; the new session moves them):
-  - trig_01D3w33bL8kxHA46VLTrnKNc: PManager hourly check, `46 * * * *`;
-  - trig_01PwhDWfkjdf2pxLNMyp52a8: Plabs handoff check: hand over only when due, `CRON_TZ=America/Los_Angeles 56 4 * * *` (hands over at 500,000 used tokens, the owner's Q23 answer);
-  - trig_01Ck5e8Yy3vvwQ1BSF6cJnE2: Plabs daily handoff: start the next session (create_session), `CRON_TZ=America/Los_Angeles 52 5 * * *`;
-  - trig_01W7LHJXGx2ekKemn6hPJeBp: Footer redeploys, two apps a day, `CRON_TZ=Europe/Madrid 23 13 * * *`;
-  - one-shot: trig_0156DPbYvHFbU89bjsgiq2qV, YPai #47 release day, 2026-11-20T08:00Z (09:00 Barcelona).
+- **Current session: session_01JyJzMZdo2cwHjA4hcPLrcu ("PManager: Nov 19"),** lineage depth 1 of limit 8, parent session_01JyJzMXY6RAmKb5w3vkqBjo. Created 19 Nov 18:45:58 UTC by create_session; took over on 19 Nov at 18:47 UTC (19:47 Barcelona time) and moved the five routines below.
+- **The relay's routines** (aimed at the current session since 19 Nov 18:47 UTC; the old ids trig_01D3w33bL8kxHA46VLTrnKNc, trig_01PwhDWfkjdf2pxLNMyp52a8, trig_01Ck5e8Yy3vvwQ1BSF6cJnE2, trig_01W7LHJXGx2ekKemn6hPJeBp and trig_0156DPbYvHFbU89bjsgiq2qV are deleted):
+  - trig_01FEYJzMcZfH5Z61dZTAAiBh: PManager hourly check, `46 * * * *`;
+  - trig_01NK9e6hncKTF9CqeRKBYPyj: Plabs handoff check: hand over only when due, `CRON_TZ=America/Los_Angeles 56 4 * * *` (hands over at 500,000 used tokens, the owner's Q23 answer);
+  - trig_01W9QnQzfzpLzRZ72Jx2dK3Q: Plabs daily handoff: start the next session (create_session), `CRON_TZ=America/Los_Angeles 52 5 * * *`;
+  - trig_01Ke73kgrjfBaZf3WaSUzzJM: Footer redeploys, two apps a day, `CRON_TZ=Europe/Madrid 23 13 * * *`;
+  - one-shot: trig_01TWYbtNXsPnDxP6vCuo4wZN, YPai #47 release day, 2026-11-20T08:00Z (09:00 Barcelona).
 - **Handover checks:**
   - 19 Nov, 12:56 UTC: no handover. Context was 101,271 of 500,000 (20%) after an auto-compaction; the session was 1 day 7 hours old. The owner set `CLAUDE_CODE_AUTO_COMPACT_WINDOW=500000` on the environment (seen 19 Nov; compaction point 441,600). Owner's answer to Q23, "1" (19 Nov, 13:03 UTC): the check hands over at 500,000 tokens, 50% of the 1M window, not at 50% of max_tokens (which now reads 500,000). Compaction keeps a session below that, so handovers come at 6 days, on request, or on failure. trig_01PwhDWfkjdf2pxLNMyp52a8 is updated; the YPai session updates its own check.
   - 19 Nov, about 18:45 UTC: handover at the owner's suggestion (ledger 18:26 UTC). Context was 400,172 of 500,000, with compaction at 441,600; the PR #1 edits would have crossed it.
