@@ -1,0 +1,18 @@
+\DocumentMetadata{lang=en-US}
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{tikz}
+\title{Figures}
+\begin{document}
+\includegraphics[width=3cm, alt={A plot of y = x^2, rising}]{img/plot}
+\includegraphics[width=3cm]{img/photo.png}
+\includegraphics[artifact]{img/rule}
+\includegraphics*[scale=0.5]{img/old}
+\begin{tikzpicture}[alt={Two nodes joined by an arrow}]
+\draw (0,0) -- (1,0);
+\end{tikzpicture}
+\begin{tikzpicture}
+\draw (0,0) circle (1);
+\end{tikzpicture}
+\includegraphics{img/diagram.eps}
+\end{document}
