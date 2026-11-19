@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blankComments, dirOf, extOf, findCommands, keyValues, lineIndex, readGroup, resolvePath, splitList } from '../src/core/latex';
+import { blankComments, dirOf, extOf, findCommands, groupEnds, keyValues, lineIndex, resolvePath, splitList } from '../src/core/latex';
 
 describe('blankComments', () => {
   it('blanks comments but keeps \\% and offsets', () => {
@@ -18,6 +18,40 @@ describe('blankComments', () => {
   });
 });
 
+describe('review round 1: the reader', () => {
+  const specs = { usepackage: { args: 1 }, documentclass: { args: 1 }, includegraphics: { args: 1 }, input: { args: 1, bare: true }, title: { args: 1 } };
+
+  it('R1.1-6: blanks \\verb, \\verb* and \\lstinline, and keeps the rest of the line', () => {
+    const src = 'Write \\verb|\\documentclass{beamer}| and \\verb*+\\usepackage{tabu}+ and \\lstinline!\\usepackage{caption}! and \\lstinline[language=TeX]{\\usepackage{x}} then \\usepackage{real}';
+    const out = blankComments(src);
+    expect(out).toHaveLength(src.length);
+    expect(findCommands(out, specs).map((c) => c.args[0])).toEqual(['real']);
+  });
+
+  it('R1.1-6: a % inside \\url{...} or the first argument of \\href does not start a comment', () => {
+    const src = '\\href{http://a/b%20c}{x} \\url{http://e/%41} \\includegraphics{a.eps} % real comment \\usepackage{tabu}';
+    const out = blankComments(src);
+    expect(findCommands(out, specs).map((c) => [c.name, c.args[0]])).toEqual([['includegraphics', 'a.eps']]);
+    expect(out).toContain('http://a/b%20c');
+  });
+
+  it('R1.1-11: hostile repeated input is read in linear time', () => {
+    const t0 = performance.now();
+    findCommands(blankComments('\\input{'.repeat(100_000)), specs);
+    findCommands(blankComments('\\title['.repeat(100_000)), specs);
+    findCommands(blankComments('\\input '.repeat(100_000)), specs);
+    blankComments('\\begin{comment}\\end{comment}'.repeat(50_000));
+    blankComments('\\verb|'.repeat(100_000));
+    blankComments('\\url{'.repeat(100_000));
+    expect(performance.now() - t0).toBeLessThan(3000);
+  });
+
+  it('R1.1-11: still reads a long but closed argument', () => {
+    const long = `\\title{${'x'.repeat(5000)}}`;
+    expect(findCommands(long, specs)[0].args[0]).toHaveLength(5000);
+  });
+});
+
 describe('lineIndex', () => {
   it('maps offsets to 1-based lines', () => {
     const at = lineIndex('ab\ncd\n\nef');
@@ -25,13 +59,17 @@ describe('lineIndex', () => {
   });
 });
 
-describe('readGroup', () => {
-  it('reads balanced braces and brackets', () => {
-    expect(readGroup('{a{b}c}d', 0, '{', '}')).toEqual(['a{b}c', 7]);
-    expect(readGroup('[x={a]b}, y][z]', 0, '[', ']')).toEqual(['x={a]b}, y', 12]);
-    expect(readGroup('{a\\}b}', 0, '{', '}')).toEqual(['a\\}b', 6]);
-    expect(readGroup('{open', 0, '{', '}')).toBeNull();
-    expect(readGroup('x', 0, '{', '}')).toBeNull();
+describe('groupEnds', () => {
+  const end = (s: string, j: number) => groupEnds(s)[j];
+  it('closes braces and brackets at their own level', () => {
+    expect(end('{a{b}c}d', 0)).toBe(6);
+    expect(end('[x={a]b}, y][z]', 0)).toBe(11);
+    expect(end('[x={a]b}, y][z]', 12)).toBe(14);
+    expect(end('{a\\}b}', 0)).toBe(5);
+    expect(end('{open', 0)).toBe(-1);
+    expect(end('[a{b]', 0)).toBe(-1);
+    expect(end('[a}b]', 0)).toBe(4);
+    expect(end('[a[b]c]', 0)).toBe(6);
   });
 });
 

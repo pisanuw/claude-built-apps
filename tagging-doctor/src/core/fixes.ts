@@ -47,7 +47,7 @@ export const CURATED: Record<string, { fix: Fix; replacements: string[] }> = {
 
 /** The named fix for a package, class or library finding; null when nothing needs doing. */
 export function suggestedFix(name: string, kind: StatusEntry['type'], group: Group, status: string | undefined): Fix | null {
-  const curated = CURATED[name];
+  const curated = Object.hasOwn(CURATED, name) ? CURATED[name] : undefined;
   if (curated && group !== 'ok') return curated.fix;
   const what = kind === 'class' ? `the ${name} class` : kind === 'library' ? `the ${name} library` : `the ${name} package`;
   switch (group) {

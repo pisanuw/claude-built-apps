@@ -331,6 +331,86 @@ describe('suggested fixes', () => {
   });
 });
 
+describe('review round 1: the scan', () => {
+  const doc = (pre: string, body = '') => `\\DocumentMetadata{lang=en-US}\\documentclass{article}\\title{t}${pre}\n\\begin{document}\n${body}\n\\end{document}`;
+
+  it('R1.1-5: stops reading the main file at \\end{document}', () => {
+    const s = scanTex(`${doc('')}\nOld: \\usepackage{tabu} \\includegraphics{old.eps} \\input{gone}\n`);
+    expect(s.summary.verdict).toBe('No known blockers');
+    expect(s.findings.filter((f) => f.severity === 'warning')).toEqual([]);
+    expect(s.figures.images).toBe(0);
+  });
+
+  it('R1.1-6: inline verbatim and % in addresses, through the whole scan', () => {
+    const body = 'Write \\verb|\\documentclass{beamer}| and \\verb|\\usepackage{tabu}| and \\lstinline!\\usepackage{caption}!\n\\href{http://a/b%20c}{x} \\includegraphics{a.eps}';
+    const s = scanTex(doc('', body));
+    expect(s.summary.verdict).toBe('No known blockers');
+    expect(s.figures.images).toBe(1);
+    expect(s.findings.filter((f) => f.rule === 'outside-program')).toHaveLength(1);
+  });
+
+  it('R1.1-7: what a \\subfile reads resolves against the subfile\'s own folder', () => {
+    const p = openProject('p.zip', rawZip([
+      { name: 'main.tex', data: doc('', '\\subfile{chapters/ch1}') },
+      { name: 'chapters/ch1.tex', data: '\\documentclass[../main.tex]{subfiles}\n\\begin{document}\n\\input{sec1}\n\\includegraphics{fig}\n\\input{shared}\n\\end{document}' },
+      { name: 'chapters/sec1.tex', data: '\\usepackage{tabu}' },
+      { name: 'chapters/fig.eps', data: 'x' },
+      { name: 'shared.tex', data: 'Found through the main folder, as older subfiles versions do.' },
+    ]));
+    const s = scanDocument(p, 'main.tex', idx);
+    expect(s.filesRead).toEqual(['main.tex', 'chapters/ch1.tex', 'chapters/sec1.tex', 'shared.tex']);
+    expect(byPkg(s, 'tabu')[0]).toMatchObject({ path: 'chapters/sec1.tex' });
+    expect(s.findings.filter((f) => f.rule === 'outside-program')).toHaveLength(1);
+    expect(s.findings.filter((f) => f.rule === 'missing-file')).toEqual([]);
+  });
+
+  it('R1.1-11: hostile files scan in linear time', () => {
+    const t0 = performance.now();
+    for (const body of ['\\input x '.repeat(80_000), '\\input{'.repeat(100_000), '\\title['.repeat(100_000), '\\usepackage{a}'.repeat(50_000), '\\includegraphics{a.eps}'.repeat(30_000), '\\begin{comment}\\end{comment}'.repeat(50_000)]) {
+      scanTex(`\\documentclass{article}\\begin{document}${body}`);
+    }
+    expect(performance.now() - t0).toBeLessThan(8000);
+  });
+
+  it('R1.1-11: names a missing file once, however often it is read', () => {
+    const s = scanTex(doc('', '\\input{gone}\\input{gone}\\input{/etc/x}\\input{/etc/x}'));
+    expect(s.findings.filter((f) => f.rule === 'missing-file' || f.rule === 'outside-project')).toHaveLength(2);
+  });
+
+  it('R1.1-12: a package named like an Object property is just unknown', () => {
+    const s = scanTex(doc('\\usepackage{constructor,toString,hasOwnProperty}'));
+    expect(s.findings.filter((f) => f.rule === 'outside-program')).toEqual([]);
+    for (const n of ['constructor', 'toString', 'hasOwnProperty']) {
+      expect(byPkg(s, n)[0]).toMatchObject({ severity: 'unknown', fix: { name: `Check ${n} by hand` } });
+    }
+    expect(suggestedFix('constructor', 'package', 'blocker', 'no-support')?.name).toBe('Replace constructor');
+  });
+
+  it('R1.1-14: a figure inside a macro definition is not counted', () => {
+    const s = scanTex(doc('\\newcommand{\\fig}[1]{\\includegraphics{#1}}', '\\fig{a}\\fig{b}\\includegraphics[alt={x}]{c}'));
+    expect(s.figures).toMatchObject({ images: 1, imagesWithoutAlt: 0 });
+  });
+
+  it('R1.1-14: babel options from every file count, so a language set in the main file is kept', () => {
+    const p = openProject('p.zip', rawZip([
+      { name: 'main.tex', data: '\\documentclass{article}\\usepackage[french]{babel}\\usepackage{course}\\title{t}\\begin{document}\\end{document}' },
+      { name: 'course.sty', data: '\\RequirePackage{babel}' },
+    ]));
+    expect(scanDocument(p, 'main.tex', idx).findings.filter((f) => f.rule === 'no-language')).toEqual([]);
+  });
+
+  it('R1.1-14: an empty alt or actualtext is not alt text', () => {
+    const s = scanTex(doc('', '\\includegraphics[alt={}]{a}\\includegraphics[alt=]{b}\\includegraphics[actualtext={ }]{c}\\includegraphics[alt={A cat}]{d}\\begin{tikzpicture}[alt={}]\\end{tikzpicture}'));
+    expect(s.figures).toMatchObject({ images: 4, imagesWithoutAlt: 3, tikz: 1, tikzWithoutAlt: 1 });
+  });
+
+  it('R1.1-14: a file left out as a student record is named as such, not as missing', () => {
+    const p = openProject('p.zip', zipFixture('students'));
+    const f = scanDocument(p, 'main.tex', idx).findings.find((x) => x.rule === 'missing-file');
+    expect(f?.message).toBe('students is in the zip but was left out as a student record, so the scan did not read it.');
+  });
+});
+
 function zipFixtureText(name: string, file: string): Uint8Array {
   const p = openProject(`${name}.zip`, zipFixture(name));
   return p.bytes(file);

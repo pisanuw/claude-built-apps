@@ -7,22 +7,84 @@
 /** Environments whose contents are not LaTeX commands. */
 const VERBATIM_ENVS = ['verbatim', 'verbatim*', 'Verbatim', 'lstlisting', 'minted', 'comment', 'filecontents', 'filecontents*'];
 
+/** Longest argument of \verb or \lstinline the reader blanks; past it, the line is read as LaTeX. */
+const MAX_INLINE = 1000;
+/** Longest \url{...} or \href first argument in which a % is not a comment. */
+const MAX_URL = 2000;
+
+const isLetter = (c: string | undefined) => c !== undefined && ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'));
+
 /**
- * The source with comments and verbatim contents replaced by spaces, newlines
- * kept, so offsets and line numbers match the original.
+ * The source with comments, verbatim environments, and the arguments of
+ * \verb, \verb* and \lstinline replaced by spaces, newlines kept, so offsets
+ * and line numbers match the original. A % inside \url{...} or the first
+ * argument of \href is part of the address, not a comment. Linear time.
  */
 export function blankComments(src: string): string {
+  const n = src.length;
   const out = src.split('');
+  // nextNl[i]: the index of the first newline at or after i (n if none).
+  const nextNl = new Int32Array(n + 1);
+  nextNl[n] = n;
+  for (let k = n - 1; k >= 0; k--) nextNl[k] = src.charCodeAt(k) === 10 ? k : nextNl[k + 1];
+  const word = (at: number, w: string) => src.startsWith(w, at) && !isLetter(src[at + w.length]);
+
+  /** Blanks a delimited argument starting at j (its delimiter); returns where to go on. */
+  const blankInline = (j: number): number => {
+    const d = src[j];
+    if (d === undefined || d === '\n' || d === ' ' || isLetter(d)) return j;
+    const close = d === '{' ? '}' : d;
+    const stop = Math.min(nextNl[j + 1 > n ? n : j + 1], j + 1 + MAX_INLINE);
+    for (let k = j + 1; k < stop; k++) {
+      if (src[k] === close) {
+        for (let x = j + 1; x < k; x++) out[x] = ' ';
+        return k + 1;
+      }
+    }
+    return j;
+  };
+
   let i = 0;
-  while (i < out.length) {
-    const c = out[i];
+  while (i < n) {
+    const c = src[i];
     if (c === '\\') {
+      if (word(i + 1, 'verb') || src.startsWith('verb*', i + 1)) {
+        const j = i + 5 + (src[i + 5] === '*' ? 1 : 0);
+        i = Math.max(blankInline(j), i + 2);
+        continue;
+      }
+      if (word(i + 1, 'lstinline')) {
+        let j = i + 10;
+        if (src[j] === '[') {
+          const stop = Math.min(nextNl[j], j + MAX_INLINE);
+          const close = src.indexOf(']', j);
+          if (close >= 0 && close < stop) j = close + 1;
+        }
+        i = Math.max(blankInline(j), i + 2);
+        continue;
+      }
+      const urlCmd = word(i + 1, 'url') ? 4 : word(i + 1, 'href') ? 5 : 0;
+      if (urlCmd) {
+        let j = i + urlCmd;
+        while (src[j] === ' ') j++;
+        if (src[j] === '{') {
+          const stop = Math.min(nextNl[j], j + MAX_URL);
+          let k = j + 1;
+          while (k < stop && src[k] !== '}') k++;
+          if (k < stop) {
+            i = k + 1;
+            continue;
+          }
+        }
+        i += 2;
+        continue;
+      }
       // Skip the escaped character, so \% is text, not a comment.
       i += 2;
       continue;
     }
     if (c === '%') {
-      while (i < out.length && out[i] !== '\n') out[i++] = ' ';
+      while (i < n && src[i] !== '\n') out[i++] = ' ';
       continue;
     }
     i++;
@@ -32,15 +94,19 @@ export function blankComments(src: string): string {
     const begin = `\\begin{${env}}`;
     const end = `\\end{${env}}`;
     let from = 0;
+    let changed = false;
     for (;;) {
       const b = text.indexOf(begin, from);
       if (b < 0) break;
       const bodyStart = b + begin.length;
       const e = text.indexOf(end, bodyStart);
-      const bodyEnd = e < 0 ? text.length : e;
-      text = text.slice(0, bodyStart) + text.slice(bodyStart, bodyEnd).replace(/[^\n]/g, ' ') + text.slice(bodyEnd);
-      from = bodyEnd + end.length;
+      const bodyEnd = e < 0 ? n : e;
+      for (let k = bodyStart; k < bodyEnd; k++) if (out[k] !== '\n') out[k] = ' ';
+      changed = true;
+      if (e < 0) break;
+      from = e + end.length;
     }
+    if (changed) text = out.join('');
   }
   return text;
 }
@@ -76,30 +142,51 @@ function skipSpace(s: string, i: number): number {
   return i;
 }
 
-/** Reads a balanced group starting at s[i] (which must be `open`); returns [content, next index] or null. */
-export function readGroup(s: string, i: number, open: string, close: string): [string, number] | null {
-  if (s[i] !== open) return null;
-  let depth = 0;
-  // Inside [...], brackets within braces ({a[1]}) do not count.
+/**
+ * For every `{` and `[` in s, the index of the character that closes it, or
+ * -1 when nothing does; in one pass, so the reader stays linear. Braces nest
+ * as TeX's do; a bracket closes only at its own brace level (`[x={a]b}]`
+ * closes at the last `]`); an escaped character never counts.
+ */
+export function groupEnds(s: string): Int32Array {
+  const ends = new Int32Array(s.length).fill(-1);
+  const stack: number[] = [];
   let braces = 0;
-  for (let j = i; j < s.length; j++) {
+  for (let j = 0; j < s.length; j++) {
     const c = s[j];
     if (c === '\\') {
       j++;
       continue;
     }
-    if (open !== '{') {
-      if (c === '{') braces++;
-      else if (c === '}') braces--;
-      if (braces !== 0 || c === '{' || c === '}') continue;
-    }
-    if (c === open) depth++;
-    else if (c === close) {
-      depth--;
-      if (depth === 0) return [s.slice(i + 1, j), j + 1];
+    if (c === '{') {
+      stack.push(j);
+      braces++;
+    } else if (c === '[') stack.push(j);
+    else if (c === '}') {
+      if (!braces) continue;
+      for (;;) {
+        const top = stack.pop() as number;
+        if (s[top] === '{') {
+          ends[top] = j;
+          braces--;
+          break;
+        }
+      }
+    } else if (c === ']') {
+      const top = stack[stack.length - 1];
+      if (top !== undefined && s[top] === '[') {
+        stack.pop();
+        ends[top] = j;
+      }
     }
   }
-  return null;
+  return ends;
+}
+
+/** Reads the group that opens at s[j]; [content, next index] or null. */
+function group(s: string, ends: Int32Array, j: number): [string, number] | null {
+  const e = ends[j];
+  return e < 0 ? null : [s.slice(j + 1, e), e + 1];
 }
 
 /**
@@ -122,6 +209,8 @@ export function findCommands(src: string, specs: Record<string, CommandSpec>): C
   if (!names.length) return [];
   const re = new RegExp(`\\\\(${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?![a-zA-Z@])`, 'g');
   const out: Command[] = [];
+  const ends = groupEnds(src);
+  const bare = /[^\s{}%\\]+/y;
   for (let m = re.exec(src); m; m = re.exec(src)) {
     // A preceding backslash means this is \\name (a line break, then text).
     let bs = 0;
@@ -140,21 +229,22 @@ export function findCommands(src: string, specs: Record<string, CommandSpec>): C
     while (args.length < spec.args) {
       const j = skipSpace(src, i);
       if (src[j] === '[') {
-        const g = readGroup(src, j, '[', ']');
+        const g = group(src, ends, j);
         if (!g) break;
         opts.push(g[0]);
         i = g[1];
         continue;
       }
       if (src[j] === '{') {
-        const g = readGroup(src, j, '{', '}');
+        const g = group(src, ends, j);
         if (!g) break;
         args.push(g[0]);
         i = g[1];
         continue;
       }
       if (spec.bare && args.length === 0) {
-        const t = /^[^\s{}%\\]+/.exec(src.slice(j));
+        bare.lastIndex = j;
+        const t = bare.exec(src);
         if (t && j > i) {
           args.push(t[0]);
           i = j + t[0].length;
@@ -166,7 +256,7 @@ export function findCommands(src: string, specs: Record<string, CommandSpec>): C
     // One trailing optional argument (\usepackage{x}[date], \documentclass{c}[date]).
     const j = skipSpace(src, i);
     if (args.length === spec.args && src[j] === '[') {
-      const g = readGroup(src, j, '[', ']');
+      const g = group(src, ends, j);
       if (g) opts.push(g[0]);
     }
     if (args.length < spec.args) continue;

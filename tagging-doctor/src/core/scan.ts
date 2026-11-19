@@ -169,10 +169,14 @@ interface Ctx {
   beamer: boolean;
 }
 
+/** The line around an offset, at most 200 characters; it looks at most 200 back and 200 ahead, so it stays fast on one huge line. */
 function excerptAt(text: string, offset: number): string {
-  const start = text.lastIndexOf('\n', offset - 1) + 1;
-  let end = text.indexOf('\n', offset);
-  if (end < 0) end = text.length;
+  let start = offset;
+  const lo = Math.max(0, offset - 200);
+  while (start > lo && text[start - 1] !== '\n') start--;
+  let end = offset;
+  const hi = Math.min(text.length, offset + 200);
+  while (end < hi && text[end] !== '\n') end++;
   const line = text.slice(start, end).trim();
   return line.length > 200 ? `${line.slice(0, 199)}…` : line;
 }
@@ -280,6 +284,11 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
   if (text === null) return;
   ctx.filesRead.push(path);
   let src = blankComments(text);
+  if (role === 'main') {
+    // TeX stops reading the main file at \end{document}.
+    const end = /\\end\s*\{document\}/.exec(src);
+    if (end) src = src.slice(0, end.index + end[0].length) + src.slice(end.index + end[0].length).replace(/[^\n]/g, ' ');
+  }
   const lineOf = lineIndex(src);
   const at = (offset: number): Where => ({ path, line: lineOf(offset), excerpt: excerptAt(text, offset) });
 
@@ -396,8 +405,10 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
   }
 }
 
+/** An `alt` or `actualtext` with some text, or `artifact` (decorative). */
 function hasAltKey(kv: Map<string, string>): boolean {
-  return kv.has('alt') || kv.has('artifact') || kv.has('actualtext');
+  const filled = (k: string) => (kv.get(k) ?? '').replace(/^\{([\s\S]*)\}$/, '$1').trim() !== '';
+  return filled('alt') || filled('actualtext') || kv.has('artifact');
 }
 
 function loadClass(ctx: Ctx, c: Command, base: string, where: Where): void {
@@ -429,7 +440,7 @@ function loadPackages(ctx: Ctx, c: Command, base: string, where: Where): void {
         detail: 'LuaLaTeX reads UTF-8 source and uses Unicode fonts on its own; the engine fix removes this line.',
       }, { package: pkg, kind: 'package' });
     }
-    const outside = OUTSIDE_PROGRAM_PACKAGES[pkg];
+    const outside = Object.hasOwn(OUTSIDE_PROGRAM_PACKAGES, pkg) ? OUTSIDE_PROGRAM_PACKAGES[pkg] : undefined;
     if (firstTime && outside) {
       warn(ctx, 'outside-program', where, `${OUTSIDE_PROGRAM} ${outside}`, {
         name: `Replace what ${pkg} produces with files made beforehand`,
@@ -438,7 +449,7 @@ function loadPackages(ctx: Ctx, c: Command, base: string, where: Where): void {
     }
     if (pkg === 'hyperref' && opts.some((o) => /^pdftitle\s*=/.test(o))) ctx.titleSet = true;
     if (pkg === 'babel') {
-      ctx.babelOptions = opts;
+      ctx.babelOptions = [...(ctx.babelOptions ?? []), ...opts];
       for (const o of opts) {
         if (o.includes('=')) {
           const m = /^main\s*=\s*(.+)$/.exec(o);
@@ -460,6 +471,12 @@ function includeFile(ctx: Ctx, c: Command, base: string, fromBase: string, ref: 
   const bases = base === fromBase ? [base, ctx.mainDir] : [base];
   const found = locate(ctx.project, [...new Set(bases)], names);
   const shown = c.args.length === 2 ? `${c.args[0]}${c.args[1]}` : r;
+  // One warning per path, however often a file names it.
+  if (found.kind !== 'found') {
+    const key = `${found.kind}:${shown}`;
+    if (ctx.seenNames.has(key)) return;
+    ctx.seenNames.add(key);
+  }
   if (found.kind === 'outside') {
     warn(ctx, 'outside-project', where, `${OUTSIDE_PROJECT} (${shown})`, {
       name: 'Copy the file into the project',
@@ -468,6 +485,19 @@ function includeFile(ctx: Ctx, c: Command, base: string, fromBase: string, ref: 
     return;
   }
   if (found.kind === 'missing') {
+    const leftOut = [...new Set(bases)].some((b) =>
+      names.some((n) => {
+        const r = resolvePath(b, n);
+        return r.kind === 'inside' && ctx.project.leftOut.includes(r.path);
+      }),
+    );
+    if (leftOut) {
+      warn(ctx, 'missing-file', where, `${shown} is in the zip but was left out as a student record, so the scan did not read it.`, {
+        name: 'Rename the file, or remove it',
+        detail: 'If it is course material, rename it so its name does not look like a student record (grades, gradebook, roster, students); if it holds student data, remove it and the line that reads it.',
+      });
+      return;
+    }
     warn(ctx, 'missing-file', where, `${shown} is not in the zip, so the scan could not read it.`, {
       name: 'Add the file to the zip',
       detail: 'Zip the whole project folder, so every file the document reads is inside.',
@@ -481,12 +511,15 @@ function includeFile(ctx: Ctx, c: Command, base: string, fromBase: string, ref: 
       detail: '\\include writes a .aux file next to the included file, and the checker only writes inside the main file’s folder.',
     });
   }
-  // An \import-style command makes its folder the base for what the file reads in turn.
-  visitFile(ctx, found.path, base, 'input');
+  // An \import-style command makes its folder the base for what the file reads
+  // in turn; so does \subfile, which loads the file through import.
+  visitFile(ctx, found.path, c.name === 'subfile' ? dirOf(found.path) : base, 'input');
 }
 
 function addImage(ctx: Ctx, c: Command, base: string, where: Where): void {
   const file = c.args[0].trim();
+  // Inside a macro definition (\includegraphics{#1}): not a figure of its own.
+  if (file.includes('#')) return;
   const kv = keyValues(c.opts.join(','));
   ctx.figures.push({ kind: 'image', path: where.path, line: where.line, file, hasAlt: hasAltKey(kv) });
   const ext = extOf(file);
