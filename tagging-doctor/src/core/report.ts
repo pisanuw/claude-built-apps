@@ -170,7 +170,7 @@ function documentHtml(d: DocumentScan, level: number): string {
   return out.join('\n');
 }
 
-const REPORT_CSS = `
+export const REPORT_CSS = `
 body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#1a1a1a;background:#fff}
 main{max-width:52rem;margin:0 auto;padding:1.5rem 1rem}
 h1{font-size:1.6rem;margin:0 0 .5rem}h2{font-size:1.3rem;margin:1.5rem 0 .5rem}h3{font-size:1.1rem;margin:1.25rem 0 .4rem}h4{font-size:1rem}
@@ -180,7 +180,7 @@ li.blocker{border-color:#b3261e}li.warning{border-color:#8a5300}li.unknown{borde
 .where{color:#444;font-size:.9rem}.excerpt{background:#f4f4f4;padding:.3rem .5rem;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.85rem}
 .source,.read,.meta{color:#444;font-size:.9rem}.caveat{border:1px solid #767676;padding:.5rem .75rem}
 a{color:#1a4fa0}p{overflow-wrap:anywhere}
-@media print{a{color:inherit}}
+@media print{a{color:inherit}tr{break-inside:avoid}}
 `;
 
 /** One HTML file with inline styles and no scripts, images or external loads (AC-11). */

@@ -2,8 +2,11 @@ import fs from 'node:fs';
 import { expect, test, type Request } from '@playwright/test';
 import { fiftyFileZip, zipFixture } from '../test/fixture-zip';
 
-// The walkthrough runs against `vite preview` (playwright.config.ts). Milestone 1
-// has no sign-in and no server: the scan runs in the browser.
+// The walkthrough runs against `vite preview` (playwright.config.ts), built
+// without Supabase env: the scan runs in the browser, and sign-in is the
+// template's controls on a stand-in that signs a preview person in, with
+// courses kept in memory (src/ui/preview-account.ts). Nothing reaches the
+// network.
 
 const BASE = 'http://localhost:4173';
 
@@ -116,4 +119,95 @@ test('the page has no horizontal scroll at 375 px after a scan', async ({ page }
   await expect(page.locator('#result-h')).toHaveText('2 blockers found');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
+});
+
+test('AC-16 to AC-21, AC-24, AC-26: sign in, save to a course, rescan, open the course and its report', async ({ page }) => {
+  const requests = record(page);
+  await page.goto('/');
+  // AC-16: two separate buttons at the right of the top bar; the scan works signed out.
+  const bar = page.locator('.top-bar #signin');
+  await expect(bar.getByRole('button', { name: 'Sign in with Google' })).toBeVisible();
+  await expect(bar.getByRole('button', { name: 'Magic link' })).toBeVisible();
+  await page.locator('#file').setInputFiles({ name: 'hw1.zip', mimeType: 'application/zip', buffer: Buffer.from(zipFixture('blockers')) });
+  await expect(page.locator('#result-h')).toHaveText('2 blockers found');
+  // "Save" opens sign-in.
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#save-h')).toHaveText('Sign in to save');
+  await expect(page.locator('#save').getByRole('link', { name: 'What we keep' })).toBeVisible();
+  await page.locator('#save').getByRole('button', { name: 'Sign in with Google' }).click();
+
+  // AC-17: the save dialog, a new course and a project name.
+  await expect(page.locator('#save-h')).toHaveText('Save to a course');
+  await page.getByLabel('Course name').fill('Calculus I');
+  await page.getByLabel('Term (optional)').fill('Fall 2026');
+  await expect(page.getByLabel('Project name')).toHaveValue('hw1');
+  await page.locator('#save').getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#save .save-status')).toContainText('Saved “hw1” to Calculus I, Fall 2026.');
+
+  // AC-21: a new version of the same project.
+  await page.locator('#file').setInputFiles({ name: 'hw1.zip', mimeType: 'application/zip', buffer: Buffer.from(zipFixture('multi')) });
+  await expect(page.locator('#result-h')).toHaveText('2 blockers found');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#save-course')).toHaveValue(/.+/);
+  await page.locator('#save').getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#save .save-status')).toContainText(/Saved a new scan of “hw1” in Calculus I, Fall 2026\. \d+ blockers? fixed and \d+ new since the previous scan\./);
+
+  // AC-18, AC-19: My courses and the course page.
+  await page.getByRole('link', { name: 'My courses' }).click();
+  await expect(page.locator('#page-h')).toHaveText('My courses');
+  await expect(page.locator('#page tbody tr')).toHaveCount(1);
+  await page.getByRole('link', { name: 'Calculus I, Fall 2026' }).click();
+  await expect(page.locator('#page-h')).toHaveText('Calculus I, Fall 2026');
+  await expect(page.locator('#page tbody tr').first()).toContainText('hw1');
+  await expect(page.locator('#page tbody tr').first()).toContainText('2 blockers found');
+
+  // AC-20: the printable report, and its download.
+  await page.getByRole('link', { name: 'Course report' }).click();
+  await expect(page.locator('#course-report-h')).toHaveText('Course report: Calculus I, Fall 2026');
+  await page.emulateMedia({ media: 'print' });
+  await expect(page.locator('.top-bar')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Print' })).toBeHidden();
+  await expect(page.locator('.course-report table').first()).toBeVisible();
+  await page.emulateMedia({ media: 'screen' });
+  const [html] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download HTML' }).click()]);
+  expect(html.suggestedFilename()).toBe('tagging-doctor-course-Calculus-I.html');
+
+  // AC-24: Export my data.
+  await page.getByRole('link', { name: 'My courses' }).click();
+  const [exp] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export my data' }).click()]);
+  const data = JSON.parse(fs.readFileSync(await exp.path(), 'utf8'));
+  expect(data.courses).toHaveLength(1);
+  expect(data.scans).toHaveLength(2);
+
+  // AC-26: What we keep.
+  await page.getByRole('link', { name: 'What we keep' }).first().click();
+  await expect(page.locator('#page-h')).toHaveText('What we keep');
+  await expect(page.locator('#page')).toContainText('Your sources are never stored.');
+
+  // AC-2 and AC-13 still hold with sign-in mounted: nothing went to another host.
+  for (const r of requests) {
+    const u = new URL(r.url());
+    if (u.protocol === 'http:' || u.protocol === 'https:') expect(u.origin, r.url()).toBe(BASE);
+  }
+});
+
+test('AC-13: the built scripts name only the hosts the criterion lists', async () => {
+  const dir = 'dist/assets';
+  const allowed = new Set([
+    'tagging-doctor.hintwise.org',
+    'latex3.github.io',
+    'github.com',
+    // Cloudflare Turnstile, loaded by the sign-in panel when the sign-in-link function asks for a check (CR-3).
+    'challenges.cloudflare.com',
+    // The SVG namespace in the favicon and icons, not a load.
+    'www.w3.org',
+    // supabase-js's default auth address, replaced by VITE_SUPABASE_URL (auth.hintwise.org) in every client the app makes.
+    'localhost',
+  ]);
+  const seen = new Set<string>();
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.js'))) {
+    for (const m of fs.readFileSync(`${dir}/${f}`, 'utf8').matchAll(/https?:\/\/([a-z0-9.-]+)/gi)) seen.add(m[1].toLowerCase());
+  }
+  for (const h of seen) expect(allowed.has(h), h).toBe(true);
+  expect(seen.has('challenges.cloudflare.com')).toBe(true);
 });

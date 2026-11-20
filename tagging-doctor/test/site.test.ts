@@ -34,16 +34,28 @@ describe('AC-13: the page loads nothing from another host', () => {
     expect(html).toMatch(/<script type="module" src="\/src\/main\.ts"><\/script>/);
   });
 
-  it('the bundled code makes no network call and names only link hosts', () => {
+  it('the bundled code names only the hosts AC-13 lists, and only sign-in makes network calls', () => {
     const files = bundled();
-    expect(files).toEqual(expect.arrayContaining(['src/main.ts', 'src/ui/app.ts', 'src/core/scan.ts', 'src/core/zip.ts', 'src/data/tagging-status.json']));
-    expect(files.some((f) => f.startsWith('src/lib/'))).toBe(false);
+    expect(files).toEqual(
+      expect.arrayContaining(['src/main.ts', 'src/ui/app.ts', 'src/ui/pages.ts', 'src/core/scan.ts', 'src/core/zip.ts', 'src/data/tagging-status.json', 'src/lib/auth.ts', 'src/lib/store.ts', 'src/ui/preview-account.ts']),
+    );
+    // The model call (milestone 5) is not mounted yet.
+    expect(files).not.toContain('src/lib/llm.ts');
     const linkHosts = new Set(['latex3.github.io', 'github.com', 'tagging-doctor.hintwise.org', 'json-schema.org']);
+    // AC-13 (CR-3): the sign-in panel loads Cloudflare Turnstile when the sign-in-link function asks for a check.
+    const loadHosts = new Set(['challenges.cloudflare.com']);
+    // The calls of sign-in (sign-in-link, delete-account) go to VITE_SUPABASE_URL, auth.hintwise.org in target.yml.
+    const callers = new Set(['src/lib/auth.ts', 'src/lib/account.ts']);
     for (const f of files) {
-      const body = read(f);
-      expect(body, f).not.toMatch(/\bfetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon|EventSource|importScripts/);
-      for (const m of body.matchAll(/https?:\/\/([a-z0-9.-]+)/gi)) expect(linkHosts, `${f}: ${m[0]}`).toContain(m[1].toLowerCase());
+      const body = read(f).replace(/\/\*[\s\S]*?\*\//g, '');
+      if (!callers.has(f)) expect(body, f).not.toMatch(/\bfetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon|EventSource|importScripts/);
+      for (const m of body.matchAll(/https?:\/\/([a-z0-9.-]+)/gi)) {
+        const host = m[1].toLowerCase();
+        expect(linkHosts.has(host) || (loadHosts.has(host) && f === 'src/lib/auth.ts'), `${f}: ${m[0]}`).toBe(true);
+      }
     }
+    const target = read('deploy/target.yml');
+    expect(target).toMatch(/VITE_SUPABASE_URL: https:\/\/auth\.hintwise\.org\n/);
   });
 
   it('sets no content security policy of its own in this milestone', () => {

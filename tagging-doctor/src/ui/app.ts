@@ -1,8 +1,11 @@
 /**
- * The scan screen: a drop area with "Choose files", progress, errors, the
- * document chooser and "Scan all" (AC-5), the findings, and the downloads.
- * Plain DOM; every dependency that touches the browser comes in through
- * AppDeps, so tests run it under jsdom.
+ * The page: the scan screen (a drop area with "Choose files", progress,
+ * errors, the document chooser and "Scan all" (AC-5), the findings, the
+ * downloads, and Save), the sign-in controls in the top bar (AC-16), and the
+ * pages of src/ui/pages.ts behind hash routes (#/courses, #/course/<id>,
+ * #/course/<id>/report, #/project/<id>, #/what-we-keep). Plain DOM; every
+ * dependency that touches the browser comes in through AppDeps, so tests run
+ * it under jsdom.
  */
 import { openProject, type Project } from '../core/project';
 import { buildReport, countsLine, downloadName, figuresLine, GROUP_HELP, GROUP_TITLES, leftOutLine, reportHtml, reportJson, where, findingTitle } from '../core/report';
@@ -10,15 +13,40 @@ import { COULD_NOT_SCAN, findMainFiles, scanDocument, type DocumentScan, type Fi
 import { plainWords } from '../core/fixes';
 import type { Group, StatusIndex } from '../core/status';
 import { LIMITS, ZipError } from '../core/zip';
+import { defaultProjectName, toStoredScan, type SaveItem } from '../core/saved';
+import type { CourseStore } from '../lib/store';
+import { KEEP_HASH, renderCourse, renderCourseReport, renderCourses, renderKeep, renderProject, renderSaveDialog, type PageCtx } from './pages';
+
+/** Sign-in and the signed-in person's saved data. */
+export interface Account {
+  /** Draws the sign-in controls into el: the two buttons, or the person and "Sign out" (AC-16). */
+  mountSignIn(el: HTMLElement): void;
+  /** Calls back with the person now and on every change. */
+  onUser(cb: (user: { id: string } | null) => void): void;
+  /** The signed-in person's saved courses. */
+  store(): CourseStore;
+}
 
 export interface AppDeps {
   loadStatus: () => Promise<StatusIndex>;
   now: () => Date;
   /** sessionStorage, or null where it is not available. */
-  session: Pick<Storage, 'getItem' | 'setItem'> | null;
+  session: (Pick<Storage, 'getItem' | 'setItem'> & { removeItem?: Storage['removeItem'] }) | null;
   download: (name: string, type: string, content: string) => void;
   /** Lets the browser paint between files. */
   pause: () => Promise<void>;
+  /** Sign-in and saving; without it the page offers neither. */
+  account?: Account;
+  confirm?: (message: string) => boolean;
+  print?: () => void;
+}
+
+/** sessionStorage key of a save asked for before signing in (it holds what a saved scan holds, no more). */
+export const PENDING_KEY = 'tagging-doctor.pending-save';
+
+interface PendingSave {
+  mode: 'one' | 'all';
+  items: SaveItem[];
 }
 
 /** What the page needs from a dropped or chosen file. */
@@ -50,8 +78,17 @@ export function shellHtml(): string {
   return `
   <header class="top-bar">
     <h1>Tagging Doctor</h1>
+    <nav class="pages" aria-label="Pages">
+      <a href="#/">Scan</a>
+      <a href="#/courses" id="nav-courses" hidden>My courses</a>
+      <a href="${KEEP_HASH}">What we keep</a>
+    </nav>
+    <div id="signin"></div>
   </header>
   <main>
+    <section id="page" aria-labelledby="page-h" hidden></section>
+    <div id="scan-view">
+    <div id="pending" class="pending" hidden></div>
     <p class="lede">Find out what stops your LaTeX course materials from producing a tagged PDF, file by file, before the April 2027 deadline.</p>
     <section id="drop" class="drop" aria-labelledby="drop-h">
       <h2 id="drop-h">Scan a project</h2>
@@ -70,9 +107,11 @@ export function shellHtml(): string {
         <li>It reads the main file, every file it inputs or includes, and the project's own class and style files.</li>
         <li>It looks up each class and package in the LaTeX Project's tagging status list, and checks the preamble for what tagging needs.</li>
         <li>It counts figures and how many have no alt text.</li>
-        <li>It does not compile anything, and it does not change your files. Files named like student records (grades, gradebook, roster, students) are left out and never read.</li>
+        <li>It does not compile anything, and it does not change your files. Files named like student records (grades, gradebook, roster, students), and files in folders named so, are left out and never read.</li>
       </ul>
+      <p>Signed in, you can save scans to a course and see the whole course at once. <a href="${KEEP_HASH}">What we keep</a> says what is stored.</p>
     </section>
+    </div>
   </main>`;
 }
 
@@ -86,6 +125,15 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   const docsEl = $<HTMLElement>('docs');
   const allEl = $<HTMLElement>('all');
   const resultEl = $<HTMLElement>('result');
+  const pageEl = $<HTMLElement>('page');
+  const scanView = $<HTMLElement>('scan-view');
+  const pendingEl = $<HTMLElement>('pending');
+  const navCourses = $<HTMLElement>('nav-courses');
+  const savePanel = el('section', { id: 'save', class: 'save-panel', 'aria-labelledby': 'save-h' });
+  savePanel.hidden = true;
+  const account = deps.account;
+  let signedIn = false;
+  let saveItems: { mode: 'one' | 'all'; items: SaveItem[] } | null = null;
 
   let project: Project | null = null;
   let index: StatusIndex | null = null;
@@ -146,6 +194,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     scans = new Map();
     shown = null;
     scannedAll = false;
+    hideSave();
   }
 
   function showError(message: string) {
@@ -354,7 +403,114 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     html.addEventListener('click', () => deps.download(downloadName((project as Project).name, 'html'), 'text/html', reportHtml(currentReport())));
     json.addEventListener('click', () => deps.download(downloadName((project as Project).name, 'json'), 'application/json', reportJson(currentReport())));
     wrap.append(html, ' ', json);
+    if (account) {
+      const save = el('button', { type: 'button', class: 'save' }, scannedAll ? 'Save all to a course' : 'Save');
+      save.addEventListener('click', () => openSave(wrap, scannedAll ? 'all' : 'one'));
+      wrap.append(' ', save);
+    }
     return wrap;
+  }
+
+  /** What a save of the scan on screen holds (AC-17, AC-23). */
+  function currentItems(mode: 'one' | 'all'): SaveItem[] {
+    const p = project as Project;
+    const asOf = (index as StatusIndex).data.asOf;
+    if (mode === 'all') return mains.map((m) => ({ name: m, mainFile: m, scan: toStoredScan(scans.get(m) as DocumentScan, asOf) }));
+    const main = shown as string;
+    return [{ name: mains.length > 1 ? main : defaultProjectName(p.name), mainFile: main, scan: toStoredScan(scans.get(main) as DocumentScan, asOf) }];
+  }
+
+  /** "Save": the save dialog when signed in; signed out, sign-in, keeping the save for after it (AC-16). */
+  function openSave(after: HTMLElement, mode: 'one' | 'all', items: SaveItem[] = currentItems(mode)) {
+    saveItems = { mode, items };
+    after.after(savePanel);
+    savePanel.hidden = false;
+    drawSave();
+    (savePanel.querySelector('#save-h') as HTMLElement | null)?.focus();
+  }
+
+  function drawSave() {
+    if (!saveItems || !account) return;
+    const { mode, items } = saveItems;
+    if (signedIn) {
+      clearPending();
+      renderSaveDialog(savePanel, { store: account.store(), items, mode, onClose: closeSave });
+      return;
+    }
+    writePending({ mode, items });
+    const h = el('h3', { id: 'save-h', tabindex: '-1' }, 'Sign in to save');
+    const why = el('p', {}, 'Saving keeps this scan’s report under a course, so you can see the whole course at once. Sign in with Google or with a link by email:');
+    const box = el('div', { class: 'save-signin' });
+    const note = el('p', { class: 'help' });
+    const keep = el('a', { href: KEEP_HASH }, 'What we keep');
+    note.append('Your files stay in this browser. After signing in, choose “Save” again if the page asks. ', keep);
+    const cancel = el('button', { type: 'button' }, 'Cancel');
+    cancel.addEventListener('click', closeSave);
+    const actions = el('p');
+    actions.append(cancel);
+    savePanel.replaceChildren(h, why, box, note, actions);
+    account.mountSignIn(box);
+  }
+
+  function hideSave() {
+    saveItems = null;
+    savePanel.hidden = true;
+    savePanel.replaceChildren();
+  }
+
+  /** Cancel: the save asked for is dropped, also the one kept for after sign-in. */
+  function closeSave() {
+    hideSave();
+    clearPending();
+  }
+
+  function readPending(): PendingSave | null {
+    try {
+      const raw = deps.session?.getItem(PENDING_KEY);
+      const v = raw ? (JSON.parse(raw) as PendingSave) : null;
+      return v && Array.isArray(v.items) && v.items.length ? v : null;
+    } catch {
+      return null;
+    }
+  }
+  function writePending(v: PendingSave) {
+    try {
+      deps.session?.setItem(PENDING_KEY, JSON.stringify(v));
+    } catch {
+      // Storage full or blocked: the save is then asked for again after sign-in.
+    }
+  }
+  function clearPending() {
+    try {
+      deps.session?.removeItem?.(PENDING_KEY);
+    } catch {
+      // Nothing to clear.
+    }
+  }
+
+  /** After a sign-in that reloaded the page: offer the save asked for before it. */
+  function showPending() {
+    const p = signedIn && !saveItems ? readPending() : null;
+    pendingEl.hidden = !p;
+    if (!p) {
+      pendingEl.replaceChildren();
+      return;
+    }
+    const names = p.items.map((i) => i.name).join(', ');
+    const text = el('p', {}, `You scanned ${names} before signing in. Save ${p.items.length === 1 ? 'it' : 'them'} to a course?`);
+    const go = el('button', { type: 'button', class: 'primary' }, p.mode === 'all' ? 'Save all to a course' : 'Save to a course');
+    const actions = el('p');
+    go.addEventListener('click', () => {
+      pendingEl.hidden = true;
+      openSave(actions, p.mode, p.items);
+    });
+    const drop = el('button', { type: 'button' }, 'Discard');
+    drop.addEventListener('click', () => {
+      clearPending();
+      showPending();
+    });
+    actions.append(go, ' ', drop);
+    pendingEl.replaceChildren(text, actions);
   }
 
   function currentReport() {
@@ -435,7 +591,71 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     return li;
   }
 
-  return { handleFile };
+  // ---- Pages and sign-in ----------------------------------------------------
+
+  let routeGen = 0;
+  let currentHash = '';
+  const go = (hash: string) => {
+    if (typeof location !== 'undefined' && location.hash !== hash) location.hash = hash;
+    else void route(hash);
+  };
+  const pageCtx = (gen: number): PageCtx => ({
+    store: () => (account && signedIn ? account.store() : null),
+    now: deps.now,
+    download: deps.download,
+    confirm: deps.confirm ?? (() => true),
+    print: deps.print ?? (() => {}),
+    current: () => gen === routeGen,
+  });
+
+  /** Shows the page a hash names; anything else is the scan screen. */
+  async function route(hash: string): Promise<void> {
+    const gen = ++routeGen;
+    currentHash = hash;
+    const h = hash.replace(/^#/, '');
+    const m = /^\/(courses|what-we-keep|course\/([^/]+)(\/report)?|project\/([^/]+))$/.exec(h);
+    if (!m) {
+      pageEl.hidden = true;
+      pageEl.replaceChildren();
+      scanView.hidden = false;
+      document.body.classList.remove('printing-report');
+      return;
+    }
+    scanView.hidden = true;
+    pageEl.hidden = false;
+    document.body.classList.toggle('printing-report', !!m[3]);
+    const ctx = pageCtx(gen);
+    let done: Promise<void>;
+    if (m[1] === 'courses') done = renderCourses(pageEl, ctx);
+    else if (m[1] === 'what-we-keep') {
+      renderKeep(pageEl);
+      done = Promise.resolve();
+    } else if (m[2] && m[3]) done = renderCourseReport(pageEl, ctx, decodeURIComponent(m[2]));
+    else if (m[2]) done = renderCourse(pageEl, ctx, decodeURIComponent(m[2]), go);
+    else done = renderProject(pageEl, ctx, decodeURIComponent(m[4]), go);
+    (pageEl.querySelector('#page-h, #course-report-h') as HTMLElement | null)?.focus();
+    await done;
+    if (gen === routeGen) (pageEl.querySelector('#page-h, #course-report-h') as HTMLElement | null)?.focus();
+  }
+
+  if (account) {
+    account.mountSignIn($('signin'));
+    let first = true;
+    account.onUser((user) => {
+      const was = signedIn;
+      signedIn = !!user;
+      navCourses.hidden = !signedIn;
+      if (saveItems) drawSave();
+      showPending();
+      // A page that depends on who is signed in is drawn again.
+      if ((first || was !== signedIn) && !pageEl.hidden) void route(currentHash);
+      first = false;
+    });
+  }
+  if (typeof window !== 'undefined') window.addEventListener('hashchange', () => void route(location.hash));
+  if (typeof location !== 'undefined' && location.hash) void route(location.hash);
+
+  return { handleFile, route };
 }
 
 function wrapTable(table: HTMLElement): HTMLElement {
