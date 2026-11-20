@@ -3,7 +3,7 @@
  * and a JSON report that follows schema/report.schema.json.
  */
 import { plainWords } from './fixes';
-import type { ProjectWarning } from './project';
+import type { LeftOutFolder, ProjectWarning } from './project';
 import type { DocumentScan, Finding } from './scan';
 import type { Group, StatusData } from './status';
 
@@ -19,7 +19,7 @@ export interface ScanReport {
   format: typeof REPORT_FORMAT;
   tool: { name: string; url: string };
   generatedAt: string;
-  project: { name: string; leftOut: string[] };
+  project: { name: string; leftOut: string[]; leftOutFolders: LeftOutFolder[] };
   data: { asOf: string; source: string; page: string; commit: string; licence: string; note: string };
   caveat: string;
   projectWarnings: ProjectWarning[];
@@ -33,12 +33,13 @@ export function buildReport(
   documents: DocumentScan[],
   data: StatusData,
   now: Date,
+  leftOutFolders: LeftOutFolder[] = [],
 ): ScanReport {
   return {
     format: REPORT_FORMAT,
     tool: { name: 'Tagging Doctor', url: 'https://tagging-doctor.hintwise.org' },
     generatedAt: now.toISOString(),
-    project: { name: projectName, leftOut: [...leftOut] },
+    project: { name: projectName, leftOut: [...leftOut], leftOutFolders: leftOutFolders.map((f) => ({ ...f })) },
     data: {
       asOf: data.asOf,
       source: data.source.url,
@@ -56,6 +57,12 @@ export function buildReport(
 /** "1 blocker" or "2 blockers". */
 export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
+}
+
+/** How many files were left out as student records in all (AC-70), or '' for none. */
+export function leftOutLine(n: number): string {
+  if (!n) return '';
+  return `${n === 1 ? '1 file was' : `${n} files were`} left out as student records in all.`;
 }
 
 /** The counts line next to the verdict. */
@@ -189,6 +196,8 @@ export function reportHtml(report: ScanReport): string {
     body.push('<h2>About the files</h2><ul>');
     for (const w of report.projectWarnings) body.push(`<li>${escapeHtml(w.message)}</li>`);
     body.push('</ul>');
+    const lo = leftOutLine(report.project.leftOut.length);
+    if (lo) body.push(`<p class="left-out">${escapeHtml(lo)}</p>`);
   }
   if (many) {
     body.push(`<h2>Summary of ${report.documents.length} documents</h2>`);

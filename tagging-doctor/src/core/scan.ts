@@ -171,15 +171,18 @@ interface Ctx {
 }
 
 /**
- * The line around an offset, at most 200 characters. On a long line it starts
- * about 60 characters before the offset (with an ellipsis), so it shows what
- * was flagged; it never looks further than 200 characters either way.
+ * The line around an offset, at most 200 characters. The whole line when it
+ * starts at most about 140 characters before the offset; on a longer line it
+ * starts about 60 characters before the offset (with an ellipsis), so it
+ * shows what was flagged (R1.3-4). It never looks further than 200
+ * characters either way.
  */
 function excerptAt(text: string, offset: number): string {
   let start = offset;
-  const lo = Math.max(0, offset - 60);
+  const lo = Math.max(0, offset - 140);
   while (start > lo && text[start - 1] !== '\n') start--;
   const cut = start > 0 && text[start - 1] !== '\n';
+  if (cut) start = Math.max(0, offset - 60);
   let end = offset;
   const hi = Math.min(text.length, offset + 200);
   while (end < hi && text[end] !== '\n') end++;
@@ -293,9 +296,8 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
   let src = blankComments(text);
   if (role === 'main') {
     // TeX stops reading the main file at \end{document}.
-    // Only one outside every brace group: not one inside a macro definition.
-    const stopAt = topLevelEndDocument(src);
-    if (stopAt >= 0) src = src.slice(0, stopAt) + src.slice(stopAt).replace(/[^\n]/g, ' ');
+    const stop = endOfDocument(src, 0);
+    if (stop) src = src.slice(0, stop.end) + src.slice(stop.end).replace(/[^\n]/g, ' ');
   }
   const lineOf = lineIndex(src);
   const at = (offset: number): Where => ({ path, line: lineOf(offset), excerpt: excerptAt(text, offset) });
@@ -306,9 +308,10 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
     const dc = cmds.find((c) => c.name === 'documentclass');
     if (dc) {
       const begin = src.search(/\\begin\s*\{document\}/);
-      const end = src.search(/\\end\s*\{document\}/);
+      // The same end as a main file's, searched from \begin{document} (R1.3-4).
+      const end = begin >= 0 ? endOfDocument(src, begin) : null;
       if (begin >= 0) {
-        src = ' '.repeat(begin) + src.slice(begin, end >= 0 ? end : src.length);
+        src = ' '.repeat(begin) + src.slice(begin, end ? end.start : src.length);
         cmds = findCommands(src, SPECS);
       }
     }
@@ -413,23 +416,36 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
   }
 }
 
-/** The offset just after the first \end{document} at brace depth 0, or -1. */
-function topLevelEndDocument(src: string): number {
+/**
+ * Where the document ends: the first \end{document} from `from` that stands
+ * outside every brace group, so one inside a macro definition does not cut
+ * the file (R1.2-2). When none does, because a `{` is never closed, the first
+ * \end{document} after \begin{document} ends it (R1.3-2); TeX finishes such a
+ * file there, with a warning. One before \begin{document} can only be inside
+ * a definition. Null when there is none.
+ */
+function endOfDocument(src: string, from: number): { start: number; end: number } | null {
+  const bodyAt = src.slice(from).search(/\\begin\s*\{document\}/);
+  const body = bodyAt < 0 ? -1 : from + bodyAt;
   const re = /\\end\s*\{document\}/g;
+  re.lastIndex = from;
   let depth = 0;
-  let from = 0;
+  let k = from;
+  let first: { start: number; end: number } | null = null;
   for (let m = re.exec(src); m; m = re.exec(src)) {
-    for (let k = from; k < m.index; k++) {
+    for (; k < m.index; k++) {
       const c = src[k];
       if (c === '\\') k++;
       else if (c === '{') depth++;
       else if (c === '}' && depth > 0) depth--;
     }
-    from = m.index + m[0].length;
-    if (depth === 0) return from;
+    const hit = { start: m.index, end: m.index + m[0].length };
+    if (depth === 0) return hit;
+    if (body >= 0 && m.index > body) first ??= hit;
     // The match's own braces balance, so the depth after it is unchanged.
+    k = hit.end;
   }
-  return -1;
+  return first;
 }
 
 /** An `alt` or `actualtext` with some text, or `artifact` (decorative). */
@@ -498,12 +514,18 @@ function includeFile(ctx: Ctx, c: Command, base: string, fromBase: string, ref: 
   const bases = base === fromBase ? [base, ctx.mainDir] : [base];
   const found = locate(ctx.project, [...new Set(bases)], names);
   const shown = c.args.length === 2 ? `${c.args[0]}${c.args[1]}` : r;
+  // A file left out as a student record, if that is where the reference points.
+  const leftOutPath =
+    found.kind === 'missing'
+      ? [...new Set(bases)].flatMap((b) => names.map((n) => resolvePath(b, n))).find((x) => x.kind === 'inside' && ctx.project.leftOut.includes(x.path))
+      : undefined;
   // One warning per path, however often a file names it.
   if (found.kind !== 'found') {
     // The key is where the reference points, not how it is written: the same
-    // text in two folders names two files.
+    // text in two folders names two files; a left-out file is one file,
+    // however many folders name it (R1.3-4).
     const first = resolvePath(bases[0], names[0]);
-    const key = `${found.kind}:${first.kind === 'inside' ? first.path : shown}`;
+    const key = leftOutPath?.kind === 'inside' ? `left-out:${leftOutPath.path}` : `${found.kind}:${first.kind === 'inside' ? first.path : shown}`;
     if (ctx.seenNames.has(key)) return;
     ctx.seenNames.add(key);
   }
@@ -515,16 +537,10 @@ function includeFile(ctx: Ctx, c: Command, base: string, fromBase: string, ref: 
     return;
   }
   if (found.kind === 'missing') {
-    const leftOut = [...new Set(bases)].some((b) =>
-      names.some((n) => {
-        const r = resolvePath(b, n);
-        return r.kind === 'inside' && ctx.project.leftOut.includes(r.path);
-      }),
-    );
-    if (leftOut) {
+    if (leftOutPath) {
       warn(ctx, 'left-out-file', where, `${shown} is in the zip but was left out as a student record, so the scan did not read it.`, {
         name: 'Rename the file, or remove it',
-        detail: 'If it is course material, rename it so its name does not look like a student record (grades, gradebook, roster, students); if it holds student data, remove it and the line that reads it.',
+        detail: 'If it is course material, rename it (or its folder) so the name does not look like a student record (grades, gradebook, roster, students); if it holds student data, remove it and the line that reads it.',
       });
       return;
     }

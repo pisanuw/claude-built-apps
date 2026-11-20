@@ -5,7 +5,7 @@
  * AppDeps, so tests run it under jsdom.
  */
 import { openProject, type Project } from '../core/project';
-import { buildReport, countsLine, downloadName, figuresLine, GROUP_HELP, GROUP_TITLES, reportHtml, reportJson, where, findingTitle } from '../core/report';
+import { buildReport, countsLine, downloadName, figuresLine, GROUP_HELP, GROUP_TITLES, leftOutLine, reportHtml, reportJson, where, findingTitle } from '../core/report';
 import { COULD_NOT_SCAN, findMainFiles, scanDocument, type DocumentScan, type Finding } from '../core/scan';
 import { plainWords } from '../core/fixes';
 import type { Group, StatusIndex } from '../core/status';
@@ -240,6 +240,8 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     const ul = el('ul');
     for (const w of p.warnings) ul.append(el('li', {}, w.message));
     sec.append(ul);
+    const lo = leftOutLine(p.leftOut.length);
+    if (lo) sec.append(el('p', { class: 'left-out' }, lo));
     return sec;
   }
 
@@ -358,7 +360,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   function currentReport() {
     const p = project as Project;
     const docs = scannedAll ? mains.map((m) => scans.get(m) as DocumentScan) : [scans.get(shown as string) as DocumentScan];
-    return buildReport(p.name, p.leftOut, p.warnings, docs, (index as StatusIndex).data, deps.now());
+    return buildReport(p.name, p.leftOut, p.warnings, docs, (index as StatusIndex).data, deps.now(), p.leftOutFolders);
   }
 
   function renderResult(main: string) {
