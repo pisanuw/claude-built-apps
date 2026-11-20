@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { strToU8, zipSync } from 'fflate';
 import { expect, test, type Request } from '@playwright/test';
 import { fiftyFileZip, zipFixture } from '../test/fixture-zip';
 
@@ -319,4 +320,45 @@ test('R2.1-7: when the account chunk fails to load, the scan still works without
   await expect(page.locator('#result-h')).toHaveText('2 blockers found');
   await expect(page.locator('#signin button')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
+});
+
+const RENAME = 'If this folder holds course material, not student records, rename it and drop the zip again.';
+const DOC_SRC = '\\documentclass{article}\\title{x}\\begin{document}\\end{document}';
+const zipOf = (files: Record<string, string>) => Buffer.from(zipSync(Object.fromEntries(Object.entries(files).map(([k, v]) => [k, strToU8(v)]))));
+
+test('AC-77: the folder warning says how to have it read, on the page and in both reports', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#file').setInputFiles({ name: 'stat201.zip', mimeType: 'application/zip', buffer: zipOf({ 'STAT201/main.tex': DOC_SRC, 'STAT201/grades/scores.tex': 'SECRET', 'STAT201/grades/hw1.txt': 'SECRET' }) });
+  await expect(page.locator('#result-h')).toHaveText('No known blockers');
+  const warning = page.locator('#result .project-warnings li', { hasText: 'Files in STAT201/grades/' });
+  await expect(warning).toContainText(`Files in STAT201/grades/ were left out as student records (2 files)`);
+  await expect(warning).toContainText(RENAME);
+  const [html] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download report' }).click()]);
+  const htmlText = fs.readFileSync(await html.path(), 'utf8');
+  expect(htmlText).toContain('Files in STAT201/grades/ were left out as student records (2 files)');
+  expect(htmlText.split(RENAME).length - 1).toBe(1);
+  const [json] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download JSON' }).click()]);
+  const data = JSON.parse(fs.readFileSync(await json.path(), 'utf8'));
+  const msg = data.projectWarnings.find((w: { path: string }) => w.path === 'STAT201/grades/').message as string;
+  expect(msg).toContain(RENAME);
+  expect(JSON.stringify(data).split(RENAME).length - 1).toBe(1);
+});
+
+test('AC-78, AC-79: documents left out with their folder are named; the renamed folder is read', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#file').setInputFiles({ name: 'calc.zip', mimeType: 'application/zip', buffer: zipOf({ 'Calculus-for-students/week1.tex': DOC_SRC, 'Calculus-for-students/week2.tex': DOC_SRC }) });
+  const alert = page.getByRole('alert');
+  await expect(alert.locator('p').first()).toHaveText(
+    'No .tex file with \\documentclass was found. 2 files in Calculus-for-students/ were left out as student records; see the warning below to have them read. A main file has a \\documentclass line and \\begin{document}.',
+  );
+  await expect(alert.locator('.project-warnings')).toContainText('Files in Calculus-for-students/ were left out as student records (2 files)');
+  await expect(alert.locator('.project-warnings')).toContainText(RENAME);
+  // The same zip with the folder renamed: read and listed, no folder warning.
+  await page.locator('#file').setInputFiles({ name: 'calc.zip', mimeType: 'application/zip', buffer: zipOf({ 'Calculus/week1.tex': DOC_SRC, 'Calculus/week2.tex': DOC_SRC }) });
+  await expect(page.getByRole('heading', { name: 'This zip holds 2 documents' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Scan Calculus/week1.tex' })).toBeVisible();
+  await page.getByRole('button', { name: 'Scan all' }).click();
+  await expect(page.locator('#all tbody tr')).toHaveCount(2);
+  await expect(page.getByText('were left out as student records')).toHaveCount(0);
+  await expect(page.getByText(RENAME)).toHaveCount(0);
 });

@@ -84,6 +84,21 @@ function isClutter(name: string): boolean {
 
 const utf8 = new TextDecoder('utf-8');
 
+/** Said once in each left-out folder's warning (AC-77): the remedy when the folder is course material. */
+export const RENAME_FOLDER = 'If this folder holds course material, not student records, rename it and drop the zip again.';
+
+/**
+ * The sentences after "No .tex file with \documentclass was found." when
+ * .tex files were left out with their folders (AC-78), one per such folder:
+ * "2 files in Calculus-for-students/ were left out as student records; see
+ * the warning below to have them read." Empty when none was.
+ */
+export function leftOutDocumentsLines(p: Pick<Project, 'leftOut' | 'leftOutFolders'>): string[] {
+  return p.leftOutFolders
+    .filter((f) => p.leftOut.some((path) => path.startsWith(f.folder) && /\.(tex|ltx)$/i.test(path)))
+    .map((f) => `${f.files === 1 ? '1 file' : `${f.files} files`} in ${f.folder} ${f.files === 1 ? 'was' : 'were'} left out as student records; see the warning below to have them read.`);
+}
+
 export interface LeftOutFolder {
   /** The folder's path with a trailing slash, such as `STAT201/grades/`. */
   folder: string;
@@ -196,7 +211,7 @@ export function openProject(fileName: string, bytes: Uint8Array): Project {
     warnings.push({
       rule: 'student-records',
       path: folder,
-      message: `Files in ${folder} were left out as student records (${n === 1 ? '1 file' : `${n} files`}), and the scan never read ${n === 1 ? 'it' : 'them'}. Remove student records from course folders.`,
+      message: `Files in ${folder} were left out as student records (${n === 1 ? '1 file' : `${n} files`}), and the scan never read ${n === 1 ? 'it' : 'them'}. Remove student records from course folders. ${RENAME_FOLDER}`,
     });
   }
   if (named.length) {

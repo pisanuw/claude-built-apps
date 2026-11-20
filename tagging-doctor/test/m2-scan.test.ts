@@ -116,8 +116,8 @@ describe('AC-69 and AC-70: folders named like student records', () => {
     const p = openProject('course.zip', course());
     const folders = p.warnings.filter((w) => w.rule === 'student-records' && w.path.endsWith('/'));
     expect(folders.map((w) => w.path)).toEqual(['CS142/grades/', 'STAT201/Gradebook/', 'STAT201/grade-book/', 'STAT201/roster/', 'STAT201/students/']);
-    expect(folders[0].message).toBe('Files in CS142/grades/ were left out as student records (3 files), and the scan never read them. Remove student records from course folders.');
-    expect(folders[1].message).toBe('Files in STAT201/Gradebook/ were left out as student records (1 file), and the scan never read it. Remove student records from course folders.');
+    expect(folders[0].message).toBe('Files in CS142/grades/ were left out as student records (3 files), and the scan never read them. Remove student records from course folders. If this folder holds course material, not student records, rename it and drop the zip again.');
+    expect(folders[1].message).toBe('Files in STAT201/Gradebook/ were left out as student records (1 file), and the scan never read it. Remove student records from course folders. If this folder holds course material, not student records, rename it and drop the zip again.');
     expect(p.leftOutFolders).toEqual([
       { folder: 'CS142/grades/', files: 3 },
       { folder: 'STAT201/Gradebook/', files: 1 },

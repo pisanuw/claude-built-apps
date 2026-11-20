@@ -7,7 +7,7 @@
  * dependency that touches the browser comes in through AppDeps, so tests run
  * it under jsdom.
  */
-import { openProject, type Project } from '../core/project';
+import { leftOutDocumentsLines, openProject, type Project } from '../core/project';
 import { buildReport, countsLine, downloadName, figuresLine, GROUP_HELP, GROUP_TITLES, leftOutLine, reportHtml, reportJson, where, findingTitle } from '../core/report';
 import { COULD_NOT_SCAN, findMainFiles, scanDocument, type DocumentScan, type Finding } from '../core/scan';
 import { plainWords } from '../core/fixes';
@@ -73,6 +73,11 @@ export const EMPTY_TEXT = 'Drop a zip of your LaTeX project, or one .tex file. N
 export const LOAD_FAILED = 'The package list could not be loaded. Check your connection and drop the file again. Your file was not sent anywhere.';
 
 export const NO_MAIN_TEXT = 'No .tex file with \\documentclass was found';
+
+/** The message when no document was found (AC-5), naming the folders whose .tex files were left out (AC-78). */
+export function noMainMessage(p: Pick<Project, 'leftOut' | 'leftOutFolders'>): string {
+  return [`${NO_MAIN_TEXT}.`, ...leftOutDocumentsLines(p), 'A main file has a \\documentclass line and \\begin{document}.'].join(' ');
+}
 
 interface Choice {
   all: boolean;
@@ -317,7 +322,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   }
 
   function renderNoMain() {
-    const p = el('p', {}, `${NO_MAIN_TEXT}. A main file has a \\documentclass line and \\begin{document}.`);
+    const p = el('p', {}, noMainMessage(project as Project));
     const again = el('button', { type: 'button' }, 'Choose another file');
     again.addEventListener('click', () => input.click());
     error.replaceChildren(p, again);
