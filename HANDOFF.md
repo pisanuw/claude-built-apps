@@ -202,14 +202,14 @@ Also open, no action now:
   - session_01JyJzMXVbrUAhXw75BNyNCX ("PManager: Nov 18", depth 6 of limit 8). It took over on 18 Nov at 02:36 UTC and handed over on 18 Nov, by hand, at the owner's request; its routines were moved at 05:30 UTC.
   - session_01JyJzMXY6RAmKb5w3vkqBjo ("PManager: Nov 18", depth 0 of 8, a new lineage started by hand by the owner). Took over 18 Nov 05:30 UTC; handed over 19 Nov about 18:45 UTC at the owner's suggestion. Archived on 20 Nov at 03:00 UTC (get_session shows SESSION_STATUS_ARCHIVED).
 - **Previous session: session_01JyJzMZdo2cwHjA4hcPLrcu ("PManager: Nov 19"),** lineage depth 1 of limit 8, parent session_01JyJzMXY6RAmKb5w3vkqBjo. Created 19 Nov 18:45:58 UTC by create_session; took over 19 Nov 18:47 UTC. Handed over on 20 Nov at about 04:20 UTC (05:20 Barcelona) at the owner's request, and starts the next session with create_session, so that session should read depth 2. Archive it under takeover step (e).
-- **Current session:** to be written by the new session at takeover.
-- **The relay's routines** (aimed at the previous session, session_01JyJzMZdo2cwHjA4hcPLrcu; the new session moves them):
-  - trig_01FEYJzMcZfH5Z61dZTAAiBh: PManager check, every 2 hours, `46 */2 * * *` (was hourly until 20 Nov 04:08 UTC);
-  - trig_01NK9e6hncKTF9CqeRKBYPyj: Plabs handoff check: hand over only when due, `CRON_TZ=America/Los_Angeles 56 4 * * *` (hands over at 500,000 used tokens);
-  - trig_01W9QnQzfzpLzRZ72Jx2dK3Q: Plabs daily handoff: start the next session (create_session), `CRON_TZ=America/Los_Angeles 52 5 * * *` (its takeover prompt has step (e), archive, since 20 Nov);
-  - trig_01Ke73kgrjfBaZf3WaSUzzJM: Footer redeploys, two apps a day, `CRON_TZ=Europe/Madrid 23 13 * * *`;
-  - one-shot: trig_01TWYbtNXsPnDxP6vCuo4wZN, YPai #47 release day, 2026-11-20T08:00Z (09:00 Barcelona);
-  - one-shot: trig_01KsqUrJyRKkr6dN6yiQyhTd, Watchdog first-day check (H3, H5), 2026-11-20T19:10Z (20:10 Barcelona).
+- **Current session: session_01JyJzMVBimGQPKqzrxuBkMX ("PManager: Nov 20"),** lineage depth 2 of limit 8, parent session_01JyJzMZdo2cwHjA4hcPLrcu. Created 20 Nov 04:15:30 UTC by create_session; took over 20 Nov 04:17 UTC (05:17 Barcelona) and moved the six routines below (old ids deleted). get_session at takeover: context_usage max_tokens 700,000 (no autocompact threshold shown).
+- **The relay's routines** (aimed at the current session, session_01JyJzMVBimGQPKqzrxuBkMX, since 20 Nov 04:17 UTC; old ids in brackets):
+  - trig_015TdQrJ7Me2MJs5TseXjrqW (was trig_01FEYJzMcZfH5Z61dZTAAiBh): PManager check, every 2 hours, `46 */2 * * *` (was hourly until 20 Nov 04:08 UTC);
+  - trig_01QPi2MeFHXc49mpM7Yaukh5 (was trig_01NK9e6hncKTF9CqeRKBYPyj): Plabs handoff check: hand over only when due, `CRON_TZ=America/Los_Angeles 56 4 * * *` (hands over at 500,000 used tokens);
+  - trig_0126nT9H2AUW4zNwczHCG19W (was trig_01W9QnQzfzpLzRZ72Jx2dK3Q): Plabs daily handoff: start the next session (create_session), `CRON_TZ=America/Los_Angeles 52 5 * * *` (its takeover prompt has step (e), archive, since 20 Nov);
+  - trig_01WD5ABHbZzUfstmWFzF8NQi (was trig_01Ke73kgrjfBaZf3WaSUzzJM): Footer redeploys, two apps a day, `CRON_TZ=Europe/Madrid 23 13 * * *`;
+  - one-shot: trig_01C9F2zgd7H9CoEzTXtkkbcg (was trig_01TWYbtNXsPnDxP6vCuo4wZN), YPai #47 release day, 2026-11-20T08:00Z (09:00 Barcelona);
+  - one-shot: trig_01AFVAV9W81hQVHE9yeNLQ8H (was trig_01KsqUrJyRKkr6dN6yiQyhTd), Watchdog first-day check (H3, H5), 2026-11-20T19:10Z (20:10 Barcelona).
 - **Handover checks:**
   - 19 Nov, 12:56 UTC: no handover. Context was 101,271 of 500,000 (20%) after an auto-compaction; the session was 1 day 7 hours old. The owner set `CLAUDE_CODE_AUTO_COMPACT_WINDOW=500000` on the environment (seen 19 Nov; compaction point 441,600). Owner's answer to Q23, "1" (19 Nov, 13:03 UTC): the check hands over at 500,000 tokens, 50% of the 1M window, not at 50% of max_tokens (which now reads 500,000). Compaction keeps a session below that, so handovers come at 6 days, on request, or on failure. trig_01PwhDWfkjdf2pxLNMyp52a8 is updated; the YPai session updates its own check.
   - 19 Nov, about 18:45 UTC: handover at the owner's suggestion (ledger 18:26 UTC). Context was 400,172 of 500,000, with compaction at 441,600; the PR #1 edits would have crossed it.
