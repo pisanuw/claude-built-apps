@@ -29,8 +29,12 @@ create role authenticated nologin;
 create role service_role nologin bypassrls;
 create schema auth;
 create table auth.users (id uuid primary key, email text);
+-- Supabase's own definition: the claim set by PostgREST, in either form.
 create function auth.uid() returns uuid language sql stable as $$
-  select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
+  select coalesce(
+    nullif(current_setting('request.jwt.claim.sub', true), ''),
+    (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')
+  )::uuid
 $$;
 grant usage on schema auth to anon, authenticated;
 grant execute on function auth.uid() to anon, authenticated;
@@ -42,7 +46,8 @@ let db: PGlite;
 async function as<T = Record<string, unknown>>(uid: string | null, sql: string, params: unknown[] = []): Promise<T[]> {
   return db.transaction(async (tx) => {
     await tx.exec(`set local role ${uid ? 'authenticated' : 'anon'}`);
-    await tx.query(`select set_config('request.jwt.claim.sub', $1, true)`, [uid ?? '']);
+    // As PostgREST does: the claims as JSON (auth.uid() reads their sub).
+    await tx.query(`select set_config('request.jwt.claims', $1, true)`, [uid ? JSON.stringify({ sub: uid, role: 'authenticated' }) : '']);
     const r = await tx.query<T>(sql, params);
     return r.rows;
   });
