@@ -1,10 +1,12 @@
 # Deploy control file for Tagging Doctor (Netlify, static site).
-# Milestone 1: the scan runs in the browser; no functions, no secrets and no
-# database yet (`supabase: false`). Milestone 2 adds the schema
-# app_tagging_doctor (supabase/migrations/) and sets `supabase: true`;
-# milestone 3b adds the worker's address as a VITE_ value in `env`.
-# `env` holds the public client values from platform/supabase.json (public by
-# design), ready for sign-in in milestone 2; milestone 1 does not use them.
+# The scan runs in the browser; no functions and no secrets. Since milestone 2
+# the app has sign-in and the schema app_tagging_doctor: `supabase: true` makes
+# the Deploy workflow apply supabase/migrations/*.sql (touching only that
+# schema), expose the schema and run check-schema. The gateway row in
+# platform.llm_apps is not in the migration: PManager registers it at the
+# release (AC-63). Milestone 3b adds the worker's address as a VITE_ value in
+# `env`. `env` holds the public client values from platform/supabase.json
+# (public by design).
 # package-lock.json is force-added (the root .gitignore excludes lockfiles)
 # because `npm ci` below needs it.
 #
@@ -17,7 +19,7 @@ directory: tagging-doctor
 build: npm ci && npm run build
 publish: dist
 
-supabase: false
+supabase: true
 env:
   VITE_SUPABASE_URL: https://auth.hintwise.org
   VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFya3R4bHJseWNlZmZ5b3pkd2hxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4ODEwMTAsImV4cCI6MjA5MjQ1NzAxMH0.Vuku-irT3kAHZYibK23q6dpyOEqV_Eg5zB78I3dyshE
