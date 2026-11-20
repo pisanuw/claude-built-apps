@@ -4,5 +4,7 @@ dist/
 coverage/
 .env
 .env-claude
+.env-claude-removed
+
 
 
