@@ -2,9 +2,9 @@
 
 This is the rolling handoff for the PManager relay (the session-relay skill; this session was "Plabs" until 18 Nov). Each handover rewrites it; the last section holds the owner's standing instructions, the relay parameters and Scheduling.
 
-- **Written:** 19 November 2026, about 19:40 Barcelona time (18:40 UTC).
-- **By:** session_01JyJzMXY6RAmKb5w3vkqBjo ("PManager: Nov 18"). It hands over at the owner's suggestion: "Your context is over 50%, consider doing handoff and starting a new session to handle these tasks. Your call". Context was 400,172 of 500,000 tokens; compaction comes at 441,600 (ledger 2026-11-19T18:26Z).
-- **This session starts the next one now,** with create_session and the session-start routine's takeover prompt, because that routine runs only at 05:52 Los Angeles time. The new session moves the routines; this session then starts no new work.
+- **Written:** 20 November 2026, about 05:15 Barcelona time (04:15 UTC; 19 November in Los Angeles, the routine zone).
+- **By:** session_01JyJzMZdo2cwHjA4hcPLrcu ("PManager: Nov 19"), at the owner's request: "Do a handoff now once the above tasks are complete" (ledger 2026-11-20T04:08Z). Context was about 340,000 used, with this session still compacting at 384,000 (it predates the owner's new settings).
+- **This session starts the next one now** with create_session and the session-start routine's takeover prompt (which now has step (e): archive the previous session). The new session moves the routines and then archives this one; this session starts no new work.
 
 ## 1. Goal
 
@@ -18,119 +18,52 @@ The owner's words, 18 November 2026: "I want a more structured approach to my we
 
 ## 2. Status
 
-Done on 18 Nov (the detail is in hintwise-workflow `decisions/2026-11.md`, and in CHANGES.md here):
-- [x] This session took over at 05:30 UTC. The HintWise workflow was adopted, with the `owner-approval` gate, the weekly email and the Monitor, Keeper and Marketer routines.
-- [x] Next project, picked by the owner: Tagging Doctor (`projects/tagging-doctor/`), with a free Render service approved for its compile step.
-- [x] LLM gateway streaming is live (PR #7, 4d6ce5c) and was checked end to end (gateway-check, PR #8, 04cce08).
-- [x] YPai moved onto the platform: m1 (footer, analytics, privacy note) and m2 (sign-in, gateway client) are live. Its caps are set, and the 14:48 UTC model-reply incident was fixed by #41 and #42.
-- [x] One sign-in look, as on UpvoteMe, is live on three apps (1380fbc). The Netlify-token and routine-repository incidents were resolved.
-- [x] Delivery Canary was finished and catalogued (f427cc7); the Marketer's drafts were emailed to the owner.
-- [x] Footer redeploys began, two apps a day (pluck-lab, net-units).
-
-Done on 19 Nov (Barcelona time; UTC where a record uses it):
-- [x] **YPai backups:** the offsite backup landed at 01:44 (00:44:41 UTC). The renewed token works; item 23 is closed.
-- [x] **T2 defaults 5, 7, 8 and 9 taken** at the 07:15 deadline (ledger 06:17 UTC). The undo for each is in the ledger.
-- [x] **YPai #45 is live** (each call priced by the model that served it). Merged at 08:21 (07:21:13 UTC) as c06215c, on the owner's "Accept all recommendations, do it" (typed in the YPai session at 06:55:32 UTC). GATEWAY_STREAM was not set: run 44475898087 waited for approval and was cancelled.
-- [x] **YPai #47** (aux calls in the monthly cap; it also fixes bring-your-own-key chat, broken since 21 Jun): Reviewer round 3 APPROVE at 5da03a6, at 09:22. It is frozen; release 20 Nov.
-- [x] **YPai #48** (gateway retries): round 1 CHANGES, round 2 EXPLAIN; the fixes are at 7af6120. Round 3, the last, comes after #47 merges.
-- [x] **Keeper's weekly checks** (08:43): four security fixes (UpvoteMe, MyUni, express, PasteMD), each with Reviewer APPROVE, and a check-schema question.
-- [x] **check-schema:** all seven app schemas passed (PManager, read-only; hintwise-workflow runs/2026-11-19T1050Z-pmanager-check-schema.md).
-- [x] **Q22 default taken** (deadline 10:30): PasteMD's magic link moves to sign-in-link when PasteMD gets the new sign-in look.
-- [x] **UpvoteMe's critical sign-in fix is live** (next-auth advisory; pisanuw/upvote #6, b488e55, 11:25), on the owner's "Upvote yes". The owner's magic-link test is still to do.
-- [x] **PasteMD's security fix merged** (pisanuw/pastemd #4, 8ceb970, 11:26), on the owner's "Pastemd yes". Every function loads. The production deploy's finish cannot be seen from outside (lockfile-only change).
-- [x] **Compact Instructions** went into CLAUDE.md (c7bcc8e, 11:46) by the 15-minute default. The owner set `CLAUDE_CODE_AUTO_COMPACT_WINDOW=500000` on the environment; compaction now comes at 441,600.
-- [x] **Handover check, 13:56:** no handover. The owner answered Q23 with "1" (14:03): hand over at 500,000 used tokens.
-- [x] **Footer redeploys 3 and 4:** elevator-algorithm-lab and cron-cartographer (run 44523578780). 4 of 60 are done.
-- [x] **Owner's answers typed in the YPai session** (read in its transcript): "A / 1 ok" (14:09: its handoff branch, and the R47.3-3 fix after #48); "Stream only" (14:36: the sender stays as it is).
-- [x] **The owner's yes to tomorrow's GATEWAY_STREAM=1 run** (15:35; ledger 14:35 UTC). Hourly reports stay off (owner "1", 15:39).
-- [x] **Tagging Doctor day 1:**
-  - the spec was approved in round 3; milestone 1 (the in-browser scan) got Reviewer APPROVE in round 3, and Manager accepted it with two change requests, now in milestone 2;
-  - merged as cc9f135 at 15:48 under standing authorizations 2 and 3; Deploy run 44547696311; live at https://tagging-doctor.hintwise.org with the footer;
-  - the owner approved the sign-in-link (44547822655) and delete-account (44547856165) redeploys; both succeeded at about 18:03 (17:02:57 and 17:03:27 UTC);
-  - record: hintwise-workflow projects/tagging-doctor/releases/m1.md.
-- [x] **The 18:46 card:** the owner's "1 yes, 2 yes, 3 yes from card" (ledger 17:56 UTC). 1 is Tagging Doctor's gateway row (Q7), 2 is MyUni PR #6, 3 is express PR #9.
-- [x] **Express security updates (claude-built-apps PR #9):**
-  - merged at 18:56 as 009a518, with `[skip render]`;
-  - backend-hub deployed by run 44582576617; Render deploy dep-dbvjh47f3r2c73celit0 went live at 18:59 (17:59:10 UTC); health is ok;
-  - backend-hub's address is https://backend-hub-wk2e.onrender.com;
-  - the three Netlify apps follow in the footer slots (section 4, item 5). Record: projects/platform/releases/express-advisories.md.
-- [x] **Workflow review, pisan-labs/hintwise-workflow PR #1:** received at 18:55. A fresh Reviewer's round 1 is in projects/workflow/review-pr1-r1.md. The owner answered PManager's three questions at 19:26 (ledger 18:26 UTC). F1 is done on main (CHARTER.md, Communication, 93947b1). The rest is section 4, item 1.
-- [x] **The YPai session handed over:** pisanuw/digitalme PR #49 ("docs: the handoff of 19 November") merged at 19:05 (18:05:48 UTC). Its session-start routine starts "YPai: Nov 19" at 19:52 (18:52 UTC); not verified at the time of writing.
-- [ ] **An unrecorded deploy:** manual Deploy run 44545724344 deployed lewis-alt-text at 15:37 (14:37 UTC; success at 14:39 UTC). No record names it; the owner was asked on the 18:46 card who ran it. The fact-check found the answer: the lewis-alt-text session (session_01JyJzMY5cjawi1RpmbD5RVP) started it at 14:37:14 UTC, after the owner typed "Yes deploy" there at 14:35:23 UTC (its transcript). Still to do: the ledger line.
+Done since the last handoff (19 Nov 19:40 Barcelona; times Barcelona, UTC in brackets where a record uses it):
+- [x] **Takeover** at 19:47 (18:47Z); five routines moved; c22ab21. The YPai relay handed over too: "YPai: Nov 19" is session_01JyJzMYdcL21t1LrX7eujSq (routines moved 19:53).
+- [x] **Workflow review:** PR #1 split into PR #2 (guards; Reviewer APPROVE r1) and PR #3 (the rest; CHANGES r1, APPROVE r2). **The owner merged #2 at 20:07:55 (ee6b882) and #3 at 20:08:26 (5ed82cd).** Reviews saved in projects/workflow/review-pr2-r1.md, review-pr3-r1.md, review-pr3-r2.md. Hand-off H1 (ledger, 589e6c8), H2 (Rules guard runs green; owner: "emails received"), H3 (Watchdog dry run 44601972208 green; local replay in projects/workflow/README.md) done. PR #1 (draft) is left open as the source; the owner may close it.
+- [x] **The owner's yes to changing the hourly task** (21:16): it writes PManager's daily record (step 4) and the Watchdog's PManager check is live (4f2860f). First record: runs/2026/11/2026-11-20T0047Z-pmanager.json (cd020b5); the Watchdog's local morning check finds it.
+- [x] **Platform:** deploy.mjs waits for a Render deploy to go live before the health check (c32ad8c, fresh Reviewer APPROVE, pushed to main at 20:14 (19:14Z) as a fast-forward, no app redeployed). Three minor follow-ups in hintwise-workflow projects/platform/README.md (the line stamped 2026-11-19T19:45Z, written at about 19:16Z).
+- [x] **Ledger:** the lewis-alt-text manual deploy of 19 Nov (its own session, on the owner's "Yes deploy"), the takeover, the merges.
+- [x] **Owner's instructions of 20 Nov (04:06 to 05:08):**
+  - quiet checks print nothing or exactly "HH:MM Nothing to report." (3d764f6);
+  - environment: `CLAUDE_CODE_AUTO_COMPACT_WINDOW=700000`, `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS=400000` (a08d379);
+  - "No leave 500k in your place": the handover check still hands over at 500,000 used tokens;
+  - the check runs every two hours (`46 */2 * * *`), renamed "PManager check, every 2 hours";
+  - the new relay session archives the previous one once it has taken over and started work (takeover step (e); check step 6; ROLE.md) (3004b49);
+  - hand over now (this handoff).
 
 Still open (section 4 has the next steps):
+- [ ] **Credentials (T3, no default):** inbox/2026-11-19-session-credentials.md; on the 20:06 card as 3a (an environment without production tokens for Finder, Marketer, Monitor; recommendation yes) and 3b (drop the dead Netlify copy now, keep RENDER_API_KEY as a written exception; recommendation yes).
+- [ ] **Hand-off H5, H7, H10 to H16, H18 to H21, H23, H24** (H8 needs nothing, H17 is dropped, H22 is done) (hintwise-workflow projects/workflow/pmanager-handoff.md). H5 and H3's follow-up are in the one-shot of 20 Nov 20:10.
 - [ ] **Own-repo analytics branches:** merge only on the owner's word ("2 will do later").
 - [ ] **Sign-in look, own-repo apps:** udebt, photo2pgn, StepWise, then PasteMD (with the Q22 default). Not started.
 - [ ] **Footer redeploys:** 56 apps left, two a day (hintwise-workflow projects/platform/footer-redeploys.md).
-- [ ] **YPai follow-ups,** through PManager:
-  - first after #47 merges, its own PR: Compact Instructions in digitalme's CLAUDE.md (ledger 2026-11-19T10:46Z; digitalme docs/handoff.md, "Next, in order" 3);
-  - after #48, one follow-up PR: R47.3-3 first, linking a conversation started signed out to the account at sign-in, so deletion removes it, with a privacy-note check (owner, "1 ok"); then the other listed follow-ups of #45 and #47 (ledger 2026-11-18T21:22Z, 2026-11-19T08:10Z and 08:22Z).
-  - The voice comparison (default 5) runs on halflife this week, as a draft PR not for merging.
-- [ ] **Gateway follow-up (R48.1-10):** if credit_reserve commits but its answer is lost, index.ts:179-180 returns 500 without a refund, and a client retry takes a second credit. The streaming follow-ups are in projects/platform/releases/gateway-streaming.md.
-- [ ] **Delivery Canary, the owner's actions:** Netlify analytics; pisan-labs/delivery-canary through the halflife job; a first real canary (delivery-canary/HANDOFF.md "Remaining").
-- [ ] **Chess TD `analytics`:** main merged in, `pnpm check` green (18 Nov). Not merged into main.
+- [ ] **YPai follow-ups,** through PManager: after #47, its own PR for Compact Instructions in digitalme's CLAUDE.md; after #48, R47.3-3 (link a signed-out conversation to the account at sign-in) then the other follow-ups of #45 and #47 (ledger 2026-11-18T21:22Z, 2026-11-19T08:10Z, 08:22Z). The voice comparison (default 5) runs on halflife this week, as a draft PR not for merging.
+- [ ] **Gateway follow-up (R48.1-10):** a lost credit_reserve answer returns 500 without a refund (index.ts:179-180).
+- [ ] **Delivery Canary, the owner's actions:** Netlify analytics; pisan-labs/delivery-canary through the halflife job; a first real canary.
+- [ ] **Chess TD `analytics`:** not merged into main.
 
 ## 3. Current state
 
-- **Commits:**
-  - claude-built-apps main 859ad1b, before this handoff commit; CI green on it (run 44583192822);
-  - hintwise-workflow main 93947b1;
-  - daily-project-ideas main bce54fc.
-- **Live, and what changed today** (Barcelona time):
-  - YPai: #45 live since 08:21; offsite backups resumed. #47 releases 20 Nov, #48 on 21 Nov.
-  - UpvoteMe: the critical sign-in fix, live since 11:25.
-  - PasteMD: the security fix merged at 11:26; its functions load, but the deploy's finish is not visible from outside.
-  - Tagging Doctor: milestone 1 live at https://tagging-doctor.hintwise.org since 15:54 (merged 15:48; Deploy run success 14:53:50 UTC). sign-in-link and delete-account were redeployed with its origin at about 18:03 (delete-account checked at 18:47; sign-in-link not exercised).
-  - backend-hub: the express updates, live since 18:59 at https://backend-hub-wk2e.onrender.com. The restart reset any mult-streak game in progress.
-  - Footers: 4 of 60 apps redeployed (today elevator-algorithm-lab and cron-cartographer).
-  - lewis-alt-text: redeployed at 15:37 by a manual run from its own session, on the owner's "Yes deploy" there; no record names it yet.
-  - Supabase: check-schema passed on seven app schemas.
-  - Environment: `CLAUDE_CODE_AUTO_COMPACT_WINDOW=700000` and `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS=400000`, set by the owner on 20 Nov (was 500000). Cloud sessions force compaction at 80% of the window less 20,000, so a new session should show `autocompact_state.threshold` 544,000 in get_session; check it at the next takeover. The model keeps its 1M window.
-  - The YPai session: handed over (digitalme PR #49); "YPai: Nov 19" due at 19:52.
-- **Open pull requests:**
-  - pisan-labs/hintwise-workflow #1 (draft, d9772ef): the source for PR A and PR B; the owner merges.
-  - pisanuw/myuni #6 (draft, 706aa10).
-  - pisanuw/digitalme #47 (5da03a6, APPROVE, frozen) and #48 (7af6120, round 3 to come).
-- **Clean:** every checkout, nothing uncommitted or unpushed apart from this file; no process running.
-- **Branches not merged** (each pushed; merging deploys the app):
-  - udebt `analytics`, upvote `analytics`, pastemd `analytics` and `csp-fix` (they conflict in netlify.toml and CHANGES.md), photo2pgn `analytics`;
-  - chess-tournament-director `analytics` (main merged in; not re-checked on 19 Nov, the repository is not attached here);
-  - myuni `analytics-masking`, and `fix/myuni-nodemailer` (PR #6);
-  - claude-built-apps `analytics-code-analogy-forge`;
-  - digitalme `claude/upbeat-hopper-78i32m` (#47) and `claude/gateway-retries` (#48);
-  - hintwise-workflow `claude/gifted-cannon-883cr9` (PR #1).
+- **Commits:** claude-built-apps main 7fafdd5 before this handoff commit; hintwise-workflow main 3004b49; daily-project-ideas main not re-checked since bce54fc.
+- **Live, and what changed since the last handoff:** nothing deployed except the deploy runner's code (c32ad8c), which redeploys no app. YPai, UpvoteMe, PasteMD, Tagging Doctor m1, backend-hub (express updates) as in the last handoff.
+- **Open pull requests:** pisan-labs/hintwise-workflow #1 (draft, source of #2 and #3); pisanuw/myuni #6 (draft, 706aa10); pisanuw/digitalme #47 (5da03a6, APPROVE, frozen; releases today) and #48 (7af6120, round 3 after #47).
+- **Clean:** every checkout; nothing uncommitted or unpushed apart from this file; no process running; no subagent running.
+- **Branches not merged** (each pushed; merging deploys the app): udebt `analytics`; upvote `analytics`; pastemd `analytics` and `csp-fix`; photo2pgn `analytics`; chess-tournament-director `analytics`; myuni `analytics-masking` and `fix/myuni-nodemailer` (PR #6); claude-built-apps `analytics-code-analogy-forge`; digitalme `claude/upbeat-hopper-78i32m` (#47) and `claude/gateway-retries` (#48); hintwise-workflow `claude/gifted-cannon-883cr9` (PR #1).
 
 ## 4. Next step
 
-**First:** the takeover prompt's steps (a) to (c). Move the relay's routines from session_01JyJzMXY6RAmKb5w3vkqBjo to yourself (list in Scheduling), record the takeover, and send the owner a short card. Do not message the previous session. pisanuw/digitalme is not in the takeover prompt's repository list: add_repo it (access push) before item 2. Then, in this order:
+**First:** the takeover prompt's steps (a) to (c): move the relay's routines from session_01JyJzMZdo2cwHjA4hcPLrcu to yourself (ids in Scheduling), record the takeover, send the owner a short card. Then step (e): archive session_01JyJzMZdo2cwHjA4hcPLrcu once you have started work. Re-check each item below against git before starting it.
 
-1. **Done 19 Nov: the owner merged PR #2 (ee6b882) and PR #3 (5ed82cd) at 20:08 Barcelona;** H1 ledger 589e6c8, H2 guard runs green, H3 replay in projects/workflow/README.md. Owner, 20:16Z: "emails received" (H2 done) and "yes to changing hourly task": the hourly prompt now writes PManager's daily record (step 4) and the Watchdog pause is lifted (hintwise-workflow 4f2860f; the pause-date question is closed). Left: H5 and H7 to H24, the Watchdog first-day check at 2026-11-20T19:10Z (one-shot trig_01KsqUrJyRKkr6dN6yiQyhTd), the credentials item (T3). The original plan, for reference: **Workflow review, pisan-labs/hintwise-workflow PR #1** (branch `claude/gifted-cannon-883cr9`, head d9772ef, draft).
-   - The owner's answers to PManager, 19 Nov (18:26 UTC): "1 yes, a cepti g your recommendation / 2 yes, act on it / 3 you make the edits on a branch".
-   - So PManager makes two new pull requests from main (93947b1 or later):
-     - **PR A:** the four agreed commits (3a9b4dc, cbc2c61, 6932c82, c06e9c9), with edits E1 to E5 from projects/workflow/review-pr1-r1.md.
-     - **PR B:** the other nine commits (c98b809 to d9772ef), with E6 to E9. The review's verdict also says "E10", which it never defines; say so in PR B's description.
-   - Leave out of both:
-     - `routines/hourly-check.md`. Later, as its own small PR, replace it with the real hourly prompt plus a daily-record line.
-     - `inbox/2026-11-19-live-test-account.md`.
-   - F1 (a yes typed in another session; not the review's finding F1, the Watchdog alarms) is already applied on main by the owner's instruction (CHARTER.md, Communication, 93947b1). PR B leaves F1 out; keep main's sentence where the branch's CHARTER.md edits overlap it.
-   - A fresh Reviewer (top tier) checks each PR before the owner merges. Only the owner merges. PR #1 stays open as the source.
-   - After each merge, do hand-off items H1 to H5 in projects/workflow/pmanager-handoff.md (on the branch). H1 includes the ledger lines for the review session's answers, "1a 2 agree 3 agree 4 yes".
-2. **20 Nov, 09:00 Barcelona (08:00 UTC): YPai #47 release,** scheduled task trig_01TWYbtNXsPnDxP6vCuo4wZN. Its prompt has the steps.
-   - The owner approved the GATEWAY_STREAM=1 set-env run in advance (ledger 2026-11-19T14:35Z). The owner must still click Approve in GitHub between 09:00 and 10:00 Barcelona: send the link.
-   - Merge #47 (5da03a6) with a merge commit without `[skip netlify]`, at 10:00 Barcelona or as soon as the run has finished.
-   - The sender stays as it is (owner, "Stream only"). Send no chat message yourself (a reply is a paid call); ask the owner to try one.
-   - After the merge, write projects/ypai/releases/aux-cap.md and tell the new YPai session ("YPai: Nov 19" in list_sessions), so it merges main into claude/gateway-retries.
-3. **MyUni, pisanuw/myuni PR #6** (draft, head 706aa10). The owner said yes (18:46 card, "2 yes").
-   - It waits on check (b), the functions' Node version. nodemailer 10.6.0 needs Node 20 or newer, nothing in the repository pins it, and the Netlify token in the session env file answers 401. Checks (a) and (c) passed on the Deploy Preview (Keeper, 08:42 UTC).
-   - The owner was asked to read the Deploy Preview build log (https://app.netlify.com/projects/myuniforever/deploys/6afead9c53d83b6aa6d2bfdc, the "Now using node v..." line), or to say "merge anyway".
-   - Then mark it ready and merge. Check that https://myuni.top loads and that GET /.netlify/functions/feedback answers 405.
-4. **Tagging Doctor:**
-   - day 2 starts at 02:49 Los Angeles time (11:49 Barcelona): milestone 2, with the app's first migration;
-   - the T2 scope defaults (Q2 to Q6, Q8, Q9) are taken at 2026-11-20T11:50 UTC (12:50 Barcelona) unless the owner answers (inbox/2026-11-19-tagging-doctor-spec-t2.md); a paid Render plan (Q5) stays T3;
-   - Q7 yes (the gateway row, default caps): check it against release criterion 4 at milestone 2's release.
-5. **20 Nov, 13:23 Barcelona: footer redeploys** (trig_01Ke73kgrjfBaZf3WaSUzzJM). The order changed for the express fix: 20 Nov accessibility-lens and emoji-lingua; 21 Nov mult-streak-edge and accessibility-fleet-log (projects/platform/footer-redeploys.md). Append the outcome for each express app (accessibility-lens, emoji-lingua, mult-streak-edge) to projects/platform/releases/express-advisories.md.
-6. **YPai #48** (digitalme gateway retries, 7af6120): round 3, the last, after #47 merges and main is merged into claude/gateway-retries. Release 21 Nov, on the owner's yes of 06:55:32 UTC.
-7. **Platform follow-up, done 19 Nov:** deploy.mjs now waits for the Render deploy to go live before the health check (c32ad8c, Reviewer APPROVE; no app redeployed). Three minor follow-ups (superseded deploy, 202 with no id, 4xx retries) are in hintwise-workflow projects/platform/README.md, 2026-11-19T19:45Z; first real use is the next Render deploy.
+1. **20 Nov, 09:00 Barcelona (08:00 UTC): YPai #47 release,** one-shot trig_01TWYbtNXsPnDxP6vCuo4wZN; its prompt has the steps. The owner approved the GATEWAY_STREAM=1 set-env run in advance (ledger 2026-11-19T14:35Z) but must click Approve in GitHub between 09:00 and 10:00: send the link. Merge #47 (5da03a6) with a merge commit without `[skip netlify]`. Send no chat message yourself (a paid call); ask the owner to try one. After the merge write projects/ypai/releases/aux-cap.md and tell the YPai session (session_01JyJzMYdcL21t1LrX7eujSq) so it merges main into claude/gateway-retries.
+2. **09:46 Barcelona check: the "Needs you" card** if anything waits (credentials 3a/3b; MyUni's Node line; UpvoteMe's magic-link test).
+3. **MyUni, pisanuw/myuni PR #6** (draft, 706aa10), the owner's "2 yes": waits on the functions' Node version (nodemailer 10.6.0 needs Node 20+). The owner was asked to read "Now using node v..." in the Deploy Preview log (https://app.netlify.com/projects/myuniforever/deploys/6afead9c53d83b6aa6d2bfdc) or say "merge anyway". Then mark it ready, merge, check https://myuni.top and that GET /.netlify/functions/feedback answers 405.
+4. **Tagging Doctor:** day 2 at 11:49 Barcelona (milestone 2, the app's first migration). The T2 scope defaults (Q2 to Q6, Q8, Q9) are taken at 12:50 Barcelona unless the owner answers (inbox/2026-11-19-tagging-doctor-spec-t2.md); a paid Render plan (Q5) stays T3. Q7 yes (gateway row, default caps): check it against release criterion 4 at milestone 2's release. Milestone 2 is the review-index trial (PIPELINE.md).
+5. **13:23 Barcelona: footer redeploys** (trig_01Ke73kgrjfBaZf3WaSUzzJM): 20 Nov accessibility-lens and emoji-lingua; 21 Nov mult-streak-edge and accessibility-fleet-log. Append each express app's outcome to projects/platform/releases/express-advisories.md. These four are Netlify apps, so they do not exercise the deploy runner's wait-for-live (c32ad8c); its first real use is the next backend-hub deploy.
+6. **20 Nov 20:10 Barcelona: Watchdog first-day check** (trig_01KsqUrJyRKkr6dN6yiQyhTd): H3 and H5.
+7. **YPai #48** (7af6120): round 3, the last, after #47 merges and main is merged into claude/gateway-retries. Release 21 Nov, on the owner's yes of 06:55:32 UTC on 19 Nov.
+8. **Workflow hand-off, the rest** (projects/workflow/pmanager-handoff.md): H7 (Monitor's tools), H10/H11 (credentials, now the inbox item), H12 to H16 and H18 (platform work: directive, Builder, fresh Reviewer; H17, the test account, is dropped), H19 to H24 (records). Ask the owner before changing any of the owner's routines.
+9. **Render wait-live follow-ups** (R1 to R3): one small platform PR.
 
 ## 5. Decisions and why
 
@@ -207,31 +140,31 @@ Still open (section 4 has the next steps):
 
 Times are Barcelona time (the owner's current zone), with Los Angeles or UTC time where the schedule uses it.
 - **Relay routines** (move them at takeover):
-  - PManager hourly check at :46;
+  - PManager check every two hours at :46 of even UTC hours (01:46, 03:46 ... Barcelona; cards at the 09:46 and 19:46 checks);
   - handoff check 13:56 (04:56 LA);
   - session start 14:52 (05:52 LA);
   - footer redeploys 13:23, daily;
-  - one-shot: YPai #47 release, 20 Nov 09:00 (08:00 UTC).
-- **The YPai session's routines** (the new YPai session moves them): hourly report at :41; handoff check 18:56; session start 19:52.
+  - one-shots: YPai #47 release, 20 Nov 09:00 (08:00 UTC); Watchdog first-day check, 20 Nov 20:10 (19:10 UTC).
+- **The YPai session's routines** (session_01JyJzMYdcL21t1LrX7eujSq): hourly report at :41; handoff check 18:56; session start 19:52.
 - **Owner's routines:** ideas 10:51 (01:51 LA), build 11:49 (02:49 LA), TPT 06:37.
 - **Workflow routines:** Monitor daily 08:13; Monitor weekly Mondays 07:37 (the first email is 23 Nov); Keeper Thursdays 08:43 (next 26 Nov); Marketer Mondays 10:23.
+- **Workflow Actions (hintwise-workflow):** Watchdog 13:17 and 22:17 (12:17 and 21:17 UTC); Rules guard on each push to a rule file.
 - **Platform:** app-notify 16:17; the LLM usage report 17:10 and 18:10 (often late).
 - No background process runs in this container.
 
 ## 11. Open questions
 
 Waiting on the owner:
-1. **MyUni's Node line:** read "Now using node v..." in the Deploy Preview build log, or say "merge anyway" (18:46 card).
-2. **UpvoteMe's magic-link test:** the owner's own sign-in test after the 11:25 release.
-3. **Tomorrow's GitHub click:** approve the GATEWAY_STREAM=1 run between 09:00 and 10:00 Barcelona.
-4. **PR A and PR B** (from workflow PR #1): the owner merges each once its Reviewer approves.
-5. **Who deployed lewis-alt-text** at 15:37 Barcelona (14:37 UTC): manual Deploy run 44545724344, recorded nowhere (asked on the 18:46 card). Answered by that session's transcript (section 2): tell the owner no answer is needed.
+1. **Credentials (T3, no default):** 3a and 3b on the 19 Nov 20:06 card (inbox/2026-11-19-session-credentials.md).
+2. **MyUni's Node line:** read "Now using node v..." in the Deploy Preview build log, or say "merge anyway" (asked 19 Nov about 19:00 Barcelona).
+3. **UpvoteMe's magic-link test:** the owner's own sign-in test after the 19 Nov 11:25 release.
+4. **Today's GitHub click:** approve the GATEWAY_STREAM=1 run between 09:00 and 10:00 Barcelona.
 
 Also open, no action now:
 - Tagging Doctor's T2 scope questions: the defaults are taken on 20 Nov at 12:50 Barcelona.
 - Own-repo analytics merges: the owner will do them later.
 - digitalme's unused ANTHROPIC_API_KEY repository secret: the owner's to delete, and only if discover-and-draft.yml no longer needs it (default 9).
-- The PR #1 hand-off's other questions for the owner (environments H11, the approval gate H12, the rollback drill H13, the test account): after the merges.
+- The workflow hand-off's other owner questions: the approval gate (H12) and the rollback drill (H13).
 
 ## Notes for the next session
 
@@ -240,17 +173,18 @@ Also open, no action now:
 - **Questions:** numbered, with a recommendation, in message text. With a recommendation and no answer within 15 minutes in a live chat, take it and say how to undo it (never for the ask-first list). Workflow T2 items default after 24 hours.
 - **Approvals typed in another session** (CHARTER.md, Communication, 19 Nov): a yes the owner typed in another session counts when PManager read it in that session's transcript, as a message the owner typed (not one a session relayed), and the ledger names where and when.
 - **Times:** the reporting zone is Los Angeles by default. Until 6 January 2027 it is the zone the owner last named, Barcelona now. Label every time.
-- **Reports** (owner, 18 Nov): no hourly status report. Hourly reports stay off (owner "1", 19 Nov).
+- **Reports** (owner, 18 Nov): no periodic status report (owner "1", 19 Nov). PManager's check runs every two hours (owner, 20 Nov). A check with nothing to report prints nothing, or exactly one line "HH:MM Nothing to report." (owner, 20 Nov).
   - PManager sends a "Needs you" card at about 09:00 and 18:00 in the reporting zone when something waits on the owner, and at once for an incident.
   - Monitor sends the daily digest, the weekly retrospective, and the weekly email.
-- **Handovers:** the daily handover check hands over at 500,000 used tokens, 50% of the 1M window (owner's answer to Q23, 19 Nov), at 6 days, on request, or on failure.
+- **Handovers:** the daily handover check hands over at 500,000 used tokens (owner's answer to Q23, 19 Nov, kept on 20 Nov: "No leave 500k in your place"), at 6 days, on request, or on failure. Compaction: the owner set `CLAUDE_CODE_AUTO_COMPACT_WINDOW=700000` and `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS=400000` (20 Nov); a new session's window is 680,000 (700,000 less 20,000); its autocompact_state.threshold depends on the percentage the cloud sets, which differs between sessions (this session 80%, threshold 384,000 of 480,000; the previous one 92%, 441,600 of 480,000), so expect 544,000 to about 626,000. Read it at takeover and tell the owner the real figure.
+- **Archive after a handover** (owner, 20 Nov): once the new session has taken over and started work, it archives the previous session with archive_session (takeover step (e)), unless that session is still working. Never archive any other session.
 - **The HintWise workflow is adopted:** you are its PManager. Owner decisions go in hintwise-workflow `decisions/` verbatim.
 - **Repo rules:** CHANGES.md is append-only (`YYYY-MM-DD [type] text`). Conventional Commits. No model names in repository files. Run lint and tests before committing.
 
 ### Relay parameters (session-relay skill)
 | Parameter | Value |
 |---|---|
-| Repository | pisanuw/claude-built-apps; also pisan-labs/hintwise-workflow, daily-project-ideas, pisanorg/yusuf, pisan-labs/chess-tournament-director, pisanuw/upvote, pisanuw/pastemd, pisanuw/understanding-debt, pisanuw/myuni, pisan-labs/photo2pgn, pisan-labs/visualizing-data-structures; read-only dashboards, chess-analyzer |
+| Repository | pisanuw/claude-built-apps; also pisan-labs/hintwise-workflow, pisanuw/digitalme, daily-project-ideas, pisanorg/yusuf, pisan-labs/chess-tournament-director, pisanuw/upvote, pisanuw/pastemd, pisanuw/understanding-debt, pisanuw/myuni, pisan-labs/photo2pgn, pisan-labs/visualizing-data-structures; read-only dashboards, chess-analyzer |
 | Handoff document | HANDOFF.md (this file) |
 | Routine time zone | America/Los_Angeles |
 | Report time zone | America/Los_Angeles by default; Europe/Madrid (Barcelona) while the owner travels, until 6 January 2027 |
@@ -266,19 +200,20 @@ Also open, no action now:
   - session_01JyJzMWixW7SqcHTri4Umng (Nov 13, depth 4);
   - session_01JyJzMVhQhwQ7Ea3HMyJ3FN (Nov 14, depth 5);
   - session_01JyJzMXVbrUAhXw75BNyNCX ("PManager: Nov 18", depth 6 of limit 8). It took over on 18 Nov at 02:36 UTC and handed over on 18 Nov, by hand, at the owner's request; its routines were moved at 05:30 UTC.
-- **Previous session: session_01JyJzMXY6RAmKb5w3vkqBjo ("PManager: Nov 18"),** lineage depth 0 of limit 8 (a new lineage, started by hand by the owner).
-  - Created 18 Nov 05:28 UTC; took over 18 Nov 05:30 UTC (06:30 Barcelona time), for the handoff of 18 November (f8641db).
-  - Handed over on 19 Nov at about 18:45 UTC (19:45 Barcelona time), at the owner's suggestion. It starts the next session with create_session, so that session should read depth 1 (check with get_session).
-- **Current session: session_01JyJzMZdo2cwHjA4hcPLrcu ("PManager: Nov 19"),** lineage depth 1 of limit 8, parent session_01JyJzMXY6RAmKb5w3vkqBjo. Created 19 Nov 18:45:58 UTC by create_session; took over on 19 Nov at 18:47 UTC (19:47 Barcelona time) and moved the five routines below.
-- **The relay's routines** (aimed at the current session since 19 Nov 18:47 UTC; the old ids trig_01D3w33bL8kxHA46VLTrnKNc, trig_01PwhDWfkjdf2pxLNMyp52a8, trig_01Ck5e8Yy3vvwQ1BSF6cJnE2, trig_01W7LHJXGx2ekKemn6hPJeBp and trig_0156DPbYvHFbU89bjsgiq2qV are deleted):
-  - trig_01FEYJzMcZfH5Z61dZTAAiBh: PManager hourly check, `46 * * * *`;
-  - trig_01NK9e6hncKTF9CqeRKBYPyj: Plabs handoff check: hand over only when due, `CRON_TZ=America/Los_Angeles 56 4 * * *` (hands over at 500,000 used tokens, the owner's Q23 answer);
-  - trig_01W9QnQzfzpLzRZ72Jx2dK3Q: Plabs daily handoff: start the next session (create_session), `CRON_TZ=America/Los_Angeles 52 5 * * *`;
+  - session_01JyJzMXY6RAmKb5w3vkqBjo ("PManager: Nov 18", depth 0 of 8, a new lineage started by hand by the owner). Took over 18 Nov 05:30 UTC; handed over 19 Nov about 18:45 UTC at the owner's suggestion. Archived on 20 Nov at 03:00 UTC (get_session shows SESSION_STATUS_ARCHIVED).
+- **Previous session: session_01JyJzMZdo2cwHjA4hcPLrcu ("PManager: Nov 19"),** lineage depth 1 of limit 8, parent session_01JyJzMXY6RAmKb5w3vkqBjo. Created 19 Nov 18:45:58 UTC by create_session; took over 19 Nov 18:47 UTC. Handed over on 20 Nov at about 04:20 UTC (05:20 Barcelona) at the owner's request, and starts the next session with create_session, so that session should read depth 2. Archive it under takeover step (e).
+- **Current session:** to be written by the new session at takeover.
+- **The relay's routines** (aimed at the previous session, session_01JyJzMZdo2cwHjA4hcPLrcu; the new session moves them):
+  - trig_01FEYJzMcZfH5Z61dZTAAiBh: PManager check, every 2 hours, `46 */2 * * *` (was hourly until 20 Nov 04:08 UTC);
+  - trig_01NK9e6hncKTF9CqeRKBYPyj: Plabs handoff check: hand over only when due, `CRON_TZ=America/Los_Angeles 56 4 * * *` (hands over at 500,000 used tokens);
+  - trig_01W9QnQzfzpLzRZ72Jx2dK3Q: Plabs daily handoff: start the next session (create_session), `CRON_TZ=America/Los_Angeles 52 5 * * *` (its takeover prompt has step (e), archive, since 20 Nov);
   - trig_01Ke73kgrjfBaZf3WaSUzzJM: Footer redeploys, two apps a day, `CRON_TZ=Europe/Madrid 23 13 * * *`;
-  - one-shot: trig_01TWYbtNXsPnDxP6vCuo4wZN, YPai #47 release day, 2026-11-20T08:00Z (09:00 Barcelona).
+  - one-shot: trig_01TWYbtNXsPnDxP6vCuo4wZN, YPai #47 release day, 2026-11-20T08:00Z (09:00 Barcelona);
+  - one-shot: trig_01KsqUrJyRKkr6dN6yiQyhTd, Watchdog first-day check (H3, H5), 2026-11-20T19:10Z (20:10 Barcelona).
 - **Handover checks:**
   - 19 Nov, 12:56 UTC: no handover. Context was 101,271 of 500,000 (20%) after an auto-compaction; the session was 1 day 7 hours old. The owner set `CLAUDE_CODE_AUTO_COMPACT_WINDOW=500000` on the environment (seen 19 Nov; compaction point 441,600). Owner's answer to Q23, "1" (19 Nov, 13:03 UTC): the check hands over at 500,000 tokens, 50% of the 1M window, not at 50% of max_tokens (which now reads 500,000). Compaction keeps a session below that, so handovers come at 6 days, on request, or on failure. trig_01PwhDWfkjdf2pxLNMyp52a8 is updated; the YPai session updates its own check.
   - 19 Nov, about 18:45 UTC: handover at the owner's suggestion (ledger 18:26 UTC). Context was 400,172 of 500,000, with compaction at 441,600; the PR #1 edits would have crossed it.
+  - 20 Nov, about 04:20 UTC: handover at the owner's request ("Do a handoff now"). get_session showed autocompact_state effective_window 480,000, threshold 384,000 (the old 500000 setting; this session's cloud percentage is 80), used about 340,000.
 - **Leave alone:**
   - the YPai session's routines, moved at 18:53 UTC on 19 Nov to the new YPai session session_01JyJzMYdcL21t1LrX7eujSq ("YPai: Nov 19"; the one to tell after #47 merges): hourly report trig_01XRHaKRimeYQFDsdyzG8QRP (`41 * * * *`), handoff check trig_01CqD8KcEJGwvxNuhkspHd3j (`CRON_TZ=Europe/Madrid 56 18 * * *`), session start trig_01Tng1uFLw5e6RKT1uhE4gbW (`CRON_TZ=Europe/Madrid 52 19 * * *`);
   - the owner's routines: ideas trig_01K986yzFbf3noGkLA6RgZkn, build trig_01BAP9nsXTtxTdpMiwk5GdXE, TPT trig_013VN2RNYCwh2k3F2ZjgnK6U;

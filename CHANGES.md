@@ -724,3 +724,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-19 [code] platform: Render deploys now wait for the new deploy to go live (fail on build_failed etc., 20 min timeout) before the health check; render-wait.mjs + tests.
 
 2026-11-19 [note] lewis-alt-text: owner verified the CLI live (login through /terminal/, status, alt text through the gateway); deploy run 44545724344
+
+2026-11-20 [doc] HANDOFF.md rewritten for the handover of PManager: Nov 19 at the owner's request; checks every two hours; the new relay session archives the old one.
