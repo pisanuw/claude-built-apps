@@ -10,7 +10,7 @@
  */
 import { CAVEAT, escapeHtml, REPORT_CSS } from './report';
 import type { DocumentScan, Finding, Rule } from './scan';
-import type { Group } from './status';
+import type { Group, StatusData } from './status';
 
 /** Longest excerpt a saved finding keeps (AC-23; the database refuses longer). */
 export const MAX_EXCERPT = 200;
@@ -86,6 +86,22 @@ export function defaultProjectName(fileName: string): string {
   return base.replace(/\.(zip|tex)$/i, '') || base;
 }
 
+/** A browser's copy suffix at the end of a name: "hw1 (1)", "hw1(12)". */
+const COPY_SUFFIX = /^(.+?) ?\((\d+)\)$/;
+
+/**
+ * The project name a save suggests (AC-73, AC-74): the name itself when the
+ * course has a project of that name; else, when the name ends in a
+ * browser's copy suffix and the course has a project of the name without it,
+ * that project's name (a new version downloaded again); else the name as it
+ * is. Nothing else is taken off (`hw1-v2`, `hw1 final` stay).
+ */
+export function suggestedProjectName(name: string, existing: readonly string[]): string {
+  if (existing.includes(name)) return name;
+  const m = COPY_SUFFIX.exec(name);
+  return m && existing.includes(m[1]) ? m[1] : name;
+}
+
 /** What identifies a blocker across two scans: the package and its kind, or the rule and the file. */
 export function blockerKey(f: Pick<StoredFinding, 'rule' | 'package' | 'kind' | 'path'>): string {
   return f.package ? `${f.kind ?? 'package'}:${f.package}` : `${f.rule}:${f.path}`;
@@ -112,6 +128,13 @@ export function blockerDelta(previous: Pick<StoredScan, 'findings'>, next: Pick<
 /** "2 blockers fixed and 1 new since the previous scan." */
 export function deltaLine(d: Delta): string {
   return `${d.fixed === 1 ? '1 blocker' : `${d.fixed} blockers`} fixed and ${d.added} new since the previous scan.`;
+}
+
+/** A date and time for people: "19 Nov 2026, 14:05 UTC", for scans saved the same day. */
+export function shortDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${shortDate(iso)}, ${iso.slice(11, 16)} UTC`;
 }
 
 /** A date for people: "19 Nov 2026" (UTC, so tests and every reader agree). */
@@ -186,11 +209,43 @@ export function blockerTable(
     .sort((a, b) => b.projects.length - a.projects.length || a.blocker.localeCompare(b.blocker));
 }
 
+/** The package data the report's verdicts come from (AC-75, AC-76). */
+export interface ReportData {
+  /** The earliest and the latest `data_as_of` of the projects' latest scans; null when none is scanned. */
+  from: string | null;
+  to: string | null;
+  /** From the data file's header, as the scan report reads it. */
+  source: string;
+  commit: string;
+  retrieved: string;
+  licence: string;
+}
+
 export interface CourseReport {
   course: { name: string; term: string | null };
   generatedAt: string;
   rows: CourseReportRow[];
   blockers: BlockerRow[];
+  data: ReportData;
+}
+
+/** The data of the report from the latest scans' dates and the data file's header (AC-75, AC-76). */
+export function reportData(latest: Iterable<{ data_as_of: string }>, data: Pick<StatusData, 'source'>): ReportData {
+  const dates = [...latest].map((s) => s.data_as_of).filter(Boolean).sort();
+  return {
+    from: dates[0] ?? null,
+    to: dates[dates.length - 1] ?? null,
+    source: data.source.url,
+    commit: data.source.commit,
+    retrieved: data.source.retrieved,
+    licence: data.source.licence,
+  };
+}
+
+/** "Package data as of 2026-11-12 to 2026-11-19: the LaTeX Project’s tagging status list, …" (AC-75, AC-76). */
+export function dataLine(d: ReportData): string {
+  const when = !d.from ? 'Package data: no project has a saved scan yet' : d.from === d.to ? `Package data as of ${d.from}` : `Package data as of ${d.from} to ${d.to}`;
+  return `${when}: the LaTeX Project’s tagging status list, ${d.source}. This version of Tagging Doctor uses its copy at commit ${d.commit.slice(0, 7)}, retrieved ${d.retrieved} (${d.licence}).`;
 }
 
 /** The report's content, shared by the printable page and the downloaded file (AC-20). */
@@ -199,13 +254,16 @@ export function courseReportBody(r: CourseReport, top = 1): string {
   const out: string[] = [];
   out.push(`<h${top} id="course-report-h" tabindex="-1">Course report: ${escapeHtml(title)}</h${top}>`);
   out.push(`<p class="meta">Made ${escapeHtml(r.generatedAt.slice(0, 16).replace('T', ' '))} UTC by Tagging Doctor (https://tagging-doctor.hintwise.org), from the latest saved scan of each project.</p>`);
+  out.push(`<p class="meta data-line">${escapeHtml(dataLine(r.data))}</p>`);
   out.push(`<p class="caveat">${escapeHtml(CAVEAT)}</p>`);
   const withBlockers = r.rows.filter((x) => x.blockers > 0).length;
   out.push(`<p>${withBlockers} of ${r.rows.length === 1 ? '1 project has' : `${r.rows.length} projects have`} blockers.</p>`);
-  out.push('<table><caption>Projects</caption><thead><tr><th scope="col">Project</th><th scope="col">Main file</th><th scope="col">Verdict</th><th scope="col">Blockers</th><th scope="col">Warnings</th><th scope="col">Latest scan</th></tr></thead><tbody>');
+  // When every project is named by its main file ("Save all"), one column says it.
+  const files = r.rows.some((x) => x.project !== x.mainFile);
+  out.push(`<table><caption>Projects</caption><thead><tr><th scope="col">Project</th>${files ? '<th scope="col">Main file</th>' : ''}<th scope="col">Verdict</th><th scope="col">Blockers</th><th scope="col">Warnings</th><th scope="col">Latest scan</th></tr></thead><tbody>`);
   for (const x of r.rows) {
     out.push(
-      `<tr><td>${escapeHtml(x.project)}</td><td>${escapeHtml(x.mainFile)}</td><td>${escapeHtml(x.verdict ?? 'Not scanned yet')}</td><td>${x.blockers}</td><td>${x.warnings}</td><td>${escapeHtml(x.scannedAt ? shortDate(x.scannedAt) : 'none')}</td></tr>`,
+      `<tr><td>${escapeHtml(x.project)}</td>${files ? `<td>${escapeHtml(x.mainFile)}</td>` : ''}<td>${escapeHtml(x.verdict ?? 'Not scanned yet')}</td><td>${x.blockers}</td><td>${x.warnings}</td><td>${escapeHtml(x.scannedAt ? shortDate(x.scannedAt) : 'none')}</td></tr>`,
     );
   }
   out.push('</tbody></table>');

@@ -12,15 +12,19 @@ import {
   deltaLine,
   EXPORT_FORMAT,
   exportJson,
+  dataLine,
   latestByProject,
   MAX_EXCERPT,
+  reportData,
   shortDate,
+  shortDateTime,
+  suggestedProjectName,
   storedFinding,
   toStoredScan,
   type StoredScan,
 } from '../src/core/saved';
 import { findMainFiles, scanDocument, type Finding } from '../src/core/scan';
-import { CourseStore, MemoryDb, SupabaseDb, TABLES, type ScanRow, type TableClient, type TableQuery } from '../src/lib/store';
+import { CourseStore, MemoryDb, PAGE_ROWS, SupabaseDb, TABLES, type ScanRow, type TableClient, type TableQuery } from '../src/lib/store';
 import { statusIndex, zipFixture } from './helpers';
 
 const idx = statusIndex();
@@ -128,7 +132,8 @@ describe('saved scans: names, deltas and the course report', () => {
       { blocker: 'caption (package)', projects: ['hw1', 'hw2'] },
       { blocker: 'tabu (package)', projects: ['hw1'] },
     ]);
-    const report = { course: { name: 'Calculus <I>', term: 'Fall 2026' }, generatedAt: NOW.toISOString(), rows, blockers };
+    const data = reportData([{ data_as_of: '2026-11-19' }], idx.data);
+    const report = { course: { name: 'Calculus <I>', term: 'Fall 2026' }, generatedAt: NOW.toISOString(), rows, blockers, data };
     const html = courseReportHtml(report);
     expect(html).toMatch(/^<!doctype html>/);
     expect(html).toContain('<h1 id="course-report-h" tabindex="-1">Course report: Calculus &lt;I&gt;, Fall 2026</h1>');
@@ -243,15 +248,16 @@ describe('CourseStore on the in-memory database', () => {
 });
 
 describe('SupabaseDb: one query per call, in the app schema', () => {
-  function fakeClient(result: { data: unknown; error: { message: string } | null }) {
+  function fakeClient(result: { data: unknown; error: { message: string } | null } | (() => { data: unknown; error: { message: string } | null })) {
     const calls: unknown[][] = [];
     const q: TableQuery = {
       eq: (...a) => (calls.push(['eq', ...a]), q),
       in: (...a) => (calls.push(['in', ...a]), q),
       order: (...a) => (calls.push(['order', ...a]), q),
+      range: (...a) => (calls.push(['range', ...a]), q),
       select: (...a) => (calls.push(['select', ...a]), q),
       single: () => (calls.push(['single']), q),
-      then: (ok, bad) => Promise.resolve(result).then(ok, bad),
+      then: (ok, bad) => Promise.resolve(typeof result === 'function' ? result() : result).then(ok, bad),
     };
     const client: TableClient = {
       from: (t) => {
@@ -270,16 +276,33 @@ describe('SupabaseDb: one query per call, in the app schema', () => {
     const { client, calls } = fakeClient({ data: [{ id: 1 }], error: null });
     const db = new SupabaseDb(client);
     expect(await db.select('scans', { project_id: ['a', 'b'], user_id: 'u' })).toEqual([{ id: 1 }]);
-    expect(calls).toEqual([['from', 'scans'], ['select', '*'], ['in', 'project_id', ['a', 'b']], ['eq', 'user_id', 'u'], ['order', 'created_at', { ascending: true }]]);
+    expect(calls).toEqual([
+      ['from', 'scans'],
+      ['select', '*'],
+      ['in', 'project_id', ['a', 'b']],
+      ['eq', 'user_id', 'u'],
+      ['order', 'created_at', { ascending: true }],
+      ['order', 'id', { ascending: true }],
+      ['range', 0, 999],
+    ]);
     calls.length = 0;
     await db.select('alt_texts');
-    expect(calls.at(-1)).toEqual(['order', 'updated_at', { ascending: true }]);
+    expect(calls.slice(-3)).toEqual([['order', 'updated_at', { ascending: true }], ['order', 'id', { ascending: true }], ['range', 0, 999]]);
     calls.length = 0;
     await db.insert('courses', { name: 'x' });
     expect(calls).toEqual([['from', 'courses'], ['insert', { name: 'x' }], ['select'], ['single']]);
     calls.length = 0;
     await db.remove('projects', 'p1');
     expect(calls).toEqual([['from', 'projects'], ['delete'], ['eq', 'id', 'p1']]);
+  });
+
+  it('reads past the API\'s 1,000-row limit, page by page (acceptance m2 note)', async () => {
+    let n = 0;
+    const pages = [PAGE_ROWS, PAGE_ROWS, 5];
+    const { client, calls } = fakeClient(() => ({ data: Array.from({ length: pages[n++] }, (_, i) => ({ id: `${n}-${i}` })), error: null }));
+    const rows = await new SupabaseDb(client).select('scans');
+    expect(rows).toHaveLength(2 * PAGE_ROWS + 5);
+    expect(calls.filter((c) => c[0] === 'range')).toEqual([['range', 0, 999], ['range', 1000, 1999], ['range', 2000, 2999]]);
   });
 
   it('turns an error into a message naming the table', async () => {
@@ -301,5 +324,70 @@ describe('a course zip saved with "Save all"', () => {
     const c = await store.createCourse('C', null);
     await store.save(c.id, items);
     expect((await store.projects(c.id)).map((x) => x.main_file)).toEqual(mains);
+  });
+});
+
+describe('AC-73 and AC-74 (CR-4): a copy suffix is dropped only for a project the course has', () => {
+  it.each([
+    ['hw1 (1)', ['hw1'], 'hw1'],
+    ['hw1 (12)', ['hw1'], 'hw1'],
+    ['hw1(2)', ['hw1', 'hw2'], 'hw1'],
+    ['hw1 (1)', [], 'hw1 (1)'],
+    ['hw1 (1)', ['hw2'], 'hw1 (1)'],
+    ['hw1 (1)', ['hw1 (1)', 'hw1'], 'hw1 (1)'],
+    ['hw1-v2', ['hw1'], 'hw1-v2'],
+    ['hw1 final', ['hw1'], 'hw1 final'],
+    ['hw1 (a)', ['hw1'], 'hw1 (a)'],
+    ['(1)', ['', '(1)'], '(1)'],
+  ])('%s with %j -> %s', (name, existing, want) => {
+    expect(suggestedProjectName(name, existing)).toBe(want);
+  });
+
+  it('works from the dropped file\'s name', () => {
+    expect(suggestedProjectName(defaultProjectName('hw1 (1).zip'), ['hw1'])).toBe('hw1');
+    expect(suggestedProjectName(defaultProjectName('hw1 (1).zip'), [])).toBe('hw1 (1)');
+  });
+});
+
+describe('AC-75 and AC-76 (CR-5): the course report names its package data', () => {
+  const rows = [{ project: 'hw1', mainFile: 'main.tex', verdict: 'No known blockers', blockers: 0, warnings: 0, scannedAt: '2026-11-19T00:00:00Z' }];
+  const report = (dates: string[]) => ({
+    course: { name: 'STAT 201', term: null },
+    generatedAt: NOW.toISOString(),
+    rows,
+    blockers: [],
+    data: reportData(dates.map((d) => ({ data_as_of: d })), idx.data),
+  });
+  const SOURCE = 'the LaTeX Project’s tagging status list, https://github.com/latex3/tagging-project/blob/main/_data/tagging-status.yml. This version of Tagging Doctor uses its copy at commit 407cadb, retrieved 2026-11-19 (LaTeX Project Public License, version 1.3c or later).';
+
+  it.each([
+    [['2026-11-19'], 'Package data as of 2026-11-19'],
+    [['2026-11-19', '2026-11-19'], 'Package data as of 2026-11-19'],
+    [['2026-11-19', '2026-11-12'], 'Package data as of 2026-11-12 to 2026-11-19'],
+    [['2026-11-15', '2026-11-19', '2026-11-12'], 'Package data as of 2026-11-12 to 2026-11-19'],
+  ])('%j -> %s, on the page and in the download', (dates, when) => {
+    const r = report(dates);
+    const line = `${when}: ${SOURCE}`;
+    expect(dataLine(r.data)).toBe(line);
+    expect(courseReportBody(r, 2)).toContain(line);
+    expect(courseReportHtml(r)).toContain(line);
+    expect(courseReportHtml(r)).not.toContain('2026-11-15');
+  });
+
+  it('reads the source from the data file\'s header, as the scan report does', () => {
+    const d = reportData([], idx.data);
+    expect(d).toEqual({ from: null, to: null, source: idx.data.source.url, commit: idx.data.source.commit, retrieved: idx.data.source.retrieved, licence: idx.data.source.licence });
+    expect(dataLine(d)).toMatch(/^Package data: no project has a saved scan yet: the LaTeX Project’s tagging status list/);
+  });
+
+  it('shows one column for projects named by their main file', () => {
+    const html = courseReportHtml({ ...report(['2026-11-19']), rows: [{ ...rows[0], project: 'main.tex' }] });
+    expect(html).not.toContain('<th scope="col">Main file</th>');
+    expect(courseReportHtml(report(['2026-11-19']))).toContain('<th scope="col">Main file</th>');
+  });
+
+  it('dates scans with their time, for scans saved the same day', () => {
+    expect(shortDateTime('2026-11-20T14:05:09Z')).toBe('20 Nov 2026, 14:05 UTC');
+    expect(shortDateTime('nope')).toBe('nope');
   });
 });

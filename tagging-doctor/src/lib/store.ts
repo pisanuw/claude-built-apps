@@ -114,6 +114,7 @@ export interface TableQuery extends PromiseLike<{ data: unknown; error: { messag
   eq(column: string, value: string): TableQuery;
   in(column: string, values: string[]): TableQuery;
   order(column: string, opts: { ascending: boolean }): TableQuery;
+  range(from: number, to: number): TableQuery;
   select(columns?: string): TableQuery;
   single(): TableQuery;
 }
@@ -126,16 +127,32 @@ export interface TableClient {
   };
 }
 
-/** One query per call, in the app's schema (the client is made with db.schema = app_tagging_doctor). */
+/** Rows per request: at most Supabase's default API limit. */
+export const PAGE_ROWS = 1000;
+
+/** In the app's schema (the client is made with db.schema = app_tagging_doctor); a write is one query, a read one query per 1,000 rows. */
 export class SupabaseDb implements Db {
   constructor(private readonly client: TableClient) {}
 
+  /**
+   * Reads page by page, so the API's row limit (1,000 by default) never cuts
+   * an export or a long course short without saying so. Ordered by time, then
+   * id, so the pages do not overlap.
+   */
   async select<T>(table: Table, where: Where = {}): Promise<T[]> {
-    let q = this.client.from(table).select('*');
-    for (const [k, v] of Object.entries(where)) q = Array.isArray(v) ? q.in(k, v) : q.eq(k, v);
-    const { data, error } = await q.order(table === 'alt_texts' ? 'updated_at' : 'created_at', { ascending: true });
-    if (error) throw new Error(`${table}: ${error.message}`);
-    return (data ?? []) as T[];
+    const out: T[] = [];
+    for (let from = 0; ; from += PAGE_ROWS) {
+      let q = this.client.from(table).select('*');
+      for (const [k, v] of Object.entries(where)) q = Array.isArray(v) ? q.in(k, v) : q.eq(k, v);
+      const { data, error } = await q
+        .order(table === 'alt_texts' ? 'updated_at' : 'created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, from + PAGE_ROWS - 1);
+      if (error) throw new Error(`${table}: ${error.message}`);
+      const rows = (data ?? []) as T[];
+      out.push(...rows);
+      if (rows.length < PAGE_ROWS) return out;
+    }
   }
 
   async insert<T>(table: Table, row: Record<string, unknown>): Promise<T> {

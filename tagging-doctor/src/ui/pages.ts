@@ -13,11 +13,15 @@ import {
   deltaLine,
   exportJson,
   latestByProject,
+  reportData,
   shortDate,
+  shortDateTime,
+  suggestedProjectName,
   type CourseReport,
   type SaveItem,
 } from '../core/saved';
 import type { CourseRow, CourseStore, ProjectRow, SavedResult } from '../lib/store';
+import type { StatusData } from '../core/status';
 
 export interface PageCtx {
   /** The signed-in person's store, or null when signed out. */
@@ -26,6 +30,8 @@ export interface PageCtx {
   download: (name: string, type: string, content: string) => void;
   confirm: (message: string) => boolean;
   print: () => void;
+  /** The package data file, whose header the course report names (AC-75). */
+  loadData: () => Promise<StatusData>;
   /** True while this render is still the page on screen (a newer route replaces it). */
   current: () => boolean;
 }
@@ -181,18 +187,25 @@ function notFound(text: string): HTMLElement[] {
 }
 
 /** The data of a course's report (AC-20). */
-export async function courseReport(store: CourseStore, id: string, now: Date): Promise<CourseReport | null> {
+export async function courseReport(store: CourseStore, id: string, now: Date, data: StatusData): Promise<CourseReport | null> {
   const course = await store.course(id);
   if (!course) return null;
   const projects = await store.projects(id);
   const latest = latestByProject(await store.scansOf(projects.map((p) => p.id)));
-  return { course: { name: course.name, term: course.term }, generatedAt: now.toISOString(), rows: courseRows(projects, latest), blockers: blockerTable(projects, latest) };
+  return {
+    course: { name: course.name, term: course.term },
+    generatedAt: now.toISOString(),
+    rows: courseRows(projects, latest),
+    blockers: blockerTable(projects, latest),
+    data: reportData(latest.values(), data),
+  };
 }
 
 /** The printable course report: the report alone, with Print and Download HTML (AC-20). */
 export function renderCourseReport(page: HTMLElement, ctx: PageCtx, id: string): Promise<void> {
   return withStates(page, 'Course report', ctx, 'the course report', async (store) => {
-    const r = await courseReport(store, id, ctx.now());
+    const [data, found] = await Promise.all([ctx.loadData(), store.course(id)]);
+    const r = found ? await courseReport(store, id, ctx.now(), data) : null;
     if (!r) return notFound('This course was not found. It may have been deleted.');
     const actions = el('p', { class: 'actions no-print' });
     actions.append(
@@ -229,8 +242,8 @@ export function renderProject(page: HTMLElement, ctx: PageCtx, id: string, go: (
       out.push(
         table(
           'Scans, newest first',
-          ['Date', 'Verdict', 'Blockers', 'Warnings', 'Since the previous scan'],
-          h.scans.map(({ scan, delta }) => [shortDate(scan.created_at), scan.summary.verdict, String(scan.summary.blockers), String(scan.summary.warnings), delta ? `${delta.fixed} fixed, ${delta.added} new` : 'first scan']),
+          ['Saved', 'Verdict', 'Blockers', 'Warnings', 'Since the previous scan'],
+          h.scans.map(({ scan, delta }) => [shortDateTime(scan.created_at), scan.summary.verdict, String(scan.summary.blockers), String(scan.summary.warnings), delta ? `${delta.fixed} fixed, ${delta.added} new` : 'first scan']),
         ),
       );
     }
@@ -325,6 +338,11 @@ export function renderSaveDialog(panel: HTMLElement, opts: SaveDialogOpts): void
     } else {
       projectBox.append(el('p', {}, `Each document is saved as its own project, named by its path: ${items.map((i) => i.name).join(', ')}. A project that already has that name gets a new scan.`));
     }
+    // Until the person types a name, the suggestion follows the chosen course (AC-73, AC-74).
+    let typed = false;
+    const suggest = () => {
+      if (mode === 'one' && !typed) projName.value = suggestedProjectName(items[0].name, existing.map((p) => p.name));
+    };
     const updateHint = () => {
       if (mode !== 'one') return;
       const same = existing.find((p) => p.name === projName.value.trim());
@@ -334,6 +352,7 @@ export function renderSaveDialog(panel: HTMLElement, opts: SaveDialogOpts): void
       newBox.hidden = pick.value !== '';
       existing = [];
       known.replaceChildren();
+      suggest();
       updateHint();
       if (!pick.value) return;
       const chosen = pick.value;
@@ -342,13 +361,17 @@ export function renderSaveDialog(panel: HTMLElement, opts: SaveDialogOpts): void
         if (pick.value !== chosen) return;
         existing = ps;
         for (const p of ps) known.append(el('option', { value: p.name }));
+        suggest();
         updateHint();
       } catch {
         // The list is a convenience; saving still finds the project by name.
       }
     };
     pick.addEventListener('change', () => void onCourse());
-    projName.addEventListener('input', updateHint);
+    projName.addEventListener('input', () => {
+      typed = true;
+      updateHint();
+    });
     const save = el('button', { type: 'submit', class: 'primary' }, mode === 'all' ? `Save ${items.length} projects` : 'Save');
     const cancel = button('Cancel', opts.onClose);
     const actions = el('p', { class: 'actions' });
@@ -397,7 +420,10 @@ export function renderSaveDialog(panel: HTMLElement, opts: SaveDialogOpts): void
         save.disabled = false;
       }
     };
+    // Redrawing moves the heading; a focus on it stays there.
+    const focused = document.activeElement === h;
     panel.replaceChildren(h, keep, form, status);
+    if (focused) h.focus();
     void onCourse();
   }
 

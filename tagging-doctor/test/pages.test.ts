@@ -128,6 +128,8 @@ describe('AC-16: two sign-in buttons, and the scan without signing in', () => {
     button('Sign in with Google', q('#save')).click();
     await settle();
     expect(q('#save-h').textContent).toBe('Save to a course');
+    // The focus stays in the panel (acceptance m2's note).
+    expect(document.activeElement).toBe(q('#save-h'));
     expect(q('#nav-courses').hidden).toBe(false);
     expect(session.has(PENDING_KEY)).toBe(false);
     // The top bar shows the person now.
@@ -193,8 +195,8 @@ describe('AC-17: save to a new or existing course, and find it after a reload', 
     await t.app.route((t.q('#page tbody a') as HTMLAnchorElement).getAttribute('href') as string);
     expect(t.q('#page-h').textContent).toBe('Homework 1');
     expect(t.qa('#page tbody tr').map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent))).toEqual([
-      ['20 Nov 2026', '2 blockers found', '2', '3', '1 fixed, 1 new'],
-      ['20 Nov 2026', '2 blockers found', '2', '1', 'first scan'],
+      ['20 Nov 2026, 12:00 UTC', '2 blockers found', '2', '3', '1 fixed, 1 new'],
+      ['20 Nov 2026, 12:00 UTC', '2 blockers found', '2', '1', 'first scan'],
     ]);
     expect(t.q('#page').textContent).toContain('No checks yet.');
     expect(t.q('#page').textContent).toContain('No saved alt texts.');
@@ -541,5 +543,70 @@ describe('the preview account', () => {
     (email.form as HTMLFormElement).requestSubmit();
     await settle();
     expect(t.q('#nav-courses').hidden).toBe(false);
+  });
+});
+
+describe('AC-73 and AC-74 (CR-4): a file the browser downloaded again saves to its project', () => {
+  async function withHw1() {
+    const store = new CourseStore(new MemoryDb('u1', () => NOW));
+    const c = await store.createCourse('Calc', null);
+    await store.save(c.id, [{ name: 'hw1', mainFile: 'main.tex', scan: { data_as_of: '2026-11-19', summary: { mainFile: 'main.tex', verdict: '1 blockers found', blockers: 1, warnings: 0, unknown: 0, ok: 0, notes: [], figures: { images: 0, imagesWithoutAlt: 0, tikz: 0, tikzWithoutAlt: 0 } }, findings: [{ path: 'main.tex', line: 1, rule: 'package-status', severity: 'blocker', package: 'tabu', kind: 'package' }] } }]);
+    const t = setup({ account: fakeAccount(store, true).account });
+    return { store, c, t };
+  }
+
+  it('"hw1 (1).zip" defaults to hw1, says so, and adds a scan to it', async () => {
+    const { store, c, t } = await withHw1();
+    await t.app.handleFile(file('hw1 (1).zip', zipFixture('blockers')));
+    t.button('Save').click();
+    await settle();
+    expect(t.q<HTMLInputElement>('#save-project').value).toBe('hw1');
+    expect(t.q('#save-hint').textContent).toBe('This saves a new scan of the project “hw1”, and shows what changed since its previous scan.');
+    t.button('Save', t.q('#save')).click();
+    await settle();
+    expect(t.q('#save .save-status').textContent).toContain('Saved a new scan of “hw1” in Calc. 0 blockers fixed and 1 new since the previous scan.');
+    expect((await store.projects(c.id)).map((p) => p.name)).toEqual(['hw1']);
+  });
+
+  it('keeps the name as it is for a new course, and uses a name the person types', async () => {
+    const { store, c, t } = await withHw1();
+    await t.app.handleFile(file('hw1(2).zip', zipFixture('blockers')));
+    t.button('Save').click();
+    await settle();
+    expect(t.q<HTMLInputElement>('#save-project').value).toBe('hw1');
+    t.input('#save-course', '');
+    await settle();
+    expect(t.q<HTMLInputElement>('#save-project').value).toBe('hw1(2)');
+    t.input('#save-course', c.id);
+    await settle();
+    expect(t.q<HTMLInputElement>('#save-project').value).toBe('hw1');
+    t.input('#save-project', 'other');
+    t.input('#save-course', c.id);
+    await settle();
+    expect(t.q<HTMLInputElement>('#save-project').value).toBe('other');
+    t.button('Save', t.q('#save')).click();
+    await settle();
+    expect((await store.projects(c.id)).map((p) => p.name)).toEqual(['hw1', 'other']);
+  });
+
+  it.each(['hw1-v2.zip', 'hw1 final.zip'])('%s keeps its own name', async (name) => {
+    const { t } = await withHw1();
+    await t.app.handleFile(file(name, zipFixture('blockers')));
+    t.button('Save').click();
+    await settle();
+    expect(t.q<HTMLInputElement>('#save-project').value).toBe(name.replace(/\.zip$/, ''));
+    expect(t.q('#save-hint').textContent).toBe('');
+  });
+});
+
+describe('AC-75 (CR-5): the course report page names its package data', () => {
+  it('shows the date, the source and the licence, as the download does', async () => {
+    const { store, course } = await courseWithTwo();
+    const t = setup({ account: fakeAccount(store, true).account });
+    await t.app.route(`#/course/${course.id}/report`);
+    const line = t.q('#page .data-line').textContent as string;
+    expect(line).toMatch(/^Package data as of 2026-11-19: the LaTeX Project’s tagging status list, .* \(LaTeX Project Public License, version 1\.3c or later\)\.$/);
+    t.button('Download HTML').click();
+    expect(t.downloads[0].content).toContain(line);
   });
 });

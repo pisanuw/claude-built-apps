@@ -434,7 +434,11 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     const { mode, items } = saveItems;
     if (signedIn) {
       clearPending();
+      // Signing in from the panel redraws it: keep the focus in it (acceptance m2, focus note).
+      const active = document.activeElement;
+      const hadFocus = !active || active === document.body || savePanel.contains(active);
       renderSaveDialog(savePanel, { store: account.store(), items, mode, onClose: closeSave });
+      if (hadFocus) (savePanel.querySelector('#save-h') as HTMLElement | null)?.focus();
       return;
     }
     writePending({ mode, items });
@@ -605,6 +609,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     download: deps.download,
     confirm: deps.confirm ?? (() => true),
     print: deps.print ?? (() => {}),
+    loadData: async () => (await deps.loadStatus()).data,
     current: () => gen === routeGen,
   });
 
