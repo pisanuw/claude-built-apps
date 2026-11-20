@@ -242,7 +242,7 @@ describe('CourseStore on the in-memory database', () => {
       { id: 'a', project_id: 'p', created_at: '2026-11-19T00:00:00Z' },
       { id: 'c', project_id: 'p', created_at: '2026-11-20T00:00:00Z' },
     ];
-    const store = new CourseStore({ select: async () => rows as never, insert: async () => ({}) as never, remove: async () => {} });
+    const store = new CourseStore({ select: async () => rows as never, insert: async () => ({}) as never, update: async () => {}, remove: async () => {} });
     expect((await store.scansOf(['p'])).map((s: ScanRow) => s.id)).toEqual(['a', 'b', 'c']);
   });
 });
@@ -263,8 +263,9 @@ describe('SupabaseDb: one query per call, in the app schema', () => {
       from: (t) => {
         calls.push(['from', t]);
         return {
-          select: (c) => (calls.push(['select', c]), q),
+          select: (c, o) => (calls.push(o ? ['select', c, o] : ['select', c]), q),
           insert: (row) => (calls.push(['insert', row]), q),
+          update: (row) => (calls.push(['update', row]), q),
           delete: () => (calls.push(['delete']), q),
         };
       },
@@ -278,7 +279,7 @@ describe('SupabaseDb: one query per call, in the app schema', () => {
     expect(await db.select('scans', { project_id: ['a', 'b'], user_id: 'u' })).toEqual([{ id: 1 }]);
     expect(calls).toEqual([
       ['from', 'scans'],
-      ['select', '*'],
+      ['select', '*', { count: 'exact' }],
       ['in', 'project_id', ['a', 'b']],
       ['eq', 'user_id', 'u'],
       ['order', 'created_at', { ascending: true }],

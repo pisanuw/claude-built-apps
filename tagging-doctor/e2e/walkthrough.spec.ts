@@ -8,7 +8,7 @@ import { fiftyFileZip, zipFixture } from '../test/fixture-zip';
 // courses kept in memory (src/ui/preview-account.ts). Nothing reaches the
 // network.
 
-const BASE = 'http://localhost:4173';
+const BASE = `http://localhost:${process.env.E2E_PORT ?? 4391}`;
 
 function record(page: import('@playwright/test').Page): Request[] {
   const seen: Request[] = [];
@@ -287,4 +287,36 @@ test('AC-73 to AC-75: a re-downloaded zip saves to its project, a typed name win
   await expect(offline.locator('.data-line')).toHaveText(text);
   expect(requests.map((r) => r.url()).filter((u) => !u.startsWith('file:'))).toEqual([]);
   await ctx.close();
+});
+
+test('R2.1-1: after a sign-in that reloads the page, "Save to a course" opens a visible dialog', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#file').setInputFiles({ name: 'hw1.zip', mimeType: 'application/zip', buffer: Buffer.from(zipFixture('blockers')) });
+  await expect(page.locator('#result-h')).toHaveText('2 blockers found');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#save-h')).toHaveText('Sign in to save');
+  // A Google sign-in leaves the page and comes back: the scan is gone, the kept save is not.
+  await page.reload();
+  await expect(page.locator('#result')).toBeHidden();
+  await page.locator('#signin').getByRole('button', { name: 'Sign in with Google' }).click();
+  await expect(page.locator('#pending')).toContainText('You scanned hw1 before signing in.');
+  await page.locator('#pending').getByRole('button', { name: 'Save to a course' }).click();
+  await expect(page.locator('#pending')).toBeHidden();
+  await expect(page.locator('#save-h')).toBeVisible();
+  await expect(page.locator('#save-h')).toHaveText('Save to a course');
+  await page.getByLabel('Course name').fill('Calculus I');
+  await page.locator('#save').getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#save .save-status')).toBeVisible();
+  await expect(page.locator('#save .save-status')).toContainText('Saved “hw1” to Calculus I.');
+  expect(await page.evaluate(() => sessionStorage.getItem('tagging-doctor.pending-save'))).toBeNull();
+});
+
+test('R2.1-7: when the account chunk fails to load, the scan still works without sign-in', async ({ page }) => {
+  await page.route('**/assets/preview-account-*.js', (r) => r.abort());
+  await page.goto('/');
+  await expect(page.getByText('Nothing is uploaded: the scan runs in your browser.')).toBeVisible();
+  await page.locator('#file').setInputFiles({ name: 'blockers.zip', mimeType: 'application/zip', buffer: Buffer.from(zipFixture('blockers')) });
+  await expect(page.locator('#result-h')).toHaveText('2 blockers found');
+  await expect(page.locator('#signin button')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
 });

@@ -183,12 +183,38 @@ function excerptAt(text: string, offset: number): string {
   while (start > lo && text[start - 1] !== '\n') start--;
   const cut = start > 0 && text[start - 1] !== '\n';
   if (cut) start = Math.max(0, offset - 60);
+  // Never start or end inside a character outside the basic plane (R2.1-4).
+  if (isLow(text.charCodeAt(start))) start++;
   let end = offset;
   const hi = Math.min(text.length, offset + 200);
   while (end < hi && text[end] !== '\n') end++;
   let line = text.slice(start, end).trim();
   if (cut) line = `\u2026${line}`;
-  return line.length > 200 ? `${line.slice(0, 199)}\u2026` : line;
+  return line.length > 200 ? `${cutAt(line, 199)}\u2026` : line;
+}
+
+const isHigh = (c: number) => c >= 0xd800 && c <= 0xdbff;
+const isLow = (c: number) => c >= 0xdc00 && c <= 0xdfff;
+
+/** The first `n` UTF-16 units of `s`, one fewer when the cut would split a character. */
+export function cutAt(s: string, n: number): string {
+  return n > 0 && n < s.length && isHigh(s.charCodeAt(n - 1)) ? s.slice(0, n - 1) : s.slice(0, n);
+}
+
+/** The text without NUL and without halves of characters, which the database refuses in JSON (R2.1-4). */
+export function wellFormed(s: string): string {
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c === 0) continue;
+    if (isHigh(c)) {
+      if (i + 1 < s.length && isLow(s.charCodeAt(i + 1))) out += s[i] + s[++i];
+      continue;
+    }
+    if (isLow(c)) continue;
+    out += s[i];
+  }
+  return out;
 }
 
 interface Where {
@@ -420,30 +446,40 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
  * Where the document ends: the first \end{document} from `from` that stands
  * outside every brace group, so one inside a macro definition does not cut
  * the file (R1.2-2). When none does, because a `{` is never closed, the first
- * \end{document} after \begin{document} ends it (R1.3-2); TeX finishes such a
- * file there, with a warning. One before \begin{document} can only be inside
- * a definition. Null when there is none.
+ * \end{document} after the body's \begin{document} ends it (R1.3-2); TeX
+ * finishes such a file there, with a warning. The body's \begin{document} is
+ * the first one outside every brace group: one inside a definition
+ * (\newenvironment{doc}{\begin{document}}…) is not the body (R2.1-3).
+ * Without such a \begin{document} there is no fallback. Null when nothing ends
+ * the document. One pass, linear in the text.
  */
 function endOfDocument(src: string, from: number): { start: number; end: number } | null {
-  const bodyAt = src.slice(from).search(/\\begin\s*\{document\}/);
-  const body = bodyAt < 0 ? -1 : from + bodyAt;
-  const re = /\\end\s*\{document\}/g;
-  re.lastIndex = from;
+  const END = /\\end\s*\{document\}/y;
+  const BEGIN = /\\begin\s*\{document\}/y;
   let depth = 0;
-  let k = from;
+  let body = false;
   let first: { start: number; end: number } | null = null;
-  for (let m = re.exec(src); m; m = re.exec(src)) {
-    for (; k < m.index; k++) {
-      const c = src[k];
-      if (c === '\\') k++;
-      else if (c === '{') depth++;
-      else if (c === '}' && depth > 0) depth--;
-    }
-    const hit = { start: m.index, end: m.index + m[0].length };
-    if (depth === 0) return hit;
-    if (body >= 0 && m.index > body) first ??= hit;
-    // The match's own braces balance, so the depth after it is unchanged.
-    k = hit.end;
+  for (let k = from; k < src.length; k++) {
+    const c = src[k];
+    if (c === '\\') {
+      END.lastIndex = k;
+      if (END.test(src)) {
+        const hit = { start: k, end: END.lastIndex };
+        if (depth === 0) return hit;
+        if (body) first ??= hit;
+        // Its own braces balance, so the depth after it is unchanged.
+        k = hit.end - 1;
+        continue;
+      }
+      BEGIN.lastIndex = k;
+      if (BEGIN.test(src)) {
+        if (depth === 0) body = true;
+        k = BEGIN.lastIndex - 1;
+        continue;
+      }
+      k++;
+    } else if (c === '{') depth++;
+    else if (c === '}' && depth > 0) depth--;
   }
   return first;
 }

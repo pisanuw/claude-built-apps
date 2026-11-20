@@ -11,7 +11,7 @@ import { getSupabase } from './supabase';
 export function liveAccount(): Account {
   let store: CourseStore | null = null;
   return {
-    mountSignIn: (el) => void mountSignIn(el),
+    mountSignIn: (el) => mountSignIn(el),
     onUser: (cb) => void onAuth((u) => cb(u ? { id: u.id } : null)),
     store: () => (store ??= new CourseStore(new SupabaseDb(getSupabase() as unknown as TableClient))),
   };

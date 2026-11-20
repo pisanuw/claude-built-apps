@@ -3,6 +3,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
+    // Pages show dates in the person's zone (R2.1-8); the tests read them in UTC.
+    env: { TZ: 'UTC' },
     include: ['test/**/*.test.ts'],
     coverage: {
       provider: 'v8',

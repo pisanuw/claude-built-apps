@@ -15,13 +15,25 @@ import type { Group, StatusIndex } from '../core/status';
 import { LIMITS, ZipError } from '../core/zip';
 import { defaultProjectName, toStoredScan, type SaveItem } from '../core/saved';
 import type { CourseStore } from '../lib/store';
-import { KEEP_HASH, renderCourse, renderCourseReport, renderCourses, renderKeep, renderProject, renderSaveDialog, type PageCtx } from './pages';
+import { KEEP_HASH, renderCourse, renderCourseReport, renderCourses, renderKeep, renderNotFound, renderProject, renderSaveDialog, type PageCtx } from './pages';
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The id in a route, decoded, or null when it is malformed or not a UUID. */
+export function routeId(raw: string): string | null {
+  try {
+    const id = decodeURIComponent(raw);
+    return UUID.test(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Sign-in and the signed-in person's saved data. */
 export interface Account {
-  /** Draws the sign-in controls into el: the two buttons, or the person and "Sign out" (AC-16). */
-  mountSignIn(el: HTMLElement): void;
-  /** Calls back with the person now and on every change. */
+  /** Draws the sign-in controls into el: the two buttons, or the person and "Sign out" (AC-16). Returns their unmount. */
+  mountSignIn(el: HTMLElement): () => void;
+  /** Calls back with the person now and on every event of the sign-in library (the same person may come again). */
   onUser(cb: (user: { id: string } | null) => void): void;
   /** The signed-in person's saved courses. */
   store(): CourseStore;
@@ -133,6 +145,10 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   savePanel.hidden = true;
   const account = deps.account;
   let signedIn = false;
+  /** The signed-in person's id; the dialog and the pages are redrawn only when it changes (R2.1-2). */
+  let userId: string | null = null;
+  /** Unmounts the sign-in controls drawn in the signed-out save panel (R2.1-9). */
+  let unmountPanelSignIn: (() => void) | null = null;
   let saveItems: { mode: 'one' | 'all'; items: SaveItem[] } | null = null;
 
   let project: Project | null = null;
@@ -388,12 +404,15 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     }
     table.append(body);
     const total = mains.reduce((n, m) => n + (scans.get(m)?.summary.blockers ? 1 : 0), 0);
+    // An open "Save all" dialog stays open, after the new buttons, with what was typed (R2.1-9).
+    const keepDialog = allEl.contains(savePanel);
     allEl.replaceChildren(
       el('h2', { id: 'all-h' }, 'All documents'),
       el('p', {}, `${total} of ${mains.length} documents have blockers.`),
       wrapTable(table),
       downloads(),
     );
+    if (keepDialog) allEl.querySelector('.downloads')?.after(savePanel);
   }
 
   function downloads(): HTMLElement {
@@ -433,6 +452,8 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     if (!saveItems || !account) return;
     const { mode, items } = saveItems;
     if (signedIn) {
+      unmountPanelSignIn?.();
+      unmountPanelSignIn = null;
       clearPending();
       // Signing in from the panel redraws it: keep the focus in it (acceptance m2, focus note).
       const active = document.activeElement;
@@ -452,14 +473,18 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     cancel.addEventListener('click', closeSave);
     const actions = el('p');
     actions.append(cancel);
+    unmountPanelSignIn?.();
     savePanel.replaceChildren(h, why, box, note, actions);
-    account.mountSignIn(box);
+    unmountPanelSignIn = account.mountSignIn(box);
   }
 
   function hideSave() {
     saveItems = null;
+    unmountPanelSignIn?.();
+    unmountPanelSignIn = null;
     savePanel.hidden = true;
     savePanel.replaceChildren();
+    savePanel.remove();
   }
 
   /** Cancel: the save asked for is dropped, also the one kept for after sign-in. */
@@ -506,7 +531,9 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     const actions = el('p');
     go.addEventListener('click', () => {
       pendingEl.hidden = true;
-      openSave(actions, p.mode, p.items);
+      pendingEl.replaceChildren();
+      // After the banner, not inside it: the banner is hidden now (R2.1-1).
+      openSave(pendingEl, p.mode, p.items);
     });
     const drop = el('button', { type: 'button' }, 'Discard');
     drop.addEventListener('click', () => {
@@ -534,6 +561,8 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     const p = project as Project;
     const data = (index as StatusIndex).data;
     resultEl.hidden = false;
+    // A dialog for the document shown before no longer applies.
+    if (resultEl.contains(savePanel)) hideSave();
     const out: HTMLElement[] = [];
     out.push(el('h2', { id: 'result-h' }, s.summary.verdict));
     out.push(el('p', { class: 'doc-name' }, `Document: ${main}${p.name !== main ? ` in ${p.name}` : ''}`));
@@ -635,26 +664,44 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     else if (m[1] === 'what-we-keep') {
       renderKeep(pageEl);
       done = Promise.resolve();
-    } else if (m[2] && m[3]) done = renderCourseReport(pageEl, ctx, decodeURIComponent(m[2]));
-    else if (m[2]) done = renderCourse(pageEl, ctx, decodeURIComponent(m[2]), go);
-    else done = renderProject(pageEl, ctx, decodeURIComponent(m[4]), go);
-    (pageEl.querySelector('#page-h, #course-report-h') as HTMLElement | null)?.focus();
+    } else {
+      // An id is a UUID; anything else (or a malformed escape) is a page that is not there (R2.1-9).
+      const id = routeId(m[2] ?? m[4]);
+      if (!id) {
+        renderNotFound(pageEl, m[4] ? 'This project was not found. It may have been deleted.' : 'This course was not found. It may have been deleted.');
+        done = Promise.resolve();
+      } else if (m[2] && m[3]) done = renderCourseReport(pageEl, ctx, id);
+      else if (m[2]) done = renderCourse(pageEl, ctx, id, go);
+      else done = renderProject(pageEl, ctx, id, go);
+    }
+    const focusHeading = () => {
+      const h = pageEl.querySelector('#page-h, #course-report-h') as HTMLElement | null;
+      // The region is named by the heading it shows (R2.1-9).
+      if (h) pageEl.setAttribute('aria-labelledby', h.id);
+      h?.focus();
+    };
+    focusHeading();
     await done;
-    if (gen === routeGen) (pageEl.querySelector('#page-h, #course-report-h') as HTMLElement | null)?.focus();
+    if (gen === routeGen) focusHeading();
   }
 
   if (account) {
     account.mountSignIn($('signin'));
     let first = true;
     account.onUser((user) => {
-      const was = signedIn;
-      signedIn = !!user;
+      const id = user?.id ?? null;
+      const changed = first || id !== userId;
+      first = false;
+      // The library sends SIGNED_IN again when the tab is shown, and TOKEN_REFRESHED:
+      // the same person again changes nothing on the page (R2.1-2).
+      if (!changed) return;
+      userId = id;
+      signedIn = !!id;
       navCourses.hidden = !signedIn;
       if (saveItems) drawSave();
       showPending();
-      // A page that depends on who is signed in is drawn again.
-      if ((first || was !== signedIn) && !pageEl.hidden) void route(currentHash);
-      first = false;
+      // A page that depends on who is signed in is drawn again, also for another person (R2.1-9).
+      if (!pageEl.hidden) void route(currentHash);
     });
   }
   if (typeof window !== 'undefined') window.addEventListener('hashchange', () => void route(location.hash));

@@ -20,7 +20,7 @@ import {
   type CourseReport,
   type SaveItem,
 } from '../core/saved';
-import type { CourseRow, CourseStore, ProjectRow, SavedResult } from '../lib/store';
+import { SaveError, type CourseRow, type CourseStore, type ProjectRow, type SavedResult } from '../lib/store';
 import type { StatusData } from '../core/status';
 
 export interface PageCtx {
@@ -40,6 +40,18 @@ export const KEEP_HASH = '#/what-we-keep';
 export const SIGN_IN_FOR_COURSES = 'Sign in to see your courses. The scan works without signing in.';
 export const NO_COURSES = 'You have no courses yet. Scan a project, choose “Save”, and start a course there.';
 export const NO_PROJECTS = 'No projects yet. Drop a project to scan it.';
+
+/**
+ * An error in plain words (R2.1-9): the two the database gives when another
+ * tab changed the same course, and otherwise the message as it came.
+ */
+export function plainError(e: unknown): string {
+  const m = e instanceof Error ? e.message : String(e);
+  if (/foreign key/i.test(m)) return 'the course or project is no longer there, perhaps deleted in another tab. Reload the page and choose again';
+  if (/duplicate key|unique constraint/i.test(m)) return 'a project of that name was saved at the same moment, perhaps in another tab. Save again to add this scan to it';
+  if (/failed to fetch|networkerror|network request failed/i.test(m)) return 'the connection was lost. Check it and try again';
+  return m;
+}
 
 export function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -99,7 +111,7 @@ async function withStates(page: HTMLElement, title: string, ctx: PageCtx, what: 
     page.replaceChildren(...parts);
   } catch (e) {
     if (!ctx.current()) return;
-    const msg = el('p', { class: 'error-text', role: 'alert' }, `Could not load ${what}: ${e instanceof Error ? e.message : String(e)}`);
+    const msg = el('p', { class: 'error-text', role: 'alert' }, `Could not load ${what}: ${plainError(e)}`);
     const again = el('p');
     again.append(button('Retry', () => void withStates(page, title, ctx, what, load)));
     page.replaceChildren(heading(title), msg, again);
@@ -134,7 +146,7 @@ export function renderCourses(page: HTMLElement, ctx: PageCtx): Promise<void> {
       button('Export my data', () => {
         void store.exportAll().then(
           (rows) => ctx.download('tagging-doctor-my-data.json', 'application/json', exportJson(rows, ctx.now())),
-          (e) => exp.append(el('span', { role: 'alert' }, ` Could not export: ${e instanceof Error ? e.message : String(e)}`)),
+          (e) => exp.append(el('span', { role: 'alert' }, ` Could not export: ${plainError(e)}`)),
         );
       }),
     );
@@ -149,7 +161,7 @@ export function renderCourse(page: HTMLElement, ctx: PageCtx, id: string, go: (h
     const course = await store.course(id);
     if (!course) return notFound('This course was not found. It may have been deleted.');
     const projects = await store.projects(id);
-    const latest = latestByProject(await store.scansOf(projects.map((p) => p.id)));
+    const latest = latestByProject(await store.scanSummaries(projects.map((p) => p.id)));
     const out: HTMLElement[] = [heading(courseTitle(course))];
     if (!projects.length) {
       out.push(el('p', { class: 'empty' }, NO_PROJECTS));
@@ -171,13 +183,18 @@ export function renderCourse(page: HTMLElement, ctx: PageCtx, id: string, go: (h
         if (!ctx.confirm(`Delete ${courseTitle(course)}, its ${projects.length === 1 ? 'project' : `${projects.length} projects`} and all their scans? This cannot be undone.`)) return;
         void store.deleteCourse(id).then(
           () => go('#/courses'),
-          (e) => actions.append(el('span', { role: 'alert' }, ` Could not delete: ${e instanceof Error ? e.message : String(e)}`)),
+          (e) => actions.append(el('span', { role: 'alert' }, ` Could not delete: ${plainError(e)}`)),
         );
       }),
     );
     out.push(actions);
     return out;
   });
+}
+
+/** The not-found page, for an id that is gone or malformed (R2.1-9). */
+export function renderNotFound(page: HTMLElement, text: string): void {
+  page.replaceChildren(...notFound(text));
 }
 
 function notFound(text: string): HTMLElement[] {
@@ -191,7 +208,9 @@ export async function courseReport(store: CourseStore, id: string, now: Date, da
   const course = await store.course(id);
   if (!course) return null;
   const projects = await store.projects(id);
-  const latest = latestByProject(await store.scansOf(projects.map((p) => p.id)));
+  // Summaries first; then the findings of the latest scan of each project only (R2.1-6).
+  const latestSummaries = latestByProject(await store.scanSummaries(projects.map((p) => p.id)));
+  const latest = latestByProject(await store.scansById([...latestSummaries.values()].map((x) => x.id)));
   return {
     course: { name: course.name, term: course.term },
     generatedAt: now.toISOString(),
@@ -217,7 +236,7 @@ export function renderCourseReport(page: HTMLElement, ctx: PageCtx, id: string):
     );
     const body = el('div', { class: 'course-report' });
     // Every value in it went through escapeHtml.
-    body.innerHTML = courseReportBody(r, 2);
+    body.innerHTML = courseReportBody(r, 2, 'local');
     return [actions, body];
   });
 }
@@ -257,7 +276,7 @@ export function renderProject(page: HTMLElement, ctx: PageCtx, id: string, go: (
         if (!ctx.confirm(`Delete ${h.project.name} and its ${h.scans.length === 1 ? 'scan' : `${h.scans.length} scans`}? This cannot be undone.`)) return;
         void store.deleteProject(id).then(
           () => go(`#/course/${h.project.course_id}`),
-          (e) => actions.append(el('span', { role: 'alert' }, ` Could not delete: ${e instanceof Error ? e.message : String(e)}`)),
+          (e) => actions.append(el('span', { role: 'alert' }, ` Could not delete: ${plainError(e)}`)),
         );
       }),
     );
@@ -312,7 +331,7 @@ export function renderSaveDialog(panel: HTMLElement, opts: SaveDialogOpts): void
     } catch (e) {
       const retry = el('p');
       retry.append(button('Retry', () => void load()), ' ', button('Cancel', opts.onClose));
-      panel.replaceChildren(h, keep, el('p', { role: 'alert' }, `Could not load your courses: ${e instanceof Error ? e.message : String(e)}`), retry);
+      panel.replaceChildren(h, keep, el('p', { role: 'alert' }, `Could not load your courses: ${plainError(e)}`), retry);
     }
   };
 
@@ -382,6 +401,7 @@ export function renderSaveDialog(panel: HTMLElement, opts: SaveDialogOpts): void
       void submit();
     });
     let busy = false;
+    let partial: { course: string; results: SavedResult[] } | null = null;
     const submit = async () => {
       if (busy) return;
       const newName = name.value.trim();
@@ -409,12 +429,22 @@ export function renderSaveDialog(panel: HTMLElement, opts: SaveDialogOpts): void
           newBox.hidden = true;
         }
         const list = mode === 'one' ? [{ ...items[0], name: chosenName }] : items;
-        const results = await store.save(course.id, list);
-        status.replaceChildren(savedLine(results, course), ' ', link(`#/course/${course.id}`, `Open ${courseTitle(course)}`));
-        opts.onSaved?.(results, course);
-        void onCourse();
+        // After a save that stopped part way, Save again saves only the rest (R2.1-5).
+        const prior = partial && partial.course === course.id ? partial.results : [];
+        const todo = list.filter((i) => !prior.some((r) => r.project.name === i.name.trim()));
+        try {
+          const results = [...prior, ...(await store.save(course.id, todo))];
+          partial = null;
+          status.replaceChildren(savedLine(results, course), ' ', link(`#/course/${course.id}`, `Open ${courseTitle(course)}`));
+          opts.onSaved?.(results, course);
+          void onCourse();
+        } catch (e) {
+          if (e instanceof SaveError) partial = { course: course.id, results: [...prior, ...e.saved] };
+          const kept = partial?.results.length ?? 0;
+          status.textContent = `Could not save: ${plainError(e)}. ${kept ? `${kept} of ${list.length} saved; Save again saves the rest.` : 'Try again.'}`;
+        }
       } catch (e) {
-        status.textContent = `Could not save: ${e instanceof Error ? e.message : String(e)}. Try again.`;
+        status.textContent = `Could not save: ${plainError(e)}. Try again.`;
       } finally {
         busy = false;
         save.disabled = false;

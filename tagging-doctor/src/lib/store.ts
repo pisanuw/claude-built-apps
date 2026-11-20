@@ -58,11 +58,28 @@ export interface AltTextRow {
 export type Where = Record<string, string | string[]>;
 
 export interface Db {
-  /** Rows of one table, filtered by equality (an array means "one of"), oldest first. */
-  select<T>(table: Table, where?: Where): Promise<T[]>;
+  /** Rows of one table, filtered by equality (an array means "one of"), oldest first; `columns` as in a select list. */
+  select<T>(table: Table, where?: Where, columns?: string): Promise<T[]>;
   /** Inserts one row and returns it as stored (id, user_id and created_at filled). */
   insert<T>(table: Table, row: Record<string, unknown>): Promise<T>;
+  /** Changes some fields of one row. */
+  update(table: Table, id: string, fields: Record<string, unknown>): Promise<void>;
   remove(table: Table, id: string): Promise<void>;
+}
+
+/** The columns of a scan the course pages need: no findings (R2.1-6). */
+export const SCAN_SUMMARY_COLUMNS = 'id, project_id, created_at, data_as_of, summary';
+
+export type ScanSummaryRow = Pick<ScanRow, 'id' | 'project_id' | 'created_at' | 'data_as_of' | 'summary'>;
+
+/** A save that stopped part way: what was saved before the failure, and the failure (R2.1-5). */
+export class SaveError extends Error {
+  constructor(
+    readonly saved: SavedResult[],
+    readonly reason: unknown,
+  ) {
+    super(reason instanceof Error ? reason.message : String(reason));
+  }
 }
 
 /** Keeps rows in memory, with the database's cascades and unique project names (tests, preview). */
@@ -75,10 +92,17 @@ export class MemoryDb implements Db {
     private readonly now: () => Date = () => new Date(),
   ) {}
 
-  async select<T>(table: Table, where: Where = {}): Promise<T[]> {
+  async select<T>(table: Table, where: Where = {}, columns = '*'): Promise<T[]> {
     const ok = (r: Record<string, unknown>) =>
       Object.entries(where).every(([k, v]) => (Array.isArray(v) ? v.includes(r[k] as string) : r[k] === v));
-    return this.rows[table].filter(ok).map((r) => structuredClone(r) as T);
+    const cols = columns === '*' ? null : columns.split(',').map((c) => c.trim());
+    const pick = (r: Record<string, unknown>) => (cols ? Object.fromEntries(cols.map((c) => [c, r[c]])) : r);
+    return this.rows[table].filter(ok).map((r) => structuredClone(pick(r)) as T);
+  }
+
+  async update(table: Table, id: string, fields: Record<string, unknown>): Promise<void> {
+    const row = this.rows[table].find((r) => r.id === id);
+    if (row) Object.assign(row, structuredClone(fields));
   }
 
   async insert<T>(table: Table, row: Record<string, unknown>): Promise<T> {
@@ -110,7 +134,7 @@ export class MemoryDb implements Db {
 }
 
 /** The part of the supabase-js query builder SupabaseDb uses. */
-export interface TableQuery extends PromiseLike<{ data: unknown; error: { message: string } | null }> {
+export interface TableQuery extends PromiseLike<{ data: unknown; error: { message: string } | null; count?: number | null }> {
   eq(column: string, value: string): TableQuery;
   in(column: string, values: string[]): TableQuery;
   order(column: string, opts: { ascending: boolean }): TableQuery;
@@ -121,8 +145,9 @@ export interface TableQuery extends PromiseLike<{ data: unknown; error: { messag
 
 export interface TableClient {
   from(table: string): {
-    select(columns?: string): TableQuery;
+    select(columns?: string, opts?: { count: 'exact' }): TableQuery;
     insert(row: Record<string, unknown>): TableQuery;
+    update(fields: Record<string, unknown>): TableQuery;
     delete(): TableQuery;
   };
 }
@@ -135,24 +160,33 @@ export class SupabaseDb implements Db {
   constructor(private readonly client: TableClient) {}
 
   /**
-   * Reads page by page, so the API's row limit (1,000 by default) never cuts
-   * an export or a long course short without saying so. Ordered by time, then
-   * id, so the pages do not overlap.
+   * Reads page by page, so the API's row limit never cuts an export or a
+   * long course short without saying so (R2.1-6). Each page asks for the
+   * total count, and reading goes on until it is reached, whatever limit the
+   * project sets (1,000 by default, or lower). Ordered by time, then id, so
+   * the pages do not overlap.
    */
-  async select<T>(table: Table, where: Where = {}): Promise<T[]> {
+  async select<T>(table: Table, where: Where = {}, columns = '*'): Promise<T[]> {
     const out: T[] = [];
-    for (let from = 0; ; from += PAGE_ROWS) {
-      let q = this.client.from(table).select('*');
+    for (;;) {
+      let q = this.client.from(table).select(columns, { count: 'exact' });
       for (const [k, v] of Object.entries(where)) q = Array.isArray(v) ? q.in(k, v) : q.eq(k, v);
-      const { data, error } = await q
+      const from = out.length;
+      const { data, error, count } = await q
         .order(table === 'alt_texts' ? 'updated_at' : 'created_at', { ascending: true })
         .order('id', { ascending: true })
         .range(from, from + PAGE_ROWS - 1);
       if (error) throw new Error(`${table}: ${error.message}`);
       const rows = (data ?? []) as T[];
       out.push(...rows);
-      if (rows.length < PAGE_ROWS) return out;
+      const more = typeof count === 'number' ? out.length < count : rows.length === PAGE_ROWS;
+      if (!rows.length || !more) return out;
     }
+  }
+
+  async update(table: Table, id: string, fields: Record<string, unknown>): Promise<void> {
+    const { error } = await this.client.from(table).update(fields).eq('id', id);
+    if (error) throw new Error(`${table}: ${error.message}`);
   }
 
   async insert<T>(table: Table, row: Record<string, unknown>): Promise<T> {
@@ -210,10 +244,22 @@ export class CourseStore {
     return this.db.select<ProjectRow>('projects', { course_id: courseId });
   }
 
-  /** The scans of these projects, oldest first. */
+  /** The scans of these projects, oldest first, with their findings. */
   async scansOf(projectIds: string[]): Promise<ScanRow[]> {
     if (!projectIds.length) return [];
     return sortByCreated(await this.db.select<ScanRow>('scans', { project_id: projectIds }));
+  }
+
+  /** The scans of these projects, oldest first, without their findings (R2.1-6). */
+  async scanSummaries(projectIds: string[]): Promise<ScanSummaryRow[]> {
+    if (!projectIds.length) return [];
+    return sortByCreated(await this.db.select<ScanSummaryRow>('scans', { project_id: projectIds }, SCAN_SUMMARY_COLUMNS));
+  }
+
+  /** These scans, with their findings. */
+  async scansById(ids: string[]): Promise<ScanRow[]> {
+    if (!ids.length) return [];
+    return sortByCreated(await this.db.select<ScanRow>('scans', { id: ids }));
   }
 
   /**
@@ -221,22 +267,46 @@ export class CourseStore {
    * new scan of the project that has that name (AC-17, AC-21).
    */
   async save(courseId: string, items: SaveItem[]): Promise<SavedResult[]> {
-    const existing = await this.projects(courseId);
     const out: SavedResult[] = [];
-    for (const item of items) {
-      const name = item.name.trim();
-      let project = existing.find((p) => p.name === name);
-      const created = !project;
-      if (!project) {
-        project = await this.db.insert<ProjectRow>('projects', { course_id: courseId, name, main_file: item.mainFile });
-        existing.push(project);
-      }
-      const before = created ? [] : await this.scansOf([project.id]);
-      const previous = before[before.length - 1];
-      const scan = await this.db.insert<ScanRow>('scans', { project_id: project.id, ...item.scan });
-      out.push({ project, scan, created, delta: previous ? blockerDelta(previous, scan) : null });
+    try {
+      const existing = await this.projects(courseId);
+      for (const item of items) out.push(await this.saveOne(courseId, existing, item));
+    } catch (e) {
+      // The items saved before the failure are kept and reported, so a retry can skip them (R2.1-5).
+      throw new SaveError(out, e);
     }
     return out;
+  }
+
+  private async saveOne(courseId: string, existing: ProjectRow[], item: SaveItem): Promise<SavedResult> {
+    const name = item.name.trim();
+    let project = existing.find((p) => p.name === name);
+    const created = !project;
+    if (!project) {
+      project = await this.db.insert<ProjectRow>('projects', { course_id: courseId, name, main_file: item.mainFile });
+    }
+    let previous: ScanRow | undefined;
+    let scan: ScanRow;
+    try {
+      if (!created) {
+        const before = await this.scanSummaries([project.id]);
+        const last = before[before.length - 1];
+        if (last) previous = (await this.scansById([last.id]))[0];
+      }
+      scan = await this.db.insert<ScanRow>('scans', { project_id: project.id, ...item.scan });
+    } catch (e) {
+      // A project made for this scan does not stay empty (R2.1-5).
+      if (created) await this.db.remove('projects', project.id).catch(() => {});
+      throw e;
+    }
+    if (created) existing.push(project);
+    else if (project.main_file !== item.mainFile) {
+      // The project's main file is the one of its latest scan (R2.1-9).
+      await this.db.update('projects', project.id, { main_file: item.mainFile });
+      project = { ...project, main_file: item.mainFile };
+      existing[existing.findIndex((p) => p.id === project?.id)] = project;
+    }
+    return { project, scan, created, delta: previous ? blockerDelta(previous, scan) : null };
   }
 
   async history(projectId: string): Promise<ProjectHistory | undefined> {

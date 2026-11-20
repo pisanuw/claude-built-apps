@@ -9,7 +9,7 @@
  * and the package, and the page writes them again.
  */
 import { CAVEAT, escapeHtml, REPORT_CSS } from './report';
-import type { DocumentScan, Finding, Rule } from './scan';
+import { cutAt, wellFormed, type DocumentScan, type Finding, type Rule } from './scan';
 import type { Group, StatusData } from './status';
 
 /** Longest excerpt a saved finding keeps (AC-23; the database refuses longer). */
@@ -52,11 +52,15 @@ export interface SaveItem {
 }
 
 export function storedFinding(f: Finding): StoredFinding {
-  const out: StoredFinding = { path: f.path, line: f.line, rule: f.rule, severity: f.severity };
-  if (f.package) out.package = f.package;
+  // Every string is well formed: the database refuses NUL and half characters in JSON (R2.1-4).
+  const out: StoredFinding = { path: wellFormed(f.path), line: f.line, rule: f.rule, severity: f.severity };
+  if (f.package) out.package = wellFormed(f.package);
   if (f.kind) out.kind = f.kind;
   if (f.status) out.status = f.status;
-  if (f.excerpt) out.excerpt = f.excerpt.length > MAX_EXCERPT ? `${f.excerpt.slice(0, MAX_EXCERPT - 1)}…` : f.excerpt;
+  if (f.excerpt) {
+    const ex = wellFormed(f.excerpt);
+    out.excerpt = ex.length > MAX_EXCERPT ? `${cutAt(ex, MAX_EXCERPT - 1)}\u2026` : ex;
+  }
   return out;
 }
 
@@ -67,7 +71,7 @@ export function toStoredScan(scan: DocumentScan, dataAsOf: string): StoredScan {
   return {
     data_as_of: dataAsOf,
     summary: {
-      mainFile: scan.mainFile,
+      mainFile: wellFormed(scan.mainFile),
       verdict: s.verdict,
       blockers: s.blockers,
       warnings: s.warnings,
@@ -130,18 +134,23 @@ export function deltaLine(d: Delta): string {
   return `${d.fixed === 1 ? '1 blocker' : `${d.fixed} blockers`} fixed and ${d.added} new since the previous scan.`;
 }
 
-/** A date and time for people: "19 Nov 2026, 14:05 UTC", for scans saved the same day. */
-export function shortDateTime(iso: string): string {
+/**
+ * A date and time for people, with its zone: "19 Nov 2026, 14:05 PST", so
+ * scans saved the same day can be told apart. In the person's own zone
+ * unless one is given (R2.1-8).
+ */
+export function shortDateTime(iso: string, timeZone?: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return `${shortDate(iso)}, ${iso.slice(11, 16)} UTC`;
+  const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZoneName: 'short', timeZone });
+  return `${shortDate(iso, timeZone)}, ${time}`;
 }
 
-/** A date for people: "19 Nov 2026" (UTC, so tests and every reader agree). */
-export function shortDate(iso: string): string {
+/** A date for people: "19 Nov 2026", in the person's own zone unless one is given (R2.1-8). */
+export function shortDate(iso: string, timeZone?: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone });
 }
 
 export interface CourseReportRow {
@@ -249,7 +258,12 @@ export function dataLine(d: ReportData): string {
 }
 
 /** The report's content, shared by the printable page and the downloaded file (AC-20). */
-export function courseReportBody(r: CourseReport, top = 1): string {
+/**
+ * The page shows dates in the person's zone; the downloaded file, which is
+ * handed on, in UTC, and says so (R2.1-8).
+ */
+export function courseReportBody(r: CourseReport, top = 1, zone: 'local' | 'UTC' = 'UTC'): string {
+  const tz = zone === 'UTC' ? 'UTC' : undefined;
   const title = `${r.course.name}${r.course.term ? `, ${r.course.term}` : ''}`;
   const out: string[] = [];
   out.push(`<h${top} id="course-report-h" tabindex="-1">Course report: ${escapeHtml(title)}</h${top}>`);
@@ -260,10 +274,10 @@ export function courseReportBody(r: CourseReport, top = 1): string {
   out.push(`<p>${withBlockers} of ${r.rows.length === 1 ? '1 project has' : `${r.rows.length} projects have`} blockers.</p>`);
   // When every project is named by its main file ("Save all"), one column says it.
   const files = r.rows.some((x) => x.project !== x.mainFile);
-  out.push(`<table><caption>Projects</caption><thead><tr><th scope="col">Project</th>${files ? '<th scope="col">Main file</th>' : ''}<th scope="col">Verdict</th><th scope="col">Blockers</th><th scope="col">Warnings</th><th scope="col">Latest scan</th></tr></thead><tbody>`);
+  out.push(`<table><caption>Projects</caption><thead><tr><th scope="col">Project</th>${files ? '<th scope="col">Main file</th>' : ''}<th scope="col">Verdict</th><th scope="col">Blockers</th><th scope="col">Warnings</th><th scope="col">${zone === 'UTC' ? 'Latest scan (UTC)' : 'Latest scan'}</th></tr></thead><tbody>`);
   for (const x of r.rows) {
     out.push(
-      `<tr><td>${escapeHtml(x.project)}</td>${files ? `<td>${escapeHtml(x.mainFile)}</td>` : ''}<td>${escapeHtml(x.verdict ?? 'Not scanned yet')}</td><td>${x.blockers}</td><td>${x.warnings}</td><td>${escapeHtml(x.scannedAt ? shortDate(x.scannedAt) : 'none')}</td></tr>`,
+      `<tr><td>${escapeHtml(x.project)}</td>${files ? `<td>${escapeHtml(x.mainFile)}</td>` : ''}<td>${escapeHtml(x.verdict ?? 'Not scanned yet')}</td><td>${x.blockers}</td><td>${x.warnings}</td><td>${escapeHtml(x.scannedAt ? shortDate(x.scannedAt, tz) : 'none')}</td></tr>`,
     );
   }
   out.push('</tbody></table>');
@@ -289,7 +303,7 @@ export function courseReportHtml(r: CourseReport): string {
     `<style>${REPORT_CSS}</style>`,
     '</head>',
     '<body><main>',
-    courseReportBody(r),
+    courseReportBody(r, 1, 'UTC'),
     '</main></body>',
     '</html>',
     '',

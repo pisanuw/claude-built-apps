@@ -55,7 +55,7 @@ export function previewAccount(now: () => Date = () => new Date()): Account {
   const store = new CourseStore(new MemoryDb(PREVIEW_USER.id, now));
   return {
     mountSignIn: (el) =>
-      void mountSignIn(el, {
+      mountSignIn(el, {
         client,
         profileClient: false,
         completeFromUrl: false,

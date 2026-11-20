@@ -24,7 +24,10 @@ function fakeAccount(store: CourseStore, signedIn: boolean) {
   const cbs: ((u: { id: string } | null) => void)[] = [];
   let user = signedIn ? { id: 'u1' } : null;
   const account: Account = {
-    mountSignIn: (el) => el.replaceChildren(Object.assign(document.createElement('button'), { textContent: 'Sign in with Google', className: 'fake-google' })),
+    mountSignIn: (el) => {
+      el.replaceChildren(Object.assign(document.createElement('button'), { textContent: 'Sign in with Google', className: 'fake-google' }));
+      return () => el.replaceChildren();
+    },
     onUser: (cb) => {
       cbs.push(cb);
       cb(user);
@@ -255,7 +258,7 @@ describe('AC-17: save to a new or existing course, and find it after a reload', 
     expect(spy).toHaveBeenCalledTimes(2);
     expect(t.q('#save-course')).toBeTruthy();
     t.button('Cancel', t.q('#save')).click();
-    expect(t.q('#save').hidden).toBe(true);
+    expect(t.q('#save')).toBeNull();
   });
 
   it('after a sign-in that reloaded the page, offers the save asked for before it', async () => {
