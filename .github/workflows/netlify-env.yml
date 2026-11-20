@@ -1,9 +1,27 @@
 # Manual: look at or fix address-type env vars on one Netlify site this repo
-# does not deploy (PasteMD, UpvoteMe). "show" is read-only and prints a value
-# only when it is a plain URL; "set" writes a plain (not secret) URL variable,
-# re-creating it if it was marked secret. Never put a secret in "value": the
-# inputs of a run are public.
+# does not deploy (PasteMD, UpvoteMe, MeetMe, MyUni).
+#   show             read-only. Prints a value only when it is a plain http(s)
+#                    URL or exactly one @hintwise.org address; anything else
+#                    prints as "set", so a personal address never reaches the log.
+#   set, a URL       writes a plain (not secret) variable, re-creating it if it
+#                    was marked secret. No approval, as before.
+#   set, an address  the same for exactly one @hintwise.org address
+#                    ("name@hintwise.org" or "Display Name <name@hintwise.org>"),
+#                    only on ADMIN_EMAIL, AUTH_FROM_EMAIL, AUTH_SMTP_FROM or
+#                    EMAIL_FROM, and only after the owner approves the run on
+#                    the owner-approval environment (owner's decision,
+#                    20 November 2026).
+# How: the check job (no token, no approval) reads the inputs from the event
+# file, refuses a bad request before anyone is asked to approve it, and
+# outputs its kind: show, url or address. Exactly one of the next two jobs
+# runs: "run" for show and URL values, "set-address" behind the approval for
+# addresses. The script in each job writes only its own kind (--allow), so an
+# address is never written without the approval. No step passes the value
+# through env, because the log prints a step's env; the value appears in the
+# log only after the approval, in the line that confirms the write.
+# Never put a secret in "value": the inputs of a run are public.
 name: Netlify env
+run-name: 'Netlify env: ${{ inputs.command }} ${{ inputs.key }} on ${{ inputs.site }}'
 
 on:
   workflow_dispatch:
@@ -18,12 +36,12 @@ on:
         required: true
         type: string
       key:
-        description: 'set only: variable name, e.g. NEXTAUTH_URL'
+        description: 'set only: variable name, e.g. NEXTAUTH_URL, or for an address AUTH_SMTP_FROM, AUTH_FROM_EMAIL, ADMIN_EMAIL or EMAIL_FROM'
         required: false
         default: ''
         type: string
       value:
-        description: 'set only: an http(s) URL (never a secret)'
+        description: "set only: an http(s) URL, or exactly one @hintwise.org address (waits for the owner's approval). Never a secret"
         required: false
         default: ''
         type: string
@@ -37,7 +55,22 @@ permissions:
   contents: read
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      kind: ${{ steps.check.outputs.kind }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - id: check
+        name: Check the request (the value is not printed)
+        run: node accessibility-lens/deploy/netlify-env.mjs --event --check
+
   run:
+    needs: check
+    if: needs.check.outputs.kind == 'show' || needs.check.outputs.kind == 'url'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -45,16 +78,22 @@ jobs:
         with:
           node-version: '24'
       - name: ${{ inputs.command }} on ${{ inputs.site }}
-        run: |
-          if [ "$CMD" = "set" ]; then
-            node accessibility-lens/deploy/netlify-env.mjs set --site "$SITE" --key "$KEY" --value "$VALUE" $([ "$BUILD" = "true" ] && echo --build)
-          else
-            node accessibility-lens/deploy/netlify-env.mjs "$CMD" --site "$SITE"
-          fi
+        run: node accessibility-lens/deploy/netlify-env.mjs --event --allow url
         env:
-          CMD: ${{ inputs.command }}
-          SITE: ${{ inputs.site }}
-          KEY: ${{ inputs.key }}
-          VALUE: ${{ inputs.value }}
-          BUILD: ${{ inputs.build }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+
+  set-address:
+    needs: check
+    if: needs.check.outputs.kind == 'address'
+    runs-on: ubuntu-latest
+    # Waits for the owner's approval on the owner-approval environment (owner's decision, 20 November 2026).
+    environment: owner-approval
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: set ${{ inputs.key }} on ${{ inputs.site }}
+        run: node accessibility-lens/deploy/netlify-env.mjs --event --allow address
+        env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
