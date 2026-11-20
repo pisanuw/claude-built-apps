@@ -216,7 +216,7 @@ Also open, no action now:
   - 20 Nov, about 04:20 UTC: handover at the owner's request ("Do a handoff now"). get_session showed autocompact_state effective_window 480,000, threshold 384,000 (the old 500000 setting; this session's cloud percentage is 80), used about 340,000.
 - **Leave alone:**
   - the YPai session's routines, moved at 18:53 UTC on 19 Nov to the new YPai session session_01JyJzMYdcL21t1LrX7eujSq ("YPai: Nov 19"; the one to tell after #47 merges): hourly report trig_01XRHaKRimeYQFDsdyzG8QRP (`41 * * * *`), handoff check trig_01CqD8KcEJGwvxNuhkspHd3j (`CRON_TZ=Europe/Madrid 56 18 * * *`), session start trig_01Tng1uFLw5e6RKT1uhE4gbW (`CRON_TZ=Europe/Madrid 52 19 * * *`);
-  - the owner's routines: ideas trig_01K986yzFbf3noGkLA6RgZkn, build trig_01BAP9nsXTtxTdpMiwk5GdXE, TPT trig_013VN2RNYCwh2k3F2ZjgnK6U;
-  - the workflow routines: Monitor daily trig_017ncnNvikFwwEUMzN8k3ix1, Monitor weekly trig_01NMJbSUXu1Pxnb74sQSbFHS, Keeper trig_011fPUzUbmBx8UMYhjtwZCBH, Marketer trig_01Pta3mTcpBNceabkLPScKbi;
+  - the owner's routines: ideas trig_01NKR83ysfRfzGnpP4WyHJFk (FullInternet since 20 Nov), build trig_01BAP9nsXTtxTdpMiwk5GdXE, TPT trig_013VN2RNYCwh2k3F2ZjgnK6U;
+  - the workflow routines: Monitor daily trig_01UYXZfnrmu5nBozbutpwJbq, Monitor weekly trig_01LFVjPSBTNb6QCBKc1r37gg, Keeper trig_011fPUzUbmBx8UMYhjtwZCBH, Marketer trig_01753Q4m5drQMFdXXcnPDT5t (these three in FullInternet since 20 Nov);
   - the switched-off Chess TD one-shots and the SIGCSE reminder.
 - **Dated task, 6 January 2027:** reports go back to Los Angeles time. Ask the owner for Los Angeles times for Monitor, Keeper and Marketer, and move them.
