@@ -85,7 +85,7 @@ Still open (section 4 has the next steps):
   - Footers: 4 of 60 apps redeployed (today elevator-algorithm-lab and cron-cartographer).
   - lewis-alt-text: redeployed at 15:37 by a manual run from its own session, on the owner's "Yes deploy" there; no record names it yet.
   - Supabase: check-schema passed on seven app schemas.
-  - Environment: `CLAUDE_CODE_AUTO_COMPACT_WINDOW=500000`, set by the owner.
+  - Environment: `CLAUDE_CODE_AUTO_COMPACT_WINDOW=700000` and `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS=400000`, set by the owner on 20 Nov (was 500000). Cloud sessions force compaction at 80% of the window less 20,000, so a new session should show `autocompact_state.threshold` 544,000 in get_session; check it at the next takeover. The model keeps its 1M window.
   - The YPai session: handed over (digitalme PR #49); "YPai: Nov 19" due at 19:52.
 - **Open pull requests:**
   - pisan-labs/hintwise-workflow #1 (draft, d9772ef): the source for PR A and PR B; the owner merges.
