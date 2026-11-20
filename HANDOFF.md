@@ -32,6 +32,8 @@ Done since the last handoff (19 Nov 19:40 Barcelona; times Barcelona, UTC in bra
   - the new relay session archives the previous one once it has taken over and started work (takeover step (e); check step 6; ROLE.md) (3004b49);
   - hand over now (this handoff).
 
+- [x] **20 Nov (PManager: Nov 20):** YPai #47 released (GATEWAY_STREAM=1 by run 44699353513, owner approved; merge 9a68ad6, Render live 08:44Z; hintwise-workflow projects/ypai/releases/aux-cap.md). MyUni nodemailer fix released (c7684e9, Netlify 06:24Z). UpvoteMe sign-in page: PR #7 approved in round 2, waits for the owner's yes. Workflow routines moved to FullInternet (owner must re-attach repositories). Code review of 20 Nov and PManager's response merged to hintwise-workflow main.
+
 Still open (section 4 has the next steps):
 - [ ] **Credentials (T3, no default):** inbox/2026-11-19-session-credentials.md; on the 20:06 card as 3a (an environment without production tokens for Finder, Marketer, Monitor; recommendation yes) and 3b (drop the dead Netlify copy now, keep RENDER_API_KEY as a written exception; recommendation yes).
 - [ ] **Hand-off H5, H7, H10 to H16, H18 to H21, H23, H24** (H8 needs nothing, H17 is dropped, H22 is done) (hintwise-workflow projects/workflow/pmanager-handoff.md). H5 and H3's follow-up are in the one-shot of 20 Nov 20:10.
