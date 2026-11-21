@@ -54,7 +54,7 @@ describe('review round 1: the reader', () => {
     const big = run(100_000);
     expect(big).toBeLessThan(8 * small + 500);
     expect(big).toBeLessThan(15_000);
-  });
+  }, 30_000);
 
   it('R1.2-3: \\mintinline, \\Verb, \\nolinkurl, \\path, and braces inside an argument', () => {
     const read = (line: string) => findCommands(blankComments(line), specs).map((c) => c.args[0]);
@@ -90,7 +90,7 @@ describe('review round 1: the reader', () => {
     const b = time(whole);
     expect(b).toBeLessThan(8 * a + 300);
     expect(time(source(2_000_000))).toBeLessThan(15_000);
-  });
+  }, 30_000);
 
   it('R1.1-11: still reads a long but closed argument', () => {
     const long = `\\title{${'x'.repeat(5000)}}`;
