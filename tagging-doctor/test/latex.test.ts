@@ -70,11 +70,25 @@ describe('review round 1: the reader', () => {
   });
 
   it('R1.2-6: many different \\verb delimiters stay linear', () => {
-    let src = '';
-    for (let c = 0x0800; src.length < 2_000_000; c = c >= 0xcfff ? 0x0800 : c + 1) src += `\\verb${String.fromCharCode(c)}`;
-    const t0 = performance.now();
-    blankComments(src);
-    expect(performance.now() - t0).toBeLessThan(1500);
+    // R2.C-1: a quarter of the input against the whole, as D-55 (a wall-clock budget
+    // alone is the next test to fail on a busy runner).
+    const source = (length: number) => {
+      let src = '';
+      for (let c = 0x0800; src.length < length; c = c >= 0xcfff ? 0x0800 : c + 1) src += `\\verb${String.fromCharCode(c)}`;
+      return src;
+    };
+    const small = source(500_000);
+    const whole = source(2_000_000);
+    const time = (src: string) => {
+      const t0 = performance.now();
+      blankComments(src);
+      return performance.now() - t0;
+    };
+    time(small);
+    const a = time(small);
+    const b = time(whole);
+    expect(b).toBeLessThan(8 * a + 300);
+    expect(b).toBeLessThan(15_000);
   });
 
   it('R1.1-11: still reads a long but closed argument', () => {
