@@ -36,6 +36,7 @@ import { analyticsOrigin, injectAnalyticsIntoDir } from '../../scripts/site-anal
 import { ensureDomainDns, keepOldAlias, resolves } from './cloudflare-dns.mjs';
 import { appDomainFor, oldDomainFor } from '../../scripts/domains.mjs';
 import { waitForRenderDeploy } from './render-wait.mjs';
+import { renderRuntime } from './render-service.mjs';
 
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
@@ -185,6 +186,7 @@ async function deployRender(cfg) {
   // passthrough value is present (repo secret unset), generate a random value
   // once instead of shipping a service that crash-loops on startup.
   const generateKeys = (r.generateEnv ?? []).filter((k) => !(k in desiredEnv));
+  const runtime = renderRuntime(cfg);
 
   const plan = {
     action: 'create-if-missing then deploy',
@@ -195,8 +197,8 @@ async function deployRender(cfg) {
     rootDir: cfg.directory,
     region: r.region ?? 'oregon',
     servicePlan: r.plan ?? 'free',
-    buildCommand: cfg.build,
-    startCommand: r.startCommand ?? 'npm start',
+    runtime: runtime.env,
+    ...runtime.envSpecificDetails,
     healthCheckPath: r.healthCheckPath ?? '/api/health',
     envVarsForwarded: envVars.map((e) => e.key),
     envVarsGenerated: generateKeys,
@@ -280,14 +282,11 @@ async function deployRender(cfg) {
       rootDir: cfg.directory,
       envVars,
       serviceDetails: {
-        env: r.runtime ?? 'node',
+        env: runtime.env,
         region: r.region ?? 'oregon',
         plan: r.plan ?? 'free',
         healthCheckPath: r.healthCheckPath ?? '/api/health',
-        envSpecificDetails: {
-          buildCommand: cfg.build,
-          startCommand: r.startCommand ?? 'npm start',
-        },
+        envSpecificDetails: runtime.envSpecificDetails,
       },
     }),
   });

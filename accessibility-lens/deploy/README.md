@@ -104,6 +104,14 @@ node deploy.mjs --dry-run --config target.yml    # explicit
 integration. The runner resolves your workspace automatically; set
 `render.ownerId` to pin it. Render runs the build itself, server-side.
 
+A Docker service sets `render.runtime: docker` and, when its Dockerfile is not
+`./Dockerfile` in `directory`, `render.dockerfilePath` and
+`render.dockerContext` (both relative to `directory`, Render's root directory
+for the service; defaults `./Dockerfile` and `.`). The runner then sends those
+two in `envSpecificDetails` in place of the build and start commands, and the
+image's `CMD` starts the service (`render-service.mjs`; first used by
+`tagging-doctor-worker`). They are applied when the service is created.
+
 **Netlify.** Uses the Netlify CLI. Because this app is not static (it has a
 server-side API), the deploy publishes `client/dist` to the CDN and ships the API
 as a serverless function (`netlify/functions/api.mjs`), wired up by
