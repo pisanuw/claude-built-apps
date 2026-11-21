@@ -4,8 +4,9 @@
  * as a user of its own takes no job.
  */
 import { request } from 'node:http';
+import { connect } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
-import { docker, freshToken, Worker } from './harness.ts';
+import { docker, freshToken, projectZip, Worker } from './harness.ts';
 
 let w: Worker | null = null;
 afterEach(async () => {
@@ -42,6 +43,32 @@ describe('R3a.1-1: uploads in flight on the image', () => {
     expect(docker(['inspect', '-f', '{{.State.OOMKilled}} {{.State.Running}} {{.RestartCount}}', w.name]).trim()).toBe('false true 0');
     expect((await fetch(`${w.base}/api/health`)).status).toBe(200);
     expect(w.exec(['sh', '-c', 'ls -A /jobs | grep -c part || true']).trim()).toBe('0');
+  });
+});
+
+describe('R3a.2-1: clients that leave during the token check', () => {
+  it('hold no slot: after four leave, an ordinary upload is accepted', async () => {
+    w = await Worker.start({ authDelayMs: 800 });
+    const port = Number(new URL(w.base).port);
+    const leave = (token: string) =>
+      new Promise<void>((done) => {
+        const sock = connect(port, '127.0.0.1', () => {
+          sock.write(`POST /api/jobs?mainFile=main.tex HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer ${token}\r\nContent-Length: 1048576\r\n\r\n`);
+          sock.write(Buffer.alloc(1024));
+          setTimeout(() => {
+            sock.destroy();
+            done();
+          }, 200);
+        });
+        sock.on('error', () => done());
+      });
+    await Promise.all([1, 2, 3, 4].map(() => leave(freshToken())));
+    await new Promise((r) => setTimeout(r, 2000));
+    const h = (await (await fetch(`${w.base}/api/health`)).json()) as { queue: Record<string, number> };
+    expect(h.queue).toMatchObject({ running: 0, waiting: 0, uploading: 0 });
+    expect(w.exec(['sh', '-c', 'ls -A /jobs | grep -c part || true']).trim()).toBe('0');
+    const ok = await w.run(projectZip({ 'main.tex': '\\documentclass{article}\\begin{document}Hi.\\end{document}' }), 'main.tex', freshToken());
+    expect(ok.status).toBe('done');
   });
 });
 

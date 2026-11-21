@@ -288,3 +288,17 @@ describe('R3a.1-6: deleting a running job', () => {
     expect(readdirSync(root)).toEqual([]);
   });
 });
+
+describe('R3a.2-1: a slot frees itself', () => {
+  it('after its hold time, whatever happens to the request, and removes its file', async () => {
+    const { jobs } = make({ run: async ({ folder }) => ok(folder.dir) });
+    const slot = jobs.reserve('u', 30);
+    if (!slot.ok) throw new Error('no slot');
+    writeFileSync(slot.file, 'part');
+    expect(jobs.uploadsInFlight).toBe(1);
+    await new Promise((r) => setTimeout(r, 80));
+    expect(jobs.uploadsInFlight).toBe(0);
+    expect(existsSync(slot.file)).toBe(false);
+    expect(jobs.reserve('u').ok).toBe(true);
+  });
+});

@@ -4,13 +4,14 @@
  * The limit is 30 s here to keep the run short (the default is 120 s; a test
  * may only shorten it). Run: docker build -t tagging-doctor-worker:dev . && npm run test:image
  */
-import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { makeZip } from '../zipmaker.ts';
-import { ABS_MARK, docker, fixture, freshToken, LEFT_MARK, projectZip, QUEUED_MARK, TOKEN_A, TOKEN_B, Worker, type JobView } from './harness.ts';
+import { ABS_MARK, docker, fixture, freshToken, LEFT_MARK, projectZip, QUEUED_MARK, startListener, TOKEN_A, TOKEN_B, Worker, type JobView } from './harness.ts';
 
 const LIMIT = 30_000;
+const execFileP = promisify(execFile);
 let w: Worker;
 beforeAll(async () => {
   w = await Worker.start({ jobLimitMs: LIMIT });
@@ -155,39 +156,78 @@ describe('AC-31: hostile fixtures', () => {
     expect((await run('write18.tex')).status).toBe('done');
   });
 
-  describe('R3a.1-2: biber and BibTeX reach no network', () => {
-    let listener: Server;
-    let url = '';
-    const requests: string[] = [];
+  describe('R3a.1-2 and CR-10: no request leaves a job (biber, BibTeX, a .bcf the job writes)', () => {
+    let listener: Awaited<ReturnType<typeof startListener>>;
     beforeAll(async () => {
-      listener = createServer((req, res) => {
-        requests.push(req.url ?? '');
-        res.end('@book{knuth, title={Leaked}, year={1}}');
-      });
-      await new Promise<void>((r) => listener.listen(0, '127.0.0.1', r));
-      url = `http://127.0.0.1:${(listener.address() as AddressInfo).port}`;
+      listener = await startListener();
     });
-    afterAll(() => new Promise((r) => listener.close(r)));
-    const withUrl = (name: string) => fixture(name).replace('@URL@', url);
+    afterAll(() => listener.close());
+    const withUrl = (name: string) => fixture(name).replace('@URL@', listener.url);
     const runFiles = async (files: Record<string, string>) => {
       const token = freshToken();
       const j = await w.run(projectZip(files), 'main.tex', token);
       tokens.set(j.id, token);
       return j;
     };
+    /** biblatex's own .bcf for biber-local.tex, with its data source replaced by `element`. */
+    const bcf = (element: string, padding = '') =>
+      fixture('biblatex-bcf.txt').replace('@DATASOURCE@', `${padding}${element}${padding}`);
+    const ds = (value: string, tag = 'bcf:datasource', extra = '') => `<${tag} ${extra}type="file" datatype="bibtex" glob="false">${value}</${tag}>`;
 
-    it('a remote biblatex resource is refused before biber runs, and nothing is fetched', async () => {
+    it('a remote biblatex resource is refused with the plain message, and nothing is fetched', async () => {
       const j = await runFiles({ 'main.tex': withUrl('biber-remote.tex') });
       expect(j.status).toBe('failed');
       expect(j.failure).toMatchObject({ kind: 'bibliography', message: 'Remote bibliographies are not fetched; add the .bib file to the zip.' });
-      expect(requests).toEqual([]);
+      expect(listener.seen).toEqual([]);
       await withoutEffect(j);
     });
 
-    it('a URL given to BibTeX is not fetched either', async () => {
+    it('a URL given to BibTeX is not fetched', async () => {
       const j = await runFiles({ 'main.tex': withUrl('bibtex-remote.tex') });
-      expect(requests).toEqual([]);
+      expect(listener.seen).toEqual([]);
       await withoutEffect(j);
+    });
+
+    it('a .bcf the job writes itself, with the URL in five forms an XML reader accepts, and over https and ftp: nothing is fetched', async () => {
+      const u = listener.url;
+      const host = u.replace('http://', '');
+      const variants: Record<string, string> = {
+        charref: bcf(ds(`http&#x3a;//${host}/v1-charref.bib`)),
+        charref2: bcf(ds(`&#104;ttp://${host}/v1b-charref.bib`)),
+        cdata: bcf(ds(`<![CDATA[${u}/v2-cdata.bib]]>`)),
+        endtag: bcf(ds(`${u}/v3-endtag.bib`).replace('</bcf:datasource>', '</bcf:datasource >')),
+        prefix: bcf(ds(`${u}/v4-prefix.bib`, 'x:datasource', 'xmlns:x="https://sourceforge.net/projects/biblatex" ')),
+        middle: bcf(ds(`${u}/v5-middle.bib`), `<!-- ${'m'.repeat(1_200_000)} -->`),
+        https: bcf(ds(`https://${host}/v8-https.bib`)),
+        ftp: bcf(ds(`ftp://${host}/v9-ftp.bib`)),
+      };
+      for (const [name, text] of Object.entries(variants)) {
+        const j = await runFiles({ 'main.tex': fixture('writes-own-bcf.tex'), 'bcf.txt': text });
+        expect(j.logTail.join('\n'), name).toContain('HOSTILE-RESULT: wrote main.bcf');
+        expect(j.status, name).toBe('failed');
+        expect(j.failure?.kind, name).toBe('bibliography');
+        expect(listener.seen, name).toEqual([]);
+        await withoutEffect(j);
+      }
+    });
+
+    it('biber run with the worker\'s environment fetches nothing even when the check is not asked (the proxy layer); without it, it does', async () => {
+      const text = bcf(ds(`${listener.url}/direct.bib`) + ds(`https://${listener.url.replace('http://', '')}/direct-https.bib`));
+      w.exec(['sh', '-c', 'rm -rf /srv/biber && install -d -o 10001 -g 10001 -m 0700 /srv/biber']);
+      docker(['exec', '-i', w.name, 'sh', '-c', 'cat > /srv/biber/main.bcf && chown 10001:10001 /srv/biber/main.bcf'], text);
+      // Asynchronous, so the listener in this process can accept biber's connection.
+      const asTex = async (env: string) => {
+        const cmd = `cd /srv/biber && timeout 60 setpriv --reuid=10001 --regid=10001 --clear-groups env -i PATH=/usr/local/texlive/2026/bin/x86_64-linux:/usr/bin:/bin HOME=/srv/biber TMPDIR=/srv/biber ${env} biber --noconf ./main.bcf 2>&1 || true`;
+        return (await execFileP('docker', ['exec', w.name, 'sh', '-c', cmd])).stdout;
+      };
+      const proxies = ['http_proxy', 'https_proxy', 'ftp_proxy', 'all_proxy'].flatMap((k) => [`${k}=http://127.0.0.1:9`, `${k.toUpperCase()}=http://127.0.0.1:9`]).join(' ');
+      const blocked = await asTex(proxies);
+      expect(blocked).toMatch(/Can't connect to 127\.0\.0\.1:9/);
+      expect(listener.seen).toEqual([]);
+      await asTex('');
+      expect(listener.seen.length).toBeGreaterThan(0); // the control: without the variables biber does reach the listener
+      listener.seen.length = 0;
+      w.exec(['rm', '-rf', '/srv/biber']);
     });
 
     it('an ordinary biber bibliography and an ordinary BibTeX one still work', async () => {
@@ -199,7 +239,7 @@ describe('AC-31: hostile fixtures', () => {
       expect(bibtex.status).toBe('done');
       expect(bibtex.result).toMatchObject({ bibliography: 'bibtex' });
       expect(await w.pdfText(bibtex.id, tokens.get(bibtex.id))).toContain('Knuth');
-      expect(requests).toEqual([]);
+      expect(listener.seen).toEqual([]);
     });
   });
 

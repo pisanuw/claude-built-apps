@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { docker, FIXTURES, folderZip, freshToken, TOKEN_A, TOKEN_B, Worker, type JobView } from './harness.ts';
 
 const MATH_NOTES = folderZip(path.join(FIXTURES, 'math-notes'));
+const PROXIES = ['ALL_PROXY', 'FTP_PROXY', 'HTTPS_PROXY', 'HTTP_PROXY'];
 let w: Worker;
 beforeAll(async () => {
   w = await Worker.start();
@@ -71,7 +72,7 @@ describe('AC-36: the health route of the image', () => {
       texlive: 'This is LuaHBTeX, Version 1.24.0 (TeX Live 2026)',
       verapdf: 'veraPDF 1.30.4',
       selfTest: { separateUser: true, serverUid: 0, texUid: 10001, texRuns: true, serverFileHidden: true },
-      queue: { running: 0, waiting: 0, maxWaiting: 3 },
+      queue: { running: 0, waiting: 0, uploading: 0, maxWaiting: 3 },
     });
   });
 });
@@ -109,7 +110,7 @@ describe('AC-64 and AC-34: a real job on math-notes', () => {
       expect(cmd).toContain('--no-shell-escape');
       expect(cmd).not.toContain('--shell-escape ');
       expect(cmd).toMatch(/ \.\/main\.tex $/);
-      expect(names.split(',')).toEqual(['HOME', 'LANG', 'PATH', 'TEXMFCACHE', 'TEXMFVAR', 'TMPDIR', 'openout_any', 'shell_escape']);
+      expect(names.split(',')).toEqual([...PROXIES, 'HOME', 'LANG', 'PATH', 'TEXMFCACHE', 'TEXMFVAR', 'TMPDIR', 'all_proxy', 'ftp_proxy', 'http_proxy', 'https_proxy', 'openout_any', 'shell_escape'].sort());
       expect(values).toContain(`HOME=${jobDir}home`);
       expect(values).toContain(`TMPDIR=${jobDir}tmp`);
       expect(values).toContain('openout_any=p');
@@ -118,7 +119,8 @@ describe('AC-64 and AC-34: a real job on math-notes', () => {
       const [, , cmd, names, values] = l.split('|');
       expect(cmd).toContain(`-Djava.io.tmpdir=${jobDir}tmp`);
       expect(cmd).toContain('-Xmx192m');
-      expect(names.split(',')).toEqual(['HOME', 'LANG', 'PATH', 'TMPDIR']);
+      expect(names.split(',')).toEqual([...PROXIES, 'HOME', 'LANG', 'PATH', 'TMPDIR', 'all_proxy', 'ftp_proxy', 'http_proxy', 'https_proxy'].sort());
+      expect(cmd).toContain('-DsocksProxyHost=127.0.0.1');
       expect(values).toContain(`TMPDIR=${jobDir}tmp`);
     }
     // No process of the server's ran TeX: every lualatex and java seen was the TeX user's (uid 10001 in all four ids).

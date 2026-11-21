@@ -67,27 +67,61 @@ export const REMOTE_BIBLIOGRAPHY_MESSAGE = 'Remote bibliographies are not fetche
 export const CANCELLED_MESSAGE = 'The check was deleted.';
 
 /**
- * The data sources in a biber control file (.bcf) that name a URL or another
- * scheme (http:, https:, ftp:, file:, data: …), which biber would fetch itself
- * (R3a.1-2). A drive letter (`C:`) is not a scheme. Pure.
+ * No tool a job runs reaches the network (AC-31, SPEC §4; R3a.1-2, D-72).
+ * TeX has `--nosocket`; biber fetches through Perl's LWP, which honours these
+ * variables, so every step gets them, pointing at a closed port below 1024
+ * (which the TeX user cannot listen on), and no `no_proxy`.
+ */
+export const DEAD_PROXY = 'http://127.0.0.1:9';
+export const NO_NETWORK: Record<string, string> = Object.fromEntries(
+  ['http_proxy', 'https_proxy', 'ftp_proxy', 'all_proxy'].flatMap((k) => [[k, DEAD_PROXY], [k.toUpperCase(), DEAD_PROXY]]),
+);
+/** The same for Java (veraPDF): every HTTP, HTTPS and socket connection goes to that closed port. */
+export const JAVA_NO_NETWORK = [
+  '-Djava.net.useSystemProxies=false',
+  '-Dhttp.proxyHost=127.0.0.1',
+  '-Dhttp.proxyPort=9',
+  '-Dhttps.proxyHost=127.0.0.1',
+  '-Dhttps.proxyPort=9',
+  '-DsocksProxyHost=127.0.0.1',
+  '-DsocksProxyPort=9',
+];
+
+/**
+ * The data sources in a biber control file (.bcf) that would make biber fetch
+ * (R3a.1-2). Only for a plain message: the guarantee is NO_NETWORK. Reads the
+ * elements named `datasource` under any prefix, with spaces in the end tag,
+ * and takes a value with a URL scheme, a character reference or a CDATA
+ * section as remote. A drive letter (`C:`) is not a scheme. Pure.
  */
 export function remoteDataSources(bcf: string): string[] {
   const found: string[] = [];
-  for (const m of bcf.matchAll(/<bcf:datasource\b[^>]*>([^<]*)<\/bcf:datasource>/g)) {
-    const value = m[1].replace(/&amp;/g, '&').trim();
-    if (/^[a-z][a-z0-9+.-]+:/i.test(value)) found.push(value);
+  for (const m of bcf.matchAll(/<(?:[\w.-]+:)?datasource\b[^>]*>([\s\S]*?)<\/\s*(?:[\w.-]+:)?datasource\s*>/g)) {
+    const raw = m[1];
+    const value = raw.replace(/&amp;/g, '&').trim();
+    if (/&#|<!\[CDATA\[/i.test(raw) || /^[a-z][a-z0-9+.-]+:/i.test(value)) found.push(value);
   }
   return found;
 }
 
-/** The first and last `bytes` of a file, so a huge file is never read whole (R3a.1-4). */
-export function headAndTail(file: string, bytes: number): string {
-  const tailText = readTail(file, bytes);
+/**
+ * True when the file holds `needle`, read in 1 MB pieces that overlap by the
+ * needle's length, so a large file is never held whole (R3a.1-4, R3a.2-3 c).
+ */
+export function fileContains(file: string, needle: string): boolean {
   const fd = openSync(file, 'r');
   try {
-    const head = Buffer.alloc(bytes);
-    const n = readSync(fd, head, 0, bytes, 0);
-    return `${head.subarray(0, n).toString('utf8')}\n${tailText}`;
+    const piece = Buffer.alloc(1024 * 1024);
+    let carry = '';
+    let pos = 0;
+    for (;;) {
+      const n = readSync(fd, piece, 0, piece.length, pos);
+      if (n === 0) return false;
+      pos += n;
+      const text = carry + piece.subarray(0, n).toString('latin1');
+      if (text.includes(needle)) return true;
+      carry = text.slice(-needle.length);
+    }
   } finally {
     closeSync(fd);
   }
@@ -115,6 +149,7 @@ export function texEnv(folder: JobFolder, texBin: string): Record<string, string
     TEXMFCACHE: cache,
     openout_any: 'p',
     shell_escape: 'f',
+    ...NO_NETWORK,
   };
 }
 
@@ -134,6 +169,7 @@ export function verapdfArgs(pdf: string, folder: JobFolder, verapdfHome: string)
     '-XX:+UseSerialGC',
     '-XX:TieredStopAtLevel=1',
     '-XX:-UsePerfData',
+    ...JAVA_NO_NETWORK,
     `-Djava.io.tmpdir=${folder.tmp}`,
     `-Duser.home=${folder.home}`,
     '-Dfile.encoding=UTF8',
@@ -166,7 +202,7 @@ export class TexRunner implements Runner {
     const base = path.posix.basename(mainFile).replace(/\.tex$/i, '');
     const inJob = (ext: string) => path.posix.join('src', relDir, `${base}${ext}`);
     const env = texEnv(folder, this.o.texBin);
-    const javaEnv = { PATH: '/usr/bin:/bin', HOME: folder.home, TMPDIR: folder.tmp, LANG: 'C.UTF-8' };
+    const javaEnv = { PATH: '/usr/bin:/bin', HOME: folder.home, TMPDIR: folder.tmp, LANG: 'C.UTF-8', ...NO_NETWORK };
 
     const step = async (name: 'lualatex' | 'biber' | 'bibtex' | 'verapdf', argv: string[], limits = TEX_LIMITS, stepEnv = env, dir = cwd) => {
       const t0 = now();
@@ -190,7 +226,7 @@ export class TexRunner implements Runner {
     const cancelled = (): RunOutcome => ({ ok: false, result: null, failure: { kind: 'cancelled', message: CANCELLED_MESSAGE, error: null }, logTail: [], pdf: null });
 
     // A PDF of the main file's name that came in the upload is not the compile's result (R3a.1-7).
-    rmSync(path.join(cwd, `${base}.pdf`), { force: true });
+    rmSync(path.join(cwd, `${base}.pdf`), { force: true, recursive: true });
 
     let runs = 0;
     let log = '';
@@ -211,10 +247,10 @@ export class TexRunner implements Runner {
     const aux = safeJobFile(folder.dir, inJob('.aux'), owner);
     const bcf = safeJobFile(folder.dir, inJob('.bcf'), owner);
     if (bcf) bibliography = 'biber';
-    else if (aux && /\\bibdata\{/.test(headAndTail(aux, 1024 * 1024))) bibliography = 'bibtex';
+    else if (aux && fileContains(aux, '\\bibdata{')) bibliography = 'bibtex';
     if (bcf) {
-      // biber fetches remote data sources itself, outside TeX's --nosocket (R3a.1-2).
-      const remote = remoteDataSources(headAndTail(bcf, 1024 * 1024));
+      // A plain message for a remote bibliography; NO_NETWORK is what stops the fetch (D-72).
+      const remote = remoteDataSources(readTail(bcf, 8 * 1024 * 1024));
       if (remote.length > 0) return fail('bibliography', REMOTE_BIBLIOGRAPHY_MESSAGE, log);
     }
     if (bibliography) {

@@ -7,7 +7,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
-import { createServer as netServer, type AddressInfo } from 'node:net';
+import { createServer as netServer, createServer as netCreateServer, type AddressInfo } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeZip, type RawEntry } from '../zipmaker.ts';
@@ -74,9 +74,10 @@ export class Worker {
   name = '';
   private auth: Server | null = null;
 
-  static async start(opts: { cpus?: string; jobLimitMs?: number; extraEnv?: Record<string, string> } = {}): Promise<Worker> {
+  static async start(opts: { cpus?: string; jobLimitMs?: number; extraEnv?: Record<string, string>; authDelayMs?: number } = {}): Promise<Worker> {
     const w = new Worker();
-    w.auth = createServer((req, res) => {
+    w.auth = createServer(async (req, res) => {
+      if (opts.authDelayMs) await new Promise((r) => setTimeout(r, opts.authDelayMs));
       const token = /^Bearer (.+)$/.exec(req.headers.authorization ?? '')?.[1];
       const id = token === TOKEN_A ? USER_A : token === TOKEN_B ? USER_B : token?.startsWith(FRESH) ? userFor(token) : null;
       res.writeHead(id ? 200 : 401, { 'content-type': 'application/json' });
@@ -178,4 +179,23 @@ export const LEFT_MARK = 'LEFTMARKER';
 
 export function fixture(name: string): string {
   return readFileSync(path.join(FIXTURES, 'hostile', name), 'utf8');
+}
+
+/**
+ * A TCP listener on the host that counts every connection (http, https, ftp
+ * alike) and answers HTTP with a small BibTeX entry (AC-31's network check).
+ */
+export async function startListener(): Promise<{ url: string; port: number; seen: string[]; close: () => Promise<void> }> {
+  const seen: string[] = [];
+  const server = netCreateServer((sock) => {
+    sock.once('data', (b) => {
+      seen.push(b.toString('latin1').split('\r\n')[0] || '(binary)');
+      sock.end('HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\n@book{knuth, author={Leaked}, title={Leaked}, year={1}}\n');
+    });
+    sock.on('error', () => {});
+    seen.push('connection');
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  const port = (server.address() as AddressInfo).port;
+  return { url: `http://127.0.0.1:${port}`, port, seen, close: () => new Promise((r) => server.close(() => r())) };
 }

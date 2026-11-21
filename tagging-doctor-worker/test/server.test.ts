@@ -1,5 +1,6 @@
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, request, type Server } from 'node:http';
+import { connect } from 'node:net';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -53,7 +54,7 @@ const verify: Verify = async (token) => {
   return null;
 };
 
-async function start(allowedOrigins = [PRODUCTION_ORIGIN], selfTest = SELF_TEST, verifyToken: Verify = verify) {
+async function start(allowedOrigins = [PRODUCTION_ORIGIN], selfTest = SELF_TEST, verifyToken: Verify = verify, bodyLimitMs?: number) {
   root = mkdtempSync(path.join(tmpdir(), 'tdw-srv-'));
   resetRoot(root);
   const log = createLogger((l) => logLines.push(l), () => t);
@@ -66,7 +67,7 @@ async function start(allowedOrigins = [PRODUCTION_ORIGIN], selfTest = SELF_TEST,
     now: () => t,
   });
   const handler = createHandler({
-    cfg: { allowedOrigins, maxBodyBytes: 25 * 1024 * 1024, retentionMs: 1_800_000 },
+    cfg: { allowedOrigins, maxBodyBytes: 25 * 1024 * 1024, retentionMs: 1_800_000, bodyLimitMs },
     verify: verifyToken,
     jobs,
     log,
@@ -106,7 +107,7 @@ describe('AC-36: the health route', () => {
       texlive: 'This is LuaHBTeX, Version 1.24.0 (TeX Live 2026)',
       verapdf: 'veraPDF 1.30.4',
       selfTest: SELF_TEST,
-      queue: { running: 0, waiting: 0, maxWaiting: 3 },
+      queue: { running: 0, waiting: 0, uploading: 0, maxWaiting: 3 },
     });
     expect((await fetch(`${base}/api/health`, { method: 'POST' })).status).toBe(405);
   });
@@ -239,7 +240,7 @@ describe('AC-33: the API under load', () => {
     expect(r.status).toBe(429);
     expect(r.headers.get('retry-after')).toBe('60');
     expect((await body(r)).error).toBe('The checker is busy, try again in a minute.');
-    expect((await body(fetch(`${base}/api/health`))).queue).toEqual({ running: 1, waiting: 3, maxWaiting: 3 });
+    expect((await body(fetch(`${base}/api/health`))).queue).toEqual({ running: 1, waiting: 3, uploading: 0, maxWaiting: 3 });
   });
 
   it('answers 429 with the time to retry after 5 jobs in an hour', async () => {
@@ -368,6 +369,67 @@ describe('R3a.1-3: no TeX user of its own, no compile', () => {
     expect(r.status).toBe(503);
     expect((await body(r)).error).toBe(UNAVAILABLE_MESSAGE);
     expect(readdirSync(root)).toEqual([]);
+  });
+});
+
+describe('R3a.2-3 (b): a TeX that does not run as its user, no compile', () => {
+  it('says compile: false and refuses jobs', async () => {
+    await new Promise((r) => server.close(r));
+    await start([PRODUCTION_ORIGIN], { ...SELF_TEST, texRuns: false });
+    expect(await body(fetch(`${base}/api/health`))).toMatchObject({ compile: false, selfTest: { separateUser: true, texRuns: false } });
+    expect((await post()).status).toBe(503);
+  });
+});
+
+describe('R3a.2-1 and R3a.2-2: slots of uploads that do not arrive', () => {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const slowVerify: Verify = async (tok) => {
+    await sleep(200);
+    return tok.startsWith('tokenleaves') ? `66666666-6666-4666-8666-${tok.slice(-12).padStart(12, '0')}` : verify(tok);
+  };
+
+  it('R3a.2-1: a client that leaves during the token check frees its slot', async () => {
+    await new Promise((r) => server.close(r));
+    await start([PRODUCTION_ORIGIN], SELF_TEST, slowVerify);
+    const port = Number(new URL(base).port);
+    const leave = (token: string) =>
+      new Promise<void>((done) => {
+        const sock = connect(port, '127.0.0.1', () => {
+          sock.write(`POST /api/jobs?mainFile=main.tex HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer ${token}\r\nContent-Length: 1048576\r\n\r\n`);
+          sock.write(Buffer.alloc(1024));
+          setTimeout(() => {
+            sock.destroy();
+            done();
+          }, 50);
+        });
+      });
+    // Four leave: before the fix they held every slot, and the worker said busy to everyone.
+    await Promise.all(['tokenleaves000000000001', 'tokenleaves000000000002', 'tokenleaves000000000003', 'tokenleaves000000000004'].map(leave));
+    await sleep(500);
+    const r = await fetch(`${base}/api/jobs?mainFile=main.tex`, { method: 'POST', body: new Uint8Array(10), headers: { authorization: 'Bearer tokenleaves000000000001' } });
+    expect(r.status).toBe(400);
+    expect(readdirSync(root).filter((f) => f.endsWith('.part'))).toEqual([]);
+    expect((await body(fetch(`${base}/api/health`))).queue).toMatchObject({ running: 0, waiting: 0, uploading: 0 });
+    expect((await post()).status).toBe(202);
+  });
+
+  it('R3a.2-2: a body that does not arrive in time gets 408 and frees its slot', async () => {
+    await new Promise((r) => server.close(r));
+    await start([PRODUCTION_ORIGIN], SELF_TEST, verify, 300);
+    const held = holdUpload(TOKEN_A);
+    expect(await held.answer).toBe(408);
+    await settle();
+    expect(readdirSync(root).filter((f) => f.endsWith('.part'))).toEqual([]);
+    expect((await body(fetch(`${base}/api/health`))).queue).toMatchObject({ uploading: 0 });
+    held.abort();
+  });
+
+  it('shows uploads in flight in the health route', async () => {
+    const held = holdUpload(TOKEN_A);
+    await settle();
+    expect((await body(fetch(`${base}/api/health`))).queue).toMatchObject({ uploading: 1 });
+    held.end();
+    expect(await held.answer).toBe(202);
   });
 });
 

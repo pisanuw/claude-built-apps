@@ -4,7 +4,8 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   CANCELLED_MESSAGE,
-  headAndTail,
+  fileContains,
+  NO_NETWORK,
   lualatexArgs,
   remoteDataSources,
   REMOTE_BIBLIOGRAPHY_MESSAGE,
@@ -47,6 +48,7 @@ describe('AC-64: the flags and the environment', () => {
       TEXMFCACHE: path.join(folder.home, 'texmf-var'),
       openout_any: 'p',
       shell_escape: 'f',
+      ...NO_NETWORK,
     });
   });
 
@@ -69,7 +71,7 @@ describe('AC-64: the flags and the environment', () => {
     expect(calls[0].cwd).toBe(path.join(folder.src, 'notes'));
     expect(calls[1].cwd).toBe(folder.dir);
     for (const c of calls) expect(Object.keys(c.env)).not.toContain('SECRET_OF_SERVER');
-    expect(Object.keys(calls[1].env).sort()).toEqual(['HOME', 'LANG', 'PATH', 'TMPDIR']);
+    expect(Object.keys(calls[1].env).sort()).toEqual(['HOME', 'LANG', 'PATH', 'TMPDIR', ...Object.keys(NO_NETWORK)].sort());
     expect(settled()).toBe(2);
   });
 });
@@ -184,15 +186,58 @@ describe('round 1 of review m3a', () => {
     expect(local.result?.bibliography).toBe('biber');
   });
 
-  it('R3a.1-4: reads only the head and the tail of a large .aux, and still finds \\bibdata at its end', async () => {
+  it('R3a.1-4, R3a.2-3 (c): finds \\bibdata anywhere in a large .aux, reading it in pieces', async () => {
     const file = path.join(folder.dir, 'big.aux');
-    writeFileSync(file, 'A'.repeat(3 * 1024 * 1024) + '\\bibdata{refs}\n');
-    const text = headAndTail(file, 1024 * 1024);
-    expect(text.length).toBeLessThanOrEqual(2 * 1024 * 1024 + 1);
-    expect(text).toContain('\\bibdata{refs}');
-    expect(headAndTail(path.join(folder.dir, 'big.aux'), 4)).toBe('AAAA\nfs}\n');
-    const out = await run({ tex: [(c, b) => (okRun(c, b), writeFileSync(path.join(c, `${b}.aux`), 'x'.repeat(3 * 1024 * 1024) + '\\bibdata{refs}'))] });
+    for (const at of [0, 1024 * 1024 - 4, 1024 * 1024 + 7, 2 * 1024 * 1024 + 100]) {
+      const pad = 'A'.repeat(at);
+      writeFileSync(file, pad + '\\bibdata{refs}' + 'B'.repeat(3 * 1024 * 1024 - at));
+      expect(fileContains(file, '\\bibdata{'), String(at)).toBe(true);
+    }
+    writeFileSync(file, 'x'.repeat(3 * 1024 * 1024));
+    expect(fileContains(file, '\\bibdata{')).toBe(false);
+    writeFileSync(file, '');
+    expect(fileContains(file, '\\bibdata{')).toBe(false);
+    const out = await run({ tex: [(c, b) => (okRun(c, b), writeFileSync(path.join(c, `${b}.aux`), 'x'.repeat(1500 * 1024) + '\\bibdata{refs}' + 'y'.repeat(1500 * 1024)))] });
     expect(out.result?.bibliography).toBe('bibtex');
+  });
+
+  it('R3a.1-2 round 2: the message check reads what an XML reader reads', () => {
+    const URL_ = 'http://127.0.0.1:9/x.bib';
+    const forms = [
+      `<bcf:datasource type="file">&#104;ttp://127.0.0.1:9/x.bib</bcf:datasource>`,
+      `<bcf:datasource type="file">http&#x3a;//127.0.0.1:9/x.bib</bcf:datasource>`,
+      `<bcf:datasource type="file"><![CDATA[${URL_}]]></bcf:datasource>`,
+      `<bcf:datasource type="file">${URL_}</bcf:datasource >`,
+      `<x:datasource xmlns:x="https://sourceforge.net/projects/biblatex" type="file">${URL_}</x:datasource>`,
+      `<datasource type="file">${URL_}</ datasource>`,
+    ];
+    for (const f of forms) expect(remoteDataSources(f), f).toHaveLength(1);
+    expect(remoteDataSources('<bcf:datasource type="file">refs.bib</bcf:datasource>')).toEqual([]);
+  });
+
+  it('R3a.1-2 round 2: every step gets the proxy variables at a closed port, and veraPDF the same', async () => {
+    expect(NO_NETWORK).toEqual({
+      http_proxy: 'http://127.0.0.1:9', HTTP_PROXY: 'http://127.0.0.1:9',
+      https_proxy: 'http://127.0.0.1:9', HTTPS_PROXY: 'http://127.0.0.1:9',
+      ftp_proxy: 'http://127.0.0.1:9', FTP_PROXY: 'http://127.0.0.1:9',
+      all_proxy: 'http://127.0.0.1:9', ALL_PROXY: 'http://127.0.0.1:9',
+    });
+    const calls: Call[] = [];
+    await run({ tex: [(c, b) => (okRun(c, b), writeFileSync(path.join(c, `${b}.bcf`), '<bcf:datasource>refs.bib</bcf:datasource>')), (c, b) => okRun(c, b)] }, 'main.tex', calls);
+    expect(calls.map((c) => c.argv.find((a) => ['lualatex', 'biber', 'java'].includes(a)))).toEqual(['lualatex', 'biber', 'lualatex', 'java']);
+    for (const c of calls) {
+      expect(c.env).toMatchObject(NO_NETWORK);
+      expect(Object.keys(c.env).some((k) => /^no_proxy$/i.test(k))).toBe(false);
+    }
+    const java = calls[3].argv;
+    for (const p of ['-Dhttp.proxyHost=127.0.0.1', '-Dhttp.proxyPort=9', '-Dhttps.proxyHost=127.0.0.1', '-Dhttps.proxyPort=9', '-DsocksProxyHost=127.0.0.1', '-DsocksProxyPort=9']) expect(java).toContain(p);
+  });
+
+  it('R3a.2-3 (a): a folder named like the PDF is removed, not an internal error', async () => {
+    mkdirSync(path.join(folder.src, 'main.pdf'));
+    writeFileSync(path.join(folder.src, 'main.pdf', 'readme.txt'), 'x');
+    const out = await run({});
+    expect(out.ok).toBe(true);
   });
 
   it('R3a.1-7: a PDF of the main file\'s name from the upload is not taken as the result', async () => {

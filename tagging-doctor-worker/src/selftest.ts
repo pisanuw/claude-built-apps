@@ -1,8 +1,9 @@
 /**
  * AC-64's startup self-test: does TeX run under another uid than the server,
  * and can that user not read a file only the server user can read? The
- * health route shows the result (AC-36). When it fails, the queue drops to
- * zero (AC-33) and TeX runs as the server user.
+ * health route shows the result (AC-36). Unless TeX runs as a user of its
+ * own (`separateUser`) and runs at all (`texRuns`), the worker takes no job
+ * and the health route says `compile: false` (D-68, R3a.2-3).
  */
 import { randomBytes } from 'node:crypto';
 import { rmSync, writeFileSync } from 'node:fs';

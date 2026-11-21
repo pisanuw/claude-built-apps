@@ -1,8 +1,10 @@
 /**
  * The queue and the files of jobs (AC-33, AC-34, AC-64).
  *
- * - One job runs at a time; at most `maxWaiting` wait (0 when TeX cannot run
- *   as another user); one user gets at most `perUserPerHour` jobs an hour.
+ * - One job runs at a time; at most `maxWaiting` wait, uploads still being
+ *   received counted among them; one user gets at most `perUserPerHour` jobs
+ *   an hour. With no TeX user of its own the worker takes no job at all
+ *   (D-68; the server answers 503 before anything reaches this class).
  *   The limits live in memory and reset when the instance restarts.
  * - A queued upload stays a zip of the server user's, mode 0600, at
  *   `<root>/<id>.zip`. It is unpacked only when its job starts, into
@@ -51,6 +53,8 @@ export interface Slot {
 export type Reservation = ({ ok: true } & Slot) | Exclude<Admission, { ok: true }>;
 
 export const BUSY_MESSAGE = 'The checker is busy, try again in a minute.';
+/** A slot frees itself after this, past the server's 120-second request limit (R3a.2-1). */
+export const SLOT_HOLD_MS = 130_000;
 export const UPLOADING_MESSAGE = 'Your last upload is still being received. Wait for it to finish, then try again.';
 const HOUR = 3_600_000;
 
@@ -94,6 +98,11 @@ export class Jobs {
     return this.o.user ? this.o.cfg.maxWaiting : 0;
   }
 
+  /** Uploads whose bodies are being received (R3a.2-1, shown by the health route). */
+  get uploadsInFlight(): number {
+    return this.uploadingTotal;
+  }
+
   counts(): { running: number; waiting: number } {
     return { running: this.running ? 1 : 0, waiting: this.queue.length };
   }
@@ -130,27 +139,29 @@ export class Jobs {
   /**
    * Admits and holds a place for one upload until `release()` (R3a.1-1). The
    * body goes to `file`, on disk, not into memory; `submit` takes it from there.
+   * The place frees itself after `holdMs` whatever happens to the request
+   * (R3a.2-1's backstop); `release()` removes `file` too.
    */
-  reserve(userId: string): Reservation {
+  reserve(userId: string, holdMs = SLOT_HOLD_MS): Reservation {
     const a = this.admit(userId);
     if (!a.ok) return a;
     this.uploading.set(userId, (this.uploading.get(userId) ?? 0) + 1);
     this.uploadingTotal++;
     const file = path.join(this.o.cfg.jobsRoot, `upload-${randomBytes(16).toString('hex')}.part`);
     let held = true;
-    return {
-      ok: true,
-      file,
-      release: () => {
-        if (!held) return;
-        held = false;
-        rmSync(file, { force: true });
-        const n = (this.uploading.get(userId) ?? 1) - 1;
-        if (n > 0) this.uploading.set(userId, n);
-        else this.uploading.delete(userId);
-        this.uploadingTotal--;
-      },
+    const release = () => {
+      if (!held) return;
+      held = false;
+      clearTimeout(backstop);
+      rmSync(file, { force: true });
+      const n = (this.uploading.get(userId) ?? 1) - 1;
+      if (n > 0) this.uploading.set(userId, n);
+      else this.uploading.delete(userId);
+      this.uploadingTotal--;
     };
+    const backstop = setTimeout(release, holdMs);
+    backstop.unref();
+    return { ok: true, file, release };
   }
 
   /**

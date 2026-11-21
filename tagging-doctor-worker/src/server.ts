@@ -26,11 +26,11 @@ export interface Health {
   texlive: string;
   verapdf: string;
   selfTest: SelfTest;
-  queue: { running: number; waiting: number; maxWaiting: number };
+  queue: { running: number; waiting: number; uploading: number; maxWaiting: number };
 }
 
 export interface ServerDeps {
-  cfg: Pick<Config, 'allowedOrigins' | 'maxBodyBytes' | 'retentionMs'>;
+  cfg: Pick<Config, 'allowedOrigins' | 'maxBodyBytes' | 'retentionMs'> & { bodyLimitMs?: number };
   verify: Verify;
   jobs: Jobs;
   log: Logger;
@@ -60,25 +60,46 @@ function send(res: ServerResponse, status: number, body: unknown, headers: Recor
   res.end(text);
 }
 
+export const CUT_SHORT = 'The upload was cut short.';
+export const TOO_SLOW = 'The upload took longer than a minute. Try again on a faster connection, or with a smaller zip.';
+/** R3a.2-2: a body must arrive within a minute, so a slow one cannot hold a slot for long. */
+export const BODY_LIMIT_MS = 60_000;
+
+/** True when the client has already gone, before its body was read (R3a.2-1). */
+export function gone(req: IncomingMessage): boolean {
+  return req.destroyed || req.readableAborted || (req.socket?.destroyed === true && !req.complete);
+}
+
 /**
- * Writes the body to `file` (0600, the server's), at most `limit` bytes; 413
- * as soon as it is longer. On disk, so bodies in flight do not hold memory
- * (R3a.1-1).
+ * Writes the body to `file` (0600, the server's), at most `limit` bytes,
+ * within `limitMs`; 413 as soon as it is longer, 408 when it is too slow. On
+ * disk, so bodies in flight do not hold memory (R3a.1-1). On failure the
+ * promise settles only after the file is closed and removed (R3a.2-1).
  */
-function receiveBody(req: IncomingMessage, file: string, limit: number): Promise<void> {
+function receiveBody(req: IncomingMessage, file: string, limit: number, limitMs: number): Promise<void> {
   return new Promise((resolve, reject) => {
+    // The client may have left while the token was checked: its events have fired already.
+    if (gone(req)) return reject(new HttpError(400, CUT_SHORT, 'bad-upload'));
     const out = createWriteStream(file, { flags: 'wx', mode: 0o600 });
     let size = 0;
     let settled = false;
     let ended = false;
+    const timer = setTimeout(() => fail(new HttpError(408, TOO_SLOW, 'too-slow', { connection: 'close' })), limitMs);
     const fail = (e: HttpError) => {
       if (settled) return;
       settled = true;
+      clearTimeout(timer);
       req.removeAllListeners('data');
       req.pause();
-      out.destroy();
-      rmSync(file, { force: true });
-      reject(e);
+      const done = () => {
+        rmSync(file, { force: true });
+        reject(e);
+      };
+      if (out.closed) done();
+      else {
+        out.once('close', done);
+        out.destroy();
+      }
     };
     out.on('error', () => fail(new HttpError(500, 'The checker could not store the upload.', 'internal')));
     req.on('data', (c: Buffer) => {
@@ -94,13 +115,14 @@ function receiveBody(req: IncomingMessage, file: string, limit: number): Promise
       out.end(() => {
         if (settled) return;
         settled = true;
+        clearTimeout(timer);
         resolve();
       });
     });
     req.on('close', () => {
-      if (!ended) fail(new HttpError(400, 'The upload was cut short.', 'bad-upload'));
+      if (!ended) fail(new HttpError(400, CUT_SHORT, 'bad-upload'));
     });
-    req.on('error', () => fail(new HttpError(400, 'The upload was cut short.', 'bad-upload')));
+    req.on('error', () => fail(new HttpError(400, CUT_SHORT, 'bad-upload')));
   });
 }
 
@@ -135,13 +157,15 @@ export function createHandler(d: ServerDeps) {
       ? { 'access-control-allow-origin': origin, 'access-control-expose-headers': 'location, retry-after', vary: 'Origin' }
       : { vary: 'Origin' };
 
+  // R3a.2-3 (b): a TeX user of its own, and a TeX that runs as it.
+  const canCompile = d.selfTest.separateUser && d.selfTest.texRuns;
   const health = (): Health => ({
     status: 'ok',
-    compile: d.selfTest.separateUser,
+    compile: canCompile,
     texlive: d.versions.texlive,
     verapdf: d.versions.verapdf,
     selfTest: d.selfTest,
-    queue: { ...d.jobs.counts(), maxWaiting: d.jobs.maxWaiting },
+    queue: { ...d.jobs.counts(), uploading: d.jobs.uploadsInFlight, maxWaiting: d.jobs.maxWaiting },
   });
 
   async function route(req: IncomingMessage, res: ServerResponse, cors: Record<string, string>): Promise<string> {
@@ -192,14 +216,16 @@ export function createHandler(d: ServerDeps) {
     if (isJobs) {
       if (method !== 'POST') throw new HttpError(405, 'Use POST.', 'other');
       // R3a.1-3 (D-68): with no TeX user of its own, a job could read other users' PDFs; take none.
-      if (!d.selfTest.separateUser) throw new HttpError(503, UNAVAILABLE_MESSAGE, 'no-switch', { connection: 'close' });
+      if (!canCompile) throw new HttpError(503, UNAVAILABLE_MESSAGE, 'no-switch', { connection: 'close' });
       if ((url.searchParams.get('mode') ?? 'check') !== 'check') throw new HttpError(400, 'The only mode is "check".', 'bad-upload');
+      // R3a.2-1: a client that left during the token check takes no slot.
+      if (gone(req)) throw new HttpError(400, CUT_SHORT, 'bad-upload');
       const slot = d.jobs.reserve(userId);
       if (!slot.ok) {
         throw new HttpError(429, slot.message, slot.reason, { 'retry-after': String(slot.retryAfter), connection: 'close' });
       }
       try {
-        await receiveBody(req, slot.file, d.cfg.maxBodyBytes);
+        await receiveBody(req, slot.file, d.cfg.maxBodyBytes, d.cfg.bodyLimitMs ?? BODY_LIMIT_MS);
         const mainFile = url.searchParams.get('mainFile') ?? '';
         let entries;
         try {

@@ -26,7 +26,7 @@ const WORDS = new Set([
   // routes and methods
   'health', 'jobs', 'job', 'pdf', 'other', 'GET', 'POST', 'DELETE', 'OPTIONS', 'HEAD', 'PUT', 'PATCH',
   // reasons
-  'unauthorized', 'auth-unavailable', 'origin', 'too-large', 'busy', 'hourly-limit', 'bad-upload', 'bad-main-file',
+  'unauthorized', 'auth-unavailable', 'origin', 'too-large', 'busy', 'hourly-limit', 'too-slow', 'bad-upload', 'bad-main-file',
   'not-found', 'timeout', 'compile-error', 'cancelled', 'bibliography', 'no-pdf', 'verapdf-error', 'internal', 'restart', 'expired', 'deleted',
   'ok', 'no-switch', 'switch', 'unknown',
 ]);
