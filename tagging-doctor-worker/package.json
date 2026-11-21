@@ -1,0 +1,30 @@
+{
+  "name": "tagging-doctor-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tagging Doctor's checker: compiles a LaTeX project with LuaLaTeX and checks the PDF with veraPDF, one job at a time.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit && node --disable-warning=ExperimentalWarning --input-type=module -e \"await import('./src/server.ts'); await import('./src/runner.ts'); console.log('src loads under node type stripping')\"",
+    "start": "node --disable-warning=ExperimentalWarning src/main.ts",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test",
+    "test:image": "vitest run --config vitest.image.config.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.10.2",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^9.17.0",
+    "globals": "^15.14.0",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.19.0",
+    "vitest": "^2.1.8"
+  }
+}

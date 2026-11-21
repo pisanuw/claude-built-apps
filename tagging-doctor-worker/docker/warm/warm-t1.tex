@@ -1,0 +1,11 @@
+% Built at image build time so the font caches the common documents need are
+% in the image, read-only at run time (AC-65).
+\documentclass{article}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{tikz}
+\begin{document}
+Warm \textbf{bold} \emph{italic} \texttt{mono} $x^2 + \int_0^1 f\,dx = \sum_n a_n$.
+\[ \begin{aligned} a &= b \\ c &= d \end{aligned} \]
+\tikz \draw (0,0) -- (1,1);
+\end{document}
