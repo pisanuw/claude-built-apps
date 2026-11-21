@@ -9,3 +9,10 @@ server user can read (`/srv/planted/secret.tex`), a queued second job's file,
 and a file the previous job left behind. Paths a job cannot learn by itself
 reach it through `/srv/hint/hint.txt`, which the test writes (the "known path"
 of AC-31).
+
+Added in review round 1 of milestone 3a: `biber-remote.tex` and `bibtex-remote.tex`
+name a bibliography at a URL (`@URL@`, filled in by the test with a listener of
+its own), which must never be fetched (R3a.1-2); `biber-local.tex`,
+`bibtex-local.tex` and `refs.bib` are ordinary bibliographies that must still
+work; `empty-with-pdf.tex` is uploaded beside a `main.pdf` that must not be
+served as the result (R3a.1-7).

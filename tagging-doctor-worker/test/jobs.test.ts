@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { BUSY_MESSAGE, Jobs, resetRoot } from '../src/jobs.ts';
+import { BUSY_MESSAGE, Jobs, resetRoot, UPLOADING_MESSAGE } from '../src/jobs.ts';
 import type { Runner, RunOutcome } from '../src/runner.ts';
 import { inspectUpload } from '../src/zip.ts';
 import { makeZip } from './zipmaker.ts';
@@ -226,6 +226,65 @@ describe("AC-28: a user's own jobs only; delete", () => {
     g.release();
     await jobs.idle();
     expect(jobs.remove('u', done.id)).toBe(true);
+    expect(readdirSync(root)).toEqual([]);
+  });
+});
+
+describe('R3a.1-1: uploads in flight count against the queue', () => {
+  it('holds a slot per upload: at most maxWaiting + 1 in all, and one per user', async () => {
+    const g = gatedRunner(ok);
+    const { jobs } = make(g.runner);
+    const slots = ['a', 'b', 'c', 'd'].map((u) => jobs.reserve(u));
+    expect(slots.every((x) => x.ok)).toBe(true);
+    expect(jobs.reserve('e')).toEqual({ ok: false, reason: 'busy', message: BUSY_MESSAGE, retryAfter: 60 });
+    const first = slots[0] as Extract<(typeof slots)[0], { ok: true }>;
+    expect(path.dirname(first.file)).toBe(root);
+    first.release();
+    first.release(); // twice is once
+    expect(jobs.reserve('a').ok).toBe(true);
+    (slots[1] as Extract<(typeof slots)[0], { ok: true }>).release(); // room in the queue, but 'a' is still uploading
+    expect(jobs.reserve('a')).toEqual({ ok: false, reason: 'busy', message: UPLOADING_MESSAGE, retryAfter: 60 });
+  });
+
+  it('takes the received file as the queued zip, mode 0600, and frees the slot', async () => {
+    const g = gatedRunner(ok);
+    const { jobs } = make(g.runner);
+    const running = jobs.submit('x', ZIP, 'main.tex', ENTRIES);
+    await tick();
+    const slot = jobs.reserve('u');
+    if (!slot.ok) throw new Error('no slot');
+    writeFileSync(slot.file, ZIP, { mode: 0o600 });
+    const job = jobs.submit('u', slot.file, 'main.tex', ENTRIES);
+    slot.release();
+    expect(existsSync(slot.file)).toBe(false);
+    expect(statSync(path.join(root, `${job.id}.zip`)).mode & 0o777).toBe(0o600);
+    expect(jobs.counts()).toEqual({ running: 1, waiting: 1 });
+    expect(running.status).toBe('running');
+    g.release();
+    await tick();
+    await tick();
+    g.release();
+    await jobs.idle();
+    expect(job.status).toBe('done');
+  });
+});
+
+describe('R3a.1-6: deleting a running job', () => {
+  it('aborts its run', async () => {
+    let seen: AbortSignal | undefined;
+    const { jobs } = make({
+      run: ({ signal }) =>
+        new Promise((resolve) => {
+          seen = signal;
+          signal?.addEventListener('abort', () => resolve({ ok: false, result: null, failure: { kind: 'cancelled', message: 'x', error: null }, logTail: [], pdf: null }));
+        }),
+    });
+    const job = jobs.submit('u', ZIP, 'main.tex', ENTRIES);
+    await tick();
+    expect(seen?.aborted).toBe(false);
+    jobs.remove('u', job.id);
+    expect(seen?.aborted).toBe(true);
+    await jobs.idle();
     expect(readdirSync(root)).toEqual([]);
   });
 });

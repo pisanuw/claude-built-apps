@@ -49,6 +49,20 @@ describe('AC-64: how TeX is run', () => {
     expect(Date.now() - t0).toBeLessThan(5000);
   });
 
+  it('R3a.1-6: kills the process group when the job is deleted', async () => {
+    const ac = new AbortController();
+    const t0 = Date.now();
+    const p = spawnWithDeadline([process.execPath, '-e', 'setTimeout(()=>{},60000)'], { cwd: dir, env: {}, deadline: Date.now() + 60_000, stdoutLimit: 10, signal: ac.signal });
+    setTimeout(() => ac.abort(), 200);
+    const r = await p;
+    expect(r.signal).toBe('SIGKILL');
+    expect(r.timedOut).toBe(false);
+    expect(Date.now() - t0).toBeLessThan(5000);
+    const pre = new AbortController();
+    pre.abort();
+    expect((await spawnWithDeadline([process.execPath, '-e', 'setTimeout(()=>{},60000)'], { cwd: dir, env: {}, deadline: Date.now() + 60_000, stdoutLimit: 10, signal: pre.signal })).signal).toBe('SIGKILL');
+  });
+
   it('reports a command that cannot start', async () => {
     const r = await spawnWithDeadline(['/no/such/binary'], { cwd: dir, env: {}, deadline: Date.now() + 5000, stdoutLimit: 10 });
     expect(r.code).toBe(127);

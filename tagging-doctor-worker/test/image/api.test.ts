@@ -64,9 +64,10 @@ describe('AC-36: the health route of the image', () => {
     const r = await fetch(`${w.base}/api/health`);
     expect(r.status).toBe(200);
     const h = (await r.json()) as Record<string, unknown>;
-    expect(Object.keys(h).sort()).toEqual(['queue', 'selfTest', 'status', 'texlive', 'verapdf']);
+    expect(Object.keys(h).sort()).toEqual(['compile', 'queue', 'selfTest', 'status', 'texlive', 'verapdf']);
     expect(h).toMatchObject({
       status: 'ok',
+      compile: true,
       texlive: 'This is LuaHBTeX, Version 1.24.0 (TeX Live 2026)',
       verapdf: 'veraPDF 1.30.4',
       selfTest: { separateUser: true, serverUid: 0, texUid: 10001, texRuns: true, serverFileHidden: true },

@@ -67,10 +67,13 @@ export interface RunResult {
   stdout: string;
 }
 
-export type Spawner = (argv: string[], opts: { cwd: string; env: Record<string, string>; deadline: number; stdoutLimit: number }) => Promise<RunResult>;
+export type Spawner = (
+  argv: string[],
+  opts: { cwd: string; env: Record<string, string>; deadline: number; stdoutLimit: number; signal?: AbortSignal },
+) => Promise<RunResult>;
 
 /** Runs argv (no shell) in its own process group and kills the group at the deadline. */
-export const spawnWithDeadline: Spawner = (argv, { cwd, env, deadline, stdoutLimit }) =>
+export const spawnWithDeadline: Spawner = (argv, { cwd, env, deadline, stdoutLimit, signal }) =>
   new Promise((resolve) => {
     const child = spawn(argv[0], argv.slice(1), { cwd, env, detached: true, stdio: ['ignore', 'pipe', 'ignore'], shell: false });
     const chunks: Buffer[] = [];
@@ -87,14 +90,18 @@ export const spawnWithDeadline: Spawner = (argv, { cwd, env, deadline, stdoutLim
       timedOut = true;
       killGroup();
     }, Math.max(0, deadline - Date.now()));
+    // The server kills its own child's group, whoever the child runs as (R3a.1-6).
+    signal?.addEventListener('abort', killGroup, { once: true });
+    if (signal?.aborted) killGroup();
     child.stdout?.on('data', (b: Buffer) => {
       if (size < stdoutLimit) chunks.push(b.subarray(0, stdoutLimit - size));
       size += b.length;
     });
-    const done = (code: number | null, signal: string | null) => {
+    const done = (code: number | null, sig: string | null) => {
       clearTimeout(timer);
+      signal?.removeEventListener('abort', killGroup);
       killGroup();
-      resolve({ code, signal, timedOut, stdout: Buffer.concat(chunks).toString('utf8') });
+      resolve({ code, signal: sig, timedOut, stdout: Buffer.concat(chunks).toString('utf8') });
     };
     child.on('error', () => done(127, null));
     child.on('close', (code, signal) => done(code, signal));

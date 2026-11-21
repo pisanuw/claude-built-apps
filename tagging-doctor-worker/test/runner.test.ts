@@ -2,7 +2,18 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { lualatexArgs, TexRunner, texEnv, TIMEOUT_MESSAGE, verapdfArgs, type JobFolder } from '../src/runner.ts';
+import {
+  CANCELLED_MESSAGE,
+  headAndTail,
+  lualatexArgs,
+  remoteDataSources,
+  REMOTE_BIBLIOGRAPHY_MESSAGE,
+  TexRunner,
+  texEnv,
+  TIMEOUT_MESSAGE,
+  verapdfArgs,
+  type JobFolder,
+} from '../src/runner.ts';
 import { fakeSpawner, okRun, texLog, type Call, type Script } from './fakes.ts';
 
 let folder: JobFolder;
@@ -86,7 +97,7 @@ describe('the job steps (S2-9)', () => {
     const out = await run({ tex: [(c, b) => (okRun(c, b), writeFileSync(path.join(c, `${b}.bcf`), '<bcf/>')), (c, b) => okRun(c, b)] }, 'main.tex', calls);
     expect(out.result).toMatchObject({ bibliography: 'biber', runs: 2 });
     expect(calls.map((c) => c.argv.at(-2) === 'biber' || c.argv.includes('biber'))).toEqual([false, true, false, false]);
-    expect(calls[1].argv.slice(-2)).toEqual(['biber', './main.bcf']);
+    expect(calls[1].argv.slice(-3)).toEqual(['biber', '--noconf', './main.bcf']);
   });
 
   it('runs BibTeX when the .aux names a bibliography', async () => {
@@ -149,5 +160,70 @@ describe('the job steps (S2-9)', () => {
     });
     expect(out.failure?.kind).toBe('no-pdf');
     expect(out.logTail.join('\n')).not.toContain('SECRET');
+  });
+});
+
+describe('round 1 of review m3a', () => {
+  const BCF = (source: string) =>
+    `<?xml version="1.0"?>\n<bcf:controlfile>\n  <bcf:bibdata section="0">\n    <bcf:datasource type="file" datatype="bibtex" glob="false">${source}</bcf:datasource>\n  </bcf:bibdata>\n</bcf:controlfile>\n`;
+
+  it('R3a.1-2: finds data sources that biber would fetch, and only those', () => {
+    expect(remoteDataSources(BCF('http://127.0.0.1:9/leak/x.bib'))).toEqual(['http://127.0.0.1:9/leak/x.bib']);
+    for (const url of ['https://a/b.bib', 'ftp://a/b.bib', 'file:///etc/passwd', 'HTTP://A/B', 'data:text/plain,x']) expect(remoteDataSources(BCF(url)), url).toEqual([url]);
+    for (const local of ['refs.bib', 'sub/refs.bib', '../refs.bib', 'C:/refs.bib', '/abs/refs.bib']) expect(remoteDataSources(BCF(local)), local).toEqual([]);
+    expect(remoteDataSources(BCF('refs.bib') + BCF(' https://x/y.bib '))).toEqual(['https://x/y.bib']);
+  });
+
+  it('R3a.1-2: refuses a remote bibliography before biber runs', async () => {
+    const calls: Call[] = [];
+    const out = await run({ tex: [(c, b) => (okRun(c, b), writeFileSync(path.join(c, `${b}.bcf`), BCF('http://127.0.0.1:9/leak.bib')))] }, 'main.tex', calls);
+    expect(out.ok).toBe(false);
+    expect(out.failure).toMatchObject({ kind: 'bibliography', message: REMOTE_BIBLIOGRAPHY_MESSAGE });
+    expect(calls.map((c) => c.argv.find((a) => a === 'biber' || a === 'lualatex'))).toEqual(['lualatex']);
+    const local = await run({ tex: [(c, b) => (okRun(c, b), writeFileSync(path.join(c, `${b}.bcf`), BCF('refs.bib'))), (c, b) => okRun(c, b)] });
+    expect(local.result?.bibliography).toBe('biber');
+  });
+
+  it('R3a.1-4: reads only the head and the tail of a large .aux, and still finds \\bibdata at its end', async () => {
+    const file = path.join(folder.dir, 'big.aux');
+    writeFileSync(file, 'A'.repeat(3 * 1024 * 1024) + '\\bibdata{refs}\n');
+    const text = headAndTail(file, 1024 * 1024);
+    expect(text.length).toBeLessThanOrEqual(2 * 1024 * 1024 + 1);
+    expect(text).toContain('\\bibdata{refs}');
+    expect(headAndTail(path.join(folder.dir, 'big.aux'), 4)).toBe('AAAA\nfs}\n');
+    const out = await run({ tex: [(c, b) => (okRun(c, b), writeFileSync(path.join(c, `${b}.aux`), 'x'.repeat(3 * 1024 * 1024) + '\\bibdata{refs}'))] });
+    expect(out.result?.bibliography).toBe('bibtex');
+  });
+
+  it('R3a.1-7: a PDF of the main file\'s name from the upload is not taken as the result', async () => {
+    writeFileSync(path.join(folder.src, 'main.pdf'), '%PDF-1.4 % UPLOADED-NOT-COMPILED');
+    const out = await run({ tex: [(c, b) => void writeFileSync(path.join(c, `${b}.log`), texLog(null))] });
+    expect(out.failure?.kind).toBe('no-pdf');
+    expect(out.pdf).toBeNull();
+  });
+
+  it('R3a.1-6: a deleted job runs no further step, after LuaLaTeX, BibTeX or veraPDF', async () => {
+    for (const at of ['lualatex', 'bibtex', 'java']) {
+      const ac = new AbortController();
+      const calls: Call[] = [];
+      const spawner = fakeSpawner(
+        { tex: [(c, b) => (okRun(c, b, 'Rerun to get'), writeFileSync(path.join(c, `${b}.aux`), '\\bibdata{x}'))], bib: () => ({ code: 1 }) },
+        calls,
+      );
+      const r = new TexRunner({
+        user: null,
+        texBin: '/t',
+        verapdfHome: '/v',
+        settle: () => {},
+        spawner: async (argv, o) => {
+          const res = await spawner(argv, o);
+          if (argv.includes(at)) ac.abort();
+          return res;
+        },
+      });
+      const out = await r.run({ folder, mainFile: 'main.tex', deadline: Date.now() + 60_000, signal: ac.signal });
+      expect(out.failure, at).toEqual({ kind: 'cancelled', message: CANCELLED_MESSAGE, error: null });
+      expect(calls.at(-1)?.argv.includes(at), at).toBe(true);
+    }
   });
 });

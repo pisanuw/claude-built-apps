@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, request, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -9,7 +9,7 @@ import { LOCAL_ORIGIN, PRODUCTION_ORIGIN } from '../src/config.ts';
 import { Jobs, resetRoot } from '../src/jobs.ts';
 import { createLogger } from '../src/log.ts';
 import type { Runner } from '../src/runner.ts';
-import { createHandler } from '../src/server.ts';
+import { createHandler, UNAVAILABLE_MESSAGE } from '../src/server.ts';
 import { makeZip } from './zipmaker.ts';
 
 const SOURCE_MARK = 'SOURCEMARKERq7';
@@ -53,7 +53,7 @@ const verify: Verify = async (token) => {
   return null;
 };
 
-async function start(allowedOrigins = [PRODUCTION_ORIGIN]) {
+async function start(allowedOrigins = [PRODUCTION_ORIGIN], selfTest = SELF_TEST, verifyToken: Verify = verify) {
   root = mkdtempSync(path.join(tmpdir(), 'tdw-srv-'));
   resetRoot(root);
   const log = createLogger((l) => logLines.push(l), () => t);
@@ -67,11 +67,11 @@ async function start(allowedOrigins = [PRODUCTION_ORIGIN]) {
   });
   const handler = createHandler({
     cfg: { allowedOrigins, maxBodyBytes: 25 * 1024 * 1024, retentionMs: 1_800_000 },
-    verify,
+    verify: verifyToken,
     jobs,
     log,
     versions: { texlive: 'This is LuaHBTeX, Version 1.24.0 (TeX Live 2026)', verapdf: 'veraPDF 1.30.4' },
-    selfTest: SELF_TEST,
+    selfTest,
     now: () => t,
   });
   server = createServer((req, res) => void handler(req, res));
@@ -102,6 +102,7 @@ describe('AC-36: the health route', () => {
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({
       status: 'ok',
+      compile: true,
       texlive: 'This is LuaHBTeX, Version 1.24.0 (TeX Live 2026)',
       verapdf: 'veraPDF 1.30.4',
       selfTest: SELF_TEST,
@@ -300,5 +301,90 @@ describe('AC-64: the logs hold no source text, no TeX log text and no token', ()
     expect(logLines.length).toBeGreaterThan(8);
     for (const secret of [SOURCE_MARK, LOG_MARK, TOKEN_A, TOKEN_B, 'tokenAAAA', 'main.tex', 'documentclass']) expect(all).not.toContain(secret);
     expect(all).toContain('"event":"job-finished"');
+  });
+});
+
+/** A POST whose body is only partly sent, held open until `end()`. */
+function holdUpload(token: string) {
+  const req = request(`${base}/api/jobs?mainFile=main.tex`, { method: 'POST', headers: { ...auth(token), 'content-length': String(ZIP.length) } });
+  const answer = new Promise<number>((resolve) => {
+    req.on('response', (res) => {
+      res.resume();
+      resolve(res.statusCode ?? 0);
+    });
+    req.on('error', () => resolve(-1));
+  });
+  req.write(ZIP.subarray(0, 10));
+  return { answer, end: () => req.end(ZIP.subarray(10)), abort: () => req.destroy() };
+}
+const settle = () => new Promise((r) => setTimeout(r, 50));
+
+describe('R3a.1-1: uploads in flight', () => {
+  it('holds at most 4 bodies at once, one per user, and frees a slot when a body ends or is cut', async () => {
+    const tokens = ['tokenAAAAAAAAAAAAAAAAAAA.payload.sig', 'tokenBBBBBBBBBBBBBBBBBBB.payload.sig'];
+    const more = ['tokenCCCCCCCCCCCCCCCCCCCC', 'tokenDDDDDDDDDDDDDDDDDDDD', 'tokenEEEEEEEEEEEEEEEEEEEE'];
+    const users: Record<string, string> = {
+      [more[0]]: '33333333-3333-4333-8333-333333333333',
+      [more[1]]: '44444444-4444-4444-8444-444444444444',
+      [more[2]]: '55555555-5555-4555-8555-555555555555',
+    };
+    await new Promise((r) => server.close(r));
+    rmSync(root, { recursive: true, force: true });
+    await start([PRODUCTION_ORIGIN], SELF_TEST, async (tok) => users[tok] ?? verify(tok));
+
+    const held = [...tokens, more[0], more[1]].map((tok) => holdUpload(tok));
+    await settle();
+    // Four bodies in flight fill the queue: a fifth user is told the checker is busy.
+    const fifth = await post(ZIP, 'mainFile=main.tex', auth(more[2]));
+    expect(fifth.status).toBe(429);
+    expect((await body(fifth)).error).toBe('The checker is busy, try again in a minute.');
+    expect(readdirSync(root).filter((f) => f.endsWith('.part'))).toHaveLength(4);
+    // A cut body frees its slot and its file.
+    held[3].abort();
+    await settle();
+    expect(readdirSync(root).filter((f) => f.endsWith('.part'))).toHaveLength(3);
+    // The same user cannot send a second body while the first is in flight.
+    const again = await post(ZIP, 'mainFile=main.tex', auth(tokens[0]));
+    expect(again.status).toBe(429);
+    expect((await body(again)).error).toMatch(/still being received/);
+    held[0].end();
+    expect(await held[0].answer).toBe(202);
+    held[1].end();
+    held[2].end();
+    expect(await held[1].answer).toBe(202);
+    expect(await held[2].answer).toBe(202);
+    await jobs.idle();
+    expect(readdirSync(root).filter((f) => f.endsWith('.part'))).toEqual([]);
+  });
+});
+
+describe('R3a.1-3: no TeX user of its own, no compile', () => {
+  it('refuses every job with 503, and the health route says compile is off', async () => {
+    await new Promise((r) => server.close(r));
+    await start([PRODUCTION_ORIGIN], { ...SELF_TEST, separateUser: false });
+    const h = await body(fetch(`${base}/api/health`));
+    expect(h).toMatchObject({ status: 'ok', compile: false, selfTest: { separateUser: false } });
+    const r = await post();
+    expect(r.status).toBe(503);
+    expect((await body(r)).error).toBe(UNAVAILABLE_MESSAGE);
+    expect(readdirSync(root)).toEqual([]);
+  });
+});
+
+describe('R3a.1-5 and R3a.1-8', () => {
+  it('answers 404, not a hung download, when the PDF went meanwhile', async () => {
+    const id = (await body(post())).id;
+    await jobs.idle();
+    const job = jobs.find(USER_A, id);
+    rmSync(jobs.pdfFile(job as NonNullable<typeof job>) as string);
+    const r = await fetch(`${base}/api/jobs/${id}/pdf`, { headers: auth() });
+    expect(r.status).toBe(404);
+  });
+
+  it('lets the app read Location and Retry-After', async () => {
+    const r = await post(ZIP, 'mainFile=main.tex', { ...auth(), origin: PRODUCTION_ORIGIN });
+    expect(r.headers.get('access-control-expose-headers')).toBe('location, retry-after');
+    const other = await fetch(`${base}/api/health`, { headers: { origin: 'https://evil.example' } });
+    expect(other.headers.get('access-control-expose-headers')).toBeNull();
   });
 });

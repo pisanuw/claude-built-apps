@@ -41,7 +41,17 @@ export interface Job {
 
 export type Admission = { ok: true } | { ok: false; reason: 'busy' | 'hourly-limit'; message: string; retryAfter: number };
 
+/** A place held for an upload whose body is being received (R3a.1-1). */
+export interface Slot {
+  /** A file of the server user's (0600) in the jobs root that receives the body. */
+  file: string;
+  release(): void;
+}
+
+export type Reservation = ({ ok: true } & Slot) | Exclude<Admission, { ok: true }>;
+
 export const BUSY_MESSAGE = 'The checker is busy, try again in a minute.';
+export const UPLOADING_MESSAGE = 'Your last upload is still being received. Wait for it to finish, then try again.';
 const HOUR = 3_600_000;
 
 export interface JobsOptions {
@@ -67,6 +77,10 @@ export class Jobs {
   private readonly queue: string[] = [];
   private readonly accepted = new Map<string, number[]>();
   private running: string | null = null;
+  private runningAbort: AbortController | null = null;
+  /** Uploads whose bodies are being received, by user (R3a.1-1). */
+  private readonly uploading = new Map<string, number>();
+  private uploadingTotal = 0;
   private idleWaiters: (() => void)[] = [];
   private readonly now: () => number;
   private readonly o: JobsOptions;
@@ -84,10 +98,18 @@ export class Jobs {
     return { running: this.running ? 1 : 0, waiting: this.queue.length };
   }
 
+  /**
+   * AC-33: one job runs and at most `maxWaiting` wait. Uploads still being
+   * received count as waiting (R3a.1-1), so the running job, the queue and the
+   * bodies in flight together never pass `maxWaiting + 1`.
+   */
   admit(userId: string): Admission {
     const { running, waiting } = this.counts();
-    if (running + waiting > 0 && waiting >= this.maxWaiting) {
+    if (running + waiting + this.uploadingTotal > this.maxWaiting) {
       return { ok: false, reason: 'busy', message: BUSY_MESSAGE, retryAfter: 60 };
+    }
+    if ((this.uploading.get(userId) ?? 0) > 0) {
+      return { ok: false, reason: 'busy', message: UPLOADING_MESSAGE, retryAfter: 60 };
     }
     const since = this.now() - HOUR;
     const mine = (this.accepted.get(userId) ?? []).filter((t) => t > since);
@@ -105,10 +127,40 @@ export class Jobs {
     return { ok: true };
   }
 
-  /** Stores an upload that passed inspectUpload and admit, and queues it. */
-  submit(userId: string, zip: Uint8Array, mainFile: string, entries: Entry[]): Job {
+  /**
+   * Admits and holds a place for one upload until `release()` (R3a.1-1). The
+   * body goes to `file`, on disk, not into memory; `submit` takes it from there.
+   */
+  reserve(userId: string): Reservation {
+    const a = this.admit(userId);
+    if (!a.ok) return a;
+    this.uploading.set(userId, (this.uploading.get(userId) ?? 0) + 1);
+    this.uploadingTotal++;
+    const file = path.join(this.o.cfg.jobsRoot, `upload-${randomBytes(16).toString('hex')}.part`);
+    let held = true;
+    return {
+      ok: true,
+      file,
+      release: () => {
+        if (!held) return;
+        held = false;
+        rmSync(file, { force: true });
+        const n = (this.uploading.get(userId) ?? 1) - 1;
+        if (n > 0) this.uploading.set(userId, n);
+        else this.uploading.delete(userId);
+        this.uploadingTotal--;
+      },
+    };
+  }
+
+  /**
+   * Queues an upload that passed inspectUpload: the bytes, or the file a slot
+   * received them in (moved, so it stays the server's, mode 0600).
+   */
+  submit(userId: string, zip: Uint8Array | string, mainFile: string, entries: Entry[]): Job {
     const id = randomBytes(16).toString('hex');
-    writeFileSync(this.zipPath(id), zip, { mode: 0o600, flag: 'wx' });
+    if (typeof zip === 'string') renameSync(zip, this.zipPath(id));
+    else writeFileSync(this.zipPath(id), zip, { mode: 0o600, flag: 'wx' });
     const job: Job = {
       id,
       userId,
@@ -155,7 +207,9 @@ export class Jobs {
       this.queue.splice(this.queue.indexOf(id), 1);
       this.forget(job);
     } else if (job.status === 'running') {
-      this.o.afterJob(); // ends the running step; the job is forgotten when it returns
+      // Stops the running step at once, whoever runs it, and the steps after it (R3a.1-6).
+      this.runningAbort?.abort();
+      this.o.afterJob();
     } else {
       this.forget(job);
     }
@@ -225,13 +279,14 @@ export class Jobs {
     }
     const job = this.jobs.get(id) as Job;
     this.running = id;
+    this.runningAbort = new AbortController();
     job.status = 'running';
     job.startedAt = this.now();
     this.o.log.log('job-started', { job: id });
     try {
       const folder = this.prepare(job);
       const outcome = await this.o.runner.run(
-        { folder, mainFile: job.mainFile, deadline: job.startedAt + this.o.cfg.jobLimitMs },
+        { folder, mainFile: job.mainFile, deadline: job.startedAt + this.o.cfg.jobLimitMs, signal: this.runningAbort.signal },
         (step, ms) => this.o.log.log('job-step', { job: id, step, ms }),
       );
       this.o.afterJob();
@@ -260,6 +315,7 @@ export class Jobs {
       job.finishedAt = this.now();
       job.entries = [];
       this.running = null;
+      this.runningAbort = null;
     }
     this.o.log.log('job-finished', {
       job: id,

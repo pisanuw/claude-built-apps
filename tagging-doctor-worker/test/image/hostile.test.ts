@@ -4,7 +4,10 @@
  * The limit is 30 s here to keep the run short (the default is 120 s; a test
  * may only shorten it). Run: docker build -t tagging-doctor-worker:dev . && npm run test:image
  */
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { makeZip } from '../zipmaker.ts';
 import { ABS_MARK, docker, fixture, freshToken, LEFT_MARK, projectZip, QUEUED_MARK, TOKEN_A, TOKEN_B, Worker, type JobView } from './harness.ts';
 
 const LIMIT = 30_000;
@@ -150,6 +153,66 @@ describe('AC-31: hostile fixtures', () => {
     await withoutEffect(j);
     expect(docker(['inspect', '-f', '{{.State.OOMKilled}} {{.State.Running}} {{.RestartCount}}', w.name]).trim()).toBe('false true 0');
     expect((await run('write18.tex')).status).toBe('done');
+  });
+
+  describe('R3a.1-2: biber and BibTeX reach no network', () => {
+    let listener: Server;
+    let url = '';
+    const requests: string[] = [];
+    beforeAll(async () => {
+      listener = createServer((req, res) => {
+        requests.push(req.url ?? '');
+        res.end('@book{knuth, title={Leaked}, year={1}}');
+      });
+      await new Promise<void>((r) => listener.listen(0, '127.0.0.1', r));
+      url = `http://127.0.0.1:${(listener.address() as AddressInfo).port}`;
+    });
+    afterAll(() => new Promise((r) => listener.close(r)));
+    const withUrl = (name: string) => fixture(name).replace('@URL@', url);
+    const runFiles = async (files: Record<string, string>) => {
+      const token = freshToken();
+      const j = await w.run(projectZip(files), 'main.tex', token);
+      tokens.set(j.id, token);
+      return j;
+    };
+
+    it('a remote biblatex resource is refused before biber runs, and nothing is fetched', async () => {
+      const j = await runFiles({ 'main.tex': withUrl('biber-remote.tex') });
+      expect(j.status).toBe('failed');
+      expect(j.failure).toMatchObject({ kind: 'bibliography', message: 'Remote bibliographies are not fetched; add the .bib file to the zip.' });
+      expect(requests).toEqual([]);
+      await withoutEffect(j);
+    });
+
+    it('a URL given to BibTeX is not fetched either', async () => {
+      const j = await runFiles({ 'main.tex': withUrl('bibtex-remote.tex') });
+      expect(requests).toEqual([]);
+      await withoutEffect(j);
+    });
+
+    it('an ordinary biber bibliography and an ordinary BibTeX one still work', async () => {
+      const biber = await runFiles({ 'main.tex': fixture('biber-local.tex'), 'refs.bib': fixture('refs.bib') });
+      expect(biber.status).toBe('done');
+      expect(biber.result).toMatchObject({ bibliography: 'biber' });
+      expect(await w.pdfText(biber.id, tokens.get(biber.id))).toContain('Knuth');
+      const bibtex = await runFiles({ 'main.tex': fixture('bibtex-local.tex'), 'refs.bib': fixture('refs.bib') });
+      expect(bibtex.status).toBe('done');
+      expect(bibtex.result).toMatchObject({ bibliography: 'bibtex' });
+      expect(await w.pdfText(bibtex.id, tokens.get(bibtex.id))).toContain('Knuth');
+      expect(requests).toEqual([]);
+    });
+  });
+
+  it('R3a.1-7: an uploaded main.pdf is not served when the document makes no page', async () => {
+    const token = freshToken();
+    const zip = makeZip([
+      { name: 'main.tex', data: fixture('empty-with-pdf.tex') },
+      { name: 'main.pdf', data: '%PDF-1.4 % UPLOADED-NOT-COMPILED' },
+    ]);
+    const j = await w.run(zip, 'main.tex', token);
+    expect(j.status).toBe('failed');
+    expect(j.failure?.kind).toBe('no-pdf');
+    expect(j.pdf).toBe(false);
   });
 
   it('AC-64: the logs hold no marker, no token and no source text', () => {

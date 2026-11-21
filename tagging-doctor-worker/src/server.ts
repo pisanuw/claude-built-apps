@@ -8,7 +8,9 @@
  * Every route but health needs a valid Supabase access token (AC-28); only
  * the app's origin gets CORS permission.
  */
-import { createReadStream } from 'node:fs';
+import { createWriteStream, readFileSync, rmSync } from 'node:fs';
+import { open } from 'node:fs/promises';
+import { pipeline } from 'node:stream/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AuthUnavailable, bearer, type Verify } from './auth.ts';
 import type { Config } from './config.ts';
@@ -19,6 +21,8 @@ import { inspectUpload, UploadError } from './zip.ts';
 
 export interface Health {
   status: 'ok';
+  /** False when TeX cannot run as a user of its own: then the worker takes no job (R3a.1-3, D-68). */
+  compile: boolean;
   texlive: string;
   verapdf: string;
   selfTest: SelfTest;
@@ -36,6 +40,7 @@ export interface ServerDeps {
 }
 
 const JOB_ROUTE = /^\/api\/jobs\/([0-9a-f]{32})(\/pdf)?$/;
+export const UNAVAILABLE_MESSAGE = 'The checker is not available. The scan still works.';
 
 class HttpError extends Error {
   readonly status: number;
@@ -55,23 +60,47 @@ function send(res: ServerResponse, status: number, body: unknown, headers: Recor
   res.end(text);
 }
 
-/** The body, at most `limit` bytes; 413 as soon as it is longer. */
-function readBody(req: IncomingMessage, limit: number): Promise<Buffer> {
+/**
+ * Writes the body to `file` (0600, the server's), at most `limit` bytes; 413
+ * as soon as it is longer. On disk, so bodies in flight do not hold memory
+ * (R3a.1-1).
+ */
+function receiveBody(req: IncomingMessage, file: string, limit: number): Promise<void> {
   return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
+    const out = createWriteStream(file, { flags: 'wx', mode: 0o600 });
     let size = 0;
+    let settled = false;
+    let ended = false;
+    const fail = (e: HttpError) => {
+      if (settled) return;
+      settled = true;
+      req.removeAllListeners('data');
+      req.pause();
+      out.destroy();
+      rmSync(file, { force: true });
+      reject(e);
+    };
+    out.on('error', () => fail(new HttpError(500, 'The checker could not store the upload.', 'internal')));
     req.on('data', (c: Buffer) => {
       size += c.length;
-      if (size > limit) {
-        req.removeAllListeners('data');
+      if (size > limit) return fail(new HttpError(413, 'The upload is larger than 25 MB.', 'too-large', { connection: 'close' }));
+      if (!out.write(c)) {
         req.pause();
-        reject(new HttpError(413, 'The upload is larger than 25 MB.', 'too-large', { connection: 'close' }));
-        return;
+        out.once('drain', () => req.resume());
       }
-      chunks.push(c);
     });
-    req.on('end', () => resolve(Buffer.concat(chunks)));
-    req.on('error', () => reject(new HttpError(400, 'The upload was cut short.', 'bad-upload')));
+    req.on('end', () => {
+      ended = true;
+      out.end(() => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      });
+    });
+    req.on('close', () => {
+      if (!ended) fail(new HttpError(400, 'The upload was cut short.', 'bad-upload'));
+    });
+    req.on('error', () => fail(new HttpError(400, 'The upload was cut short.', 'bad-upload')));
   });
 }
 
@@ -100,11 +129,15 @@ export function publicJob(job: Job, jobs: Jobs) {
 export function createHandler(d: ServerDeps) {
   const now = d.now ?? Date.now;
 
+  // The page reads Location and Retry-After (AC-33's time to retry), so they are exposed (R3a.1-8).
   const corsHeaders = (origin: string | undefined): Record<string, string> =>
-    origin && d.cfg.allowedOrigins.includes(origin) ? { 'access-control-allow-origin': origin, vary: 'Origin' } : { vary: 'Origin' };
+    origin && d.cfg.allowedOrigins.includes(origin)
+      ? { 'access-control-allow-origin': origin, 'access-control-expose-headers': 'location, retry-after', vary: 'Origin' }
+      : { vary: 'Origin' };
 
   const health = (): Health => ({
     status: 'ok',
+    compile: d.selfTest.separateUser,
     texlive: d.versions.texlive,
     verapdf: d.versions.verapdf,
     selfTest: d.selfTest,
@@ -158,26 +191,29 @@ export function createHandler(d: ServerDeps) {
 
     if (isJobs) {
       if (method !== 'POST') throw new HttpError(405, 'Use POST.', 'other');
+      // R3a.1-3 (D-68): with no TeX user of its own, a job could read other users' PDFs; take none.
+      if (!d.selfTest.separateUser) throw new HttpError(503, UNAVAILABLE_MESSAGE, 'no-switch', { connection: 'close' });
       if ((url.searchParams.get('mode') ?? 'check') !== 'check') throw new HttpError(400, 'The only mode is "check".', 'bad-upload');
-      const admission = d.jobs.admit(userId);
-      if (!admission.ok) {
-        throw new HttpError(429, admission.message, admission.reason, { 'retry-after': String(admission.retryAfter), connection: 'close' });
+      const slot = d.jobs.reserve(userId);
+      if (!slot.ok) {
+        throw new HttpError(429, slot.message, slot.reason, { 'retry-after': String(slot.retryAfter), connection: 'close' });
       }
-      const body = await readBody(req, d.cfg.maxBodyBytes);
-      const mainFile = url.searchParams.get('mainFile') ?? '';
-      let entries;
       try {
-        entries = inspectUpload(body, mainFile);
-      } catch (e) {
-        if (e instanceof UploadError) throw new HttpError(400, e.message, e.kind === 'main-file' ? 'bad-main-file' : 'bad-upload');
-        throw e;
+        await receiveBody(req, slot.file, d.cfg.maxBodyBytes);
+        const mainFile = url.searchParams.get('mainFile') ?? '';
+        let entries;
+        try {
+          entries = inspectUpload(readFileSync(slot.file), mainFile);
+        } catch (e) {
+          if (e instanceof UploadError) throw new HttpError(400, e.message, e.kind === 'main-file' ? 'bad-main-file' : 'bad-upload');
+          throw e;
+        }
+        const job = d.jobs.submit(userId, slot.file, mainFile, entries);
+        send(res, 202, publicJob(job, d.jobs), { ...cors, location: `/api/jobs/${job.id}` });
+        return 'jobs';
+      } finally {
+        slot.release();
       }
-      // The queue may have filled while the body was read.
-      const again = d.jobs.admit(userId);
-      if (!again.ok) throw new HttpError(429, again.message, again.reason, { 'retry-after': String(again.retryAfter) });
-      const job = d.jobs.submit(userId, body, mainFile, entries);
-      send(res, 202, publicJob(job, d.jobs), { ...cors, location: `/api/jobs/${job.id}` });
-      return 'jobs';
     }
 
     const [, id, pdf] = m as RegExpExecArray;
@@ -186,14 +222,20 @@ export function createHandler(d: ServerDeps) {
     if (pdf) {
       if (method !== 'GET') throw new HttpError(405, 'Use GET.', 'other');
       const file = d.jobs.pdfFile(job);
-      if (!file) throw new HttpError(404, 'This check has no PDF.', 'not-found');
+      // Opened before the answer starts, so a PDF deleted meanwhile is a 404, not a hung download (R3a.1-5).
+      const handle = file ? await open(file, 'r').catch(() => null) : null;
+      if (!handle) throw new HttpError(404, 'This check has no PDF.', 'not-found');
       res.writeHead(200, {
         ...cors,
         'content-type': 'application/pdf',
         'content-disposition': `attachment; filename="${(job.pdfName ?? 'output.pdf').replace(/[^A-Za-z0-9._-]/g, '_')}"`,
         'cache-control': 'no-store',
       });
-      await new Promise<void>((resolve) => createReadStream(file).on('error', () => resolve()).on('close', () => resolve()).pipe(res));
+      try {
+        await pipeline(handle.createReadStream(), res);
+      } catch {
+        res.destroy();
+      }
       return 'pdf';
     }
     if (method === 'GET') {

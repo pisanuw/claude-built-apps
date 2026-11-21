@@ -6,7 +6,7 @@
  * project's own rc files. Every step runs as the TeX user with the AC-64
  * flags, and all the steps share one 120-second limit.
  */
-import { readFileSync } from 'node:fs';
+import { closeSync, openSync, readSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { JAVA_LIMITS, TEX_LIMITS, readTail, safeJobFile, wrap, type Spawner, type User } from './sandbox.ts';
 import { firstError, pageCount, tail, warningCount, wantsRerun, type TexError } from './texlog.ts';
@@ -22,7 +22,7 @@ export interface JobResult {
   validationError: string | null;
 }
 
-export type FailureKind = 'compile-error' | 'timeout' | 'no-pdf' | 'bibliography' | 'bad-upload' | 'internal';
+export type FailureKind = 'compile-error' | 'timeout' | 'no-pdf' | 'bibliography' | 'bad-upload' | 'internal' | 'cancelled';
 
 export interface Failure {
   kind: FailureKind;
@@ -51,6 +51,8 @@ export interface RunInput {
   folder: JobFolder;
   mainFile: string;
   deadline: number;
+  /** Aborted when the job is deleted: the running step is killed and no other starts (R3a.1-6). */
+  signal?: AbortSignal;
 }
 
 export interface Runner {
@@ -61,6 +63,35 @@ export const TIMEOUT_MESSAGE =
   'The compile took longer than 2 minutes, so it was stopped. Large TikZ or pgfplots figures are the usual cause: ' +
   'externalize them or compile them as images, and try again.';
 export const MAX_LOG_LINES = 50;
+export const REMOTE_BIBLIOGRAPHY_MESSAGE = 'Remote bibliographies are not fetched; add the .bib file to the zip.';
+export const CANCELLED_MESSAGE = 'The check was deleted.';
+
+/**
+ * The data sources in a biber control file (.bcf) that name a URL or another
+ * scheme (http:, https:, ftp:, file:, data: …), which biber would fetch itself
+ * (R3a.1-2). A drive letter (`C:`) is not a scheme. Pure.
+ */
+export function remoteDataSources(bcf: string): string[] {
+  const found: string[] = [];
+  for (const m of bcf.matchAll(/<bcf:datasource\b[^>]*>([^<]*)<\/bcf:datasource>/g)) {
+    const value = m[1].replace(/&amp;/g, '&').trim();
+    if (/^[a-z][a-z0-9+.-]+:/i.test(value)) found.push(value);
+  }
+  return found;
+}
+
+/** The first and last `bytes` of a file, so a huge file is never read whole (R3a.1-4). */
+export function headAndTail(file: string, bytes: number): string {
+  const tailText = readTail(file, bytes);
+  const fd = openSync(file, 'r');
+  try {
+    const head = Buffer.alloc(bytes);
+    const n = readSync(fd, head, 0, bytes, 0);
+    return `${head.subarray(0, n).toString('utf8')}\n${tailText}`;
+  } finally {
+    closeSync(fd);
+  }
+}
 
 export interface TexRunnerOptions {
   user: User | null;
@@ -126,7 +157,7 @@ export class TexRunner implements Runner {
     this.o = o;
   }
 
-  async run({ folder, mainFile, deadline }: RunInput, onStep?: Parameters<Runner['run']>[1]): Promise<RunOutcome> {
+  async run({ folder, mainFile, deadline, signal }: RunInput, onStep?: Parameters<Runner['run']>[1]): Promise<RunOutcome> {
     const now = this.o.now ?? Date.now;
     const started = now();
     const owner = this.o.user?.uid ?? null;
@@ -139,7 +170,7 @@ export class TexRunner implements Runner {
 
     const step = async (name: 'lualatex' | 'biber' | 'bibtex' | 'verapdf', argv: string[], limits = TEX_LIMITS, stepEnv = env, dir = cwd) => {
       const t0 = now();
-      const r = await this.o.spawner(wrap(argv, limits, this.o.user), { cwd: dir, env: stepEnv, deadline, stdoutLimit: 4 * 1024 * 1024 });
+      const r = await this.o.spawner(wrap(argv, limits, this.o.user), { cwd: dir, env: stepEnv, deadline, stdoutLimit: 4 * 1024 * 1024, signal });
       this.o.settle();
       onStep?.(name, now() - t0);
       return r;
@@ -156,11 +187,17 @@ export class TexRunner implements Runner {
       pdf: null,
     });
 
+    const cancelled = (): RunOutcome => ({ ok: false, result: null, failure: { kind: 'cancelled', message: CANCELLED_MESSAGE, error: null }, logTail: [], pdf: null });
+
+    // A PDF of the main file's name that came in the upload is not the compile's result (R3a.1-7).
+    rmSync(path.join(cwd, `${base}.pdf`), { force: true });
+
     let runs = 0;
     let log = '';
     const tex = async (): Promise<RunOutcome | null> => {
       runs++;
       const r = await step('lualatex', lualatexArgs(base));
+      if (signal?.aborted) return cancelled();
       log = readLog();
       if (r.timedOut) return fail('timeout', TIMEOUT_MESSAGE, log);
       if (r.code !== 0) return fail('compile-error', 'LuaLaTeX stopped with an error.', log);
@@ -172,10 +209,18 @@ export class TexRunner implements Runner {
 
     let bibliography: JobResult['bibliography'] = null;
     const aux = safeJobFile(folder.dir, inJob('.aux'), owner);
-    if (safeJobFile(folder.dir, inJob('.bcf'), owner)) bibliography = 'biber';
-    else if (aux && /\\bibdata\{/.test(readFileSync(aux, 'utf8'))) bibliography = 'bibtex';
+    const bcf = safeJobFile(folder.dir, inJob('.bcf'), owner);
+    if (bcf) bibliography = 'biber';
+    else if (aux && /\\bibdata\{/.test(headAndTail(aux, 1024 * 1024))) bibliography = 'bibtex';
+    if (bcf) {
+      // biber fetches remote data sources itself, outside TeX's --nosocket (R3a.1-2).
+      const remote = remoteDataSources(headAndTail(bcf, 1024 * 1024));
+      if (remote.length > 0) return fail('bibliography', REMOTE_BIBLIOGRAPHY_MESSAGE, log);
+    }
     if (bibliography) {
-      const r = await step(bibliography, bibliography === 'biber' ? ['biber', `./${base}.bcf`] : ['bibtex', `./${base}`]);
+      // --noconf: no biber.conf that the job itself could have written steers biber.
+      const r = await step(bibliography, bibliography === 'biber' ? ['biber', '--noconf', `./${base}.bcf`] : ['bibtex', `./${base}`]);
+      if (signal?.aborted) return cancelled();
       if (r.timedOut) return fail('timeout', TIMEOUT_MESSAGE, log);
       if (r.code !== 0 && bibliography === 'biber') {
         const blg = safeJobFile(folder.dir, inJob('.blg'), owner);
@@ -193,6 +238,7 @@ export class TexRunner implements Runner {
     if (!pdf) return fail('no-pdf', 'LuaLaTeX finished without writing a PDF.', log);
 
     const v = await step('verapdf', verapdfArgs(pdf, folder, this.o.verapdfHome), JAVA_LIMITS, javaEnv, folder.dir);
+    if (signal?.aborted) return cancelled();
     if (v.timedOut) return fail('timeout', TIMEOUT_MESSAGE, log);
     const validation = parseReport(v.stdout);
     return {
