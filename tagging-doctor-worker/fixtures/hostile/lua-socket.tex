@@ -1,0 +1,15 @@
+\documentclass{article}
+\usepackage{luacode}
+\begin{document}
+\begin{luacode*}
+for _, name in ipairs({"socket", "socket.core", "socket.http", "ssl", "mime"}) do
+  local ok, m = pcall(require, name)
+  texio.write_nl("HOSTILE-RESULT: require " .. name .. " ok=" .. tostring(ok) .. " " .. type(m))
+  if ok and type(m) == "table" and m.tcp then
+    local c = m.tcp()
+    texio.write_nl("HOSTILE-RESULT: socket made " .. tostring(c))
+  end
+end
+\end{luacode*}
+Sockets.
+\end{document}

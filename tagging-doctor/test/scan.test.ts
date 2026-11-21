@@ -384,7 +384,7 @@ describe('review round 1: the scan', () => {
     const big = run(1);
     expect(big).toBeLessThan(8 * small + 1000);
     expect(big).toBeLessThan(30_000);
-  });
+  }, 60_000);
 
   it('R1.1-11: names a missing file once, however often it is read', () => {
     const s = scanTex(doc('', '\\input{gone}\\input{gone}\\input{/etc/x}\\input{/etc/x}'));

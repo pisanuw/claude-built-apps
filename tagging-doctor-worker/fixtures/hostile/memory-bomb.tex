@@ -1,0 +1,11 @@
+\documentclass{article}
+\usepackage{luacode}
+\begin{document}
+\begin{luacode*}
+local t = {}
+for i = 1, 100000 do
+  t[i] = string.rep("x", 1048576) .. i
+end
+\end{luacode*}
+Memory.
+\end{document}

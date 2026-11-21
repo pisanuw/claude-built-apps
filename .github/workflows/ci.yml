@@ -2068,6 +2068,36 @@ jobs:
       - name: Playwright walkthrough
         run: npm run e2e
 
+  tagging-doctor-worker:
+    name: tagging-doctor-worker
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tagging-doctor-worker
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: tagging-doctor-worker/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test with coverage
+        run: npm run coverage
+
+      - name: Build
+        run: npm run build
+
   platform:
     name: platform
     runs-on: ubuntu-latest
@@ -2106,4 +2136,4 @@ jobs:
           node-version: '24'
 
       - name: Test
-        run: node --test scripts/site-footer.test.mjs scripts/footer-audit.test.mjs scripts/site-analytics.test.mjs scripts/domains.test.mjs accessibility-lens/deploy/cloudflare-dns.test.mjs accessibility-lens/deploy/redirect-rule.test.mjs accessibility-lens/deploy/migrate-domains.test.mjs accessibility-lens/deploy/retire-netlify-site.test.mjs accessibility-lens/deploy/render-wait.test.mjs
+        run: node --test scripts/site-footer.test.mjs scripts/footer-audit.test.mjs scripts/site-analytics.test.mjs scripts/domains.test.mjs accessibility-lens/deploy/cloudflare-dns.test.mjs accessibility-lens/deploy/redirect-rule.test.mjs accessibility-lens/deploy/migrate-domains.test.mjs accessibility-lens/deploy/retire-netlify-site.test.mjs accessibility-lens/deploy/render-wait.test.mjs accessibility-lens/deploy/render-service.test.mjs

@@ -1,0 +1,13 @@
+% The tagged route (\DocumentMetadata with tagging on and Unicode fonts), warmed
+% at image build time like warm-t1.tex.
+\DocumentMetadata{lang=en-US, pdfversion=2.0, pdfstandard=ua-2, tagging=on}
+\documentclass{article}
+\usepackage{amsmath,amssymb}
+\usepackage{unicode-math}
+\usepackage{tikz}
+\title{Warm}
+\begin{document}
+Warm \textbf{bold} \emph{italic} \texttt{mono} $x^2 + \int_0^1 f\,dx = \sum_n a_n$.
+\[ \begin{aligned} a &= b \\ c &= d \end{aligned} \]
+\tikz \draw (0,0) -- (1,1);
+\end{document}

@@ -1,0 +1,7 @@
+\documentclass{article}
+\begin{document}
+\immediate\write18{touch cmd-ran.txt}
+\immediate\write18{touch /dev/shm/td-write18}
+\IfFileExists{cmd-ran.txt}{\typeout{HOSTILE-RESULT: write18 ran}}{\typeout{HOSTILE-RESULT: write18 blocked}}
+Shell escape.
+\end{document}
