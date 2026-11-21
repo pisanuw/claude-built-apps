@@ -39,31 +39,42 @@ export function blankComments(src: string): string {
     nextSame[k] = last.get(code) ?? n;
     last.set(code, k);
   }
-  /** Where the argument that opens at j closes, if it does before `stop`. */
-  const closeOf = (j: number, stop: number): number => {
-    const k = src[j] === '{' || src[j] === '[' ? ends[j] : nextSame[j];
+  /**
+   * Where the argument that opens at j closes, if it does before `stop`. A
+   * `{` or `[` group ends where groupEnds says; with `sameOnly` (the
+   * delimiter of \verb and \Verb), only `{` does, and `[` is a delimiter
+   * like any other (R1.3-4).
+   */
+  const closeOf = (j: number, stop: number, sameOnly = false): number => {
+    const k = src[j] === '{' || (src[j] === '[' && !sameOnly) ? ends[j] : nextSame[j];
     return k >= 0 && k < stop ? k : -1;
   };
 
   /** Blanks a delimited argument starting at j (its delimiter); returns where to go on. */
-  const blankInline = (j: number): number => {
+  const blankInline = (j: number, sameOnly: boolean): number => {
     const d = src[j];
     if (d === undefined || d === '\n' || d === ' ' || isLetter(d)) return j;
-    const k = closeOf(j, Math.min(nextNl[j + 1 > n ? n : j + 1], j + 1 + MAX_INLINE));
+    const k = closeOf(j, Math.min(nextNl[j + 1 > n ? n : j + 1], j + 1 + MAX_INLINE), sameOnly);
     if (k < 0) return j;
     for (let x = j + 1; x < k; x++) out[x] = ' ';
     return k + 1;
   };
-  /** Skips an optional [...] (and, for \mintinline, the {language}) after a command. */
+  /** Spaces and tabs, which TeX skips after a command name and between its arguments (R1.3-4). */
+  const skipBlanks = (j: number): number => {
+    while (src[j] === ' ' || src[j] === '\t') j++;
+    return j;
+  };
+  /** Skips an optional [...] (and, for \mintinline, the {language}) after a command, and the blanks around them. */
   const skipOptions = (j: number, language: boolean): number => {
     const stop = Math.min(nextNl[j], j + MAX_INLINE);
+    j = skipBlanks(j);
     if (src[j] === '[') {
       const k = closeOf(j, stop);
-      if (k >= 0) j = k + 1;
+      if (k >= 0) j = skipBlanks(k + 1);
     }
     if (language && src[j] === '{') {
       const k = closeOf(j, stop);
-      if (k >= 0) j = k + 1;
+      if (k >= 0) j = skipBlanks(k + 1);
     }
     return j;
   };
@@ -74,13 +85,13 @@ export function blankComments(src: string): string {
     if (c === '\\') {
       if (word(i + 1, 'verb') || src.startsWith('verb*', i + 1)) {
         const j = i + 5 + (src[i + 5] === '*' ? 1 : 0);
-        i = Math.max(blankInline(j), i + 2);
+        i = Math.max(blankInline(j, true), i + 2);
         continue;
       }
       const inline = word(i + 1, 'lstinline') ? 'lstinline' : word(i + 1, 'mintinline') ? 'mintinline' : word(i + 1, 'Verb') ? 'Verb' : '';
       if (inline) {
         const j = skipOptions(i + 1 + inline.length + (inline === 'Verb' && src[i + 5] === '*' ? 1 : 0), inline === 'mintinline');
-        i = Math.max(blankInline(j), i + 2);
+        i = Math.max(blankInline(j, inline === 'Verb'), i + 2);
         continue;
       }
       const urlCmd = ['url', 'nolinkurl', 'path', 'href'].find((w) => word(i + 1, w));

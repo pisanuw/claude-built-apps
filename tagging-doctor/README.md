@@ -8,7 +8,9 @@ follow. Drop a zip of a project, or one `.tex` file, and in a few seconds you
 see each class and package that blocks tagging, the file and line where it is
 loaded, what the LaTeX Project says about it, and a suggested fix.
 
-The scan runs in your browser. Nothing is uploaded.
+The scan runs in your browser: nothing is uploaded for it. Sign in (with
+Google, or with a link by email) to save scans under a course and see the
+whole course at once.
 
 ## How to use it
 
@@ -20,6 +22,11 @@ The scan runs in your browser. Nothing is uploaded.
 4. Read the blockers first, then the warnings. **Download report** gives you a
    single HTML file to hand to your accessibility office; **Download JSON**
    gives the same findings as data.
+5. To keep the result, choose **Save** (or **Save all to a course** after
+   **Scan all**), sign in, and pick or start a course. Save a new version of a
+   project under the same name to see how many blockers were fixed and how many
+   are new. **My courses** lists your courses; a course's **Course report** is
+   a printable page, and **Download HTML** gives it as one file.
 
 ## What the scan checks
 
@@ -52,9 +59,20 @@ The scan runs in your browser. Nothing is uploaded.
 
 ## What is stored
 
-Nothing. Files named like student records (`grades`, `gradebook`, `roster`,
-`students`, any extension) are left out of the scan and never read; remove
-them from course folders. Visits are counted without cookies.
+- Your files are never stored. Files named like student records (`grades`,
+  `gradebook`, `roster`, `students`, any extension), and every file in a folder
+  named so (`grades/`), are left out of the scan and never read; remove them
+  from course folders.
+- When you sign in and save, the app keeps your courses, the project names and,
+  for each saved scan, its verdict and counts and, per finding, the file path,
+  the line, the package name and an excerpt of at most 200 characters. They are
+  kept in HintWise's database at Supabase (US East) until you delete them.
+- **Export my data** (on My courses) downloads all of it as one JSON file.
+  Delete a project or a course from its page. **Delete my account**, in the
+  panel under your name, deletes your sign-in and what every HintWise app keeps
+  for you.
+- Visits are counted without cookies. The app's **What we keep** page says the
+  same, and what the later compile and alt-text steps will send.
 
 ## Limits
 
@@ -82,6 +100,14 @@ Vite and TypeScript, no framework. The scan is pure TypeScript in `src/core/`:
 | `status.ts` | The status data and its mapping to groups |
 | `report.ts` | The HTML and JSON downloads (`schema/report.schema.json`) |
 | `outzip.ts` | The one place that builds a zip of a project (for the later upload and patch) |
+| `saved.ts` | What a saved scan holds, the rescan delta, the course report and the export |
+
+Saved data goes through `src/lib/store.ts` (`CourseStore` over a `Db`: Supabase
+in the schema `app_tagging_doctor` live, in memory for tests and `vite
+preview`). The schema is `supabase/migrations/0001_init.sql`; `test/schema.test.ts`
+runs it on PGlite and checks row level security, the composite keys and the
+cascades. Without the Supabase env (`vite preview`, `npm run e2e`) sign-in is a
+stand-in that signs a preview person in (`src/ui/preview-account.ts`).
 
 ```bash
 npm ci

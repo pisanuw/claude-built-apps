@@ -44,10 +44,33 @@ export const CURATED: Record<string, { fix: Fix; replacements: string[] }> = {
   },
 };
 
+/** Classes the pinned data lists as compatible, named in the fix for a blocking class (AC-71); a test checks each. */
+export const COMPATIBLE_CLASSES = ['article', 'book', 'report'];
+
+/**
+ * The fix for a blocking class (AC-71): a document cannot do without its
+ * class, so the advice is to keep it for now or move the content by hand,
+ * never to remove it. Beamer has its own (AC-3).
+ */
+export function classFix(name: string, status: string | undefined): Fix {
+  const to = `a class the list names as compatible, such as ${COMPATIBLE_CLASSES.slice(0, -1).join(', ')} or ${COMPATIBLE_CLASSES[COMPATIBLE_CLASSES.length - 1]}`;
+  if (status === 'no-support') {
+    return {
+      name: `Move from ${name} to a compatible class`,
+      detail: `The LaTeX Project does not expect the ${name} class ever to work with tagging. Move the content by hand to ${to}.`,
+    };
+  }
+  return {
+    name: `Keep ${name} for now, or move to a compatible class`,
+    detail: `The LaTeX Project expects the ${name} class to be updated for tagging, but it does not work yet. Keep the class for now and check the status page again before the next term, or move the content by hand to ${to}.`,
+  };
+}
+
 /** The named fix for a package, class or library finding; null when nothing needs doing. */
 export function suggestedFix(name: string, kind: StatusEntry['type'], group: Group, status: string | undefined): Fix | null {
   const curated = Object.hasOwn(CURATED, name) ? CURATED[name] : undefined;
   if (curated && group !== 'ok') return curated.fix;
+  if (kind === 'class' && group === 'blocker') return classFix(name, status);
   const what = kind === 'class' ? `the ${name} class` : kind === 'library' ? `the ${name} library` : `the ${name} package`;
   switch (group) {
     case 'blocker':
