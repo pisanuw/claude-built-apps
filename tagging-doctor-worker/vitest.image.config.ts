@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitest/config';
 
 // The tests that need the built image and a Docker daemon (AC-31, AC-33, AC-34, AC-36, AC-64):
-//   docker build -t tagging-doctor-worker . && npm run test:image
+//   docker build -t tagging-doctor-worker:dev . && npm run test:image (or WORKER_IMAGE=<tag>)
 export default defineConfig({
   test: {
     environment: 'node',

@@ -14,7 +14,11 @@
 # footer, analytics or hintwise.org name: the app calls it at the Render
 # address the Deploy run prints ("tagging-doctor-worker (render): <url>").
 #
-# Code-only pushes do not trigger a deploy: the workflow watches this file.
+# Deploys: the Deploy workflow runs when this file changes on main (it creates
+# the service the first time). After that, Render itself rebuilds and
+# redeploys the worker on every push to main that touches this folder
+# (autoDeploy, set by the runner): each such merge is a production deploy and a
+# pull of about 2.9 GB. `[skip render]` in the merge commit's subject skips it.
 
 provider: render
 projectName: tagging-doctor-worker

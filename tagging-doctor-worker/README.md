@@ -35,7 +35,7 @@ project's decisions D-56 to D-63 (hintwise-workflow
 
 ```bash
 npm ci && npm run lint && npm run typecheck && npm run coverage && npm run build
-docker build -t tagging-doctor-worker .   # about 9.4 GB (TeX Live full)
+docker build -t tagging-doctor-worker:dev .   # about 9.4 GB (TeX Live full); the tag the image tests use
 npm run test:image                        # hostile fixtures and the API, against the image
 sh scripts/spike-measure.sh <image> 0.1   # the AC-65 spike: one job at 0.1 CPU and 512 MB
 ```

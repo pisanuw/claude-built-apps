@@ -2,7 +2,7 @@
 #
 # Every base is pinned by digest. The TeX Live image is the full scheme of TeX
 # Live 2026 (texlive/texlive:latest-full as of 2026-11-15), which also brings
-# Java for veraPDF. Build: docker build -t tagging-doctor-worker .
+# Java for veraPDF. Build: docker build -t tagging-doctor-worker:dev . (the tag the image tests use)
 
 # --- Node, for the server. The server is TypeScript run by Node's own type
 # stripping, so the image needs no npm install and no build step.
