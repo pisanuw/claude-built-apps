@@ -1,0 +1,23 @@
+\documentclass{article}
+\usepackage{luacode}
+\newwrite\leftfile
+\begin{document}
+\immediate\openout\leftfile=left.txt
+\immediate\write\leftfile{LEFTMARKER}
+\immediate\closeout\leftfile
+\begin{luacode*}
+local function try(name, f)
+  local ok, a, b = pcall(f)
+  texio.write_nl("HOSTILE-RESULT: " .. name .. " ok=" .. tostring(ok) .. " r=" .. tostring(a) .. " " .. tostring(b))
+end
+local text = "LEFT" .. "MARKER"
+try("write /dev/shm", function() local f = io.open("/dev/shm/td-left.txt", "w") if f then f:write(text) f:close() return true end return false end)
+try("write /tmp", function() local f = io.open("/tmp/td-left.txt", "w") if f then f:write(text) f:close() return true end return false end)
+try("mkdir /dev/shm", function() return lfs.mkdir("/dev/shm/td-left-dir") end)
+try("mkdir /tmp", function() return lfs.mkdir("/tmp/td-left-dir") end)
+try("link /dev/shm", function() return lfs.link(lfs.currentdir() .. "/left.txt", "/dev/shm/td-left-link", true) end)
+try("rename /dev/shm", function() return os.rename("left.txt", "/dev/shm/td-left-moved.txt") end)
+try("tmpdir", function() return os.tmpdir and os.tmpdir() end)
+\end{luacode*}
+Leaving files behind.
+\end{document}

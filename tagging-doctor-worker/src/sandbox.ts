@@ -30,7 +30,12 @@ export interface Limits {
   openFiles: number;
 }
 
-export const TEX_LIMITS: Limits = { addressSpace: 1024 * 1024 * 1024, fileSize: 200 * 1024 * 1024, processes: 64, openFiles: 256 };
+/**
+ * 400 MiB of address space for TeX: math-notes peaks at 153 MiB untagged and
+ * 241 MiB tagged (D-60), and TeX plus the server stay under the instance's
+ * 512 MB, so a memory bomb meets this limit before the out-of-memory killer.
+ */
+export const TEX_LIMITS: Limits = { addressSpace: 400 * 1024 * 1024, fileSize: 200 * 1024 * 1024, processes: 64, openFiles: 256 };
 export const JAVA_LIMITS: Limits = { addressSpace: 'unlimited', fileSize: 200 * 1024 * 1024, processes: 64, openFiles: 256 };
 
 export interface User {

@@ -15,7 +15,7 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }));
 describe('AC-64: how TeX is run', () => {
   it('runs as the TeX user under rlimits, without a shell', () => {
     expect(wrap(['lualatex', './main.tex'], TEX_LIMITS, { uid: 10001, gid: 10001 })).toEqual([
-      'prlimit', '--as=1073741824', '--fsize=209715200', '--nproc=64', '--nofile=256', '--core=0', '--',
+      'prlimit', '--as=419430400', '--fsize=209715200', '--nproc=64', '--nofile=256', '--core=0', '--',
       'setpriv', '--reuid=10001', '--regid=10001', '--clear-groups', '--no-new-privs', '--inh-caps=-all', '--',
       'lualatex', './main.tex',
     ]);

@@ -109,6 +109,7 @@ describe('AC-34: after the compile', () => {
     const pdf = jobs.pdfFile(job) as string;
     expect(pdf).toBe(path.join(root, `${job.id}.out`, 'main.pdf'));
     expect(statSync(path.dirname(pdf)).mode & 0o777).toBe(0o700);
+    expect(statSync(pdf).uid).toBe(me);
     expect(jobs.expiresAt(job)).toBe(t + 30 * 60_000);
     t += 29 * 60_000;
     expect(jobs.expire()).toBe(0);

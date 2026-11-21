@@ -1,0 +1,18 @@
+\documentclass{article}
+\usepackage{luacode}
+\begin{document}
+\begin{luacode*}
+local function try(name, f)
+  local ok, a, b = pcall(f)
+  texio.write_nl("HOSTILE-RESULT: " .. name .. " ok=" .. tostring(ok) .. " r=" .. tostring(a) .. " " .. tostring(b))
+end
+try("os.execute", function() return os.execute("touch lua-exec.txt; touch /dev/shm/td-lua-exec") end)
+try("io.popen", function() local p = io.popen("id") return p and p:read("a") end)
+try("os.spawn", function() return os.spawn and os.spawn({"touch", "lua-spawn.txt"}) end)
+try("package.loadlib", function() return package.loadlib("/lib/x86_64-linux-gnu/libc.so.6", "system") end)
+try("ffi", function() return require("ffi") end)
+\end{luacode*}
+\IfFileExists{lua-exec.txt}{\typeout{HOSTILE-RESULT: lua command ran}}{\typeout{HOSTILE-RESULT: lua command blocked}}
+\IfFileExists{lua-spawn.txt}{\typeout{HOSTILE-RESULT: lua spawn ran}}{\typeout{HOSTILE-RESULT: lua spawn blocked}}
+Lua commands.
+\end{document}

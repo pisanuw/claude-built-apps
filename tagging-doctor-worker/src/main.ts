@@ -41,4 +41,8 @@ const handler = createHandler({
 });
 const server = createServer((req, res) => void handler(req, res));
 server.requestTimeout = 120_000;
+// Longer than the proxy's idle time, so the server never closes a kept-alive
+// connection just as a request arrives on it.
+server.keepAliveTimeout = 70_000;
+server.headersTimeout = 75_000;
 server.listen(cfg.port, '0.0.0.0', () => log.log('start', { port: cfg.port, waiting: jobs.maxWaiting }));

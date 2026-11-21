@@ -13,7 +13,7 @@
  *   after a restart, its id gets 404.
  */
 import { randomBytes } from 'node:crypto';
-import { chmodSync, cpSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, chownSync, cpSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Config } from './config.ts';
 import type { Logger } from './log.ts';
@@ -239,7 +239,9 @@ export class Jobs {
         // Out of the TeX user's reach before the sources go (AC-34).
         mkdirSync(this.outDir(id), { mode: 0o700 });
         job.pdfName = path.basename(outcome.pdf);
-        renameSync(outcome.pdf, path.join(this.outDir(id), job.pdfName));
+        const moved = path.join(this.outDir(id), job.pdfName);
+        renameSync(outcome.pdf, moved);
+        if (this.o.user) chownSync(moved, process.getuid?.() ?? 0, process.getgid?.() ?? 0);
       }
       job.status = outcome.ok ? 'done' : 'failed';
       job.result = outcome.result;

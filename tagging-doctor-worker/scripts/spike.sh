@@ -39,7 +39,7 @@ as_tex() {
       "$@"
 }
 lualatex_run() {
-  (cd "$JOB/src" && as_tex $((1024*1024*1024)) lualatex $( [ "$SAFER" = 1 ] && echo --safer ) --nosocket --no-shell-escape \
+  (cd "$JOB/src" && as_tex $((400*1024*1024)) lualatex $( [ "$SAFER" = 1 ] && echo --safer ) --nosocket --no-shell-escape \
     --interaction=nonstopmode --halt-on-error --file-line-error ./main.tex >/dev/null 2>&1) || return 1
 }
 
