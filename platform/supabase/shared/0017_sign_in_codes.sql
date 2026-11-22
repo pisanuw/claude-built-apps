@@ -90,7 +90,8 @@ comment on function platform.sign_in_code_issue(text, text, text, text) is 'sign
 
 -- Answers { status: 'none' } when the mailbox has no code, or its code was
 -- asked for from another browser: nothing is counted, so a stranger can
--- neither guess nor void someone's code. Then 'void' after 5 wrong codes,
+-- neither guess someone's code nor void it with wrong tries (a new code for
+-- the address does replace it: D-SC-3). Then 'void' after 5 wrong codes,
 -- 'expired' after 10 minutes, { status: 'ok', token_hash } for the right
 -- code (and the row is deleted: a code works once), and otherwise
 -- { status: 'wrong', left } with the wrong try counted. The lock makes

@@ -5,6 +5,7 @@ import {
   BRAND_INDIGO,
   CODE_STYLE,
   codeEmail,
+  HOOK_CODE_STYLE,
   emailChangeCurrentEmail,
   emailChangeNewEmail,
   emailLogoUrl,
@@ -23,6 +24,7 @@ import {
   SUPPORT_EMAIL,
 } from '../src/signin/email.ts';
 import type { EmailMessage } from '../src/signin/resend.ts';
+import mainEmails from './fixtures/sign-in-emails-main.json';
 
 const NOW = new Date('2026-11-10T12:00:00Z');
 const counts = (over: Partial<AlertCounts> = {}): AlertCounts => ({ ip_addresses_1h: 1, browser_addresses_1h: 1, email_requests_1h: 1, ip_challenge_failures_1h: 0, sent_1h: 1, alerts: {}, ...over });
@@ -85,6 +87,17 @@ describe('the sign-in email', () => {
     const plain = signInEmail('ann@example.com', link, null, undefined, {}, { code: '004217', page });
     expect(plain.subject).toBe('004217 is your sign-in code');
     expect(plain.text).toContain('code to sign in to paste-md.hintwise.org:');
+  });
+  it('leaves the link-only email and the hook\'s code emails byte for byte as on main before the code (22 Nov 2026)', () => {
+    // test/fixtures/sign-in-emails-main.json: these same calls rendered by main's email.ts at 4864b8a.
+    const look = { optOutUrl: 'https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig', logoUrl: 'https://auth.hintwise.org/storage/v1/object/public/brand/hintwise-wordmark-email@2x.png' };
+    const href = 'https://pluck-lab.hintwise.org/app?token_hash=hashed-1&type=email&email_hint=a***%40example.com';
+    expect(signInEmail('Ann+news@Example.com', href, 'Pluck Lab', undefined, look)).toEqual(mainEmails.signInLinkOnly);
+    expect(signInEmail('ann@example.com', href, null)).toEqual(mainEmails.signInLinkOnlyPlain);
+    expect(signInEmail('ann@example.com', 'https://ref.supabase.co/auth/v1/verify?token=t&type=magiclink', null, 'wcv.example.org', look)).toEqual(mainEmails.hookMagicLink);
+    expect(codeEmail('ann@example.com', '123456', 'wcv.example.org', look)).toEqual(mainEmails.codeEmail);
+    expect(reauthenticationEmail('ann@example.com', '654321', 'wcv.example.org', look)).toEqual(mainEmails.reauthenticationEmail);
+    expect(mainEmails.codeEmail.html).toContain(`<p style="${HOOK_CODE_STYLE}">123456</p>`);
   });
   it('sends the link alone without a code', () => {
     for (const m of [signInEmail('ann@example.com', link, 'Paste Md'), signInEmail('ann@example.com', link, 'Paste Md', undefined, {}, null)]) {

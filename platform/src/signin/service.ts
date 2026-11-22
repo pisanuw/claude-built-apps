@@ -309,6 +309,14 @@ async function handlePost(req: Request, deps: Deps, reply: (status: number, body
   return reply(200, r.withCode ? { status: 'sent', withCode: code !== null } : { status: 'sent' });
 }
 
+/** What an unexpected RPC answer was, without its values: its type, and a status word when it has one. */
+export function answerShape(v: unknown): string {
+  if (v === null) return 'null';
+  if (typeof v !== 'object') return typeof v;
+  const st = (v as Record<string, unknown>).status;
+  return typeof st === 'string' && /^[a-z_]{1,20}$/.test(st) ? `object, status ${st}` : Array.isArray(v) ? 'array' : 'object';
+}
+
 /**
  * Checks a code (README.md, "Sign-in codes"). One RPC does the counting
  * under a row lock: another browser's code, or none, answers `none` and
@@ -326,7 +334,8 @@ async function handleVerify(v: VerifyRequest, db: Db, hashKey: string, log: (m: 
       p_code_hash: await codeHash(hashKey, v.email, v.code),
     });
     check = readCodeCheck(raw);
-    if (!check) throw new Error(`sign_in_code_check returned ${JSON.stringify(raw).slice(0, 100)}`);
+    // Only the shape goes to the log: an answer of another shape could still carry a live token hash.
+    if (!check) throw new Error(`sign_in_code_check returned an unexpected answer (${answerShape(raw)})`);
   } catch (e) {
     log(`sign_in_code_check failed: ${errorText(e)}`);
     return reply(500, { status: 'error', message: SORRY });

@@ -108,7 +108,8 @@ The owner, 22 Nov 2026: "it should send a 6 digit code like upvoteme, so
 all hintwise apps have the same approach to sign-in and magic link/code",
 and "That should be the default for all new apps". Until every app that
 uses email sign-in has the code box, the email keeps the link below the
-code; then the link goes (a later change).
+code; then the link goes (a later change, with the precondition under
+D-SC-3).
 
 What the visitor sees matches UpvoteMe: 6 digits; they work for 10 minutes,
 once, and only in the browser that asked; 5 wrong codes void the code;
@@ -166,8 +167,18 @@ replace, count reset; prunes rows an hour past expiry, up to 200) and
 - **D-SC-3. A code works only in the browser that asked for it**, as on
   UpvoteMe: the row keeps the hash of the request's browser id
   (localStorage `hintwise.browserId`), and a try with another id answers
-  `none` and counts nothing. So a stranger can neither guess someone's code
-  nor void it by typing wrong ones. The link still works in any browser.
+  `none` and counts nothing. So a stranger cannot guess someone's code, and
+  cannot void it by typing wrong ones. A stranger can still void it by
+  asking for a new code for the same address (within the ladder): the new
+  row replaces the visitor's and is tied to the stranger's browser (D-SC-4).
+  Today that is harmless, because the link in the visitor's email still
+  works, in any browser (and the new email carries a new link too).
+- **Before the link goes** (the later change, once every app has the code
+  box): codes must be kept per address and browser, as UpvoteMe keeps them,
+  with a separate allowance for a browser that has signed in as the address
+  before (UpvoteMe's known-browser cookie). Otherwise a stranger who keeps
+  asking for codes for an address locks its owner out of email sign-in. Not
+  built now.
 - **D-SC-4. One live code per mailbox; 5 wrong codes void it.** A newer code
   replaces the row and its count (Auth's newer link has replaced the old
   token anyway). `sign_in_code_check` locks the row, so parallel tries take

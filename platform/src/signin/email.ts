@@ -99,6 +99,8 @@ export interface EmailParts {
   link?: { href: string; label: string };
   /** Shown large, before the link when there is both. */
   code?: string;
+  /** The sign-in code's own look (CODE_STYLE); without it the hook's code emails keep HOOK_CODE_STYLE. */
+  bigCode?: boolean;
   /** Paragraphs right after the code, before the link; each may end with a link (its address as the text). */
   afterCode?: Array<{ text: string; href?: string }>;
   /** Paragraphs after it. */
@@ -133,7 +135,9 @@ const HEAD_STYLE =
   `:root{color-scheme:light dark;supported-color-schemes:light dark}` +
   `@media (prefers-color-scheme:dark){.hw-brand{color:${DARK_BRAND} !important}.hw-link{color:${DARK_LINK} !important}}`;
 const FOOT_P = 'margin:0 0 8px';
-/** The code: large monospace digits, selected whole by one tap where the client allows it. */
+/** The code in the hook's code and reauthentication emails, unchanged since they were first sent. */
+export const HOOK_CODE_STYLE = 'font-size:24px;letter-spacing:4px;font-weight:600';
+/** The sign-in code: large monospace digits, selected whole by one tap where the client allows it. */
 export const CODE_STYLE =
   "margin:8px 0 16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:32px;line-height:40px;font-weight:700;letter-spacing:6px;-webkit-user-select:all;user-select:all";
 
@@ -200,7 +204,7 @@ export function renderEmail(p: EmailParts, from = SIGN_IN_FROM, look: EmailLook 
   }
   if (p.code) {
     text.push(p.code);
-    html.push(`<p style="${CODE_STYLE}">${escapeHtml(p.code)}</p>`);
+    html.push(`<p style="${p.bigCode ? CODE_STYLE : HOOK_CODE_STYLE}">${escapeHtml(p.code)}</p>`);
   }
   for (const a of p.afterCode ?? []) {
     text.push(a.href ? `${a.text} ${a.href}` : a.text);
@@ -280,6 +284,7 @@ export function signInEmail(to: string, link: string, appName: string | null, ho
         subject: `${withCode.code} is your sign-in code${appName ? ` for ${appName}` : ''}`,
         intro: [`Here is your ${SIGN_IN_CODE_LENGTH}-digit code to sign in to ${site}:`],
         code: withCode.code,
+        bigCode: true,
         afterCode: [{ text: CODE_WHERE }, { text: CODE_TAB_CLOSED, href: withCode.page }, { text: CODE_OR_LINK }],
         link: { href: link, label: 'Sign in' },
         outro: ['If you did not ask for it, ignore this email.'],

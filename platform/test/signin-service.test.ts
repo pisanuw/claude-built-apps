@@ -5,7 +5,7 @@ import type { Db } from '../src/signin/db.ts';
 import { restDb } from '../src/signin/db.ts';
 import type { BeginResult, KeyStats } from '../src/signin/policy.ts';
 import { optOutToken, SUPPRESSED_MESSAGE } from '../src/signin/optout.ts';
-import { handleSignInLink, PAUSED, raiseAlerts, type Deps, type SignInEnv } from '../src/signin/service.ts';
+import { answerShape, handleSignInLink, PAUSED, raiseAlerts, type Deps, type SignInEnv } from '../src/signin/service.ts';
 
 const NOW = new Date('2026-11-10T12:00:00.000Z');
 const ORIGIN = 'https://pluck-lab.hintwise.org';
@@ -327,7 +327,20 @@ describe('handleSignInLink: the sign-in code', () => {
     expect(down.logs.join()).toContain('sign_in_code_check failed: sign_in_code_check down');
     const odd = setup({ codeCheck: { status: 'ok' } });
     expect((await handleSignInLink(check(), odd.deps)).status).toBe(500);
-    expect(odd.logs.join()).toContain('sign_in_code_check returned {"status":"ok"}');
+    expect(odd.logs.join()).toContain('sign_in_code_check returned an unexpected answer (object, status ok)');
+    // An answer of another shape may still hold a live token hash: only its shape is logged.
+    const leaky = setup({ codeCheck: { status: 'verified', tokenHash: 'live-token-hash' } });
+    expect((await handleSignInLink(check(), leaky.deps)).status).toBe(500);
+    expect(leaky.logs.join()).not.toContain('live-token-hash');
+    expect(leaky.logs.join()).toContain('(object, status verified)');
+  });
+  it('describes an odd answer by its shape only', () => {
+    expect(answerShape(null)).toBe('null');
+    expect(answerShape('tok')).toBe('string');
+    expect(answerShape(7)).toBe('number');
+    expect(answerShape([1])).toBe('array');
+    expect(answerShape({ token_hash: 'x' })).toBe('object');
+    expect(answerShape({ status: 'Not A Word' })).toBe('object');
   });
 });
 

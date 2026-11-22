@@ -90,7 +90,9 @@ move). Owner, 22 Nov 2026: "it should send a 6 digit code like upvoteme, so
 all hintwise apps have the same approach to sign-in and magic link/code",
 and "That should be the default for all new apps". The email carries both
 the code and the link until every app that uses email sign-in has the
-template's code box; then the link goes (a later change). Google stays.
+template's code box; then the link goes (a later change, once codes are
+kept per address and browser: `platform/src/signin/README.md`, D-SC-3).
+Google stays.
 
 - Supabase Auth with one user pool: a visitor who signs in on one HintWise app
   is known to all of them (same `auth.uid()`), which is also why app data sits
@@ -267,7 +269,8 @@ short:
   the browser turns into a session with the same `verifyOtp` call as the
   link. A code works 10 minutes, once, only in the browser that asked (a
   try from another browser counts nothing), and the 5th wrong code voids
-  it. Auth's settings do not change: `mailer_otp_exp` (default an hour)
+  it. A newer code for the address replaces it, whoever asked; before the
+  link goes, codes must be kept per address and browser (D-SC-3). Auth's settings do not change: `mailer_otp_exp` (default an hour)
   stays, and the link keeps it during the move. Apps that do not ask get
   the link-only email.
 - **Log.** Every request is a row in `platform.sign_in_requests`: hashed
