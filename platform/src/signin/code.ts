@@ -1,7 +1,8 @@
 /**
  * Emailed sign-in codes (src/signin/README.md, "Sign-in codes", decisions
  * D-SC-1 to D-SC-8; owner, 22 November 2026: "it should send a 6 digit code
- * like upvoteme, so all hintwise apps have the same approach").
+ * like upvoteme, so all hintwise apps have the same approach to sign-in and
+ * magic link/code").
  *
  * The code is the platform's own, not Auth's email_otp (D-SC-1):
  * sign-in-link makes six random digits when an app asks for them

@@ -41,7 +41,7 @@ The usual architecture (owner, 10 Nov 2026; the table in BUILD_ROUTINE.md has th
 |---|---|
 | The app | Vite + TypeScript from `platform/templates/app/`, static on Netlify at `https://<slug>.hintwise.org` |
 | Server-side code (a secret, a webhook, sending email) | Netlify Functions in the same site (`netlify/functions/`, at `/api/*`). For option A, a secret reaches them through target.yml `envPassthrough`, from a GitHub repo secret mapped in `.github/workflows/deploy.yml`. Functions that touch the database act with the user's token; apps never get the service-role key |
-| Sign-in | Supabase Auth at `https://auth.hintwise.org`: Google and email links (section 4) |
+| Sign-in | Supabase Auth at `https://auth.hintwise.org`: Google and an emailed 6-digit code, the link also working during the move (section 4) |
 | Data | Supabase Postgres, the app's own schema `app_<slug_>`, row level security (section 5) |
 | Files | Supabase Storage, one private bucket per app named `<slug>`, signed URLs |
 | Model calls | the LLM gateway, plus bring-your-own-key (section 7) |
@@ -80,8 +80,8 @@ Details: docs/platform.md sections 2 and "Sign-in links".
   - `VITE_SUPABASE_ANON_KEY` from `platform/supabase.json`
 - **Copy the template** from `platform/templates/app/src/lib/`: `supabase.ts`, `auth.ts`, `account.ts`, `llm.ts`, `repository.ts`, `signin-styles.ts` and `google-g-light.svg`, with their tests. Its README shows the `SLUG` replacement.
 - **Google:** `signInWithOAuth` through Supabase. Never add a Google client, a redirect URI or an auth setting for one app. The button follows Google's branding rules (BUILD_ROUTINE.md); the template's button does.
-- **Look:** UpvoteMe's (owner, 18 November 2026): mount the template's `mountSignIn` at the right of the app's top bar. It draws "Sign in with Google" and "Magic link" (round icon buttons below 640 px), and signed in, the person and "Sign out". The template's README, "The sign-in look", has the details.
-- **Email:** through the platform's `sign-in-link` function (the template's `sendMagicLink`), **never `signInWithOtp`**. The email hook refuses that for hintwise.org pages.
+- **Look:** UpvoteMe's (owner, 18 November 2026): mount the template's `mountSignIn` at the right of the app's top bar. It draws "Sign in with Google" and "Email code" (round icon buttons below 640 px), and signed in, the person and "Sign out". The template's README, "The sign-in look", has the details.
+- **Email: a 6-digit code** (owner, 22 November 2026: "it should send a 6 digit code like upvoteme, so all hintwise apps have the same approach to sign-in and magic link/code", and "That should be the default for all new apps"). The platform's `sign-in-link` function emails the code, with the link below it while apps move to the code; the template's `sendMagicLink` asks for it and `mountSignIn` shows the code box. **Never `signInWithOtp`**: the email hook refuses that for hintwise.org pages. An app with its own sign-in UI uses `sendMagicLink` and `verifySignInCode` and has the same box (the template's README, "Email sign-in").
 - **New app label:** in option A, run `npm run app-hosts` in `platform/` and commit it (CI fails while it's stale). In option B, add the label to `EXTERNAL_APP_LABELS`. In both cases `sign-in-link` and `delete-account` are then redeployed, or email links and account deletion are refused for the app.
 - **"Delete my account" is required** (`account.ts`, in the person's panel next to Sign out).
 - Sign-in returns only to `https://*.hintwise.org/**`: not localhost, netlify.app or deploy previews. Tests and the Playwright walkthrough use fakes.
@@ -257,7 +257,7 @@ Notes:
 
 Details: docs/platform.md "Email footer, logo and opt-out".
 
-- **Sign-in email:** nothing to build; sign-in-link sends it.
+- **Sign-in email:** nothing to build; sign-in-link sends the code and the link, and the template's panel has the code box.
 - **App email:** Resend from a Netlify Function, sender `<slug>@hintwise.org`, display name the app's name. No sending subdomains.
 - **Transactional only** (owner, 11 Nov): only what the person opted into about the app they use, never promotion as the email's purpose. That is why no postal address is needed (CAN-SPAM). Promotional mail would first need a PO box in the footer and the owner's yes.
 - **Recurring mail** is opt-in, carries the platform's unsubscribe, and is capped per user and per day in code. Every app shares hintwise.org's sending reputation.
@@ -277,7 +277,7 @@ Details: docs/platform.md "Email footer, logo and opt-out".
 ## 10. Checklist before the first deploy
 
 1. The slug, the repo name (option B) and `<slug>.hintwise.org` all match.
-2. Sign-in comes from the template; email goes through sign-in-link; "Delete my account" is present.
+2. Sign-in comes from the template; email goes through sign-in-link and the panel has the code box; "Delete my account" is present.
 3. The label is on the sign-in allow-list, and sign-in-link and delete-account are redeployed (owner's yes).
 4. The migration passes `check-schema`, and includes the `llm_apps` row if the app uses the gateway. If the app needs its own limits, the owner has named the numbers and Plabs has set them (section 7, "Spending limits"); the app shows each 429 scope in plain words.
 5. No Anthropic key and no service-role key anywhere in the app.

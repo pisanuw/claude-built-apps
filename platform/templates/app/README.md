@@ -39,7 +39,7 @@ Then edit:
 | File | What it gives the app |
 |---|---|
 | `supabase.ts` | `getSupabase()` (one client, `db.schema` = the app's schema), `hasSupabase()`, `APP_SLUG`, `APP_SCHEMA` |
-| `auth.ts` | `signInWithGoogle`, `sendMagicLink` (the platform's `sign-in-link` function, never `signInWithOtp`), `completeSignInFromUrl`, `signOut`, `onAuth`, `currentToken`, and `mountSignIn(el)`: plain-DOM sign-in for the right of the top bar, as on UpvoteMe ("Sign in with Google" and "Magic link", whose panel holds the email form and the Turnstile check when asked for; signed in, the person, whose panel holds "Delete my account", and "Sign out") |
+| `auth.ts` | `signInWithGoogle`, `sendMagicLink` (the platform's `sign-in-link` function, never `signInWithOtp`; it asks for the emailed code), `verifySignInCode`, `completeSignInFromUrl`, `signOut`, `onAuth`, `currentToken`, and `mountSignIn(el)`: plain-DOM sign-in for the right of the top bar, as on UpvoteMe ("Sign in with Google" and "Email code", whose panel holds the email form, then the box for the 6-digit code, and the Turnstile check when asked for; signed in, the person, whose panel holds "Delete my account", and "Sign out") |
 | `signin-styles.ts`, `google-g-light.svg` | the panel's CSS block (added to the page once) and Google's light G, unmodified from signin-assets.zip |
 | `llm.ts` | `ask({system, messages, model?})` in the visitor's mode: `byok` (their key in localStorage `hintwise.anthropicKey`, browser SDK), `gateway` (the owner's key through `llm-gateway` with the session token), `off`; `CapReached` carries the scope and reset time |
 | `repository.ts` | `Repository<T>` (list/get/put/remove), `InMemoryRepository` for tests and `vite preview`, `SupabaseRepository` over one table (the database fills `user_id`) |
@@ -67,16 +67,50 @@ cp -r platform/templates/app /tmp/tmpl-check && cd /tmp/tmpl-check
 npm install && npm run lint && npm run typecheck && npm run coverage && npm run build
 ```
 
-## Email sign-in links
+## Email sign-in: a 6-digit code (and the link, during the move)
 
-`sendMagicLink(email, redirectTo)` posts `{ email, redirectTo, app, browserId }`
-to `<VITE_SUPABASE_URL>/functions/v1/sign-in-link` with the anon key as
-`apikey`. `browserId` is kept in localStorage `hintwise.browserId`. The
-answer is typed: `{status:'sent'}`, `{status:'wait', retryAt}` (shown in the
+The default for every new app (owner, 22 November 2026: "it should send a 6
+digit code like upvoteme, so all hintwise apps have the same approach to
+sign-in and magic link/code"). The email carries the code, with the link
+below it until every app has the code box. The platform's side, and why it
+works this way (decisions D-SC-1 to D-SC-8), is in
+`platform/src/signin/README.md`, "Sign-in codes".
+
+`sendMagicLink(email, redirectTo)` posts `{ email, redirectTo, app,
+browserId, withCode: true }` to `<VITE_SUPABASE_URL>/functions/v1/sign-in-link`
+with the anon key as `apikey` (`withCode: false` leaves the code out, for a
+page without the code box). `browserId` is kept in localStorage
+`hintwise.browserId`, or in memory for the page when storage is blocked: a
+code works only with the id that asked for it. The answer is typed:
+`{status:'sent', withCode?}`, `{status:'wait', retryAt}` (shown in the
 visitor's local time), `{status:'challenge', siteKey}`,
 `{status:'suppressed', message}` (the address used the "Stop all email from
-HintWise" link in an email footer: no link is sent, the panel shows the
+HintWise" link in an email footer: nothing is sent, the panel shows the
 message, and Google sign-in still works) or `{status:'error', message}`.
+
+After `{status:'sent', withCode: true}` the panel shows the code step:
+
+- what was sent and to whom, in the panel's status (announced);
+- "Sign-in code", a visible label, and the hint "6 digits, from the email.";
+- the box: `type="text"`, `inputmode="numeric"`, `autocomplete="one-time-code"`,
+  no `maxlength`, so "123 456", "123-456" and full-width digits paste whole
+  (`normalizeSignInCode`);
+- "Sign in", then "Send a new code" (the same limits as the first email) and
+  "Use a different email address";
+- an error under the box with `role="alert"`, the box marked
+  `aria-invalid` and selected for the next try: a wrong code says how many
+  tries are left; after 5 wrong codes, after 10 minutes, or with no code
+  from this browser, it says to send a new one.
+
+`verifySignInCode(email, typed)` posts `{ action: 'verify', email, code,
+browserId }` to the same function. A right code answers the link's token
+hash, and `verifyOtp({ token_hash, type: 'email' })` signs the visitor in,
+the same call the link makes. For 10 minutes after asking (a time in
+localStorage `hintwise.signInCodeAt`, never the address or the code), the
+email form also offers "Type a code I asked for in this browser" for the
+address typed in it: the way back the email names after a reload or a
+closed tab. `{status:'sent'}` without `withCode` means the email went with
+the link only, and the panel says so.
 
 On a challenge, the panel loads Cloudflare Turnstile once
 (`api.js?render=explicit`) and renders the widget into the panel with
@@ -84,7 +118,7 @@ On a challenge, the panel loads Cloudflare Turnstile once
 the widget after every request. After three failed checks in a row it stops
 until the visitor asks again.
 
-The emailed link comes back to the page with
+The emailed link still works, in any browser. It comes back to the page with
 `?token_hash=...&type=email&email_hint=a***@example.com`. `mountSignIn` (or
 `completeSignInFromUrl` in an app with its own UI) takes those out of the
 address bar, then acts on who is signed in:
@@ -112,10 +146,12 @@ The owner's look is UpvoteMe's (https://upvoteme.hintwise.org; BUILD_ROUTINE.md,
 at the right of the app's top bar (`src/main.ts` and `index.html` show one):
 
 - Signed out: two separate outlined pill buttons, "Sign in with Google" and
-  "Magic link" (an envelope). "Magic link" opens a small panel under the
-  buttons with the email form; Escape, a click elsewhere or the button again
-  closes it. (UpvoteMe asks for the address in a browser prompt; the panel
-  is here because it also holds the Turnstile check and the messages.)
+  "Email code" (an envelope; it was "Magic link" until the code, 22 November
+  2026, and keeps the class `hw-signin-magic`). "Email code" opens a small
+  panel under the buttons with the email form, then the code box; Escape, a
+  click elsewhere or the button again closes it. (UpvoteMe has its own
+  sign-in page; the panel is here because it also holds the Turnstile check
+  and the messages.)
 - Signed in: the person (a round badge with their initial, then their
   address) and "Sign out". The person opens a panel with "Signed in as ...",
   any message, and "Delete my account".
@@ -150,7 +186,7 @@ button"):
 - 14px/20px type at weight 500;
 - 12px before the logo, 10px after it, 12px after the text;
 - a pill shape;
-- the same size and weight as the "Magic link" button;
+- the same size and weight as the "Email code" button;
 - below 640 px, the G alone in its round bordered button, with "Sign in
   with Google" as its accessible name (the owner's choice for phones;
   whether Google's guidelines allow an icon-only G was not checked).

@@ -3,7 +3,8 @@
 The shared infrastructure every weekly build can use. Owner decisions of
 9 November 2026: one substantial project per week instead of one small app a
 day; reuse and restructure the existing Supabase project; Google sign-in plus
-magic link (email through Resend); LLM features either with the visitor's own
+magic link (email through Resend; since 22 November 2026 an emailed 6-digit
+code, section 2); LLM features either with the visitor's own
 key or with the owner's key behind caps, with usage reported to the owner.
 Netlify, Render, Supabase and Resend accounts are paid (owner, 10 Nov); the
 usual architecture, need by need, is the table in BUILD_ROUTINE.md. The project found on 9 Nov
@@ -82,7 +83,14 @@ values.
   The service-role key stays in GitHub secrets and is used only by the usage
   report job.
 
-## 2. Sign-in: Google and magic link, one account for every app
+## 2. Sign-in: Google and an emailed code, one account for every app
+
+Email sign-in is an emailed 6-digit code (the link also works during the
+move). Owner, 22 Nov 2026: "it should send a 6 digit code like upvoteme, so
+all hintwise apps have the same approach to sign-in and magic link/code",
+and "That should be the default for all new apps". The email carries both
+the code and the link until every app that uses email sign-in has the
+template's code box; then the link goes (a later change). Google stays.
 
 - Supabase Auth with one user pool: a visitor who signs in on one HintWise app
   is known to all of them (same `auth.uid()`), which is also why app data sits
@@ -90,8 +98,9 @@ values.
 - Providers: **Google**, today through the project's existing client
   (`989071206831-`); to use the HintWise Google Cloud client (ID starts
   `985338662899-`, docs/google-oauth.md) it needs the authorized redirect URI
-  `https://arktxlrlyceffyozdwhq.supabase.co/auth/v1/callback` (owner action). **Magic link**: the email provider with a sign-in link, sent
-  through Resend's SMTP (`smtp.resend.com`, port 465, user `resend`, password
+  `https://arktxlrlyceffyozdwhq.supabase.co/auth/v1/callback` (owner action). **Email**: the email provider, used through the
+  platform's `sign-in-link` function, which emails a 6-digit code above a
+  sign-in link through Resend; Auth's own emails go through Resend's SMTP (`smtp.resend.com`, port 465, user `resend`, password
   the Resend API key, sender `sign-in@hintwise.org`, name `HintWise`).
   Passwords are not offered.
 - Auth settings (set by `configure-auth`, PATCH `/v1/projects/{ref}/config/auth`),
@@ -111,11 +120,13 @@ values.
 - In an app: `supabase.auth.signInWithOAuth({ provider: 'google', options:
   { redirectTo: location.origin + location.pathname } })`, and for email the
   platform's `sign-in-link` function, not `signInWithOtp` (next section; the
-  template's `sendMagicLink` calls it); `onAuthStateChange` drives the UI.
+  template's `sendMagicLink` calls it and `verifySignInCode` checks the
+  code); `onAuthStateChange` drives the UI.
   The shared template in `platform/templates/app/` has the sign-in
   controls for the right of the top bar (UpvoteMe's look: "Sign in with
-  Google" and "Magic link"), with a Google button that follows Google's
-  branding guidelines (BUILD_ROUTINE.md, "Google sign-in button").
+  Google" and "Email code", whose panel holds the email form and then the
+  code box), with a Google button that follows Google's branding guidelines
+  (BUILD_ROUTINE.md, "Google sign-in button").
 - **Google sign-in goes through Supabase** (owner, 9 Nov): the browser goes
   to Supabase, then Google, then Supabase's callback, then back to the app.
   No per-app Google setup: one callback URL on the Google client and the
@@ -176,7 +187,9 @@ pages of deployed apps). The contract is `platform/src/signin/README.md`. In
 short:
 
 - **Request.** `POST <url>/functions/v1/sign-in-link`, JSON body
-  `{ email, redirectTo, app, browserId, turnstileToken? }`.
+  `{ email, redirectTo, app, browserId, turnstileToken?, withCode? }`.
+  `withCode: true` (the template sends it) asks for the sign-in code above
+  the link.
   - `redirectTo` must be a page of an allowed app: a label in
     `platform/src/signin/app-hosts.ts` (generated from the apps' `target.yml`
     by `npm run app-hosts` in `platform/`), or one of the external apps
@@ -185,7 +198,9 @@ short:
   - `browserId` is a random id kept in localStorage `hintwise.browserId`, a
     soft signal.
 - **Answers.**
-  - `{status:'sent'}` (200).
+  - `{status:'sent'}` (200), with `withCode: true` when the email carries
+    the code, `false` when the code could not be stored and the email went
+    with the link only.
   - `{status:'suppressed', message}` (200): the address turned HintWise
     email off (next section).
   - `{status:'wait', retryAt}` (429, ISO time).
@@ -240,6 +255,21 @@ short:
   a***@example.com?" first. When the signed-in account has the same masked
   address, it says "Already signed in as a***@example.com" and offers "Use
   the link instead", since masks collide.
+- **The code** (owner, 22 Nov 2026; decisions D-SC-1 to D-SC-8 in
+  `platform/src/signin/README.md`, "Sign-in codes"). With `withCode`,
+  sign-in-link makes its own 6 random digits (not Auth's `email_otp`, which
+  anyone could try at Auth's public `/verify`), stores an HMAC of them with
+  the link's token hash in `platform.sign_in_codes`
+  (`platform/supabase/shared/0017_sign_in_codes.sql`), and puts the code in
+  the subject and above the link. The browser checks a code with
+  `{ action: 'verify', email, code, browserId }`; the function counts it
+  under a row lock and, for the right code, answers the token hash, which
+  the browser turns into a session with the same `verifyOtp` call as the
+  link. A code works 10 minutes, once, only in the browser that asked (a
+  try from another browser counts nothing), and the 5th wrong code voids
+  it. Auth's settings do not change: `mailer_otp_exp` (default an hour)
+  stays, and the link keeps it during the move. Apps that do not ask get
+  the link-only email.
 - **Log.** Every request is a row in `platform.sign_in_requests`: hashed
   keys (HMAC-SHA256 under the function secret `SIGN_IN_HASH_KEY`), app,
   outcome, detail. Rows are kept 30 days. Only the service role touches it,
@@ -279,7 +309,8 @@ short:
 
 Deployment order, each step a "Supabase admin" dispatch:
 
-1. `apply-shared`, which runs `0002_sign_in.sql`.
+1. `apply-shared`, which runs `0002_sign_in.sql` (and, for the code,
+   `0017_sign_in_codes.sql`).
 2. `check-schema platform`.
 3. `deploy-function sign-in-link`.
 4. `deploy-function auth-email-hook`.
@@ -477,8 +508,8 @@ model wherever deterministic code does the job.
   (the browser SDK with `dangerouslyAllowBrowser`, header
   `anthropic-dangerous-direct-browser-access: true`). Nothing reaches HintWise;
   no sign-in needed; no cost to the owner.
-- **HintWise key via the gateway.** Signed-in users only (Google or magic
-  link). The browser calls the Supabase Edge Function `llm-gateway`
+- **HintWise key via the gateway.** Signed-in users only (Google or the
+  emailed code or link). The browser calls the Supabase Edge Function `llm-gateway`
   (`https://arktxlrlyceffyozdwhq.supabase.co/functions/v1/llm-gateway`) with the
   user's session token and a body `{ app, model?, max_tokens?, system?,
   messages, tools?, thinking?, output_config?, stream? }` (a subset of the
