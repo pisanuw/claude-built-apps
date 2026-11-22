@@ -700,7 +700,18 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
   let notice = '';
   /** Shown once on the signed-out panel after the visitor deleted their account. */
   let farewell = '';
-  let status: HTMLElement | null = null;
+  /**
+   * The panel's messages: one node for the panel's whole life, moved into
+   * each render and given its new text only once it is in the page, so a
+   * screen reader hears the change. The code box also names it first in its
+   * aria-describedby, so it is read when the focus lands there.
+   */
+  const status = doc.createElement('p');
+  status.className = 'hw-signin-status';
+  status.setAttribute('role', 'status');
+  status.id = `${panelId}-status`;
+  /** Whether a signed-out panel was drawn yet: the first one opens while a code is waiting. */
+  let codeOffered = false;
   let challengeBox: HTMLElement | null = null;
   let send: HTMLButtonElement | null = null;
   /** The panel under the bar, the button that opens it, and whether it is open (kept across re-renders). */
@@ -738,7 +749,7 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
   /** Shows a message in the panel (and opens it, so the message is seen). */
   const say = (text: string): void => {
     notice = text;
-    if (status) status.textContent = text;
+    status.textContent = text;
     if (text) setOpen(true);
   };
 
@@ -797,8 +808,12 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
       render(shownUser);
       codeInput?.focus();
     } else if (result.status === 'sent') {
-      // The email went with the link only (the code could not be stored).
+      // The email went with the link only (the code could not be stored): no code box waiting for a code that will not come.
       dropWidget();
+      if (codeStep) {
+        codeStep = null;
+        render(shownUser);
+      }
       say(`Check ${email} for a sign-in link.`);
     } else if (result.status === 'wait') {
       dropWidget();
@@ -884,7 +899,7 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
     error.id = `${id}-error`;
     error.className = 'hw-signin-error';
     error.setAttribute('role', 'alert');
-    input.setAttribute('aria-describedby', `${hint.id} ${error.id}`);
+    input.setAttribute('aria-describedby', `${status.id} ${hint.id} ${error.id}`);
     const submitButton = button('Sign in', () => undefined, 'submit');
     submitButton.classList.add('hw-signin-verify');
     submitButton.disabled = checking;
@@ -934,7 +949,6 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
   const render = (user: User | null): void => {
     dropWidget();
     el.replaceChildren();
-    status = null;
     challengeBox = null;
     send = null;
     codeInput = null;
@@ -959,16 +973,21 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
       // The new state's panel opens only for something to read or do.
       open = Boolean(notice) || (user ? pendingSwitch !== null : pendingFinish !== null);
     }
+    if (!user && !codeOffered) {
+      codeOffered = true;
+      // Back on the page in the browser that asked for a code (a reload, a closed tab): the email
+      // says to choose ENTER_CODE_LABEL, which is in the panel, and on a phone the bar's button
+      // shows only an envelope. So the first signed-out panel opens, without taking the focus.
+      if (codeAskedRecently(storage, now())) open = true;
+    }
     panel = document.createElement('div');
     panel.className = 'hw-signin-panel';
     panel.id = panelId;
-    status = document.createElement('p');
-    status.className = 'hw-signin-status';
-    status.setAttribute('role', 'status');
-    status.textContent = notice;
     if (user) {
       pendingFinish = null;
       codeStep = null;
+      // Signed in: no code is waiting any more, so a later sign-out does not open the panel for one.
+      forgetCodeAsked(storage);
       // Kept only for the sign-out that "Sign in again" starts: a failed one must not leave it for a later sign-out.
       farewell = '';
       toggle = personButton(user, () => setOpen(!open));
@@ -1025,7 +1044,7 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
       challengeBox.className = 'hw-signin-challenge';
 
       if (codeStep) {
-        // What was sent, and to whom, above the code box (the status is announced).
+        // What was sent, and to whom, above the code box (and read with it: its aria-describedby).
         panel.append(status, ...codeStepNodes(codeStep), challengeBox);
       } else {
         const form = document.createElement('form');
@@ -1071,6 +1090,8 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
     }
     toggle.setAttribute('aria-controls', panelId);
     setOpen(open);
+    // Only now, with the node in the page: a screen reader then sees its text change, not a new node already filled.
+    if (status.textContent !== notice) status.textContent = notice;
   };
 
   // Escape closes the panel wherever the focus is: a panel that opened on its

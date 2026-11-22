@@ -230,7 +230,9 @@ export const SIGN_IN_CSS = `
   cursor: default;
   opacity: 0.6;
 }
-.hw-signin-user {
+.hw-signin-user,
+.hw-signin-status,
+.hw-signin-note {
   overflow-wrap: anywhere;
 }
 .hw-signin-status:empty,

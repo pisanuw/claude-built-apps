@@ -90,14 +90,17 @@ message, and Google sign-in still works) or `{status:'error', message}`.
 
 After `{status:'sent', withCode: true}` the panel shows the code step:
 
-- what was sent and to whom, in the panel's status (announced);
+- what was sent and to whom, in the panel's status: one `role="status"`
+  node kept for the panel's life, whose text changes only once it is in the
+  page, and the first part of the code box's `aria-describedby`, so a
+  screen reader reads it when the focus lands in the box;
 - "Sign-in code", a visible label, and the hint "6 digits, from the email.";
 - the box: `type="text"`, `inputmode="numeric"`, `autocomplete="one-time-code"`,
   no `maxlength`, so "123 456", "123-456" and full-width digits paste whole
   (`normalizeSignInCode`);
 - "Sign in", then "Send a new code" (the same limits as the first email) and
   "Use a different email address";
-- an error under the box with `role="alert"`, the box marked
+- an error under the box with `role="alert"` (its text set in place), the box marked
   `aria-invalid` and selected for the next try: a wrong code says how many
   tries are left; after 5 wrong codes, after 10 minutes, or with no code
   from this browser, it says to send a new one.
@@ -109,8 +112,11 @@ the same call the link makes. For 10 minutes after asking (a time in
 localStorage `hintwise.signInCodeAt`, never the address or the code), the
 email form also offers "Type a code I asked for in this browser" for the
 address typed in it: the way back the email names after a reload or a
-closed tab. `{status:'sent'}` without `withCode` means the email went with
-the link only, and the panel says so.
+closed tab; while that note is fresh, the panel opens on its own when the
+page loads (without taking the focus), since the email names that label and
+on a phone the bar shows only an envelope. `{status:'sent'}` without
+`withCode` means the email went with the link only: the panel says so and
+leaves the code step.
 
 On a challenge, the panel loads Cloudflare Turnstile once
 (`api.js?render=explicit`) and renders the widget into the panel with

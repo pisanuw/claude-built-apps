@@ -527,6 +527,10 @@ describe('the bar buttons below 640 px (the owner\'s choice for phones)', () => 
     expect(turnstileSize(309)).toBe('normal');
     expect(turnstileSize(0)).toBe('normal'); // not laid out: the default
   });
+  it('wraps a long address in the panel\'s messages instead of widening the page', () => {
+    const wrap = css.match(/\n((?:\.hw-signin-[a-z-]+,\n)*\.hw-signin-[a-z-]+) \{\n {2}overflow-wrap: anywhere;\n\}/);
+    expect(wrap![1].split(',\n').sort()).toEqual(['.hw-signin-note', '.hw-signin-status', '.hw-signin-user']);
+  });
   it('makes the panel wide enough for the normal widget: 21.5rem, less 34px of padding and border', () => {
     expect(css).toMatch(/\.hw-signin-panel \{[^}]*width: 21\.5rem;[^}]*max-width: calc\(100vw - 32px\);[^}]*padding: 16px;/);
     expect(css).toMatch(/\.hw-signin-panel \{[^}]*grid-template-columns: minmax\(0, 1fr\);/); // the field cannot widen it
@@ -1108,8 +1112,11 @@ describe('mountSignIn', () => {
       const label = root.querySelector<HTMLLabelElement>(`label[for="${input.id}"]`)!;
       expect(label.textContent).toBe('Sign-in code');
       const described = input.getAttribute('aria-describedby')!.split(' ').map((id) => document.getElementById(id)!);
-      expect(described[0].textContent).toBe('6 digits, from the email.');
-      expect(described[1].getAttribute('role')).toBe('alert');
+      // What was sent comes first, so it is read when the focus lands in the box.
+      expect(described[0]).toBe(root.querySelector('.hw-signin-status'));
+      expect(described[0].textContent).toContain('We sent a 6-digit code to ann@example.com.');
+      expect(described[1].textContent).toBe('6 digits, from the email.');
+      expect(described[2].getAttribute('role')).toBe('alert');
       expect(button('Sign in').type).toBe('submit');
       expect(button('Send a new code').type).toBe('button');
       expect(button('Use a different email address').type).toBe('button');
@@ -1210,11 +1217,77 @@ describe('mountSignIn', () => {
       expect(codeBox()).toBeNull();
       expect(f).toBeTruthy();
     });
+    it('keeps one status node and gives it the new words only once it is in the page', async () => {
+      const mark = store();
+      const sendLink = vi.fn(async (): Promise<SignInLinkResult> => ({ status: 'sent', withCode: true }));
+      const f = mount(sendLink, { storage: mark, verifyCode: async () => ({ status: 'none' }) });
+      await flush();
+      const node = root.querySelector('.hw-signin-status')!;
+      expect(node.getAttribute('role')).toBe('status');
+      const records: MutationRecord[] = [];
+      const seen = new MutationObserver((rs) => records.push(...rs));
+      seen.observe(root, { childList: true, subtree: true, characterData: true });
+      submit('ann@example.com');
+      await flush();
+      records.push(...seen.takeRecords());
+      seen.disconnect();
+      expect(root.querySelector('.hw-signin-status')).toBe(node); // the same node, moved into the code step
+      const note = node.textContent!;
+      expect(note).toContain('We sent a 6-digit code');
+      // The records that put the node (or the panel holding it) into the page.
+      const inserted = records.map((r, i) => ([...r.addedNodes].some((n) => n.contains(node)) ? i : -1)).filter((i) => i >= 0);
+      const worded = records.findIndex((r) => r.target === node && [...r.addedNodes].some((n) => n.textContent === note));
+      expect(inserted.length).toBeGreaterThan(0);
+      expect(worded).toBeGreaterThan(Math.max(...inserted));
+      f.emit(null); // a re-render keeps the node and its words
+      expect(root.querySelector('.hw-signin-status')).toBe(node);
+      expect(node.textContent).toBe(note);
+    });
+    it('leaves the code step when a new email went with the link only', async () => {
+      const { sendLink } = await sentWithCode();
+      sendLink.mockResolvedValueOnce({ status: 'sent' });
+      button('Send a new code').click();
+      await flush();
+      expect(codeBox()).toBeNull();
+      expect(root.querySelector('input[type=email]')).toBeTruthy();
+      expect(statusText()).toBe('Check ann@example.com for a sign-in link.');
+      expect(panel().hidden).toBe(false);
+      expect(button('Email me a sign-in code').disabled).toBe(false);
+    });
+    it('opens the panel on load while a code asked for in this browser is waiting, without taking the focus, once', async () => {
+      const mark = store({ [CODE_ASKED_KEY]: String(5_000_000 - 60_000) });
+      const f = mount(async () => ({ status: 'sent' }), { storage: mark, now: () => 5_000_000 });
+      await flush();
+      expect(panel().hidden).toBe(false);
+      expect(button(ENTER_CODE_LABEL).closest('[hidden]')).toBeNull(); // the label the email names is in view
+      expect(button('Email code').getAttribute('aria-expanded')).toBe('true');
+      expect(document.activeElement).toBe(document.body);
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      f.emit(null); // closed by the visitor: a re-render does not open it again
+      expect(panel().hidden).toBe(true);
+      f.emit(session); // signed in: no code is waiting any more
+      expect(mark.m.has(CODE_ASKED_KEY)).toBe(false);
+    });
+    it('does not open the panel on load for an old note, or for a visitor already signed in', async () => {
+      mount(async () => ({ status: 'sent' }), { storage: store({ [CODE_ASKED_KEY]: String(5_000_000 - 10 * 60_000) }), now: () => 5_000_000 });
+      await flush();
+      expect(panel().hidden).toBe(true);
+      document.body.innerHTML = '<div id="panel"></div>';
+      root = document.getElementById('panel')!;
+      const mark = store({ [CODE_ASKED_KEY]: String(5_000_000 - 60_000) });
+      const f = fakeAuth(session);
+      mountSignIn(root, { client: f.client, redirectTo: 'https://x/', completeFromUrl: false, storage: mark, now: () => 5_000_000, profileClient: false });
+      await flush();
+      expect(panel().hidden).toBe(true);
+      expect(mark.m.has(CODE_ASKED_KEY)).toBe(false);
+      f.emit(null); // signing out later does not open it for a code
+      expect(panel().hidden).toBe(true);
+    });
     it('offers "Type a code I asked for in this browser" for ten minutes after asking, for the address typed', async () => {
       const mark = store({ [CODE_ASKED_KEY]: String(5_000_000 - 9 * 60_000) });
       mount(async () => ({ status: 'sent' }), { storage: mark, now: () => 5_000_000 });
       await flush();
-      button('Email code').click();
+      expect(panel().hidden).toBe(false); // opened on load for the waiting code
       const back = button(ENTER_CODE_LABEL);
       expect(back.type).toBe('button');
       back.click(); // no address yet
