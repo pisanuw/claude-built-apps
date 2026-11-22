@@ -8,8 +8,10 @@
 # in `env` (VITE_CHECKER_URL; milestone 4 moves the checker into backend-hub
 # under a path prefix, so only this line changes then), and the build flag
 # VITE_COMPILE_CHECK: "on" shows "Compile and check", "off" hides it. It is
-# off until the worker answers its health route live (PLAN.md, the no-go
-# branch; HANDOFF.md, Builder notes, milestone 3b). `env` holds the public
+# on from milestone 3b's release (CR-11, need 4; DECISIONS.md D-97): the live
+# worker answers compile: true and allows this app's origin. If the owner's
+# live math-notes run takes more than 90 s, it goes back to 'off' (CR-11, AC-68),
+# and nothing else changes. `env` holds the public
 # client values from platform/supabase.json (public by design).
 # package-lock.json is force-added (the root .gitignore excludes lockfiles)
 # because `npm ci` below needs it.
@@ -28,7 +30,7 @@ env:
   VITE_SUPABASE_URL: https://auth.hintwise.org
   VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFya3R4bHJseWNlZmZ5b3pkd2hxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4ODEwMTAsImV4cCI6MjA5MjQ1NzAxMH0.Vuku-irT3kAHZYibK23q6dpyOEqV_Eg5zB78I3dyshE
   VITE_CHECKER_URL: https://tagging-doctor-worker.onrender.com
-  VITE_COMPILE_CHECK: 'off'
+  VITE_COMPILE_CHECK: 'on'
 
 envPassthrough: []
 

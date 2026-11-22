@@ -59,6 +59,8 @@ describe('AC-13: the page loads nothing from another host', () => {
     expect(target).toMatch(/VITE_SUPABASE_URL: https:\/\/auth\.hintwise\.org\n/);
     // AC-13 (M3b): the worker's address, the one the Deploy run prints, as one value.
     expect(target).toMatch(/VITE_CHECKER_URL: https:\/\/tagging-doctor-worker\.onrender\.com\n/);
+    // CR-11, need 4 (D-97): Compile and check is on in the released build.
+    expect(target).toMatch(/VITE_COMPILE_CHECK: 'on'\n/);
     // Every request of the checker client goes to that one base address.
     const checker = read('src/lib/checker.ts').replace(/\/\*[\s\S]*?\*\//g, '');
     for (const m of checker.matchAll(/\bfetch\(([^,)]+)/g)) expect(m[1].trim(), m[0]).toMatch(/^`\$\{d\.base\}\/api\//);
