@@ -734,3 +734,7 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-22 [note] lewis-alt-text: deployed de888ab on the owner's yes (run 45000683908); live /cli/lewis-alt-text.mjs downloads and runs; instructions stay on GitHub (owner, question 3)
 
 2026-11-22 [code] lewis-alt-text CLI: --use-own-key (own Anthropic key) and --use-local-subscription (replaces --local); every run prints who pays; subscription mode strips API keys and refuses a key
+
+2026-11-22 [note] lewis-alt-text deployed (run 45004414936): the CLI download now has --use-own-key and --use-local-subscription
+
+2026-11-22 [decision] lewis-alt-text CLI keeps the server-side refusal fallback for --use-own-key on Opus and Sonnet (owner approved)
