@@ -748,4 +748,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 
 2026-11-22 [doc] Added the session-relay skill at .claude/skills/session-relay/ (from the owner's zip), so every session on this repo, relay successors included, can load the skill HANDOFF.md names.
 
-2026-11-22 [code] platform: auth-email-hook never emails Auth's own code (owner: "I do not want that 10-digit code ever showing"): type email goes as a link like the magic link, reauthentication is refused for every host; configure-auth --otp-length=N sets mailer_otp_length (owner: "10 digits yes") (branch feat/no-auth-code-in-emails, not deployed)
+2026-11-22 [code] platform: auth-email-hook never emails Auth's own code (email type as a link, reauthentication refused); configure-auth --otp-length=N sets mailer_otp_length (owner: 10)

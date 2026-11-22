@@ -170,7 +170,8 @@ replace, count reset; prunes rows an hour past expiry, up to 200) and
   makes 6 random digits (Web Crypto, uniform), keeps only their HMAC, and a
   right code unlocks the token hash of the link in the same email. Auth's
   own code is shown to nobody: since 22 Nov 2026 not by the hook either
-  ("Auth's own code" under "Send Email hook"), and it is 10 digits long.
+  ("Auth's own code" under "Send Email hook"), and it is set to 10 digits
+  by `configure-auth --otp-length=10`.
 - **D-SC-2. Codes are checked by sign-in-link; the session comes from Auth
   in the browser.** The briefed option (b), the function calling Auth's
   `/verify` and handing back a session for `setSession`, would put every
@@ -210,7 +211,7 @@ replace, count reset; prunes rows an hour past expiry, up to 200) and
   changed, and the link below the code keeps its hour during the move. It
   must stay at least 600 seconds, or a right code near the end of its 10
   minutes would unlock a token Auth has already expired (the default is
-  3600). No auth config change.
+  3600). No auth config change (`mailer_otp_length` aside).
 - **D-SC-6. The app asks for the code (`withCode: true`).** An app without
   the code box gets the link-only email, so nobody receives a code with
   nowhere to type it: "both, until every app has the code box" applies to
@@ -423,7 +424,10 @@ sign-in code ("Sign-in codes" above) is a different code and is unchanged.
   no code) or resets the password with the recovery link. `inspect` prints
   the setting.
 - **10 digits.** `configure-auth --otp-length=10` (`--dry-run` first) sets
-  `mailer_otp_length`. The Management API takes 6 to 10, and Auth falls
+  `mailer_otp_length` and, without `--google` or `--email-rate`, sends
+  nothing else: the GET answers `smtp_pass` only as a digest, so the full
+  patch would rewrite the SMTP password every run. Nothing is sent when the
+  length is already 10. The Management API takes 6 to 10, and Auth falls
   back to 6 outside that range (`conf/configuration.go`, read 22 Nov 2026).
   It changes nothing for links: they carry the token hash, whatever the
   length. Nor for HintWise's code (`code.ts`, 6 digits of its own; sign-in-link
@@ -538,7 +542,13 @@ sign-in-link or auth-email-hook until `optout-ready` sees
 **Where the opt-out does not hold (fail open).**
 
 - `email-hook off`: Auth then sends its own emails directly, without the
-  hook, so it ignores the opt-out list (sign-in-link still checks it).
+  hook, so it ignores the opt-out list (sign-in-link still checks it). It
+  sends them with the project's templates through Resend SMTP, and
+  Supabase's default reauthentication template shows Auth's code ("Enter
+  the code: {{ .Token }}"; Auth's built-in default, read 22 Nov 2026, has
+  `{{ .Token }}` in the subject and the body), so with the hook off the code
+  can show again. No template is changed yet: the owner decides on a
+  follow-up. The project's templates are not read by any command here.
 - Rotating `SIGN_IN_HASH_KEY` or `EMAIL_OPTOUT_SECRET`: the list is keyed by
   the hash, so a new hash key silently drops every opt-out (and every
   sign-in ladder), and a new opt-out secret breaks every stop link already

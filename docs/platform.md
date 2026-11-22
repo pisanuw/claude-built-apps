@@ -113,9 +113,10 @@ Google stays.
   its own `redirectTo`, so the site URL only matters as a fallback);
   `external_email_enabled` is already true and `mailer_autoconfirm` false; the
   SMTP fields above are added (they lift the email limit from 2 to 30 an hour,
-  `rate_limit_email_sent`, which `configure-auth` sets to 30). With
-  `--otp-length=N` it also sets `mailer_otp_length`, the digits of Auth's
-  own email code (owner, 22 Nov 2026: 10; "Auth's own code" below). The Google
+  `rate_limit_email_sent`, which `configure-auth` sets to 30).
+  `--otp-length=N` sets `mailer_otp_length`, the digits of Auth's own email
+  code (owner, 22 Nov 2026: 10; "Auth's own code" below); without
+  `--google` or `--email-rate` it sends that key and nothing else. The Google
   client is **not** switched by default: the project signs in through client
   `989071206831-`; moving to the HintWise client (`985338662899-`) keeps the
   same Google identities (Google's `sub` is the same for every client) but is
@@ -396,7 +397,11 @@ The contract is `platform/src/signin/README.md`.
   `https://auth.hintwise.org/storage/v1/object/public/brand/hintwise-wordmark-email@2x.png`.
 - **Where the opt-out does not hold (fail open).**
   - `email-hook off`: Auth sends its own emails again, without the hook,
-    and ignores the list (sign-in-link still checks it).
+    and ignores the list (sign-in-link still checks it). It uses the
+    project's templates through Resend SMTP, and Supabase's default
+    reauthentication template shows Auth's code ("Enter the code:
+    {{ .Token }}"), so the code can show again while the hook is off. No
+    template is changed yet; the owner decides on a follow-up.
   - Rotating `SIGN_IN_HASH_KEY` or `EMAIL_OPTOUT_SECRET` silently drops
     every opt-out (the list is keyed by the hash) and breaks every stop
     link already sent. Never rotate them without migrating the table; the

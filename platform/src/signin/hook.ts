@@ -65,7 +65,7 @@ export const isAccountType = (type: string): boolean => HOOK_ACCOUNT_TYPES.inclu
 /**
  * True for a type the hook answers as sent (200 {}) while sending nothing when
  * the recipient turned HintWise email off: the sign-in emails (magic link,
- * sign-up, code, recovery) and every *_notification. A refusal there would
+ * sign-up, `email`, recovery) and every *_notification. A refusal there would
  * tell anyone who asks Auth for a recovery or a magic link that the address
  * has an account and opted out (Auth answers an unknown address's recovery
  * with 200 and nothing sent), and Auth only logs a failed notice anyway.
