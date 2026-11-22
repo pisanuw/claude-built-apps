@@ -1,0 +1,12 @@
+\documentclass{article}
+\usepackage{luacode}
+\begin{document}
+\begin{luacode*}
+-- R3a.3-1 (a): 1 MB of unclosed `<datasource ` tags as the job's own .bcf.
+local out = io.open("main.bcf", "wb")
+out:write(string.rep("<datasource ", 87382))
+out:close()
+texio.write_nl("HOSTILE-RESULT: wrote a 1 MB main.bcf")
+\end{luacode*}
+Writes a biber control file of unclosed tags.
+\end{document}

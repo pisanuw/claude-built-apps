@@ -1,0 +1,21 @@
+\documentclass{article}
+\usepackage[T1]{fontenc}
+\usepackage{luacode}
+\pdfvariable compresslevel=0
+\begin{document}
+\ttfamily
+\begin{luacode*}
+for _, dir in ipairs({"/jobs", "/jobs/", "../..", "/srv/hint"}) do
+  local ok, it, state = pcall(lfs.dir, dir)
+  if ok then
+    local names = {}
+    for n in it, state do names[#names + 1] = n end
+    texio.write_nl("HOSTILE-RESULT: lfs.dir " .. dir .. " listed " .. #names .. ": " .. table.concat(names, " "))
+    tex.print(-2, table.concat(names, " "))
+  else
+    texio.write_nl("HOSTILE-RESULT: lfs.dir " .. dir .. " blocked")
+  end
+end
+\end{luacode*}
+Listing.
+\end{document}

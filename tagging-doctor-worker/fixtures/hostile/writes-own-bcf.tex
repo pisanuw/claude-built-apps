@@ -1,0 +1,14 @@
+\documentclass{article}
+\usepackage{luacode}
+\begin{document}
+\begin{luacode*}
+local src = io.open("bcf.txt", "rb")
+local text = src:read("a")
+src:close()
+local out = io.open("main.bcf", "wb")
+out:write(text)
+out:close()
+texio.write_nl("HOSTILE-RESULT: wrote main.bcf")
+\end{luacode*}
+Writes its own biber control file.
+\end{document}

@@ -1,0 +1,21 @@
+\documentclass{article}
+\usepackage[T1]{fontenc}
+\usepackage{luacode}
+\pdfvariable compresslevel=0
+\begin{document}
+\ttfamily
+\begin{luacode*}
+local f, err = io.open("/srv/planted/secret.tex", "r")
+if f then
+  local s = f:read("a")
+  texio.write_nl("HOSTILE-RESULT: read " .. s)
+  tex.print(-2, s)
+else
+  texio.write_nl("HOSTILE-RESULT: io.open blocked " .. tostring(err))
+end
+local ok, lines = pcall(io.lines, "/srv/planted/secret.tex")
+texio.write_nl("HOSTILE-RESULT: io.lines ok=" .. tostring(ok))
+if ok then for l in lines do tex.print(-2, l) end end
+\end{luacode*}
+Lua read.
+\end{document}

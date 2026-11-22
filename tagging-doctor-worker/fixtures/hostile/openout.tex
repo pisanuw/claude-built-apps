@@ -1,0 +1,9 @@
+\documentclass{article}
+\newwrite\hostile
+\begin{document}
+\immediate\openout\hostile=../escaped.tex
+\immediate\write\hostile{escaped}
+\immediate\closeout\hostile
+\IfFileExists{../escaped.tex}{\typeout{HOSTILE-RESULT: openout escaped}}{\typeout{HOSTILE-RESULT: openout blocked}}
+Openout.
+\end{document}

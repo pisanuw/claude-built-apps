@@ -358,12 +358,30 @@ describe('review round 2', () => {
   });
 
   it('R1.2-7: a drop goes stale while its package-list load fails', async () => {
+    // R2.C-1: no timers. Drop B only once drop A has asked for the package list, and
+    // fail that call (A's, the only call made before B) only after B has been shown.
     let calls = 0;
-    const { app, q } = setup({ loadStatus: async () => { if (calls++ === 0) { await sleep(40); throw new Error('lost'); } return idx; } });
+    let asked!: () => void;
+    const aAsked = new Promise<void>((r) => (asked = r));
+    let fail!: () => void;
+    const failA = new Promise<void>((r) => (fail = r));
+    const { app, q } = setup({
+      loadStatus: async () => {
+        if (calls++ === 0) {
+          asked();
+          await failA;
+          throw new Error('lost');
+        }
+        return idx;
+      },
+    });
     const a = app.handleFile(file('a.zip', zipA()));
-    await sleep(10);
+    await aAsked;
     await app.handleFile(file('b.zip', zipB()));
+    expect(shown(q)).toBe(B_SHOWN);
+    fail();
     await a;
+    expect(calls).toBe(2);
     expect(shown(q)).toBe(B_SHOWN);
   });
 
