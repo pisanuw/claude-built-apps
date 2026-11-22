@@ -726,3 +726,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-19 [note] lewis-alt-text: owner verified the CLI live (login through /terminal/, status, alt text through the gateway); deploy run 44545724344
 
 2026-11-20 [doc] HANDOFF.md rewritten for the handover of PManager: Nov 19 at the owner's request; checks every two hours; the new relay session archives the old one.
+2026-11-19 [code] tagging-doctor day 1: spec approved in round 3; milestone 1 (in-browser LaTeX tagging-compatibility scan, HTML and JSON reports)
+2026-11-20 [code] tagging-doctor day 2: milestone 2 (sign-in, courses, saved scans and history, course report, export and delete, app_tagging_doctor schema); record folders left out (CR-1, CR-6), class fixes (CR-2), copy-named zips and the course report's data line (CR-4, CR-5)

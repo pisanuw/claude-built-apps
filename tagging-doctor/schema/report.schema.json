@@ -17,11 +17,21 @@
     "generatedAt": { "type": "string", "description": "When the report was made, UTC, ISO 8601." },
     "project": {
       "type": "object",
-      "required": ["name", "leftOut"],
+      "required": ["name", "leftOut", "leftOutFolders"],
       "additionalProperties": false,
       "properties": {
         "name": { "type": "string", "description": "The dropped file's name." },
-        "leftOut": { "type": "array", "items": { "type": "string" }, "description": "Files named like student records, left out and never read." }
+        "leftOut": { "type": "array", "items": { "type": "string" }, "description": "Files named like student records, or under a folder named so, left out and never read." },
+        "leftOutFolders": {
+          "type": "array",
+          "description": "Folders named like student records, each with the number of files under it that were left out.",
+          "items": {
+            "type": "object",
+            "required": ["folder", "files"],
+            "additionalProperties": false,
+            "properties": { "folder": { "type": "string" }, "files": { "type": "integer", "minimum": 1 } }
+          }
+        }
       }
     },
     "data": {

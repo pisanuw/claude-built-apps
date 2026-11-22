@@ -41,6 +41,19 @@
       .downloads { display: flex; flex-wrap: wrap; gap: 0.5rem; }
       a { color: #1a4fa0; }
       p, li { overflow-wrap: anywhere; }
+      .top-bar nav.pages { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; }
+      .top-bar .hw-signin { margin-left: auto; }
+      .save-panel, .pending { border: 1px solid var(--line); border-radius: 0.75rem; padding: 0.5rem 1rem; margin: 0.75rem 0; background: var(--soft); }
+      .save-panel h3 { margin-top: 0.5rem; }
+      .field label { display: inline-block; min-width: 8rem; font-weight: 600; }
+      .field input, .field select { font: inherit; padding: 0.35rem 0.5rem; border: 1px solid var(--line); border-radius: 0.4rem; max-width: 100%; }
+      .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+      a.button-link { display: inline-block; padding: 0.45rem 0.9rem; border-radius: 0.5rem; border: 1px solid var(--line); text-decoration: none; }
+      .error-text { color: #b3261e; font-weight: 600; }
+      @media print {
+        body.printing-report .top-bar, body.printing-report .no-print { display: none !important; }
+        body.printing-report #app { max-width: none; padding: 0; }
+      }
     </style>
   </head>
   <body>

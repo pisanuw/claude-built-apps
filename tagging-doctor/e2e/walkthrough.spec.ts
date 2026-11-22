@@ -1,11 +1,15 @@
 import fs from 'node:fs';
+import { strToU8, zipSync } from 'fflate';
 import { expect, test, type Request } from '@playwright/test';
 import { fiftyFileZip, zipFixture } from '../test/fixture-zip';
 
-// The walkthrough runs against `vite preview` (playwright.config.ts). Milestone 1
-// has no sign-in and no server: the scan runs in the browser.
+// The walkthrough runs against `vite preview` (playwright.config.ts), built
+// without Supabase env: the scan runs in the browser, and sign-in is the
+// template's controls on a stand-in that signs a preview person in, with
+// courses kept in memory (src/ui/preview-account.ts). Nothing reaches the
+// network.
 
-const BASE = 'http://localhost:4173';
+const BASE = `http://localhost:${process.env.E2E_PORT ?? 4391}`;
 
 function record(page: import('@playwright/test').Page): Request[] {
   const seen: Request[] = [];
@@ -116,4 +120,245 @@ test('the page has no horizontal scroll at 375 px after a scan', async ({ page }
   await expect(page.locator('#result-h')).toHaveText('2 blockers found');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
+});
+
+test('AC-16 to AC-21, AC-24, AC-26: sign in, save to a course, rescan, open the course and its report', async ({ page }) => {
+  const requests = record(page);
+  await page.goto('/');
+  // AC-16: two separate buttons at the right of the top bar; the scan works signed out.
+  const bar = page.locator('.top-bar #signin');
+  await expect(bar.getByRole('button', { name: 'Sign in with Google' })).toBeVisible();
+  await expect(bar.getByRole('button', { name: 'Magic link' })).toBeVisible();
+  await page.locator('#file').setInputFiles({ name: 'hw1.zip', mimeType: 'application/zip', buffer: Buffer.from(zipFixture('blockers')) });
+  await expect(page.locator('#result-h')).toHaveText('2 blockers found');
+  // "Save" opens sign-in.
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#save-h')).toHaveText('Sign in to save');
+  await expect(page.locator('#save').getByRole('link', { name: 'What we keep' })).toBeVisible();
+  await page.locator('#save').getByRole('button', { name: 'Sign in with Google' }).click();
+
+  // AC-17: the save dialog, a new course and a project name.
+  await expect(page.locator('#save-h')).toHaveText('Save to a course');
+  await page.getByLabel('Course name').fill('Calculus I');
+  await page.getByLabel('Term (optional)').fill('Fall 2026');
+  await expect(page.getByLabel('Project name')).toHaveValue('hw1');
+  await page.locator('#save').getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#save .save-status')).toContainText('Saved “hw1” to Calculus I, Fall 2026.');
+
+  // AC-21: a new version of the same project.
+  await page.locator('#file').setInputFiles({ name: 'hw1.zip', mimeType: 'application/zip', buffer: Buffer.from(zipFixture('multi')) });
+  await expect(page.locator('#result-h')).toHaveText('2 blockers found');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#save-course')).toHaveValue(/.+/);
+  await page.locator('#save').getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#save .save-status')).toContainText(/Saved a new scan of “hw1” in Calculus I, Fall 2026\. \d+ blockers? fixed and \d+ new since the previous scan\./);
+
+  // AC-18, AC-19: My courses and the course page.
+  await page.getByRole('link', { name: 'My courses' }).click();
+  await expect(page.locator('#page-h')).toHaveText('My courses');
+  await expect(page.locator('#page tbody tr')).toHaveCount(1);
+  await page.getByRole('link', { name: 'Calculus I, Fall 2026' }).click();
+  await expect(page.locator('#page-h')).toHaveText('Calculus I, Fall 2026');
+  await expect(page.locator('#page tbody tr').first()).toContainText('hw1');
+  await expect(page.locator('#page tbody tr').first()).toContainText('2 blockers found');
+
+  // AC-20: the printable report, and its download.
+  await page.getByRole('link', { name: 'Course report' }).click();
+  await expect(page.locator('#course-report-h')).toHaveText('Course report: Calculus I, Fall 2026');
+  await page.emulateMedia({ media: 'print' });
+  await expect(page.locator('.top-bar')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Print' })).toBeHidden();
+  await expect(page.locator('.course-report table').first()).toBeVisible();
+  await page.emulateMedia({ media: 'screen' });
+  const [html] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download HTML' }).click()]);
+  expect(html.suggestedFilename()).toBe('tagging-doctor-course-Calculus-I.html');
+
+  // AC-24: Export my data.
+  await page.getByRole('link', { name: 'My courses' }).click();
+  const [exp] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export my data' }).click()]);
+  const data = JSON.parse(fs.readFileSync(await exp.path(), 'utf8'));
+  expect(data.courses).toHaveLength(1);
+  expect(data.scans).toHaveLength(2);
+
+  // AC-26: What we keep.
+  await page.getByRole('link', { name: 'What we keep' }).first().click();
+  await expect(page.locator('#page-h')).toHaveText('What we keep');
+  await expect(page.locator('#page')).toContainText('Your sources are never stored.');
+
+  // AC-2 and AC-13 still hold with sign-in mounted: nothing went to another host.
+  for (const r of requests) {
+    const u = new URL(r.url());
+    if (u.protocol === 'http:' || u.protocol === 'https:') expect(u.origin, r.url()).toBe(BASE);
+  }
+});
+
+test('AC-13: the built scripts name only the hosts the criterion lists', async () => {
+  const dir = 'dist/assets';
+  const allowed = new Set([
+    'tagging-doctor.hintwise.org',
+    'latex3.github.io',
+    'github.com',
+    // Cloudflare Turnstile, loaded by the sign-in panel when the sign-in-link function asks for a check (CR-3).
+    'challenges.cloudflare.com',
+    // The SVG namespace in the favicon and icons, not a load.
+    'www.w3.org',
+    // supabase-js's default auth address, replaced by VITE_SUPABASE_URL (auth.hintwise.org) in every client the app makes.
+    'localhost',
+  ]);
+  const seen = new Set<string>();
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.js'))) {
+    for (const m of fs.readFileSync(`${dir}/${f}`, 'utf8').matchAll(/https?:\/\/([a-z0-9.-]+)/gi)) seen.add(m[1].toLowerCase());
+  }
+  for (const h of seen) expect(allowed.has(h), h).toBe(true);
+  expect(seen.has('challenges.cloudflare.com')).toBe(true);
+});
+
+test('AC-73 to AC-75: a re-downloaded zip saves to its project, a typed name wins, and the course report names its data', async ({ page, browser }) => {
+  await page.goto('/');
+  await page.locator('#signin').getByRole('button', { name: 'Sign in with Google' }).click();
+  await expect(page.getByRole('link', { name: 'My courses' })).toBeVisible();
+
+  // AC-73: hw1.zip, then the browser's copy hw1 (1).zip, into one course.
+  await page.locator('#file').setInputFiles({ name: 'hw1.zip', mimeType: 'application/zip', buffer: Buffer.from(zipFixture('blockers')) });
+  await expect(page.locator('#result-h')).toHaveText('2 blockers found');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByLabel('Course name').fill('STAT 201');
+  await page.locator('#save').getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#save .save-status')).toContainText('Saved “hw1” to STAT 201.');
+
+  await page.locator('#file').setInputFiles({ name: 'hw1 (1).zip', mimeType: 'application/zip', buffer: Buffer.from(zipFixture('multi')) });
+  await expect(page.locator('#result-h')).toHaveText('2 blockers found');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByLabel('Project name')).toHaveValue('hw1');
+  await expect(page.locator('#save-hint')).toHaveText('This saves a new scan of the project “hw1”, and shows what changed since its previous scan.');
+  await page.locator('#save').getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#save .save-status')).toContainText(/Saved a new scan of “hw1” in STAT 201\. \d+ blockers? fixed and \d+ new since the previous scan\./);
+
+  // AC-74: a typed name wins over the suggestion.
+  await page.locator('#file').setInputFiles({ name: 'hw1 (2).zip', mimeType: 'application/zip', buffer: Buffer.from(zipFixture('blockers')) });
+  await expect(page.locator('#result-h')).toHaveText('2 blockers found');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByLabel('Project name')).toHaveValue('hw1');
+  await page.getByLabel('Project name').fill('other');
+  await page.locator('#save').getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#save .save-status')).toContainText('Saved “other” to STAT 201.');
+  // (Deleted again below, so STAT 201 is a course of five projects.)
+
+  // Four more projects from a course zip.
+  await page.locator('#file').setInputFiles({ name: 'course.zip', mimeType: 'application/zip', buffer: Buffer.from(zipFixture('course')) });
+  await page.getByRole('button', { name: 'Scan all' }).click();
+  await page.getByRole('button', { name: 'Save all to a course' }).click();
+  await expect(page.locator('#save-course')).toHaveValue(/.+/);
+  await page.locator('#save').getByRole('button', { name: 'Save 4 projects' }).click();
+  await expect(page.locator('#save .save-status')).toContainText('Saved 4 projects to STAT 201.');
+
+  await page.getByRole('link', { name: 'My courses' }).click();
+  await page.locator('#page').getByRole('link', { name: 'STAT 201', exact: true }).click();
+  await expect(page.locator('#page-h')).toHaveText('STAT 201');
+  await expect(page.locator('#page tbody tr')).toHaveCount(6);
+  const names = await page.locator('#page tbody tr td:first-child').allTextContents();
+  expect(names).toEqual(['hw1', 'other', 'hw1/hw1.tex', 'hw2/hw2.tex', 'hw3/hw3.tex', 'notes/notes.tex']);
+  expect(names.filter((n) => n === 'hw1')).toHaveLength(1);
+  // AC-74's project is saved under the typed name; delete it for AC-75's course of five.
+  page.once('dialog', (d) => void d.accept());
+  await page.locator('#page').getByRole('link', { name: 'other', exact: true }).click();
+  await expect(page.locator('#page-h')).toHaveText('other');
+  await page.getByRole('button', { name: 'Delete this project' }).click();
+  await expect(page.locator('#page-h')).toHaveText('STAT 201');
+  await expect(page.locator('#page tbody tr')).toHaveCount(5);
+
+  // AC-75: the report names the date, the source and the licence, on the page and in the file.
+  await page.getByRole('link', { name: 'Course report' }).click();
+  const line = page.locator('#page .data-line');
+  await expect(line).toContainText('Package data as of 2026-11-19');
+  await expect(line).toContainText('the LaTeX Project’s tagging status list');
+  await expect(line).toContainText('LaTeX Project Public License, version 1.3c or later');
+  const text = (await line.textContent()) as string;
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download HTML' }).click()]);
+  expect(dl.suggestedFilename()).toBe('tagging-doctor-course-STAT-201.html');
+  const htmlPath = test.info().outputPath('course.html');
+  await dl.saveAs(htmlPath);
+  const html = fs.readFileSync(htmlPath, 'utf8');
+  expect(html).toContain(text.replace(/&/g, '&amp;'));
+  expect(html).not.toMatch(/<script|<link/i);
+  const ctx = await browser.newContext({ offline: true });
+  const offline = await ctx.newPage();
+  const requests = record(offline);
+  await offline.goto(`file://${htmlPath}`);
+  await expect(offline.locator('.data-line')).toHaveText(text);
+  expect(requests.map((r) => r.url()).filter((u) => !u.startsWith('file:'))).toEqual([]);
+  await ctx.close();
+});
+
+test('R2.1-1: after a sign-in that reloads the page, "Save to a course" opens a visible dialog', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#file').setInputFiles({ name: 'hw1.zip', mimeType: 'application/zip', buffer: Buffer.from(zipFixture('blockers')) });
+  await expect(page.locator('#result-h')).toHaveText('2 blockers found');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#save-h')).toHaveText('Sign in to save');
+  // A Google sign-in leaves the page and comes back: the scan is gone, the kept save is not.
+  await page.reload();
+  await expect(page.locator('#result')).toBeHidden();
+  await page.locator('#signin').getByRole('button', { name: 'Sign in with Google' }).click();
+  await expect(page.locator('#pending')).toContainText('You scanned hw1 before signing in.');
+  await page.locator('#pending').getByRole('button', { name: 'Save to a course' }).click();
+  await expect(page.locator('#pending')).toBeHidden();
+  await expect(page.locator('#save-h')).toBeVisible();
+  await expect(page.locator('#save-h')).toHaveText('Save to a course');
+  await page.getByLabel('Course name').fill('Calculus I');
+  await page.locator('#save').getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#save .save-status')).toBeVisible();
+  await expect(page.locator('#save .save-status')).toContainText('Saved “hw1” to Calculus I.');
+  expect(await page.evaluate(() => sessionStorage.getItem('tagging-doctor.pending-save'))).toBeNull();
+});
+
+test('R2.1-7: when the account chunk fails to load, the scan still works without sign-in', async ({ page }) => {
+  await page.route('**/assets/preview-account-*.js', (r) => r.abort());
+  await page.goto('/');
+  await expect(page.getByText('Nothing is uploaded: the scan runs in your browser.')).toBeVisible();
+  await page.locator('#file').setInputFiles({ name: 'blockers.zip', mimeType: 'application/zip', buffer: Buffer.from(zipFixture('blockers')) });
+  await expect(page.locator('#result-h')).toHaveText('2 blockers found');
+  await expect(page.locator('#signin button')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
+});
+
+const RENAME = 'If this folder holds course material, not student records, rename it and drop the zip again.';
+const DOC_SRC = '\\documentclass{article}\\title{x}\\begin{document}\\end{document}';
+const zipOf = (files: Record<string, string>) => Buffer.from(zipSync(Object.fromEntries(Object.entries(files).map(([k, v]) => [k, strToU8(v)]))));
+
+test('AC-77: the folder warning says how to have it read, on the page and in both reports', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#file').setInputFiles({ name: 'stat201.zip', mimeType: 'application/zip', buffer: zipOf({ 'STAT201/main.tex': DOC_SRC, 'STAT201/grades/scores.tex': 'SECRET', 'STAT201/grades/hw1.txt': 'SECRET' }) });
+  await expect(page.locator('#result-h')).toHaveText('No known blockers');
+  const warning = page.locator('#result .project-warnings li', { hasText: 'Files in STAT201/grades/' });
+  await expect(warning).toContainText(`Files in STAT201/grades/ were left out as student records (2 files)`);
+  await expect(warning).toContainText(RENAME);
+  const [html] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download report' }).click()]);
+  const htmlText = fs.readFileSync(await html.path(), 'utf8');
+  expect(htmlText).toContain('Files in STAT201/grades/ were left out as student records (2 files)');
+  expect(htmlText.split(RENAME).length - 1).toBe(1);
+  const [json] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download JSON' }).click()]);
+  const data = JSON.parse(fs.readFileSync(await json.path(), 'utf8'));
+  const msg = data.projectWarnings.find((w: { path: string }) => w.path === 'STAT201/grades/').message as string;
+  expect(msg).toContain(RENAME);
+  expect(JSON.stringify(data).split(RENAME).length - 1).toBe(1);
+});
+
+test('AC-78, AC-79: documents left out with their folder are named; the renamed folder is read', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#file').setInputFiles({ name: 'calc.zip', mimeType: 'application/zip', buffer: zipOf({ 'Calculus-for-students/week1.tex': DOC_SRC, 'Calculus-for-students/week2.tex': DOC_SRC }) });
+  const alert = page.getByRole('alert');
+  await expect(alert.locator('p').first()).toHaveText(
+    'No .tex file with \\documentclass was found. 2 files in Calculus-for-students/ were left out as student records; see the warning below to have them read. A main file has a \\documentclass line and \\begin{document}.',
+  );
+  await expect(alert.locator('.project-warnings')).toContainText('Files in Calculus-for-students/ were left out as student records (2 files)');
+  await expect(alert.locator('.project-warnings')).toContainText(RENAME);
+  // The same zip with the folder renamed: read and listed, no folder warning.
+  await page.locator('#file').setInputFiles({ name: 'calc.zip', mimeType: 'application/zip', buffer: zipOf({ 'Calculus/week1.tex': DOC_SRC, 'Calculus/week2.tex': DOC_SRC }) });
+  await expect(page.getByRole('heading', { name: 'This zip holds 2 documents' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Scan Calculus/week1.tex' })).toBeVisible();
+  await page.getByRole('button', { name: 'Scan all' }).click();
+  await expect(page.locator('#all tbody tr')).toHaveCount(2);
+  await expect(page.getByText('were left out as student records')).toHaveCount(0);
+  await expect(page.getByText(RENAME)).toHaveCount(0);
 });

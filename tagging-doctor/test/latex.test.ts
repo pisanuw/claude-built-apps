@@ -36,16 +36,24 @@ describe('review round 1: the reader', () => {
   });
 
   it('R1.1-11: hostile repeated input is read in linear time', () => {
-    const t0 = performance.now();
-    findCommands(blankComments('\\input{'.repeat(100_000)), specs);
-    findCommands(blankComments('\\title['.repeat(100_000)), specs);
-    findCommands(blankComments('\\input '.repeat(100_000)), specs);
-    blankComments('\\begin{comment}\\end{comment}'.repeat(50_000));
-    blankComments('\\verb|'.repeat(100_000));
-    blankComments('\\url{'.repeat(100_000));
-    blankComments('\\verb{'.repeat(100_000));
-    blankComments('\\lstinline['.repeat(100_000));
-    expect(performance.now() - t0).toBeLessThan(3000);
+    // Compares a quarter of the input with the whole (quadratic would be 16 times slower);
+    // a wall-clock budget alone failed on a busy CI runner (a778c8f).
+    const run = (n: number) => {
+      const t0 = performance.now();
+      findCommands(blankComments('\\input{'.repeat(n)), specs);
+      findCommands(blankComments('\\title['.repeat(n)), specs);
+      findCommands(blankComments('\\input '.repeat(n)), specs);
+      blankComments('\\begin{comment}\\end{comment}'.repeat(n / 2));
+      blankComments('\\verb|'.repeat(n));
+      blankComments('\\url{'.repeat(n));
+      blankComments('\\verb{'.repeat(n));
+      blankComments('\\lstinline['.repeat(n));
+      return performance.now() - t0;
+    };
+    const small = run(25_000);
+    const big = run(100_000);
+    expect(big).toBeLessThan(8 * small + 500);
+    expect(big).toBeLessThan(15_000);
   });
 
   it('R1.2-3: \\mintinline, \\Verb, \\nolinkurl, \\path, and braces inside an argument', () => {

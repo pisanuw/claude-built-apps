@@ -370,11 +370,20 @@ describe('review round 1: the scan', () => {
   });
 
   it('R1.1-11: hostile files scan in linear time', () => {
-    const t0 = performance.now();
-    for (const body of ['\\input x '.repeat(80_000), '\\input{'.repeat(100_000), '\\title['.repeat(100_000), '\\usepackage{a}'.repeat(50_000), '\\includegraphics{a.eps}'.repeat(30_000), '\\begin{comment}\\end{comment}'.repeat(50_000)]) {
-      scanTex(`\\documentclass{article}\\begin{document}${body}`);
-    }
-    expect(performance.now() - t0).toBeLessThan(8000);
+    // Linear, not fast: a quarter of the input takes about a quarter of the time.
+    // A wall-clock budget alone failed on a busy CI runner (a778c8f), so the
+    // check compares the two sizes; quadratic time would be 16 times slower.
+    const run = (k: number) => {
+      const t0 = performance.now();
+      for (const [unit, n] of [['\\input x ', 80_000], ['\\input{', 100_000], ['\\title[', 100_000], ['\\usepackage{a}', 50_000], ['\\includegraphics{a.eps}', 30_000], ['\\begin{comment}\\end{comment}', 50_000]] as const) {
+        scanTex(`\\documentclass{article}\\begin{document}${unit.repeat(Math.round(n * k))}`);
+      }
+      return performance.now() - t0;
+    };
+    const small = run(0.25);
+    const big = run(1);
+    expect(big).toBeLessThan(8 * small + 1000);
+    expect(big).toBeLessThan(30_000);
   });
 
   it('R1.1-11: names a missing file once, however often it is read', () => {
