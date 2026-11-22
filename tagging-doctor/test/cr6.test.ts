@@ -73,7 +73,7 @@ describe('AC-78: a zip whose only documents were left out with their folder', ()
     const csvOnly = openProject('c.zip', rawZip([{ name: 'readme.txt', data: 'x' }, { name: 'grades/a.csv', data: 'x' }]));
     expect(leftOutDocumentsLines(csvOnly)).toEqual([]);
     const one = openProject('o.zip', rawZip([{ name: 'students/a.tex', data: DOC }]));
-    expect(leftOutDocumentsLines(one)).toEqual(['1 file in students/ was left out as student records; see the warning below to have them read.']);
+    expect(leftOutDocumentsLines(one)).toEqual(['1 file in students/ was left out as student records; see the warning below to have it read.']);
   });
 });
 

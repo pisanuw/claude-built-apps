@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { strToU8, zipSync } from 'fflate';
 import { expect, test, type Request } from '@playwright/test';
 import { fiftyFileZip, zipFixture } from '../test/fixture-zip';
+import { CHECKER_STUB } from '../playwright.config';
 
 // The walkthrough runs against `vite preview` (playwright.config.ts), built
 // without Supabase env: the scan runs in the browser, and sign-in is the
@@ -204,6 +205,9 @@ test('AC-13: the built scripts name only the hosts the criterion lists', async (
     'www.w3.org',
     // supabase-js's default auth address, replaced by VITE_SUPABASE_URL (auth.hintwise.org) in every client the app makes.
     'localhost',
+    // From M3b the checker's address (VITE_CHECKER_URL): the live one AC-13 names, and the walkthrough's stand-in.
+    'tagging-doctor-worker.onrender.com',
+    new URL(CHECKER_STUB).hostname,
   ]);
   const seen = new Set<string>();
   for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.js'))) {
@@ -361,4 +365,102 @@ test('AC-78, AC-79: documents left out with their folder are named; the renamed 
   await expect(page.locator('#all tbody tr')).toHaveCount(2);
   await expect(page.getByText('were left out as student records')).toHaveCount(0);
   await expect(page.getByText(RENAME)).toHaveCount(0);
+});
+
+test('AC-27, AC-29, AC-30, AC-35: compile and check against a stubbed checker', async ({ page }) => {
+  // The wake line waits 3 s between asks, and the job is polled every 2 s, in real time.
+  test.setTimeout(90_000);
+  const seen: string[] = [];
+  let health = 0;
+  let polls = 0;
+  const job = (status: string, extra: Record<string, unknown> = {}) => ({
+    id: 'c'.repeat(32), status, mainFile: 'main.tex', createdAt: '2026-11-22T12:00:00.000Z', startedAt: '2026-11-22T12:00:01.000Z',
+    finishedAt: status === 'done' ? '2026-11-22T12:00:09.000Z' : null, result: null, failure: null, logTail: [], pdf: false, expiresAt: null, note: null, ...extra,
+  });
+  const done = job('done', {
+    result: {
+      pages: 22, seconds: 7.7, warnings: 3, runs: 2, bibliography: null, validationError: null,
+      validation: {
+        profile: 'PDF/UA-2 + Tagged PDF validation profile', verapdfVersion: 'veraPDF 1.30.4', compliant: false, failedRules: 2, failedChecks: 4757,
+        clauses: [
+          { specification: 'ISO 14289-2:2024', clause: '8.2.2', testNumber: 1, failedChecks: 4668, description: 'Content that is not considered real shall be an artifact' },
+          { specification: 'ISO 14289-2:2024', clause: '8.8', testNumber: 2, failedChecks: 89, description: 'All destinations whose target lies within the current document shall be structure destinations' },
+        ],
+      },
+    },
+    logTail: ['Output written on main.pdf (22 pages, 341758 bytes).'],
+    pdf: true,
+    note: 'The PDF and this result are deleted 30 minutes after the check ends, or sooner if the checker restarts or goes to sleep.',
+  });
+  await page.route(`${CHECKER_STUB}/**`, async (route) => {
+    const r = route.request();
+    const url = new URL(r.url());
+    seen.push(`${r.method()} ${url.pathname}`);
+    const cors = { 'access-control-allow-origin': BASE, 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'GET, POST, DELETE' };
+    if (r.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    // Asleep for the first two asks: the page shows the wake line and asks again.
+    if (url.pathname === '/api/health') {
+      if (health++ < 2) return route.abort('connectionrefused');
+      return route.fulfill({ status: 200, headers: cors, json: { status: 'ok', compile: true, texlive: 'TeX Live 2026', verapdf: 'veraPDF 1.30.4' } });
+    }
+    if (url.pathname === '/api/jobs' && r.method() === 'POST') {
+      expect(r.headers().authorization).toBe('Bearer preview');
+      expect(url.searchParams.get('mainFile')).toBe('main.tex');
+      return route.fulfill({ status: 202, headers: cors, json: job('queued') });
+    }
+    if (url.pathname.endsWith('/pdf')) return route.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/pdf' }, body: '%PDF-1.7 stub' });
+    return route.fulfill({ status: 200, headers: cors, json: polls++ < 1 ? job('running') : done });
+  });
+
+  await page.goto('/');
+  await page.locator('#file').setInputFiles({ name: 'hw1.zip', mimeType: 'application/zip', buffer: Buffer.from(zipFixture('blockers')) });
+  await expect(page.locator('#result-h')).toHaveText('2 blockers found');
+  // Signed out: no Compile and check (SPEC §4, the scan screen).
+  await expect(page.getByRole('button', { name: 'Compile and check' })).toBeHidden();
+  await page.locator('#signin').getByRole('button', { name: 'Sign in with Google' }).click();
+  await page.getByRole('button', { name: 'Compile and check' }).click();
+
+  // AC-27: the notice before the first upload of the session, and nothing sent before it.
+  await expect(page.locator('#compile .upload-notice')).toHaveText(
+    'Compile sends this project’s files to the HintWise checker, which deletes them within 30 minutes. Upload only materials you wrote or may change.',
+  );
+  expect(seen).toEqual([]);
+  await page.getByRole('button', { name: 'Upload and check' }).click();
+  // The wake line, with the elapsed seconds.
+  await expect(page.locator('#compile .compile-status')).toHaveText(/^Waking the checker, about a minute \(\d+ s\)$/);
+
+  // AC-29, AC-30: the result.
+  await expect(page.locator('#compile .compiled')).toHaveText('22 pages, compiled in 7.7 s, 3 LaTeX warnings.', { timeout: 20_000 });
+  await expect(page.locator('#compile')).toContainText('Did not pass the PDF/UA-2 + Tagged PDF check');
+  await expect(page.locator('#compile')).toContainText('Checked against PDF/UA-2 + Tagged PDF validation profile by veraPDF 1.30.4.');
+  await expect(page.locator('#compile table.clauses tbody tr')).toHaveCount(2);
+  await expect(page.locator('#compile table.clauses tbody tr').first()).toContainText('Some content is neither tagged nor marked as decoration.');
+  expect(seen.filter((s) => s === 'GET /api/health').length).toBeGreaterThanOrEqual(3);
+  expect(seen).toContain('POST /api/jobs');
+
+  // The PDF.
+  const [pdf] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download the PDF' }).click()]);
+  expect(pdf.suggestedFilename()).toBe('main.pdf');
+
+  // AC-27: an unsaved scan keeps its result on the page only; saving keeps it (AC-35).
+  await expect(page.getByRole('button', { name: 'Save to keep this result' })).toBeVisible();
+  await page.getByRole('button', { name: 'Save to keep this result' }).click();
+  await page.getByLabel('Course name').fill('Calculus I');
+  await page.locator('#save').getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#compile .kept')).toHaveText('Kept in this project’s history.');
+
+  // AC-35: the project's history lists the check.
+  await page.getByRole('link', { name: 'My courses' }).click();
+  await page.getByRole('link', { name: 'Calculus I', exact: true }).click();
+  await page.getByRole('link', { name: 'hw1', exact: true }).click();
+  const checks = page.locator('#page table').filter({ has: page.locator('caption', { hasText: 'Checks, newest first' }) });
+  await expect(checks.locator('tbody tr')).toHaveCount(1);
+  await expect(checks.locator('tbody tr')).toContainText('22 pages, compiled in 7.7 s, 3 LaTeX warnings. Did not pass the PDF/UA-2 + Tagged PDF check (2 rules failed).');
+
+  // Later in the session the notice is still shown, and the upload starts at once.
+  await page.getByRole('link', { name: 'Scan', exact: true }).click();
+  await page.locator('#file').setInputFiles({ name: 'hw2.zip', mimeType: 'application/zip', buffer: Buffer.from(zipFixture('blockers')) });
+  await page.getByRole('button', { name: 'Compile and check' }).click();
+  await expect(page.locator('#compile .upload-notice')).toBeVisible();
+  await expect(page.locator('#compile .compiled')).toBeVisible({ timeout: 20_000 });
 });

@@ -135,7 +135,7 @@ export function deltaLine(d: Delta): string {
 }
 
 /**
- * A date and time for people, with its zone: "19 Nov 2026, 14:05 PST", so
+ * A date and time for people, with its zone: "19 Nov 2026, 14:05 GMT-8", so
  * scans saved the same day can be told apart. In the person's own zone
  * unless one is given (R2.1-8).
  */

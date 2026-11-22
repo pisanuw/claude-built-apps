@@ -465,7 +465,11 @@ describe('AC-19, AC-20 and AC-25: the course page, its report, and deleting', ()
     await db.insert('alt_texts', { project_id: r.project.id, figure_path: 'a.png', text: 't', decision: 'approved' });
     const t = setup({ account: fakeAccount(store, true).account });
     await t.app.route(`#/project/${r.project.id}`);
-    expect(t.q('#page').textContent).toContain('2 checks saved.');
+    // AC-35: a table of the checks, each with its scan, kind and result.
+    const rows = [...t.q('#page').querySelectorAll('table')].find((x) => x.querySelector('caption')?.textContent === 'Checks, newest first')?.querySelectorAll('tbody tr') ?? [];
+    expect(rows).toHaveLength(2);
+    expect(rows[0].textContent).toContain('original');
+    expect(rows[0].textContent).toContain('Compiled.');
     expect(t.q('#page').textContent).toContain('1 alt text saved.');
   });
 });

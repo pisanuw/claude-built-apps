@@ -1,0 +1,23 @@
+{
+  "about": "Plain words for the PDF/UA-2 clauses veraPDF reports (AC-30). The first nine were seen in the fixtures' reports (math-notes, biber-local, bibtex-local, write18, lua-socket and a figure, link and table fixture, compiled with and without tagging on the worker image, 2026-11-22, veraPDF 1.30.4); the others are common clauses of veraPDF's own PDF/UA-2 profile (PDFUA-2-ISO32005.xml in veraPDF 1.30.4). Only clauses of this specification use the map; any other clause shows veraPDF's own description.",
+  "specification": "ISO 14289-2:2024",
+  "seenInFixtures": ["8.2.2", "8.8", "8.9.3.3", "6.1", "6.2", "8.4.4", "8.2.1", "8.11.1", "8.11.2"],
+  "clauses": {
+    "8.2.2": "Some content is neither tagged nor marked as decoration. Page headers, footers, rules and other decoration must be marked as artifacts, and everything else tagged. Turning tagging on (\\DocumentMetadata with tagging=on) does this for most documents.",
+    "8.8": "Links inside the document (cross-references, the table of contents, footnote marks) point at a page position instead of at the tagged element. Tagging on, with hyperref loaded after it, makes them structure destinations.",
+    "8.9.3.3": "A page with links or other annotations does not say in which order a keyboard moves through them (the Tabs entry). Tagging on sets it.",
+    "6.1": "The PDF is not PDF 2.0. Add pdfversion=2.0 to \\DocumentMetadata.",
+    "6.2": "The PDF does not declare itself as tagged (MarkInfo with Marked true). Turn tagging on in \\DocumentMetadata.",
+    "8.4.4": "The document's language is not set, so a screen reader cannot choose its voice. Add lang=en-US (or your language) to \\DocumentMetadata.",
+    "8.2.1": "The PDF has no structure tree: it is not tagged at all. Turn tagging on in \\DocumentMetadata.",
+    "8.11.1": "The PDF has no XMP metadata stream, or one of the wrong kind. \\DocumentMetadata with pdfstandard=ua-2 writes it.",
+    "8.11.2": "A PDF viewer will show the file name instead of the document's title (DisplayDocTitle). Give the document a title; \\DocumentMetadata with pdfstandard=ua-2 sets the rest.",
+    "5": "The PDF does not say in its metadata that it aims at PDF/UA-2. Add pdfstandard=ua-2 to \\DocumentMetadata.",
+    "8.2.4": "Some tags are of a kind the standard does not know and are not mapped to one it knows. A package that makes its own tags usually causes this.",
+    "8.2.5.2": "The structure tree does not start with a single Document element.",
+    "8.2.5.20": "A link is not inside a Link or Reference tag, so a screen reader does not announce it as a link.",
+    "8.2.5.26": "A table is not regular: its cells overlap or rows have different lengths. Merged cells from some table packages cause this.",
+    "8.2.5.28.2": "A figure has no alternate text. Give it one with the alt key of \\includegraphics, or mark it as decoration.",
+    "8.4.3": "Some characters map to Unicode's private use area, so they cannot be read aloud; they need an ActualText or alternate text. Symbol fonts often cause this."
+  }
+}

@@ -9,8 +9,11 @@
  */
 import { loadStatus } from './core/status';
 import { hasSupabase } from './lib/supabase';
-import { browserDownload, mountApp } from './ui/app';
+import { browserDownload, browserDownloadBlob, mountApp } from './ui/app';
 import { chooseAccount } from './ui/choose-account';
+import { checkerUrl } from './lib/checker';
+
+const checker = checkerUrl();
 
 const root = document.getElementById('app');
 if (!root) throw new Error('index.html needs <div id="app">');
@@ -40,6 +43,13 @@ mountApp(root, {
   account,
   confirm: (m) => window.confirm(m),
   print: () => window.print(),
+  // Compile and check, when the build turns it on (VITE_COMPILE_CHECK) and names the checker (VITE_CHECKER_URL).
+  compile: checker
+    ? {
+        checker: { base: checker, fetch: (...a) => fetch(...a), sleep: (ms) => new Promise((r) => setTimeout(r, ms)), now: () => Date.now() },
+        downloadBlob: browserDownloadBlob,
+      }
+    : undefined,
 });
 
 // The page must not open a file dropped outside the drop area.

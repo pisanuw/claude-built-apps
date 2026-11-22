@@ -70,5 +70,6 @@ export function previewAccount(now: () => Date = () => new Date()): Account {
       client.auth.onAuthStateChange((_e, s) => cb(s?.user ? { id: s.user.id } : null));
     },
     store: () => store,
+    token: async () => (await client.auth.getSession()).data.session?.access_token ?? null,
   };
 }
