@@ -44,6 +44,14 @@ beforeEach(() => {
 });
 
 describe('the page', () => {
+  it('links to the command-line tool and its instructions', () => {
+    const t = setup();
+    const links = [...t.$('cli-note').querySelectorAll('a')].map((a) => [a.textContent, a.getAttribute('href')]);
+    expect(links).toEqual([
+      ['command-line tool', '/terminal/'],
+      ['How to install and use it', 'https://github.com/pisanuw/claude-built-apps/blob/main/lewis-alt-text/cli/INSTRUCTIONS.md'],
+    ]);
+  });
   it('ends with the credit to the skill author, after the command-line link', () => {
     const t = setup();
     const credit = t.$('credit');
