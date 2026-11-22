@@ -740,3 +740,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-22 [note] lewis-alt-text deployed (run 45004414936): the CLI download now has --use-own-key and --use-local-subscription
 
 2026-11-22 [decision] lewis-alt-text CLI keeps the server-side refusal fallback for --use-own-key on Opus and Sonnet (owner approved)
+
+2026-11-22 [doc] Added the session-relay skill at .claude/skills/session-relay/ (from the owner's zip), so every session on this repo, relay successors included, can load the skill HANDOFF.md names.
