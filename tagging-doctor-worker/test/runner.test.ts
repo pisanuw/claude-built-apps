@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  BCF_READ_BYTES,
   CANCELLED_MESSAGE,
   fileContains,
   NO_NETWORK,
@@ -270,5 +271,50 @@ describe('round 1 of review m3a', () => {
       expect(out.failure, at).toEqual({ kind: 'cancelled', message: CANCELLED_MESSAGE, error: null });
       expect(calls.at(-1)?.argv.includes(at), at).toBe(true);
     }
+  });
+});
+
+describe('R3a.3-1 (a): the .bcf check over a file the job writes', () => {
+  it('stays linear on unclosed and unopened data sources', () => {
+    // D-55: a size against eight times that size, for each shape. The old expression
+    // took 0.6 s on 128 KB and 41 s on 1 MB of `<datasource ` (64 times); a linear
+    // one about 8 times. Then 8 MB of each, with a loose bound.
+    const fill = (unit: string, n: number) => unit.repeat(Math.ceil(n / unit.length)).slice(0, n);
+    const shapes: [string, (n: number) => string][] = [
+      ['<datasource ', (n) => fill('<datasource ', n)],
+      ['<datasource>', (n) => fill('<datasource>', n)],
+      ['<datasource><![CDATA[', (n) => fill('<datasource><![CDATA[', n)],
+      ['one opening, then CDATA openings', (n) => '<bcf:datasource>' + fill('<![CDATA[', n)],
+      ['one opening, then text', (n) => '<bcf:datasource type="file">' + 'x'.repeat(n)],
+    ];
+    const time = (bcf: string) => {
+      const t0 = performance.now();
+      expect(remoteDataSources(bcf)).toEqual([]);
+      return performance.now() - t0;
+    };
+    for (const [name, make] of shapes) {
+      const small = make(128 * 1024);
+      const large = make(1024 * 1024);
+      time(small);
+      const a = time(small);
+      const b = time(large);
+      expect(b, name).toBeLessThan(16 * a + 250);
+      expect(time(make(8 * 1024 * 1024)), name).toBeLessThan(5_000);
+    }
+  }, 120_000);
+
+  it('still finds a source next to many unclosed tags', () => {
+    expect(remoteDataSources('<datasource '.repeat(1000) + '<bcf:datasource type="file">https://x/y.bib</bcf:datasource>')).toEqual(['https://x/y.bib']);
+    expect(remoteDataSources('<datasource>'.repeat(1000) + '<bcf:datasource type="file"><![CDATA[https://x/y.bib]]></bcf:datasource>')).toHaveLength(1);
+  });
+
+  it('reads only the last 1 MB of the .bcf: a source before that gets biber, which the proxy layer stops', async () => {
+    expect(BCF_READ_BYTES).toBe(1024 * 1024);
+    const source = '<bcf:datasource type="file">http://127.0.0.1:9/far.bib</bcf:datasource>';
+    const pad = `<!--${'x'.repeat(BCF_READ_BYTES)}-->`;
+    const far = await run({ tex: [(c, b) => (okRun(c, b), writeFileSync(path.join(c, `${b}.bcf`), source + pad)), (c, b) => okRun(c, b)] });
+    expect(far.result?.bibliography).toBe('biber');
+    const near = await run({ tex: [(c, b) => (okRun(c, b), writeFileSync(path.join(c, `${b}.bcf`), pad + source))] });
+    expect(near.failure).toMatchObject({ kind: 'bibliography', message: REMOTE_BIBLIOGRAPHY_MESSAGE });
   });
 });

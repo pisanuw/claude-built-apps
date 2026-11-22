@@ -1,4 +1,9 @@
-/** What the worker reads from a LuaLaTeX log (pure). The log itself goes only to the job's owner. */
+/**
+ * What the worker reads from a LuaLaTeX log (pure). The log itself goes only to the job's owner.
+ * A job writes its own log, and these run on the server's only thread, so each
+ * one takes time that grows with the log's size, not its square, and the log
+ * is capped (its last 2 MB) before it gets here (R3a.3-1, D-76).
+ */
 
 export interface TexError {
   file: string | null;
@@ -6,9 +11,20 @@ export interface TexError {
   message: string;
 }
 
-/** The page count from "Output written on x.pdf (22 pages, ...)", or null. */
+const OUTPUT_WRITTEN = 'Output written on ';
+/** How far after "Output written on " the page count may be: a 512-character name wrapped at 79 is under 600. */
+const OUTPUT_LINE_CHARS = 1000;
+
+/**
+ * The page count from "Output written on x.pdf (22 pages, ...)", or null.
+ * TeX writes that line after anything the document writes to its log, so only
+ * the last one is read, and only its next 1,000 characters (the name may wrap
+ * across lines): a log full of the phrase with no count stays linear (R3a.3-1).
+ */
 export function pageCount(log: string): number | null {
-  const m = /Output written on .*?\((\d+) pages?/s.exec(log);
+  const at = log.lastIndexOf(OUTPUT_WRITTEN);
+  if (at < 0) return null;
+  const m = /^Output written on .*?\((\d+) pages?/s.exec(log.slice(at, at + OUTPUT_LINE_CHARS));
   return m ? Number(m[1]) : null;
 }
 

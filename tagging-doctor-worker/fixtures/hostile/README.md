@@ -16,3 +16,9 @@ its own), which must never be fetched (R3a.1-2); `biber-local.tex`,
 `bibtex-local.tex` and `refs.bib` are ordinary bibliographies that must still
 work; `empty-with-pdf.tex` is uploaded beside a `main.pdf` that must not be
 served as the result (R3a.1-7).
+
+Added after review round 3 of milestone 3a (R3a.3-1): `bcf-flood.tex` writes its
+own `main.bcf` as 1 MB of unclosed `<datasource ` tags, and `log-flood.tex`
+fills its log with "Output written on " and no page count and writes its own
+`main.pdf`. The server reads both files on its only thread; the test asks the
+health route every 200 ms during each job and requires every answer within 2 s.

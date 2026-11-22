@@ -88,15 +88,31 @@ export const JAVA_NO_NETWORK = [
 ];
 
 /**
+ * How much of a .bcf the message check reads: its last 1 MB. A real one is
+ * about 100 KB; a source beyond that is still not fetched (NO_NETWORK), it only
+ * gets biber's message instead of the plain one (R3a.3-1, D-76).
+ */
+export const BCF_READ_BYTES = 1024 * 1024;
+
+/**
+ * A `datasource` element under any prefix, with spaces in the end tag. No part
+ * of it can cross a `<` except a CDATA opening, and the body is unrolled, so
+ * the time grows with the input's size, not its square, whatever a job writes
+ * (R3a.3-1, D-76: it runs on the server's only thread). A CDATA section that
+ * holds a `<` is not found; that costs only the plain message.
+ */
+const DATASOURCE = /<(?:[\w.-]+:)?datasource\b[^<>]*>([^<]*(?:<!\[CDATA\[[^<]*)*)<\/\s*(?:[\w.-]+:)?datasource\s*>/g;
+
+/**
  * The data sources in a biber control file (.bcf) that would make biber fetch
  * (R3a.1-2). Only for a plain message: the guarantee is NO_NETWORK. Reads the
  * elements named `datasource` under any prefix, with spaces in the end tag,
  * and takes a value with a URL scheme, a character reference or a CDATA
- * section as remote. A drive letter (`C:`) is not a scheme. Pure.
+ * section as remote. A drive letter (`C:`) is not a scheme. Linear. Pure.
  */
 export function remoteDataSources(bcf: string): string[] {
   const found: string[] = [];
-  for (const m of bcf.matchAll(/<(?:[\w.-]+:)?datasource\b[^>]*>([\s\S]*?)<\/\s*(?:[\w.-]+:)?datasource\s*>/g)) {
+  for (const m of bcf.matchAll(DATASOURCE)) {
     const raw = m[1];
     const value = raw.replace(/&amp;/g, '&').trim();
     if (/&#|<!\[CDATA\[/i.test(raw) || /^[a-z][a-z0-9+.-]+:/i.test(value)) found.push(value);
@@ -250,7 +266,7 @@ export class TexRunner implements Runner {
     else if (aux && fileContains(aux, '\\bibdata{')) bibliography = 'bibtex';
     if (bcf) {
       // A plain message for a remote bibliography; NO_NETWORK is what stops the fetch (D-72).
-      const remote = remoteDataSources(readTail(bcf, 8 * 1024 * 1024));
+      const remote = remoteDataSources(readTail(bcf, BCF_READ_BYTES));
       if (remote.length > 0) return fail('bibliography', REMOTE_BIBLIOGRAPHY_MESSAGE, log);
     }
     if (bibliography) {

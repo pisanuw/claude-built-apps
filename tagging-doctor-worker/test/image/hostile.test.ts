@@ -188,7 +188,7 @@ describe('AC-31: hostile fixtures', () => {
       await withoutEffect(j);
     });
 
-    it('a .bcf the job writes itself, with the URL in five forms an XML reader accepts, and over https and ftp: nothing is fetched', async () => {
+    it('a .bcf the job writes itself, with the URL in five forms an XML reader accepts, before and within its last 1 MB, and over https and ftp: nothing is fetched', async () => {
       const u = listener.url;
       const host = u.replace('http://', '');
       const variants: Record<string, string> = {
@@ -198,12 +198,16 @@ describe('AC-31: hostile fixtures', () => {
         endtag: bcf(ds(`${u}/v3-endtag.bib`).replace('</bcf:datasource>', '</bcf:datasource >')),
         prefix: bcf(ds(`${u}/v4-prefix.bib`, 'x:datasource', 'xmlns:x="https://sourceforge.net/projects/biblatex" ')),
         middle: bcf(ds(`${u}/v5-middle.bib`), `<!-- ${'m'.repeat(1_200_000)} -->`),
+        // R3a.3-1 (D-76): the check reads the last 1 MB; a source within it, after 1.2 MB, still gets the plain message.
+        late: fixture('biblatex-bcf.txt').replace('@DATASOURCE@', `<!-- ${'m'.repeat(1_200_000)} -->${ds(`${u}/v6-late.bib`)}`),
         https: bcf(ds(`https://${host}/v8-https.bib`)),
         ftp: bcf(ds(`ftp://${host}/v9-ftp.bib`)),
       };
       for (const [name, text] of Object.entries(variants)) {
         const j = await runFiles({ 'main.tex': fixture('writes-own-bcf.tex'), 'bcf.txt': text });
-        expect(j.logTail.join('\n'), name).toContain('HOSTILE-RESULT: wrote main.bcf');
+        // R3a.3-1 (D-76): "middle" sits beyond the last 1 MB the check reads, so biber tries and the proxy layer stops it.
+        if (name === 'middle') expect(j.logTail.join('\n'), name).toContain("Can't connect to 127.0.0.1:9");
+        else expect(j.logTail.join('\n'), name).toContain('HOSTILE-RESULT: wrote main.bcf');
         expect(j.status, name).toBe('failed');
         expect(j.failure?.kind, name).toBe('bibliography');
         expect(listener.seen, name).toEqual([]);
@@ -253,6 +257,57 @@ describe('AC-31: hostile fixtures', () => {
     expect(j.status).toBe('failed');
     expect(j.failure?.kind).toBe('no-pdf');
     expect(j.pdf).toBe(false);
+  });
+
+  describe('R3a.3-1: a file the job writes cannot stop the server answering', () => {
+    /** Runs the job while asking the health route every 200 ms; the slowest answer (ms) and how many came. */
+    async function healthDuring(name: string): Promise<{ j: JobView; worst: number; answers: number; missed: number }> {
+      let running = true;
+      let worst = 0;
+      let answers = 0;
+      let missed = 0;
+      const poll = (async () => {
+        while (running) {
+          const t0 = performance.now();
+          try {
+            const r = await fetch(`${w.base}/api/health`, { signal: AbortSignal.timeout(5_000) });
+            await r.text();
+            if (r.ok) answers++;
+          } catch {
+            missed++;
+          }
+          worst = Math.max(worst, performance.now() - t0);
+          await new Promise((r) => setTimeout(r, 200));
+        }
+      })();
+      const j = await run(name);
+      running = false;
+      await poll;
+      return { j, worst, answers, missed };
+    }
+
+    it('(a) a 1 MB .bcf of unclosed <datasource tags: health answers throughout, biber fails on it', async () => {
+      const { j, worst, answers, missed } = await healthDuring('bcf-flood.tex');
+      console.log(`R3a.3-1 (a): ${seconds(j)} s, ${answers} health answers, slowest ${Math.round(worst)} ms, ${missed} missed`);
+      expect(j.status).toBe('failed');
+      expect(j.failure).toMatchObject({ kind: 'bibliography', message: 'biber stopped with an error.' });
+      expect(missed).toBe(0);
+      expect(answers).toBeGreaterThan(0);
+      expect(worst).toBeLessThan(2_000);
+      await withoutEffect(j);
+    });
+
+    it('(b) a log full of "Output written on " with no count: health answers throughout, the job ends done with no page count', async () => {
+      const { j, worst, answers, missed } = await healthDuring('log-flood.tex');
+      console.log(`R3a.3-1 (b): ${seconds(j)} s, ${answers} health answers, slowest ${Math.round(worst)} ms, ${missed} missed`);
+      expect(results(j)).toContain('flooded the log');
+      expect(j.status).toBe('done');
+      expect(j.result?.pages).toBeNull();
+      expect(missed).toBe(0);
+      expect(answers).toBeGreaterThan(0);
+      expect(worst).toBeLessThan(2_000);
+      await withoutEffect(j);
+    });
   });
 
   it('AC-64: the logs hold no marker, no token and no source text', () => {

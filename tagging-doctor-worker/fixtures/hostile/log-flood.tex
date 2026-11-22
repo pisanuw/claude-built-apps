@@ -1,0 +1,13 @@
+\documentclass{article}
+\usepackage{luacode}
+\begin{document}
+\begin{luacode*}
+-- R3a.3-1 (b): the log filled with "Output written on " and no page count,
+-- no page typeset, and a main.pdf of the document's own, so the job ends done.
+for i = 1, 130000 do texio.write("log", "Output written on ") end
+local pdf = io.open("main.pdf", "wb")
+pdf:write("%PDF-1.4\n%%EOF\n")
+pdf:close()
+texio.write_nl("HOSTILE-RESULT: flooded the log")
+\end{luacode*}
+\end{document}
