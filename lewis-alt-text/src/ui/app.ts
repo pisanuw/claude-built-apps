@@ -5,6 +5,7 @@
  */
 import { writeAltText, type Generate, type Result } from '../core/alt-text';
 import { prepareImage, type PreparedImage } from '../core/image';
+import { INSTRUCTIONS_URL } from '../core/remote';
 import { InputError } from '../core/request';
 import { CapReached, GatewayError, getByokKey, getMode, LlmUnavailable, setByokKey, setMode, type LlmMode } from '../lib/llm';
 import { allowanceText, capMessage, formatReset, type Allowance } from './allowance';
@@ -117,6 +118,9 @@ const SHELL = `
     </div>
     <p class="muted small">Check the alt text against the image before you publish it. The model can miscount bonds, dots or charges.</p>
   </section>
+
+  <p class="muted small" id="cli-note">Many figures? The <a href="/terminal/">command-line tool</a> writes alt text for a whole folder at once. <a href="${INSTRUCTIONS_URL}">How to install and use it</a>.</p>
+  <p class="muted small" id="credit">This app was built by HintWise for Scott Rayermann &lt;<a href="mailto:scottpr@uw.edu">scottpr@uw.edu</a>&gt; who created the initial skill for generating alt-text descriptions from images.</p>
 `;
 
 export interface App {

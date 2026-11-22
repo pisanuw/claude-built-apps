@@ -50,6 +50,20 @@ describe('with a code in the address', () => {
   });
 });
 
+describe('getting the tool', () => {
+  it('offers the single file for download, with the instructions', () => {
+    const t = setup();
+    const a = t.$<HTMLAnchorElement>('download');
+    expect(a.getAttribute('href')).toBe('/cli/lewis-alt-text.mjs');
+    expect(a.getAttribute('download')).toBe('lewis-alt-text.mjs');
+    expect(document.body.innerHTML).toContain('cli/INSTRUCTIONS.md');
+  });
+  it('does not offer it again on the page that shows a code', () => {
+    const t = setup({ href: `${PAGE}?token_hash=abc123` });
+    expect(t.$('download')).toBeNull();
+  });
+});
+
 describe('asking for a link', () => {
   it('needs an email address', async () => {
     const t = setup();

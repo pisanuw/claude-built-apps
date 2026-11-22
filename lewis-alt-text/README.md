@@ -47,42 +47,60 @@ to "Sign out"), then "Delete my account". It deletes your HintWise account and y
 
 ## Command line
 
-`cli/lewis-alt-text` writes alt text with the same prompt and checks. It
-needs Node 22.18 or newer, which runs the app's TypeScript core directly; no
-`npm install`. Run it from a clone of this repository (or put `cli/` on your
-PATH through a symlink).
-
-**Through the live app** (your HintWise allowance; no key, no Claude Code):
-
-```sh
-cli/lewis-alt-text login      # once per computer
-cli/lewis-alt-text figure.png
-cli/lewis-alt-text figure.png --purpose question --focus geometry --context "HW 3, question 2"
-cli/lewis-alt-text *.png --json > alt-text.jsonl
-cli/lewis-alt-text status     # who is signed in, how many alt texts are left
-cli/lewis-alt-text logout
-```
-
-`login` signs the terminal in without a browser session of its own: open
-[lewis-alt-text.hintwise.org/terminal/](https://lewis-alt-text.hintwise.org/terminal/),
-enter your email, open the link HintWise emails you, and paste the code that
-page shows (or the whole link) into the terminal. The page never uses the
-code, so the terminal gets its own session. It is saved in
-`~/.config/lewis-alt-text/session.json`, readable only by you, and refreshed
-on each run. Treat that file like a password; `logout` ends the session and
-deletes it. Images go up to about 680 kB, the gateway's limit; crop or shrink
-larger ones.
-
-**Through your local Claude Code** (your Claude subscription), add `--local`:
+The command-line tool writes alt text with the same prompt and checks, for
+many images at once. **People who use it** download one self-contained file,
+`lewis-alt-text.mjs`, from
+[lewis-alt-text.hintwise.org/terminal/](https://lewis-alt-text.hintwise.org/terminal/)
+and run it with Node.js (20.16 or newer; no `npm install`). Step-by-step
+instructions for someone who has never used a terminal:
+[cli/INSTRUCTIONS.md](./cli/INSTRUCTIONS.md).
 
 ```sh
-cli/lewis-alt-text figure.png --local
-cli/lewis-alt-text figure.png --local --model sonnet
+node lewis-alt-text.mjs login        # once per computer
+node lewis-alt-text.mjs figure.png
+node lewis-alt-text.mjs figure.png --purpose question --focus geometry --context "HW 3, question 2"
+node lewis-alt-text.mjs my-figures --json > alt-text.jsonl
+node lewis-alt-text.mjs status       # who is signed in, how many alt texts are left
+node lewis-alt-text.mjs figure.png --use-local-subscription   # your Claude subscription, through Claude Code
+node lewis-alt-text.mjs figure.png --use-own-key              # your own Anthropic API key, billed per image
 ```
 
-Other options: `--audit` prints the atom-by-atom inventory to stderr,
-`--model` picks opus (default), sonnet or haiku. Exit status: 0 alt text
-written, 2 the model asked a question (answer it with `--context`), 1 error.
+Every run that writes alt text starts with a `Using:` line naming who pays:
+the HintWise allowance (the default), the Claude subscription, or the
+person's own key. `--use-local-subscription` starts Claude Code without
+`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` or the Bedrock, Vertex and
+Foundry switches, and stops before anything is sent if Claude Code's startup
+message still names an API key as its credential. `--use-own-key` takes the
+key from `ANTHROPIC_API_KEY` or asks for it without echo; it is never saved,
+never used without the flag, and goes to api.anthropic.com through the
+Anthropic SDK, with the API's server-side refusal fallback on Opus and Sonnet.
+A run ends with the tokens billed to the key. `--local` still works, with a
+note pointing to the new name.
+
+`login` signs the terminal in without a browser session of its own: the
+/terminal/ page asks for an email, the link HintWise emails returns there with
+a code, and the page shows the code (never using it) for the person to paste
+into the terminal. The terminal's session is saved in
+`~/.config/lewis-alt-text/session.json`, readable only by its owner, and
+refreshed on each run; `logout` ends it and deletes the file.
+
+What the file does for a newcomer: it runs under any name a download ends up
+with (`.mjs`, `(1).mjs`, `.js`, `.txt`, none), since it has no import
+statements and takes Node's built-in modules from `process.getBuiltinModule`;
+it says what to install on a Node too old for that; help and messages show
+the command as the person typed it; it reads folders and expands `*.png`
+itself (the Windows shells do not); it signs in on the way when someone at a
+terminal gives it an image first; it re-asks for a mistyped sign-in code; on
+a Mac it shrinks large images and converts HEIC, TIFF and BMP with the
+built-in `sips`; and each likely mistake (a typo in a command, an unquoted
+`--context`, a file macOS will not let the terminal read) has a message that
+says what to do.
+
+**From a clone**, `cli/lewis-alt-text` runs the TypeScript source in
+`src/cli/` directly (Node 22.18 or newer). `npm run build` also builds the
+single file into `dist/cli/lewis-alt-text.mjs` (`npm run build:cli` builds
+only that), and `test/cli/bundle.test.ts` runs the built file under several
+names.
 
 ## One honest limitation
 
@@ -107,7 +125,9 @@ npm run e2e                       # Playwright walkthrough against vite preview,
 | `src/core/` | prompt, request, reply parsing and checks, image resizing; shared with the CLI |
 | `src/ui/` | the page and the allowance messages |
 | `src/lib/` | the HintWise template: sign-in, account deletion, model calls |
-| `cli/` | command-line tool: the live app (signed in) or the local `claude` CLI |
+| `src/cli/` | command-line tool: the live app (signed in) or the local `claude` CLI |
+| `cli/` | `lewis-alt-text` (runs `src/cli/` from a clone) and `INSTRUCTIONS.md` (for people who download the single file) |
+| `scripts/build-cli.mjs` | bundles `src/cli/` into the downloadable `dist/cli/lewis-alt-text.mjs` |
 | `terminal/`, `src/terminal.ts` | the /terminal/ page that signs the command-line tool in |
 | `test/fixtures/` | generated test figures, each with a `.truth.txt` of what is drawn |
 

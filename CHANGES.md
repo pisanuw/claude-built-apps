@@ -729,3 +729,13 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-19 [code] tagging-doctor day 1: spec approved in round 3; milestone 1 (in-browser LaTeX tagging-compatibility scan, HTML and JSON reports)
 2026-11-20 [code] tagging-doctor day 2: milestone 2 (sign-in, courses, saved scans and history, course report, export and delete, app_tagging_doctor schema); record folders left out (CR-1, CR-6), class fixes (CR-2), copy-named zips and the course report's data line (CR-4, CR-5)
 2026-11-21 [code] tagging-doctor day 3: milestone 3a (tagging-doctor-worker: LuaLaTeX and veraPDF checker for Render's free instance, isolation, limits, hostile fixtures; Docker services in the Render deploy runner); code review escalated after round 3 on one finding
+
+2026-11-22 [code] lewis-alt-text: CLI is now one downloadable file (dist/cli/lewis-alt-text.mjs, link on /terminal/), hardened for newcomers; cli/INSTRUCTIONS.md for people with no terminal experience
+
+2026-11-22 [note] lewis-alt-text: deployed de888ab on the owner's yes (run 45000683908); live /cli/lewis-alt-text.mjs downloads and runs; instructions stay on GitHub (owner, question 3)
+
+2026-11-22 [code] lewis-alt-text CLI: --use-own-key (own Anthropic key) and --use-local-subscription (replaces --local); every run prints who pays; subscription mode strips API keys and refuses a key
+
+2026-11-22 [note] lewis-alt-text deployed (run 45004414936): the CLI download now has --use-own-key and --use-local-subscription
+
+2026-11-22 [decision] lewis-alt-text CLI keeps the server-side refusal fallback for --use-own-key on Opus and Sonnet (owner approved)

@@ -6,6 +6,7 @@ import {
   CapReachedError,
   createRemote,
   parseCode,
+  networkReason,
   RemoteError,
   sessionFromAuth,
   SignedOut,
@@ -70,6 +71,19 @@ describe('sessionFromAuth', () => {
   it('refuses an answer without a session', () => {
     expect(() => sessionFromAuth({ access_token: 'x' }, NOW)).toThrow(RemoteError);
     expect(() => sessionFromAuth(null, NOW)).toThrow(/without a session/);
+  });
+});
+
+describe('messages', () => {
+  it('name the login command the person uses', async () => {
+    const remote = createRemote({ supabaseUrl: 'https://auth.example', anonKey: 'anon', store: memStore(null), loginCommand: 'node lat.mjs login' });
+    await expect(remote.session()).rejects.toThrow('This computer is not signed in to HintWise. Run: node lat.mjs login');
+  });
+  it('say why the network failed', () => {
+    expect(networkReason(new TypeError('fetch failed', { cause: Object.assign(new Error('getaddrinfo'), { code: 'ENOTFOUND' }) }))).toBe('fetch failed (ENOTFOUND)');
+    expect(networkReason(new TypeError('fetch failed', { cause: new Error('self-signed certificate') }))).toBe('fetch failed (self-signed certificate)');
+    expect(networkReason(new Error('offline'))).toBe('offline');
+    expect(networkReason('down')).toBe('down');
   });
 });
 

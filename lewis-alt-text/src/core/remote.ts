@@ -16,7 +16,11 @@ import { InputError } from './request.ts';
 
 /** The gateway's app row; the same as src/lib/supabase.ts APP_SLUG (a test checks). */
 export const APP = 'lewis-alt-text';
-export const TERMINAL_URL = 'https://lewis-alt-text.hintwise.org/terminal/';
+export const APP_URL = 'https://lewis-alt-text.hintwise.org';
+export const TERMINAL_URL = `${APP_URL}/terminal/`;
+/** The downloadable single-file tool (scripts/build-cli.mjs), and how to use it. */
+export const DOWNLOAD_PATH = '/cli/lewis-alt-text.mjs';
+export const INSTRUCTIONS_URL = 'https://github.com/pisanuw/claude-built-apps/blob/main/lewis-alt-text/cli/INSTRUCTIONS.md';
 /** Refresh this long before the access token expires. */
 export const REFRESH_MARGIN_MS = 60_000;
 
@@ -40,6 +44,8 @@ export interface RemoteOptions {
   store: SessionStore;
   fetch?: typeof fetch;
   now?: () => number;
+  /** How the person runs login, for messages: what they typed to start the tool. */
+  loginCommand?: string;
 }
 
 export interface Allowance {
@@ -51,7 +57,7 @@ export interface Allowance {
 
 /** Not signed in, or the session has ended: the message says to run login. */
 export class SignedOut extends Error {
-  constructor(message = 'This terminal is not signed in to HintWise. Run: lewis-alt-text login') {
+  constructor(message = 'This computer is not signed in to HintWise. Run: lewis-alt-text login') {
     super(message);
     this.name = 'SignedOut';
   }
@@ -113,6 +119,14 @@ export function sessionFromAuth(data: unknown, now: number): Session {
   return { accessToken: access, refreshToken: refresh, expiresAt, email: typeof user.email === 'string' ? user.email : null };
 }
 
+/** Why fetch failed, in a few words: Node puts the useful part (ENOTFOUND, a certificate error) in the cause. */
+export function networkReason(e: unknown): string {
+  const message = e instanceof Error ? e.message : String(e);
+  const cause = e instanceof Error ? (e.cause as { code?: unknown; message?: unknown } | undefined) : undefined;
+  const detail = typeof cause?.code === 'string' ? cause.code : typeof cause?.message === 'string' ? cause.message : '';
+  return detail && detail !== message ? `${message} (${detail})` : message;
+}
+
 function messageOf(data: unknown, fallback: string): string {
   const d = (typeof data === 'object' && data !== null ? data : {}) as Record<string, unknown>;
   for (const k of ['message', 'msg', 'error_description', 'error']) {
@@ -126,13 +140,14 @@ export function createRemote(o: RemoteOptions) {
   const doFetch = o.fetch ?? fetch;
   const now = o.now ?? Date.now;
   const authHeaders = { apikey: o.anonKey, 'content-type': 'application/json' };
+  const login = o.loginCommand ?? 'lewis-alt-text login';
 
   async function post(url: string, headers: Record<string, string>, body: unknown): Promise<{ status: number; ok: boolean; data: unknown }> {
     let res: Response;
     try {
       res = await doFetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
     } catch (e) {
-      throw new RemoteError(0, `Could not reach HintWise: ${e instanceof Error ? e.message : String(e)}`);
+      throw new RemoteError(0, `Could not reach HintWise: ${networkReason(e)}. Check the internet connection and try again.`);
     }
     return { status: res.status, ok: res.ok, data: await res.json().catch(() => null) };
   }
@@ -153,7 +168,7 @@ export function createRemote(o: RemoteOptions) {
     const r = await post(`${base}/auth/v1/token?grant_type=refresh_token`, authHeaders, { refresh_token: s.refreshToken });
     if (r.status >= 400 && r.status < 500) {
       await o.store.clear();
-      throw new SignedOut('Your HintWise sign-in in this terminal has ended. Run: lewis-alt-text login');
+      throw new SignedOut(`The HintWise sign-in on this computer has ended. Run: ${login}`);
     }
     if (!r.ok) throw new RemoteError(r.status, messageOf(r.data, `The sign-in service answered ${r.status}.`));
     const next = sessionFromAuth(r.data, now());
@@ -165,7 +180,7 @@ export function createRemote(o: RemoteOptions) {
   /** The saved session, refreshed when it is about to expire (or when forced). */
   async function session(force = false): Promise<Session> {
     const s = await o.store.load();
-    if (!s) throw new SignedOut();
+    if (!s) throw new SignedOut(`This computer is not signed in to HintWise. Run: ${login}`);
     return force || s.expiresAt - now() < REFRESH_MARGIN_MS ? refresh(s) : s;
   }
 
@@ -177,7 +192,7 @@ export function createRemote(o: RemoteOptions) {
       await session(true); // a refreshed token, then once more
       return gateway(body, true);
     }
-    if (r.status === 401) throw new SignedOut('HintWise no longer accepts this terminal\'s sign-in. Run: lewis-alt-text login');
+    if (r.status === 401) throw new SignedOut(`HintWise no longer accepts the sign-in on this computer. Run: ${login}`);
     if (r.status === 429 && d.error === 'cap') {
       throw new CapReachedError(String(d.scope ?? 'app-day'), typeof d.resets_at === 'string' ? d.resets_at : null);
     }

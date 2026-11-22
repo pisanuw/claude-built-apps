@@ -43,6 +43,26 @@ beforeEach(() => {
   document.body.innerHTML = '';
 });
 
+describe('the page', () => {
+  it('links to the command-line tool and its instructions', () => {
+    const t = setup();
+    const links = [...t.$('cli-note').querySelectorAll('a')].map((a) => [a.textContent, a.getAttribute('href')]);
+    expect(links).toEqual([
+      ['command-line tool', '/terminal/'],
+      ['How to install and use it', 'https://github.com/pisanuw/claude-built-apps/blob/main/lewis-alt-text/cli/INSTRUCTIONS.md'],
+    ]);
+  });
+  it('ends with the credit to the skill author, after the command-line link', () => {
+    const t = setup();
+    const credit = t.$('credit');
+    expect(credit.textContent).toBe(
+      'This app was built by HintWise for Scott Rayermann <scottpr@uw.edu> who created the initial skill for generating alt-text descriptions from images.',
+    );
+    expect(credit.querySelector('a')?.getAttribute('href')).toBe('mailto:scottpr@uw.edu');
+    expect(t.root.lastElementChild).toBe(credit);
+  });
+});
+
 describe('choosing a key', () => {
   it('starts on your own key when sign-in is not set up', () => {
     const t = setup();

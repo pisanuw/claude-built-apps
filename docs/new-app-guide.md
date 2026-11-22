@@ -47,7 +47,7 @@ The usual architecture (owner, 10 Nov 2026; the table in BUILD_ROUTINE.md has th
 | Model calls | the LLM gateway, plus bring-your-own-key (section 7) |
 | App email | Resend from a Netlify Function, sender `<slug>@hintwise.org` (section 8) |
 | Scheduled work | Netlify Scheduled Functions for light jobs; Render for heavy ones |
-| A long-running server | Render: a path prefix in `backend-hub` first (free instance: sleeps when idle, 512 MB) |
+| A long-running server | Render: a path prefix in `backend-hub` by default (owner, 22 Nov 2026): one paid instance, 0.5 CPU, 512 MB, always on. A service of its own only when the app cannot share it; a paid one needs the owner's yes |
 | DNS | Cloudflare, zone hintwise.org |
 
 ## 3. Deployment systems and who runs them
