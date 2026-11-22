@@ -3,8 +3,10 @@
  * copied alone into an empty folder as a download would be, and run with
  * Node under the names a browser or a person might give it.
  */
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFile, execFileSync, spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -71,6 +73,36 @@ describe('the single file', () => {
     const noCode = node(['lewis-alt-text.mjs', 'login']);
     expect(noCode.code).toBe(1);
     expect(noCode.err).toMatch(/Open https:\/\/lewis-alt-text\.hintwise\.org\/terminal\/[\s\S]*No code was entered/);
+  });
+
+  it('writes alt text with your own key, through the Anthropic SDK built into the file', async () => {
+    const seen: Array<{ url?: string; auth?: string; body: Record<string, unknown> }> = [];
+    const server = createServer((req, res) => {
+      let body = '';
+      req.on('data', (d) => (body += d)).on('end', () => {
+        seen.push({ url: req.url, auth: req.headers.authorization, body: JSON.parse(body) });
+        res.writeHead(200, { 'content-type': 'application/json', 'request-id': 'req_1' });
+        res.end(JSON.stringify({ id: 'msg_1', type: 'message', role: 'assistant', model: 'claude-opus-5-5', content: [{ type: 'text', text: 'A chlorine atom, C l, with seven dots.' }],
+          stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 900, cache_read_input_tokens: 12_300, output_tokens: 120 } }));
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const port = (server.address() as AddressInfo).port;
+    const fixture = path.join(ROOT, 'test', 'fixtures', 'dot-cl.png');
+    const r = await new Promise<{ code: number | null; out: string; err: string }>((resolve) => {
+      execFile(process.execPath, ['lewis-alt-text.mjs', fixture, '--use-own-key'], {
+        cwd: dl,
+        env: { ...process.env, NODE_OPTIONS: '', LEWIS_ALT_TEXT_HOME: path.join(dl, 'home'), ANTHROPIC_API_KEY: 'sk-ant-test-0123456789', ANTHROPIC_BASE_URL: `http://127.0.0.1:${port}` },
+        timeout: 20_000,
+      }, (e, out, err) => resolve({ code: e ? (typeof e.code === 'number' ? e.code : 1) : 0, out, err }));
+    });
+    server.close();
+    expect(r.err).toBe(
+      'Using: your own Anthropic API key (ending 6789, from ANTHROPIC_API_KEY). Anthropic bills this key for each image.\n' +
+        'Billed to your key: 1 request, 13,200 input tokens (12,300 of them read from the cache, which costs less), 120 output tokens.\n',
+    );
+    expect(r).toMatchObject({ code: 0, out: 'A chlorine atom, C l, with seven dots.\n' });
+    expect(seen[0]).toMatchObject({ url: '/v1/messages', auth: 'Bearer sk-ant-test-0123456789', body: { model: 'claude-opus-5-5', fallbacks: 'default' } });
   });
 
   it('tells someone with a Node.js that is too old what to install', () => {

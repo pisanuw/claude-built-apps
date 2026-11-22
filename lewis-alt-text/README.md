@@ -61,8 +61,21 @@ node lewis-alt-text.mjs figure.png
 node lewis-alt-text.mjs figure.png --purpose question --focus geometry --context "HW 3, question 2"
 node lewis-alt-text.mjs my-figures --json > alt-text.jsonl
 node lewis-alt-text.mjs status       # who is signed in, how many alt texts are left
-node lewis-alt-text.mjs figure.png --local   # your Claude Code instead of the HintWise allowance
+node lewis-alt-text.mjs figure.png --use-local-subscription   # your Claude subscription, through Claude Code
+node lewis-alt-text.mjs figure.png --use-own-key              # your own Anthropic API key, billed per image
 ```
+
+Every run that writes alt text starts with a `Using:` line naming who pays:
+the HintWise allowance (the default), the Claude subscription, or the
+person's own key. `--use-local-subscription` starts Claude Code without
+`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` or the Bedrock, Vertex and
+Foundry switches, and stops before anything is sent if Claude Code's startup
+message still names an API key as its credential. `--use-own-key` takes the
+key from `ANTHROPIC_API_KEY` or asks for it without echo; it is never saved,
+never used without the flag, and goes to api.anthropic.com through the
+Anthropic SDK, with the API's server-side refusal fallback on Opus and Sonnet.
+A run ends with the tokens billed to the key. `--local` still works, with a
+note pointing to the new name.
 
 `login` signs the terminal in without a browser session of its own: the
 /terminal/ page asks for an email, the link HintWise emails returns there with

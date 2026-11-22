@@ -70,8 +70,9 @@ You should see something like `lewis-alt-text 0.1.0 (built 2026-11-22)`.
 
 ## 4. Sign in (once per computer)
 
-The tool uses your free daily HintWise allowance, the same one as the web
-app, so it needs to know who you are. Type:
+Unless you choose another way to pay (section 8), the tool uses your free
+daily HintWise allowance, the same one as the web app, so it needs to know who
+you are. Type:
 
 ```
 node lewis-alt-text.mjs login
@@ -157,6 +158,9 @@ heading line for each image. Warnings and notes still appear in the terminal.
   `--context "..."` and run the same command again.
 - **`--audit`** also prints the atom-by-atom count the alt text was built from,
   which makes a miscount easy to spot.
+- **`Using:`** is the first line of every run. It says who pays for the
+  model: the free HintWise allowance, your Claude subscription, or your own API
+  key (section 8).
 - **`note:`** lines say what the tool did, such as shrinking a large image so
   it could be sent.
 
@@ -170,21 +174,46 @@ heading line for each image. Warnings and notes still appear in the terminal.
 | Sign this computer out | `node lewis-alt-text.mjs logout` |
 
 When your daily allowance runs out, the tool says when it renews. In the
-meantime you can use the web app with your own Anthropic API key, or use
-`--local` (next section).
+meantime you can pay another way (next section).
 
-## 8. Using your own Claude subscription instead (optional)
+## 8. Paying another way (optional)
 
-If you have [Claude Code](https://claude.com/claude-code) installed and signed
-in, add `--local`. Then the tool uses your Claude subscription instead of the
-HintWise allowance, and you don't need to sign in to HintWise:
+The tool can run the model in three ways. Choose one per command; the
+`Using:` line it prints first confirms which.
+
+| Add | Who pays | What you need |
+|---|---|---|
+| nothing | The free HintWise allowance, with a daily limit | Sign in once (step 4) |
+| `--use-local-subscription` | Your Claude subscription (such as Pro or Max). No charge per image; it counts toward your plan's usage limits. | [Claude Code](https://claude.com/claude-code) installed on this computer and signed in with that subscription |
+| `--use-own-key` | Your own Anthropic API key. Anthropic bills the key for each image. | An API key from [console.anthropic.com](https://console.anthropic.com/settings/keys) |
+
+**With your Claude subscription:**
 
 ```
-node lewis-alt-text.mjs figure.png --local
+node lewis-alt-text.mjs figure.png --use-local-subscription
 ```
+
+The tool starts Claude Code without any API key from your environment. If
+Claude Code is still set up to use an API key instead of a subscription, the
+tool stops before sending anything and says so.
+
+**With your own API key:**
+
+```
+node lewis-alt-text.mjs figure.png --use-own-key
+```
+
+The tool asks for the key. Paste it and press Enter; it is not shown on the
+screen and not saved. At the end it prints how many tokens were billed to
+the key. If you set the key in the `ANTHROPIC_API_KEY` environment variable,
+the tool uses that instead of asking. It still never uses the key unless you
+add `--use-own-key`.
+
+With your own key, a figure the model declines to describe (rare) is tried
+again automatically on Anthropic's fallback model, also billed to your key.
 
 `--model sonnet` or `--model haiku` picks a faster model than the default,
-Opus.
+Opus, in all three ways. With your own key it is also cheaper.
 
 ---
 
@@ -206,6 +235,14 @@ Opus.
 | `Could not reach HintWise` | Check the internet connection. Some school or company networks block it; try another network. |
 | Double-clicking the file does nothing, or opens it in an editor | That is expected. Run it from a terminal (steps 3 to 5). |
 | `Unknown option` | Check the spelling of the option. `--help` lists them all. |
+| `note: --local is now called --use-local-subscription` | Older instructions used `--local`. It still works; use the new name. |
+| `Choose one: --use-local-subscription or --use-own-key` | Use only one of them per command. |
+| `--use-local-subscription needs Claude Code` | Install [Claude Code](https://claude.com/claude-code), run `claude` once and sign in with your subscription. |
+| `Claude Code on this computer is set up to use an API key` | Claude Code would have billed an API key, so nothing was sent. Run `claude`, type `/login` and sign in with your subscription, or use `--use-own-key` if you meant to pay with a key. |
+| `That does not look like an Anthropic API key` | Anthropic API keys start with `sk-ant-`. Copy the whole key from [console.anthropic.com](https://console.anthropic.com/settings/keys). |
+| `Anthropic did not accept this API key` | The key is wrong, was deleted, or belongs to an account without access. Create a new one at [console.anthropic.com](https://console.anthropic.com/settings/keys). |
+| `Your credit balance is too low` | Your Anthropic account needs credit: console.anthropic.com > Billing. |
+| `Anthropic is limiting how fast this key can be used` | Wait a minute and run the command again. |
 
 Still stuck? Run the command again with `--version` and send what you see.
 
@@ -217,8 +254,10 @@ old file. You stay signed in.
 
 ## What is stored, and where
 
-- **Your images** go only to the model, through HintWise, or through Claude
-  Code with `--local`. Nothing about your figures is saved on a server.
+- **Your images** go only to the model: through HintWise, through Claude Code
+  with `--use-local-subscription`, or straight to Anthropic with
+  `--use-own-key`. Nothing about your figures is saved on a HintWise server.
+- **Your API key**, if you use one, is not saved anywhere by the tool.
 - **Your sign-in** is saved on your computer in
   `.config/lewis-alt-text/session.json` inside your home folder, in a file only
   your account can read. Treat it like a password. `logout` deletes it.
@@ -229,5 +268,6 @@ old file. You stay signed in.
 
 `--json` prints one JSON object per image. Exit status: `0` alt text written,
 `2` the model asked a question, `1` an error. Set `LEWIS_MODEL` to choose the
-model, and `CLAUDE_BIN` to point `--local` at a `claude` program that is not on
-your PATH.
+model, `ANTHROPIC_API_KEY` for `--use-own-key` without the prompt, and
+`CLAUDE_BIN` to point `--use-local-subscription` at a `claude` program that is
+not on your PATH.

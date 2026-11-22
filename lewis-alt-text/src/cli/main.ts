@@ -18,10 +18,16 @@ import { MAX_SEND_BYTES } from '../core/image.ts';
 import { APP_URL, CapReachedError, createRemote, INSTRUCTIONS_URL, SignedOut, TERMINAL_URL, type SessionStore } from '../core/remote.ts';
 import { FOCUSES, InputError, normaliseOptions, PURPOSES, sniffType, toBase64, type MediaType } from '../core/request.ts';
 
-/** The API's per-image limit, for --local. */
-export const LOCAL_MAX_BYTES = 5 * 1024 * 1024;
+/**
+ * The API's per-image limit is 5 MB. It is safe to count that against the
+ * base64 the request carries, so the image itself stays under 3/4 of it.
+ * Applies when the request goes to Anthropic directly: --use-local-subscription and --use-own-key.
+ */
+export const API_MAX_BYTES = Math.floor((5 * 1024 * 1024 * 3) / 4);
 export const MODELS: Record<string, string> = { opus: 'claude-opus-5-5', sonnet: 'claude-sonnet-5-5', haiku: 'claude-haiku-5-5' };
 export const COMMANDS = ['login', 'status', 'logout'] as const;
+/** Which way the model runs, and so who pays: the HintWise allowance, your Claude subscription, or your own API key. */
+export type Mode = 'hintwise' | 'subscription' | 'own-key';
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp)$/i;
 /** Formats only an image converter (macOS sips) can read. */
 const CONVERTIBLE_EXT = /\.(heic|heif|tiff?|bmp)$/i;
@@ -31,6 +37,8 @@ export interface CliIO {
   err(text: string): void;
   /** One line typed (or pasted) by the person; null when the input has ended. */
   ask(prompt: string): Promise<string | null>;
+  /** Like ask, without showing what is typed (for an API key). */
+  askSecret(prompt: string): Promise<string | null>;
   /** True when a person is at the keyboard (stdin is a terminal). */
   interactive: boolean;
 }
@@ -52,8 +60,10 @@ export interface CliDeps {
   skill: () => Promise<string>;
   config: () => HintwiseConfig;
   store: SessionStore & { file: string };
-  /** The local claude CLI, for --local. */
-  local: Generate;
+  /** Claude Code on this computer, on the person's Claude subscription: --use-local-subscription. */
+  subscription: Generate;
+  /** Calls to api.anthropic.com with the person's own key: --use-own-key. */
+  ownKey: (apiKey: string) => Promise<Generate>;
   fetch?: typeof fetch;
   /** Image conversion and shrinking, where the computer has a tool for it. */
   fit?: FitImage;
@@ -62,12 +72,30 @@ export interface CliDeps {
   platform?: string;
 }
 
-/** --local cannot work on this computer (no claude CLI, or it is signed out): the other images would fail the same way. */
-export class LocalUnavailable extends Error {
+/** The chosen way of running the model cannot work right now (no Claude Code, a refused key, ...): the other images would fail the same way. */
+export class ModeUnavailable extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'LocalUnavailable';
+    this.name = 'ModeUnavailable';
   }
+}
+
+/** The first line of every run that writes alt text: who pays for it. */
+export function usingLine(mode: Mode, detail: string | null): string {
+  if (mode === 'subscription') {
+    return "Using: your Claude subscription, through Claude Code on this computer. No per-image charge; it counts toward your plan's usage limits.";
+  }
+  if (mode === 'own-key') return `Using: your own Anthropic API key${detail ? ` (${detail})` : ''}. Anthropic bills this key for each image.`;
+  return `Using: the free HintWise allowance${detail ? ` (signed in as ${detail})` : ''}. To pay another way, see --help.`;
+}
+
+/** An Anthropic API key, or an error that says what one looks like. */
+export function checkKey(key: string): string {
+  const k = key.trim();
+  if (!/^sk-ant-\S{8,}$/.test(k)) {
+    throw new InputError('That does not look like an Anthropic API key; those start with sk-ant-. Create one at https://console.anthropic.com/settings/keys.');
+  }
+  return k;
 }
 
 /** The live app's public sign-in values from deploy/target.yml, so there is one copy. Public by design: the anon key only reaches what row level security allows. */
@@ -98,16 +126,23 @@ Options for images:
   -c, --context T   caption, question text or lesson topic, in quotes
   -a, --audit       also show the atom-by-atom count the alt text is built from
   -m, --model M     opus (default), sonnet or haiku
-  -l, --local       use Claude Code on this computer instead of the live app
   -j, --json        print one JSON object per image, for scripts
   -h, --help        show this help
   -v, --version     show which version this is
+
+Who pays for the model (choose at most one; it says which on every run):
+  (neither)                  the free HintWise allowance; sign in once with login
+  --use-local-subscription   your Claude subscription, through Claude Code on this
+                             computer: no per-image charge, counts toward its limits
+  --use-own-key              your own Anthropic API key, from ANTHROPIC_API_KEY or
+                             typed in when asked: Anthropic bills it for each image
 
 Examples:
   ${program} login
   ${program} figure.png
   ${program} figure.png --purpose question --focus geometry --context "HW 3, question 2"
   ${program} my-figures
+  ${program} my-figures --use-own-key
 
 The alt text is printed on standard output; notes, warnings and errors on standard error.
 Exit status: 0 alt text written, 2 the model asked a question, 1 error.
@@ -120,6 +155,9 @@ const OPTIONS = {
   context: { type: 'string', short: 'c' },
   audit: { type: 'boolean', short: 'a' },
   model: { type: 'string', short: 'm' },
+  'use-local-subscription': { type: 'boolean' },
+  'use-own-key': { type: 'boolean' },
+  // The old name of --use-local-subscription; still accepted, not in the help.
   local: { type: 'boolean', short: 'l' },
   json: { type: 'boolean', short: 'j' },
   code: { type: 'string' },
@@ -247,7 +285,7 @@ export interface LoadedImage {
 }
 
 /** Reads an image and makes sure the model can take it: a supported type, within `limit` bytes. */
-export async function loadImage(file: string, o: { limit: number; local: boolean; fit?: FitImage; platform?: string }): Promise<LoadedImage> {
+export async function loadImage(file: string, o: { limit: number; mode: Mode; fit?: FitImage; platform?: string }): Promise<LoadedImage> {
   let bytes: Uint8Array;
   try {
     bytes = new Uint8Array(await readFile(file));
@@ -268,10 +306,10 @@ export async function loadImage(file: string, o: { limit: number; local: boolean
   if (!type) throw new InputError('not a PNG, JPEG, GIF or WebP image. Save or export it as PNG and try again.');
   if (bytes.length > o.limit) {
     throw new InputError(
-      o.local
-        ? `the image is ${kB(bytes.length)}; the limit is 5 MB. Crop it or save it smaller.`
-        : `the image is ${kB(bytes.length)}, and the live app takes up to ${kB(o.limit)}. Crop it or save it smaller, ` +
-            `or drop it into the web app (${APP_URL}), which shrinks images for you.`,
+      o.mode === 'hintwise'
+        ? `the image is ${kB(bytes.length)}, and the live app takes up to ${kB(o.limit)}. Crop it or save it smaller, ` +
+            `or drop it into the web app (${APP_URL}), which shrinks images for you.`
+        : `the image is ${kB(bytes.length)}, and Anthropic takes up to ${kB(o.limit)}. Crop it or save it smaller.`,
     );
   }
   return { base64: toBase64(bytes), mediaType: type, note };
@@ -373,46 +411,71 @@ export async function main(d: CliDeps): Promise<number> {
     };
     normaliseOptions(options);
     const model = resolveModel(o.model ?? d.env?.LEWIS_MODEL);
-    const local = o.local === true;
+    if (o.local) io.err('note: --local is now called --use-local-subscription.');
+    const subscription = o['use-local-subscription'] === true || o.local === true;
+    if (subscription && o['use-own-key']) throw new InputError('Choose one: --use-local-subscription or --use-own-key.');
+    const mode: Mode = o['use-own-key'] ? 'own-key' : subscription ? 'subscription' : 'hintwise';
     const inputs = await expandInputs(args, { homedir: d.homedir, convertible: d.fit !== undefined });
     if (o.context !== undefined && inputs.some((i) => i.error?.startsWith('no such file'))) {
       io.err('hint: if those words were meant for --context, put the whole context in quotes, as in --context "HW 3, question 2".');
     }
 
-    // Sign in only when there is an image to send; otherwise the file errors are the news.
-    if (!local && inputs.some((i) => !i.error)) {
-      try {
-        await getRemote().session();
-      } catch (e) {
-        if (!(e instanceof SignedOut)) throw e;
-        if (!io.interactive) {
-          io.err(`${e.message}\nOr add --local to use Claude Code on this computer instead.`);
-          return 1;
+    // Sign in, or get the key, only when there is an image to send; otherwise the file errors are the news.
+    let generate: Generate | null = null;
+    if (inputs.some((i) => !i.error)) {
+      if (mode === 'hintwise') {
+        let email: string | null;
+        try {
+          email = (await getRemote().session()).email;
+        } catch (e) {
+          if (!(e instanceof SignedOut)) throw e;
+          if (!io.interactive) {
+            io.err(`${e.message}\nOr pay another way: --use-local-subscription (Claude Code) or --use-own-key (your Anthropic API key).`);
+            return 1;
+          }
+          io.err('This computer is not signed in to HintWise yet, so that comes first.\n');
+          const signedIn = await login(undefined, false);
+          if (signedIn !== 0) return signedIn;
+          io.err('');
+          email = (await d.store.load())?.email ?? null;
         }
-        io.err('This computer is not signed in to HintWise yet, so that comes first.\n');
-        const signedIn = await login(undefined, false);
-        if (signedIn !== 0) return signedIn;
-        io.err('');
+        io.err(usingLine(mode, email));
+        generate = getRemote().generate;
+      } else if (mode === 'subscription') {
+        io.err(usingLine(mode, null));
+        generate = d.subscription;
+      } else {
+        const key = await ownKey();
+        if (!key) return 1;
+        io.err(usingLine(mode, `ending ${key.slice(-4)}${d.env?.ANTHROPIC_API_KEY?.trim() ? ', from ANTHROPIC_API_KEY' : ''}`));
+        generate = await d.ownKey(key);
       }
     }
 
     const skill = await d.skill();
-    const generate = local ? d.local : getRemote().generate;
-    const limit = local ? LOCAL_MAX_BYTES : MAX_SEND_BYTES;
+    const limit = mode === 'hintwise' ? MAX_SEND_BYTES : API_MAX_BYTES;
+    const billed = { calls: 0, input: 0, cached: 0, output: 0 };
     let hadError = false;
     let hadQuestion = false;
     for (const [i, input] of inputs.entries()) {
       let r: Outcome;
       let stop = false;
       try {
-        if (input.error) throw new InputError(input.error);
-        const img = await loadImage(input.file, { limit, local, fit: d.fit, platform: d.platform });
+        if (input.error || !generate) throw new InputError(input.error ?? 'no image');
+        const img = await loadImage(input.file, { limit, mode, fit: d.fit, platform: d.platform });
         if (img.note) io.err(`note: ${input.file}: ${img.note}`);
-        r = await writeAltText({ base64: img.base64, mediaType: img.mediaType, options, skill, model, generate });
+        const res = await writeAltText({ base64: img.base64, mediaType: img.mediaType, options, skill, model, generate });
+        r = res;
+        if (res.usage) {
+          billed.calls++;
+          billed.input += (res.usage.input_tokens ?? 0) + (res.usage.cache_read_input_tokens ?? 0) + (res.usage.cache_creation_input_tokens ?? 0);
+          billed.cached += res.usage.cache_read_input_tokens ?? 0;
+          billed.output += res.usage.output_tokens ?? 0;
+        }
       } catch (e) {
-        // Signed out, out of allowance, or no claude CLI: the other images would fail the same way.
-        stop = e instanceof SignedOut || e instanceof CapReachedError || e instanceof LocalUnavailable;
-        const extra = e instanceof CapReachedError ? ' Or add --local to use Claude Code on this computer.' : '';
+        // Signed out, out of allowance, no Claude Code, a refused key: the other images would fail the same way.
+        stop = e instanceof SignedOut || e instanceof CapReachedError || e instanceof ModeUnavailable;
+        const extra = e instanceof CapReachedError ? ' Or pay another way: --use-local-subscription or --use-own-key.' : '';
         r = { kind: 'error', message: errorMessage(e) + extra, warnings: [] };
       }
       if (o.json) {
@@ -438,8 +501,30 @@ export async function main(d: CliDeps): Promise<number> {
         break;
       }
     }
+    if (mode === 'own-key' && billed.calls) {
+      const n = (x: number) => x.toLocaleString('en-US');
+      io.err(
+        `Billed to your key: ${billed.calls} request${billed.calls === 1 ? '' : 's'}, ${n(billed.input)} input tokens ` +
+          `(${n(billed.cached)} of them read from the cache, which costs less), ${n(billed.output)} output tokens.`,
+      );
+    }
     // An error outranks a question.
     return hadError ? 1 : hadQuestion ? 2 : 0;
+  }
+
+  /** The person's API key: from ANTHROPIC_API_KEY, or typed in (not shown, not saved). Null when none was given. */
+  async function ownKey(): Promise<string | null> {
+    const fromEnv = d.env?.ANTHROPIC_API_KEY?.trim();
+    if (fromEnv) return checkKey(fromEnv);
+    if (!io.interactive) {
+      throw new InputError('--use-own-key needs your Anthropic API key in the ANTHROPIC_API_KEY environment variable.');
+    }
+    const typed = await io.askSecret('Your Anthropic API key (starts with sk-ant-; not shown, not saved): ');
+    if (!typed?.trim()) {
+      io.err('No key was entered.');
+      return null;
+    }
+    return checkKey(typed);
   }
 
   try {

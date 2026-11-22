@@ -5,7 +5,7 @@
  */
 import os from 'node:os';
 import { errorMessage, hintwiseConfig, main } from './main.ts';
-import { fileStore, generateWithClaude, programName, sessionDir, sipsFit, terminalIO } from './node.ts';
+import { fileStore, generateWithClaude, ownKeyGenerate, programName, sessionDir, sipsFit, terminalIO } from './node.ts';
 
 export interface RunOptions {
   skill: () => Promise<string>;
@@ -39,7 +39,8 @@ export async function run(r: RunOptions): Promise<void> {
       skill: r.skill,
       config: () => hintwiseConfig(r.targetYml(), env),
       store: fileStore(sessionDir(env)),
-      local: (req) => generateWithClaude(req, { bin: env.CLAUDE_BIN }),
+      subscription: (req) => generateWithClaude(req, { bin: env.CLAUDE_BIN }),
+      ownKey: (apiKey) => ownKeyGenerate(apiKey),
       fit: process.platform === 'darwin' ? sipsFit() : undefined,
       env,
       homedir: os.homedir(),

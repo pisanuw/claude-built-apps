@@ -1,18 +1,20 @@
 /**
  * The Node side of the command-line tool: the session file, the terminal,
- * the local claude CLI, image conversion with macOS's built-in sips, and how
- * to show the command in messages.
+ * the two ways of paying for the model without HintWise (Claude Code on the
+ * person's subscription, or their own API key), image conversion with
+ * macOS's built-in sips, and how to show the command in messages.
  */
 import { execFile, spawn } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
-import type { ModelReply, ModelRequest } from '../core/alt-text.ts';
+import type Anthropic from '@anthropic-ai/sdk';
+import type { Generate, ModelReply, ModelRequest } from '../core/alt-text.ts';
 import { MAX_EDGE } from '../core/image.ts';
-import type { Session, SessionStore } from '../core/remote.ts';
+import { networkReason, type Session, type SessionStore } from '../core/remote.ts';
 import { sniffType } from '../core/request.ts';
-import { LocalUnavailable, type CliIO, type FitImage } from './main.ts';
+import { ModeUnavailable, type CliIO, type FitImage } from './main.ts';
 
 type Env = Record<string, string | undefined>;
 
@@ -72,11 +74,57 @@ export function askLine(input: NodeJS.ReadableStream & { isTTY?: boolean }, outp
   });
 }
 
+type SecretInput = NodeJS.ReadableStream & { isTTY?: boolean; setRawMode?: (on: boolean) => unknown };
+
+/**
+ * One line typed without echo, for an API key: in a terminal, characters are
+ * read in raw mode and not shown (Backspace works, arrow keys are ignored).
+ * Null on Ctrl+C, or Ctrl+D on an empty line. Elsewhere, a plain line.
+ */
+export function askSecret(input: SecretInput, output: NodeJS.WritableStream, prompt: string): Promise<string | null> {
+  const setRaw = input.setRawMode;
+  if (input.isTTY !== true || typeof setRaw !== 'function') return askLine(input, output, prompt);
+  return new Promise((resolve) => {
+    let value = '';
+    let escape = false;
+    const done = (v: string | null) => {
+      input.off('data', onData);
+      setRaw.call(input, false);
+      input.pause();
+      output.write('\n');
+      resolve(v);
+    };
+    function onData(chunk: Buffer | string) {
+      for (const ch of String(chunk)) {
+        if (escape) {
+          if (/[A-Za-z~]/.test(ch)) escape = false;
+        } else if (ch === '\u001b') {
+          escape = true;
+        } else if (ch === '\r' || ch === '\n') {
+          return done(value);
+        } else if (ch === '\u0003' || (ch === '\u0004' && !value)) {
+          return done(null);
+        } else if (ch === '\u007f' || ch === '\b') {
+          value = value.slice(0, -1);
+        } else if (ch >= ' ') {
+          value += ch;
+        }
+      }
+    }
+    output.write(prompt);
+    setRaw.call(input, true);
+    input.setEncoding('utf8');
+    input.on('data', onData);
+    input.resume();
+  });
+}
+
 export function terminalIO(p: Pick<NodeJS.Process, 'stdin' | 'stdout' | 'stderr'> = process): CliIO {
   return {
     out: (t) => void p.stdout.write(`${t}\n`),
     err: (t) => void p.stderr.write(`${t}\n`),
     ask: (prompt) => askLine(p.stdin, p.stderr, prompt),
+    askSecret: (prompt) => askSecret(p.stdin, p.stderr, prompt),
     interactive: p.stdin.isTTY === true,
   };
 }
@@ -95,7 +143,7 @@ export function programName(script: string, o: { cwd: string; viaNode: boolean }
   return /[/\\]/.test(shown) ? quoted : `./${quoted}`;
 }
 
-// --- The local claude CLI --------------------------------------------------
+// --- Your Claude subscription, through the local claude CLI ----------------
 
 /** Short names the claude CLI accepts for the app's model ids. */
 const ALIASES: Record<string, string> = { 'claude-opus-5-5': 'opus', 'claude-sonnet-5-5': 'sonnet', 'claude-haiku-5-5': 'haiku' };
@@ -109,11 +157,24 @@ function safeJson(line: string): Record<string, unknown> | null {
   }
 }
 
+/** Settings that would make Claude Code bill an API key or a cloud account instead of the subscription. */
+const NOT_SUBSCRIPTION = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY'];
+
+/** This process's environment without NOT_SUBSCRIPTION, for the claude child. */
+export function subscriptionEnv(env: Env = process.env): Env {
+  const out = { ...env };
+  for (const k of NOT_SUBSCRIPTION) delete out[k];
+  return out;
+}
+
 /**
- * One model request through the local `claude` CLI (headless). It uses the
- * signed-in Claude subscription: no API key, no per-token bill.
+ * One model request through the local `claude` CLI (headless), on the
+ * signed-in Claude subscription: no API key, no per-token bill. Claude Code
+ * gets an environment without API keys, and if its startup message still
+ * names an API key as its credential (set up in its own settings), the run
+ * is stopped there and nothing is sent.
  */
-export function generateWithClaude(req: ModelRequest, o: { bin?: string; timeoutMs?: number } = {}): Promise<ModelReply> {
+export function generateWithClaude(req: ModelRequest, o: { bin?: string; timeoutMs?: number; env?: Env } = {}): Promise<ModelReply> {
   const bin = o.bin || 'claude';
   const timeoutMs = o.timeoutMs ?? 180_000;
   // The system prompt is ~35 kB: pass it as a file. Run in a temp dir so no project CLAUDE.md is read.
@@ -124,39 +185,55 @@ export function generateWithClaude(req: ModelRequest, o: { bin?: string; timeout
     '--no-session-persistence', '--system-prompt-file', promptFile, '--model', ALIASES[req.model] ?? req.model];
 
   return new Promise((resolve, reject) => {
-    const child = spawn(bin, args, { cwd: dir, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(bin, args, { cwd: dir, stdio: ['pipe', 'pipe', 'pipe'], env: subscriptionEnv(o.env) });
     let out = '';
     let err = '';
+    let checked = false;
+    let refused: ModeUnavailable | null = null;
     const timer = setTimeout(() => child.kill('SIGTERM'), timeoutMs);
     const finish = (fn: () => void) => {
       clearTimeout(timer);
       rmSync(dir, { recursive: true, force: true });
       fn();
     };
-    child.stdout.on('data', (d: Buffer) => (out += d));
+    child.stdout.on('data', (d: Buffer) => {
+      out += d;
+      if (checked || !out.includes('\n')) return;
+      checked = true;
+      const init = safeJson(out.slice(0, out.indexOf('\n')));
+      const source = init?.type === 'system' ? init.apiKeySource : undefined;
+      if (typeof source === 'string' && source !== 'none') {
+        refused = new ModeUnavailable(
+          `Claude Code on this computer is set up to use an API key (${source}), not your Claude subscription, so this stopped before sending anything. ` +
+            `Sign Claude Code in with your subscription (run "${bin}", then /login), or use --use-own-key.`,
+        );
+        child.kill('SIGTERM');
+      }
+    });
     child.stderr.on('data', (d: Buffer) => (err += d));
     child.stdin.on('error', () => {}); // a claude that exits at once closes stdin under us; 'close' reports it
     child.on('error', (e: NodeJS.ErrnoException) =>
       finish(() =>
         reject(
           e.code === 'ENOENT' || e.code === 'EINVAL'
-            ? new LocalUnavailable(
-                `--local needs Claude Code (the "${bin}" command), and this computer does not have it. ` +
-                  'Install it from https://claude.com/claude-code and sign in, or leave out --local to use the live app.',
+            ? new ModeUnavailable(
+                `--use-local-subscription needs Claude Code (the "${bin}" command), and this computer does not have it. ` +
+                  'Install it from https://claude.com/claude-code and sign in, or pay another way (see --help).',
               )
             : e,
         ),
       ),
     );
     child.on('close', (code, signal) => {
+      if (refused) return finish(() => reject(refused));
       if (signal) return finish(() => reject(new Error(`Claude Code stopped (${signal}) after ${timeoutMs / 1000} s`)));
       const result = out.split('\n').filter(Boolean).map(safeJson).find((e) => e?.type === 'result');
       if (!result) return finish(() => reject(new Error(`Claude Code exited ${code} without a result. ${err.trim().slice(-500)}`)));
       if (result.is_error || result.subtype !== 'success') {
         const why = String(result.result || result.subtype);
         // Signed out of Claude Code: every image would fail the same way.
-        const E = /log ?in|api key|auth|credential/i.test(why) ? LocalUnavailable : Error;
-        const hint = E === LocalUnavailable ? ` Run "${bin}" on its own once to sign in.` : '';
+        const E = /log ?in|api key|auth|credential/i.test(why) ? ModeUnavailable : Error;
+        const hint = E === ModeUnavailable ? ` Run "${bin}" on its own once to sign in.` : '';
         return finish(() => reject(new E(`Claude Code: ${why}${hint}`)));
       }
       finish(() =>
@@ -170,6 +247,59 @@ export function generateWithClaude(req: ModelRequest, o: { bin?: string; timeout
     });
     child.stdin.end(JSON.stringify({ type: 'user', message: req.messages[0] }) + '\n');
   });
+}
+
+// --- Your own Anthropic API key --------------------------------------------
+
+/** Models that take the API's server-side refusal fallback in its "default" form (Haiku has none). */
+const FALLBACK_MODELS = new Set(['claude-opus-5-5', 'claude-sonnet-5-5']);
+
+/** The API's own words from an error body, or the SDK's message. */
+function apiMessage(e: Error & { error?: unknown }): string {
+  const body = e.error as { error?: { message?: unknown } } | undefined;
+  return typeof body?.error?.message === 'string' ? body.error.message : e.message;
+}
+
+/**
+ * Model calls to api.anthropic.com with the person's own key, through the
+ * Anthropic SDK (loaded only for --use-own-key, so a clone without npm
+ * install runs everything else). On Opus and Sonnet a declined request is
+ * retried by the API on its fallback model, billed to the same key. Errors
+ * that would repeat for every image (a refused key, a rate limit, no
+ * network) are ModeUnavailable, so the run stops.
+ */
+export async function ownKeyGenerate(apiKey: string, o: { fetch?: typeof fetch; maxRetries?: number; baseURL?: string } = {}): Promise<Generate> {
+  let A: typeof Anthropic;
+  try {
+    A = (await import('@anthropic-ai/sdk')).default;
+  } catch {
+    throw new ModeUnavailable('--use-own-key needs the Anthropic SDK: run npm install in lewis-alt-text/ (or use the downloaded single file, which includes it).');
+  }
+  // Only the person's key: never an ANTHROPIC_AUTH_TOKEN or an `ant auth login` profile from this computer.
+  const client = new A({ apiKey, authToken: null, fetch: o.fetch, maxRetries: o.maxRetries, baseURL: o.baseURL });
+  return async (req) => {
+    let m: Anthropic.Beta.BetaMessage;
+    try {
+      m = await client.beta.messages.create({
+        model: req.model,
+        max_tokens: req.max_tokens,
+        system: req.system,
+        messages: req.messages,
+        ...(FALLBACK_MODELS.has(req.model) ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
+      });
+    } catch (e) {
+      if (e instanceof A.AuthenticationError) {
+        throw new ModeUnavailable('Anthropic did not accept this API key. Check it, or create a new one, at https://console.anthropic.com/settings/keys.');
+      }
+      if (e instanceof A.PermissionDeniedError) throw new ModeUnavailable(`This API key may not do that: ${apiMessage(e)}`);
+      if (e instanceof A.RateLimitError) throw new ModeUnavailable('Anthropic is limiting how fast this key can be used. Wait a minute, then run the same command again.');
+      if (e instanceof A.APIConnectionError) throw new ModeUnavailable(`Could not reach api.anthropic.com: ${networkReason(e.cause ?? e)}. Check the internet connection.`);
+      if (e instanceof A.APIError) throw new Error(`Anthropic: ${apiMessage(e)}`);
+      throw e;
+    }
+    const text = m.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('');
+    return { text, model: m.model, stopReason: m.stop_reason, usage: m.usage };
+  };
 }
 
 // --- Image conversion on macOS ---------------------------------------------

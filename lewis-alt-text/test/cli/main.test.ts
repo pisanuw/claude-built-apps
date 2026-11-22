@@ -6,15 +6,18 @@ import type { ModelRequest } from '../../src/core/alt-text';
 import { MAX_SEND_BYTES } from '../../src/core/image';
 import type { Session, SessionStore } from '../../src/core/remote';
 import {
+  API_MAX_BYTES,
+  checkKey,
   choice,
   expandInputs,
   fsMessage,
   helpText,
   hintwiseConfig,
   loadImage,
-  LocalUnavailable,
   main,
+  ModeUnavailable,
   resolveModel,
+  usingLine,
   type CliDeps,
   type FitImage,
 } from '../../src/cli/main';
@@ -63,9 +66,11 @@ interface Setup {
   replies?: Reply[];
   session?: Session | null;
   answers?: Array<string | null>;
+  secrets?: Array<string | null>;
   interactive?: boolean;
   fit?: FitImage;
-  local?: CliDeps['local'];
+  subscription?: CliDeps['subscription'];
+  ownGenerate?: CliDeps['subscription'];
   config?: CliDeps['config'];
   env?: CliDeps['env'];
 }
@@ -83,24 +88,29 @@ function setup(o: Setup) {
     return new Response(JSON.stringify(r.body ?? {}), { status: r.status });
   });
   const store = memStore(o.session === undefined ? signedIn() : o.session);
-  const local = vi.fn(o.local ?? (async () => ({ text: ALT, stopReason: 'end_turn' })));
+  const subscription = vi.fn(o.subscription ?? (async () => ({ text: ALT, stopReason: 'end_turn' })));
+  const own = vi.fn(o.ownGenerate ?? (async () => ({ text: ALT, stopReason: 'end_turn', usage: { input_tokens: 100, cache_read_input_tokens: 12_300, output_tokens: 400 } })));
+  const ownKey = vi.fn(async () => own);
   const ask = vi.fn(async () => (answers.length ? (answers.shift() ?? null) : null));
+  const secrets = [...(o.secrets ?? [])];
+  const askSecret = vi.fn(async () => (secrets.length ? (secrets.shift() ?? null) : null));
   const deps: CliDeps = {
     argv: o.argv,
     program: 'node lat.mjs',
     version: '9.9.9',
-    io: { out: (t) => void out.push(t), err: (t) => void err.push(t), ask, interactive: o.interactive ?? false },
+    io: { out: (t) => void out.push(t), err: (t) => void err.push(t), ask, askSecret, interactive: o.interactive ?? false },
     skill: async () => 'name: test\n---\nThe skill.',
     config: o.config ?? (() => ({ supabaseUrl: 'https://auth.example', anonKey: 'anon' })),
     store,
-    local,
+    subscription,
+    ownKey,
     fetch: fetch as unknown as typeof globalThis.fetch,
     fit: o.fit,
     env: o.env ?? {},
     homedir: dir,
     platform: 'linux',
   };
-  return { run: () => main(deps), out, err, calls, store, local, ask, text: () => [...out, ...err].join('\n') };
+  return { run: () => main(deps), out, err, calls, store, subscription, own, ownKey, ask, askSecret, text: () => [...out, ...err].join('\n') };
 }
 
 describe('help and version', () => {
@@ -148,16 +158,16 @@ describe('options', () => {
     }
   });
   it('passes purpose, focus, context and model to the request', async () => {
-    const t = setup({ argv: [fig, '-p', 'answer', '-f', 'formal charges', '-c', 'HW 3', '-m', 'haiku', '--local'] });
+    const t = setup({ argv: [fig, '-p', 'answer', '-f', 'formal charges', '-c', 'HW 3', '-m', 'haiku', '--use-local-subscription'] });
     expect(await t.run()).toBe(0);
-    const req = t.local.mock.calls[0][0] as ModelRequest;
+    const req = t.subscription.mock.calls[0][0] as ModelRequest;
     expect(req.model).toBe('claude-haiku-5-5');
     expect(req.messages[0].content[1].text).toMatch(/answer key[\s\S]*formal charges[\s\S]*HW 3/);
   });
   it('reads the model from LEWIS_MODEL', async () => {
-    const t = setup({ argv: [fig, '--local'], env: { LEWIS_MODEL: 'sonnet' } });
+    const t = setup({ argv: [fig, '--use-local-subscription'], env: { LEWIS_MODEL: 'sonnet' } });
     await t.run();
-    expect((t.local.mock.calls[0][0] as ModelRequest).model).toBe('claude-sonnet-5-5');
+    expect((t.subscription.mock.calls[0][0] as ModelRequest).model).toBe('claude-sonnet-5-5');
   });
 });
 
@@ -240,6 +250,7 @@ describe('alt text through the live app', () => {
     const t = setup({ argv: [fig], replies: [reply(ALT)] });
     expect(await t.run()).toBe(0);
     expect(t.out).toEqual([ALT]);
+    expect(t.err).toEqual(['Using: the free HintWise allowance (signed in as ann@example.com). To pay another way, see --help.']);
     expect(t.calls[0].url).toBe('https://auth.example/functions/v1/llm-gateway');
     expect(t.calls[0].body).toMatchObject({ app: 'lewis-alt-text', model: 'claude-opus-5-5' });
   });
@@ -261,11 +272,11 @@ describe('alt text through the live app', () => {
     expect(warn.err.some((l) => l.startsWith('warning: Names a bond type'))).toBe(true);
     const audit = setup({ argv: [fig, '-a'], replies: [reply(`Audit\nCl: 7 dots\nAlt text\n${ALT}`)] });
     await audit.run();
-    expect(audit.err[0]).toMatch(/^--- audit ---\nCl: 7 dots/);
+    expect(audit.err[1]).toMatch(/^--- audit ---\nCl: 7 dots/);
     const q = setup({ argv: [fig], replies: [reply('QUESTION: Is this a question or an answer key?')] });
     expect(await q.run()).toBe(2);
     expect(q.out).toEqual(['QUESTION: Is this a question or an answer key?']);
-    expect(q.err[0]).toMatch(/--context/);
+    expect(q.err[1]).toMatch(/--context/);
   });
   it('lets an error outrank a question', async () => {
     const t = setup({ argv: [fig, fig], replies: [reply('QUESTION: Which?'), reply('ERROR: no image')] });
@@ -275,7 +286,7 @@ describe('alt text through the live app', () => {
   it('stops at a reached allowance and says how many were not done', async () => {
     const t = setup({ argv: [fig, fig, fig], replies: [reply(ALT), { status: 429, body: { error: 'cap', scope: 'user-day' } }] });
     expect(await t.run()).toBe(1);
-    expect(t.text()).toMatch(/daily HintWise allowance is used up[\s\S]*Or add --local/);
+    expect(t.text()).toMatch(/daily HintWise allowance is used up[\s\S]*Or pay another way: --use-local-subscription or --use-own-key/);
     expect(t.err.at(-1)).toBe('Stopped; 1 more image was not done.');
   });
 });
@@ -284,13 +295,16 @@ describe('signing in on the way', () => {
   it('without a terminal: says how to sign in, and about --local', async () => {
     const t = setup({ argv: [fig], session: null });
     expect(await t.run()).toBe(1);
-    expect(t.err[0]).toBe('This computer is not signed in to HintWise. Run: node lat.mjs login\nOr add --local to use Claude Code on this computer instead.');
+    expect(t.err[0]).toBe(
+      'This computer is not signed in to HintWise. Run: node lat.mjs login\nOr pay another way: --use-local-subscription (Claude Code) or --use-own-key (your Anthropic API key).',
+    );
   });
   it('at a terminal: signs in first, then writes the alt text', async () => {
     const t = setup({ argv: [fig], session: null, interactive: true, answers: [CODE], replies: [{ status: 200, body: authBody }, reply(ALT)] });
     expect(await t.run()).toBe(0);
     expect(t.err[0]).toMatch(/not signed in to HintWise yet/);
     expect(t.err.join('\n')).not.toMatch(/Next, write alt text/);
+    expect(t.err).toContain('Using: the free HintWise allowance (signed in as ann@example.com). To pay another way, see --help.');
     expect(t.out).toEqual([ALT]);
   });
   it('at a terminal: stops when the sign-in does not happen', async () => {
@@ -315,27 +329,92 @@ describe('signing in on the way', () => {
   });
 });
 
-describe('--local', () => {
-  it('uses the local claude CLI and no network', async () => {
-    const t = setup({ argv: [fig, '--local'], session: null });
+describe('--use-local-subscription', () => {
+  it('uses Claude Code, says so, and needs no network', async () => {
+    const t = setup({ argv: [fig, '--use-local-subscription'], session: null });
     expect(await t.run()).toBe(0);
     expect(t.out).toEqual([ALT]);
+    expect(t.err).toEqual([usingLine('subscription', null)]);
     expect(t.calls).toHaveLength(0);
   });
-  it('stops when Claude Code is missing', async () => {
+  it('still takes the old --local, with a note', async () => {
+    const t = setup({ argv: [fig, '-l'], session: null });
+    expect(await t.run()).toBe(0);
+    expect(t.err[0]).toBe('note: --local is now called --use-local-subscription.');
+    expect(t.subscription).toHaveBeenCalledTimes(1);
+  });
+  it('stops when Claude Code cannot run', async () => {
     const t = setup({
-      argv: [fig, fig, '--local'],
-      local: async () => {
-        throw new LocalUnavailable('--local needs Claude Code');
+      argv: [fig, fig, '--use-local-subscription'],
+      subscription: async () => {
+        throw new ModeUnavailable('--use-local-subscription needs Claude Code');
       },
     });
     expect(await t.run()).toBe(1);
-    expect(t.local).toHaveBeenCalledTimes(1);
+    expect(t.subscription).toHaveBeenCalledTimes(1);
     expect(t.err.at(-1)).toBe('Stopped; 1 more image was not done.');
   });
-  it('allows images up to 5 MB', async () => {
-    const t = setup({ argv: [path.join(dir, 'big.png'), '--local'], local: async () => ({ text: ALT }) });
+  it('allows images up to the API limit', async () => {
+    const t = setup({ argv: [path.join(dir, 'big.png'), '--use-local-subscription'] });
     expect(await t.run()).toBe(0);
+  });
+  it('cannot be combined with --use-own-key', async () => {
+    const t = setup({ argv: [fig, '--use-local-subscription', '--use-own-key'] });
+    expect(await t.run()).toBe(1);
+    expect(t.err).toEqual(['error: Choose one: --use-local-subscription or --use-own-key.']);
+  });
+});
+
+describe('--use-own-key', () => {
+  const KEY = 'sk-ant-api03-abcdefghijklmnopWXYZ';
+  it('uses the key from ANTHROPIC_API_KEY, says so, and adds up what was billed', async () => {
+    const t = setup({ argv: [fig, fig, '--use-own-key'], session: null, env: { ANTHROPIC_API_KEY: ` ${KEY}\n` } });
+    expect(await t.run()).toBe(0);
+    expect(t.ownKey).toHaveBeenCalledWith(KEY);
+    expect(t.err[0]).toBe('Using: your own Anthropic API key (ending WXYZ, from ANTHROPIC_API_KEY). Anthropic bills this key for each image.');
+    expect(t.err.at(-1)).toBe('Billed to your key: 2 requests, 24,800 input tokens (24,600 of them read from the cache, which costs less), 800 output tokens.');
+    expect(t.calls).toHaveLength(0);
+  });
+  it('asks for the key, hidden, when the variable is not set', async () => {
+    const t = setup({ argv: [fig, '--use-own-key'], interactive: true, secrets: [KEY] });
+    expect(await t.run()).toBe(0);
+    expect(t.askSecret).toHaveBeenCalledWith(expect.stringMatching(/not shown, not saved/));
+    expect(t.err[0]).toBe('Using: your own Anthropic API key (ending WXYZ). Anthropic bills this key for each image.');
+    expect(t.err.at(-1)).toMatch(/^Billed to your key: 1 request, /);
+  });
+  it('explains a missing, empty or wrong key', async () => {
+    const piped = setup({ argv: [fig, '--use-own-key'] });
+    expect(await piped.run()).toBe(1);
+    expect(piped.err).toEqual(['error: --use-own-key needs your Anthropic API key in the ANTHROPIC_API_KEY environment variable.']);
+    const empty = setup({ argv: [fig, '--use-own-key'], interactive: true, secrets: [''] });
+    expect(await empty.run()).toBe(1);
+    expect(empty.err).toEqual(['No key was entered.']);
+    const wrong = setup({ argv: [fig, '--use-own-key'], interactive: true, secrets: ['hunter2'] });
+    expect(await wrong.run()).toBe(1);
+    expect(wrong.err[0]).toMatch(/^error: That does not look like an Anthropic API key; those start with sk-ant-/);
+    expect(wrong.ownKey).not.toHaveBeenCalled();
+  });
+  it('does not ask for a key when there is no image to send', async () => {
+    const t = setup({ argv: ['missing.png', '--use-own-key'], interactive: true });
+    expect(await t.run()).toBe(1);
+    expect(t.askSecret).not.toHaveBeenCalled();
+  });
+  it('stops at a refused key, and prints no bill when nothing was billed', async () => {
+    const t = setup({
+      argv: [fig, fig, '--use-own-key'],
+      env: { ANTHROPIC_API_KEY: KEY },
+      ownGenerate: async () => {
+        throw new ModeUnavailable('Anthropic did not accept this API key.');
+      },
+    });
+    expect(await t.run()).toBe(1);
+    expect(t.err.slice(1)).toEqual([`error: ${fig}: Anthropic did not accept this API key.`, 'Stopped; 1 more image was not done.']);
+  });
+  it('checkKey and usingLine', () => {
+    expect(checkKey(`  ${KEY} `)).toBe(KEY);
+    expect(() => checkKey('sk-ant-')).toThrow(/does not look like/);
+    expect(usingLine('hintwise', null)).toBe('Using: the free HintWise allowance. To pay another way, see --help.');
+    expect(usingLine('own-key', null)).toBe('Using: your own Anthropic API key. Anthropic bills this key for each image.');
   });
 });
 
@@ -378,7 +457,7 @@ describe('expandInputs', () => {
 });
 
 describe('loadImage', () => {
-  const opts = { limit: MAX_SEND_BYTES, local: false };
+  const opts = { limit: MAX_SEND_BYTES, mode: 'hintwise' as const };
   it('reads a supported image as is', async () => {
     const img = await loadImage(fig, opts);
     expect(img.mediaType).toBe('image/png');
@@ -389,7 +468,8 @@ describe('loadImage', () => {
     await expect(loadImage(path.join(dir, 'notes.png'), opts)).rejects.toThrow(/not a PNG, JPEG, GIF or WebP image/);
     await expect(loadImage(path.join(dir, 'missing.png'), opts)).rejects.toThrow('no such file');
     await expect(loadImage(path.join(dir, 'big.png'), opts)).rejects.toThrow(/681 kB, and the live app takes up to 680 kB[\s\S]*web app/);
-    await expect(loadImage(path.join(dir, 'big.png'), { limit: 1000, local: true })).rejects.toThrow(/the limit is 5 MB/);
+    await expect(loadImage(path.join(dir, 'big.png'), { limit: 1000, mode: 'own-key' })).rejects.toThrow(/681 kB, and Anthropic takes up to 1 kB\. Crop it/);
+    expect(API_MAX_BYTES).toBe(3_932_160);
   });
   it('uses the image converter when there is one', async () => {
     const small = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
@@ -398,7 +478,7 @@ describe('loadImage', () => {
     expect(img).toMatchObject({ mediaType: 'image/png', note: 'made smaller' });
     const t = setup({ argv: [path.join(dir, 'big.png')], fit, replies: [reply(ALT)] });
     expect(await t.run()).toBe(0);
-    expect(t.err[0]).toMatch(/^note: .*big\.png: made smaller$/);
+    expect(t.err[1]).toMatch(/^note: .*big\.png: made smaller$/);
     const none = vi.fn<FitImage>(async () => null);
     await expect(loadImage(path.join(dir, 'notes.png'), { ...opts, fit: none })).rejects.toThrow(/not a PNG/);
   });
