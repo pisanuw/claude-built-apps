@@ -43,6 +43,10 @@ import {
   pdf,
   submit,
   UNREACHABLE,
+  NotAChecker,
+  PDF_GONE,
+  PDF_SIGN_IN,
+  SIGN_IN_AGAIN,
   WAKE_LIMIT_MS,
   WAKE_POLL_MS,
   wake,
@@ -52,7 +56,7 @@ import {
 } from '../src/lib/checker';
 import { CourseStore, MemoryDb, type JobRow } from '../src/lib/store';
 import { mountApp, type Account, type AppDeps, type DroppedFile } from '../src/ui/app';
-import { KEPT, NOTICE_KEY, SAVE_TO_KEEP, UPLOAD_NOTICE, jobResult } from '../src/ui/compile';
+import { KEPT, NOTICE_KEY, SAVE_TO_KEEP, UPLOAD_NOTICE, jobResult, notTexMessage } from '../src/ui/compile';
 import { statusIndex, zipFixture } from './helpers';
 import { strToU8, zipSync } from 'fflate';
 
@@ -143,6 +147,37 @@ describe('AC-30: veraPDF\'s failures by clause, in plain words', () => {
     for (const [c, w] of Object.entries(CLAUSE_WORDS)) expect(w, c).not.toMatch(/\bshall\b/);
   });
 
+  it('R3b.1-6: the words of each mapped clause fit every test veraPDF\'s profile has for it', () => {
+    const profile = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'fixtures/verapdf-ua2-mapped-rules.json'), 'utf8')) as { rules: { clause: string; test: number; description: string }[] };
+    // For each test of the profile, what the words must say (checked by hand against its description).
+    const fits: Record<string, Record<number, RegExp>> = {
+      '5': { 1: /metadata/, 2: /pdfuaid:part 2/, 3: /wrong form/, 4: /wrong form/, 5: /pdfuaid:rev 2024/ },
+      '6.1': { 1: /PDF 2\.0/ },
+      '6.2': { 1: /Marked true/ },
+      '8.2.1': { 1: /no structure tree/, 2: /does not name its parent/ },
+      '8.2.2': { 1: /neither tagged nor marked as decoration/ },
+      '8.2.4': { 1: /not mapped to one it knows/, 2: /goes in a circle/, 3: /within its own namespace/, 4: /not mapped to one it knows/ },
+      '8.2.5.2': { 1: /single Document element/, 2: /PDF 2\.0 namespace/ },
+      '8.2.5.20': { 1: /not inside a Link or Reference tag/, 2: /different places share one tag/ },
+      '8.2.5.26': { 1: /cells overlap/, 2: /columns have different lengths/, 3: /rows/, 4: /rows/, 5: /which header cells belong/, 6: /which header cells belong/ },
+      '8.2.5.28.2': { 1: /alternate text/ },
+      '8.4.3': { 1: /need an ActualText or alternate text/, 2: /must not use the private use area itself/, 3: /must not use the private use area itself/ },
+      '8.4.4': { 1: /language is not set/, 2: /not a language tag/ },
+      '8.8': { 1: /page position instead of at the tagged element/, 2: /page position instead of at the tagged element/ },
+      '8.9.3.3': { 1: /Tabs entry/ },
+      '8.11.1': { 1: /no title/, 2: /metadata is missing/ },
+      '8.11.2': { 1: /DisplayDocTitle/ },
+    };
+    expect(Object.keys(fits).sort()).toEqual(Object.keys(CLAUSE_WORDS).sort());
+    for (const [clause, words] of Object.entries(CLAUSE_WORDS)) {
+      const tests = profile.rules.filter((r) => r.clause === clause).map((r) => r.test);
+      expect(tests.length, clause).toBeGreaterThan(0);
+      // Every test of the clause has its words, and no other.
+      expect(Object.keys(fits[clause]).map(Number), clause).toEqual(tests);
+      for (const t of tests) expect(words, `${clause} test ${t}`).toMatch(fits[clause][t]);
+    }
+  });
+
   it('says passed or did not pass, names the profile and the version, and never claims conformance', () => {
     expect(validationVerdict(validation())).toBe('Did not pass the PDF/UA-2 + Tagged PDF check');
     expect(validationVerdict(validation({ compliant: true }))).toBe('Passed the PDF/UA-2 + Tagged PDF check');
@@ -176,6 +211,23 @@ describe('AC-29: the compile in plain words', () => {
     expect(errorWhere({ file: 'a.tex', line: null, message: '' })).toBe('In a.tex');
     expect(errorWhere({ file: null, line: 4, message: '' })).toBe('On line 4');
     expect(errorWhere({ file: null, line: null, message: '' })).toBe('');
+  });
+
+  it('R3b.1-5: a missing file of a type the page does not send is not called missing from the zip; one it sends still is', () => {
+    expect(plainTexError("! Package pgfplots Error: Could not read table file 'data/marks.csv'. File `data/marks.csv' not found.")).toBe(
+      'The checker does not take .csv files, so data/marks.csv was not sent; the compile needs it.',
+    );
+    expect(plainTexError("LaTeX Error: File `helpers.lua' not found.")).toBe('The checker does not take .lua files, so helpers.lua was not sent; the compile needs it.');
+    expect(plainTexError("LaTeX Error: File `Fig.DAT' not found.")).toBe('The checker does not take .dat files, so Fig.DAT was not sent; the compile needs it.');
+    // Types the page sends, and a name with no type: "add it" is right.
+    expect(plainTexError("LaTeX Error: File `tabu.sty' not found.")).toBe('The file tabu.sty was not found. Add it to the zip, or check its name; packages outside TeX Live are not installed on the checker.');
+    expect(plainTexError("! I can't find file `ch2.tex'. File `ch2.tex' not found.")).toBe('The file ch2.tex was not found. Add it to the zip, or check its name.');
+    expect(plainTexError("File `figs/plot.png' not found.")).toBe('The file figs/plot.png was not found. Add it to the zip, or check its name.');
+    expect(plainTexError("File `README' not found.")).toBe('The file README was not found. Add it to the zip, or check its name.');
+    // Fonts are never sent: the words do not ask for one in the zip.
+    const font = plainTexError('luaotfload | db : Reload initiated (formats: otf,ttf,ttc); reason: Font "Foo" not found.');
+    expect(font).toBe('A font was not found. Use a font installed with TeX Live: the checker does not take font files.');
+    expect(font).not.toMatch(/zip/);
   });
 
   it('has a sample for each entry of the error map, each read by its own entry', () => {
@@ -406,7 +458,7 @@ describe('sending a project and following its job', () => {
     expect(post?.url).toBe(`${BASE}/api/jobs?mainFile=sub%20dir%2Fmain.tex&mode=check`);
     expect(post?.auth).toBe('Bearer tok');
     const seen: string[] = [];
-    const end = await follow(s.deps, first, 'tok', (j) => seen.push(j.status));
+    const end = await follow(s.deps, first, async () => 'tok', (j) => seen.push(j.status));
     expect(seen).toEqual(['queued', 'running', 'done']);
     expect(end.status).toBe('done');
     expect(s.calls.filter((c) => c.method === 'GET' && c.url.includes('/api/jobs/')).every((c) => c.auth === 'Bearer tok')).toBe(true);
@@ -443,7 +495,7 @@ describe('sending a project and following its job', () => {
       return real(i, init);
     }) as typeof fetch;
     const seen: string[] = [];
-    const end = await follow(t.deps, doneJob({ status: 'queued', result: null }), 't', (j) => seen.push(j.status));
+    const end = await follow(t.deps, doneJob({ status: 'queued', result: null }), async () => 't', (j) => seen.push(j.status));
     expect(seen).toEqual(['queued', 'running', 'done']);
     expect(end.status).toBe('done');
     // Lost for more than a minute: an error.
@@ -451,21 +503,119 @@ describe('sending a project and following its job', () => {
     u.deps.fetch = (async () => {
       throw new TypeError('Failed to fetch');
     }) as typeof fetch;
-    await expect(follow(u.deps, doneJob({ status: 'queued', result: null }), 't', () => {})).rejects.toThrow(UNREACHABLE);
-    await expect(follow(u.deps, doneJob({ status: 'queued', result: null }), 't', () => {}, () => true)).rejects.toThrow('stale');
+    await expect(follow(u.deps, doneJob({ status: 'queued', result: null }), async () => 't', () => {})).rejects.toThrow(UNREACHABLE);
+    await expect(follow(u.deps, doneJob({ status: 'queued', result: null }), async () => 't', () => {}, () => true)).rejects.toThrow('stale');
   });
 
   it('fetches the PDF and deletes a job', async () => {
     const s = stub();
+    const t = async () => 't';
     // Its size, not its text: jsdom's Blob has no text() on every Node the CI runs.
-    expect((await pdf(s.deps, 'x', 't'))?.size).toBe('%PDF-1.7'.length);
-    await forget(s.deps, 'x', 't');
+    const got = await pdf(s.deps, 'x', t);
+    expect('blob' in got && got.blob.size).toBe('%PDF-1.7'.length);
+    await forget(s.deps, 'x', t);
     expect(s.calls.at(-1)).toMatchObject({ method: 'DELETE', url: `${BASE}/api/jobs/x`, auth: 'Bearer t' });
+    const before = s.calls.length;
+    await forget(s.deps, 'x', async () => null);
+    expect(s.calls.length).toBe(before);
     s.deps.fetch = (async () => {
       throw new TypeError('Failed to fetch');
     }) as typeof fetch;
-    expect(await pdf(s.deps, 'x', 't')).toBeNull();
-    await expect(forget(s.deps, 'x', 't')).resolves.toBeUndefined();
+    expect(await pdf(s.deps, 'x', t)).toEqual({ error: UNREACHABLE });
+    await expect(forget(s.deps, 'x', t)).resolves.toBeUndefined();
+  });
+
+  it('R3b.1-2: asks for the token before each poll and each download, and tells a PDF that is gone from a sign-in that ended', async () => {
+    const s = stub();
+    let n = 0;
+    const token = async () => `tok${++n}`;
+    await follow(s.deps, doneJob({ status: 'queued', result: null }), token, () => {});
+    const polls = s.calls.filter((c) => c.method === 'GET' && c.url.includes('/api/jobs/')).map((c) => c.auth);
+    expect(polls).toEqual(['Bearer tok1', 'Bearer tok2']);
+    // The sign-in ended mid-check.
+    await expect(follow(s.deps, doneJob({ status: 'queued', result: null }), async () => null, () => {})).rejects.toThrow(SIGN_IN_AGAIN);
+    // The PDF: 200, 404 (gone), 401 (sign in), no token, another answer.
+    const got = await pdf(s.deps, 'x', token);
+    expect('blob' in got).toBe(true);
+    expect(s.calls.at(-1)?.auth).toBe('Bearer tok3');
+    const answer = (status: number, body: unknown = {}) => {
+      s.deps.fetch = (async () => new Response(JSON.stringify(body), { status })) as typeof fetch;
+    };
+    answer(404);
+    expect(await pdf(s.deps, 'x', token)).toEqual({ error: PDF_GONE });
+    answer(401);
+    expect(await pdf(s.deps, 'x', token)).toEqual({ error: PDF_SIGN_IN });
+    expect(await pdf(s.deps, 'x', async () => null)).toEqual({ error: PDF_SIGN_IN });
+    answer(500, { error: 'The checker had an internal error.' });
+    expect(await pdf(s.deps, 'x', token)).toEqual({ error: 'The checker had an internal error.' });
+  });
+
+  it('R3b.1-8: a 502, 503 or 504 while polling is ridden out like a lost connection; other answers are not', async () => {
+    for (const status of [502, 503, 504]) {
+      const t = stub();
+      const real = t.deps.fetch;
+      let k = 0;
+      t.deps.fetch = (async (i: RequestInfo | URL, init?: RequestInit) => {
+        if (String(i).includes('/api/jobs/') && k++ < 2) return new Response('Bad gateway', { status });
+        return real(i, init);
+      }) as typeof fetch;
+      const end = await follow(t.deps, doneJob({ status: 'queued', result: null }), async () => 't', () => {});
+      expect(end.status, String(status)).toBe('done');
+    }
+    // Past a minute of them, an error; and a 500 ends the check at once, as before.
+    const u = stub();
+    u.deps.fetch = (async () => new Response('', { status: 503 })) as typeof fetch;
+    await expect(follow(u.deps, doneJob({ status: 'queued', result: null }), async () => 't', () => {})).rejects.toThrow('The checker answered 503.');
+    u.deps.fetch = (async () => new Response(JSON.stringify({ error: 'The checker had an internal error.' }), { status: 500 })) as typeof fetch;
+    const at = u.clock;
+    await expect(follow(u.deps, doneJob({ status: 'queued', result: null }), async () => 't', () => {})).rejects.toThrow('The checker had an internal error.');
+    expect(u.clock - at).toBe(2000);
+  });
+});
+
+describe('R3b.1-3: the wake asks every 3 seconds, and only sleep reads as asleep', () => {
+  it('starts a request every 3 s also when each one waits for its timeout', async () => {
+    const s = stub();
+    let n = 0;
+    const starts: number[] = [];
+    // Render holds the request: each takes the whole 3 s timeout, on the test's clock.
+    s.deps.healthTimeoutMs = 3000;
+    s.deps.fetch = ((_: RequestInfo | URL, init?: RequestInit) => {
+      starts.push(s.clock);
+      if (n++ >= 3) return Promise.resolve(new Response(JSON.stringify({ status: 'ok', compile: true }), { status: 200 }));
+      return new Promise((_r, reject) => init?.signal?.addEventListener('abort', () => reject(new Error('aborted'))));
+    }) as typeof fetch;
+    const realSetTimeout = globalThis.setTimeout;
+    // The 3 s timeout passes on the test's clock at once.
+    globalThis.setTimeout = ((fn: () => void, ms?: number) =>
+      realSetTimeout(() => {
+        s.clock += ms ?? 0;
+        fn();
+      }, 0)) as typeof setTimeout;
+    try {
+      const ticks: number[] = [];
+      await wake(s.deps, (t) => ticks.push(t));
+      expect(starts).toEqual([0, 3000, 6000, 9000]);
+      expect(ticks).toEqual([3, 6, 9]);
+    } finally {
+      globalThis.setTimeout = realSetTimeout;
+    }
+  });
+
+  it('reads 502, 503, 504, no connection and no answer as asleep, and any other answer as not the checker', async () => {
+    for (const status of [502, 503, 504]) {
+      const s = stub();
+      s.deps.fetch = (async () => new Response('', { status })) as typeof fetch;
+      await expect(health(s.deps), String(status)).resolves.toBeNull();
+    }
+    for (const [status, body] of [[404, 'Not Found'], [200, '<html>not the checker</html>'], [200, '{"status":"ok"}'], [403, '{}']] as const) {
+      const s = stub();
+      s.deps.fetch = (async () => new Response(body, { status })) as typeof fetch;
+      await expect(health(s.deps), `${status} ${body}`).rejects.toBeInstanceOf(NotAChecker);
+      // The wake says so at once, not after two minutes.
+      await expect(wake(s.deps, () => {})).rejects.toThrow(NOT_AVAILABLE);
+      expect(s.clock).toBe(0);
+    }
   });
 });
 
@@ -714,5 +864,179 @@ describe('the page: Compile and check (AC-27, AC-29, AC-30, AC-35)', () => {
     t.button('Cancel').click();
     await settle(30);
     expect(t.q('#compile')).toBeNull();
+  });
+});
+
+describe('the page: round 1 of the m3b review', () => {
+  const seen = () => new Map([[NOTICE_KEY, '1']]);
+
+  async function saveAs(t: ReturnType<typeof page>, course: string, label = 'Save') {
+    t.button(label).click();
+    await settle();
+    (t.q('#save-course-name') as HTMLInputElement).value = course;
+    t.q('#save form').dispatchEvent(new Event('submit'));
+    await settle(30);
+  }
+
+  it('R3b.1-1 (a): a second person\'s save does not keep the first person\'s check; the same person back keeps it', async () => {
+    const s = stub();
+    const t = page(s, { session: seen() });
+    await t.app.handleFile(file('p.zip', PROJECT));
+    t.button('Compile and check').click();
+    await settle(30);
+    expect(t.button(SAVE_TO_KEEP)).toBeTruthy();
+    t.acc.set(null);
+    t.acc.set({ id: 'u2' });
+    await settle();
+    await saveAs(t, 'Physics');
+    expect(await t.db.select('jobs')).toEqual([]);
+    // The same person again (SIGNED_IN when the tab is shown): the check stays theirs, and their save keeps it.
+    const s2 = stub();
+    const t2 = page(s2, { session: seen() });
+    await t2.app.handleFile(file('p.zip', PROJECT));
+    t2.button('Compile and check').click();
+    await settle(30);
+    t2.acc.set({ id: 'u1' });
+    await settle();
+    await saveAs(t2, 'Calculus', SAVE_TO_KEEP);
+    expect(await t2.db.select('jobs')).toHaveLength(1);
+  });
+
+  it('R3b.1-1 (b): a second person\'s check is not filed under the first person\'s scan; the same person\'s is', async () => {
+    const s = stub();
+    const t = page(s, { session: seen() });
+    await t.app.handleFile(file('p.zip', PROJECT));
+    await saveAs(t, 'Calculus');
+    const u1scan = (await t.db.select<{ id: string }>('scans'))[0].id;
+    t.acc.set(null);
+    t.acc.set({ id: 'u2' });
+    await settle();
+    t.button('Compile and check').click();
+    await settle(30);
+    expect((await t.db.select<JobRow>('jobs')).filter((j) => j.scan_id === u1scan)).toEqual([]);
+    expect(t.button(SAVE_TO_KEEP)).toBeTruthy();
+    // The same person throughout: filed under their saved scan.
+    const t2 = page(stub(), { session: seen() });
+    await t2.app.handleFile(file('p.zip', PROJECT));
+    await saveAs(t2, 'Calculus');
+    t2.acc.set({ id: 'u1' });
+    t2.button('Compile and check').click();
+    await settle(30);
+    const scan = (await t2.db.select<{ id: string }>('scans'))[0].id;
+    expect((await t2.db.select<JobRow>('jobs')).map((j) => j.scan_id)).toEqual([scan]);
+  });
+
+  it('R3b.1-2: each poll and the PDF download ask for the token of the moment, and a sign-in that ended is not called a deleted PDF', async () => {
+    const s = stub();
+    const t = page(s, { session: seen() });
+    let n = 0;
+    t.acc.account.token = async () => `tok${++n}`;
+    await t.app.handleFile(file('p.zip', PROJECT));
+    t.button('Compile and check').click();
+    await settle(30);
+    const polls = s.calls.filter((c) => c.method === 'GET' && c.url.includes('/api/jobs/')).map((c) => c.auth);
+    expect(polls.length).toBeGreaterThan(1);
+    expect(new Set(polls).size).toBe(polls.length);
+    const before = n;
+    t.button('Download the PDF').click();
+    await settle();
+    expect(s.calls.filter((c) => c.url.endsWith('/pdf')).at(-1)?.auth).toBe(`Bearer tok${before + 1}`);
+    expect(t.blobs).toHaveLength(1);
+    // The checker refuses the token (401): the page asks for a sign-in, and says nothing of a deleted PDF.
+    const real = s.deps.fetch;
+    s.deps.fetch = (async (u: RequestInfo | URL, i?: RequestInit) => (String(u).endsWith('/pdf') ? new Response('{"error":"Sign in to use the checker."}', { status: 401 }) : real(u, i))) as typeof fetch;
+    t.button('Download the PDF').click();
+    await settle();
+    expect(t.q('#compile [role="alert"]').textContent).toBe(PDF_SIGN_IN);
+    // A PDF that is gone (404) is still called gone.
+    s.deps.fetch = (async (u: RequestInfo | URL, i?: RequestInit) => (String(u).endsWith('/pdf') ? new Response('{"error":"Not found."}', { status: 404 }) : real(u, i))) as typeof fetch;
+    t.button('Download the PDF').click();
+    await settle();
+    expect(t.q('#compile [role="alert"]').textContent).toBe(PDF_GONE);
+    expect(t.blobs).toHaveLength(1);
+  });
+
+  it('R3b.1-4: a main file that is not .tex is told at once, and nothing is sent; a .tex one is sent', async () => {
+    const s = stub();
+    const t = page(s, { session: seen() });
+    await t.app.handleFile(file('p.zip', zipSync({ 'thesis.ltx': strToU8('\\documentclass{article}\n\\begin{document}\nHi\n\\end{document}\n') })));
+    t.button('Compile and check').click();
+    await settle(30);
+    expect(t.q('#compile [role="alert"]').textContent).toBe(notTexMessage('thesis.ltx'));
+    expect(notTexMessage('thesis.ltx')).toBe('The checker compiles .tex main files only; rename thesis.ltx to thesis.tex to check it.');
+    expect(s.calls).toEqual([]);
+    t.button('Close').click();
+    expect(t.q('#compile')).toBeNull();
+    const ok = stub();
+    const u = page(ok, { session: seen() });
+    await u.app.handleFile(file('p.zip', PROJECT));
+    u.button('Compile and check').click();
+    await settle(30);
+    expect(ok.calls.find((c) => c.method === 'POST')?.url).toContain('mainFile=main.tex');
+  });
+
+  it('R3b.1-7: Cancel after the upload, and Close after the result, delete the job on the checker', async () => {
+    const s = stub({ sequence: [doneJob({ status: 'queued', result: null }), doneJob({ status: 'running', result: null }), doneJob({ status: 'running', result: null }), doneJob()] });
+    const t = page(s, { session: seen() });
+    await t.app.handleFile(file('p.zip', PROJECT));
+    const real = s.deps.sleep;
+    let cancelled = false;
+    s.deps.sleep = async (ms) => {
+      // The first wait between polls: the job is on the checker.
+      if (!cancelled && s.calls.some((c) => c.method === 'POST')) {
+        cancelled = true;
+        t.button('Cancel').click();
+      }
+      await real(ms);
+    };
+    t.button('Compile and check').click();
+    await settle(30);
+    expect(cancelled).toBe(true);
+    expect(t.q('#compile')).toBeNull();
+    const id = doneJob().id;
+    expect(s.calls.filter((c) => c.method === 'DELETE').map((c) => c.url)).toEqual([`${BASE}/api/jobs/${id}`]);
+    // Close after the result.
+    const s2 = stub();
+    const t2 = page(s2, { session: seen() });
+    await t2.app.handleFile(file('p.zip', PROJECT));
+    t2.button('Compile and check').click();
+    await settle(30);
+    expect(s2.calls.some((c) => c.method === 'DELETE')).toBe(false);
+    t2.button('Close').click();
+    await settle();
+    expect(s2.calls.filter((c) => c.method === 'DELETE')).toHaveLength(1);
+  });
+
+  it('R3b.1-7: Cancel while the upload is on its way deletes the job once its id is known', async () => {
+    const s = stub();
+    const t = page(s, { session: seen() });
+    await t.app.handleFile(file('p.zip', PROJECT));
+    const real = s.deps.fetch;
+    s.deps.fetch = (async (u: RequestInfo | URL, i?: RequestInit) => {
+      if (i?.method === 'POST') t.button('Cancel').click();
+      return real(u, i);
+    }) as typeof fetch;
+    t.button('Compile and check').click();
+    await settle(30);
+    expect(t.q('#compile')).toBeNull();
+    expect(s.calls.filter((c) => c.method === 'DELETE')).toHaveLength(1);
+    expect(s.calls.some((c) => c.method === 'GET' && c.url.includes('/api/jobs/'))).toBe(false);
+  });
+
+  it('R3b.1-7: a double click on "Upload and check" starts one check and does not cancel it', async () => {
+    const s = stub();
+    const t = page(s);
+    await t.app.handleFile(file('p.zip', PROJECT));
+    t.button('Compile and check').click();
+    await settle();
+    // Two clicks at the same place: the first button of the actions, twice.
+    const at = () => t.q('#compile .actions button') as HTMLButtonElement;
+    at().click();
+    at().click();
+    await settle(30);
+    expect(t.q('#compile')).not.toBeNull();
+    expect(t.q('#compile').textContent).toContain('22 pages');
+    expect(s.calls.filter((c) => c.method === 'POST')).toHaveLength(1);
+    expect(s.calls.some((c) => c.method === 'DELETE')).toBe(false);
   });
 });

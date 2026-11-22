@@ -55,11 +55,14 @@ export const NOT_AVAILABLE = 'The checker is not available. The scan still works
 export const UNREACHABLE = 'The checker could not be reached. Check your connection and try again.';
 export const DID_NOT_WAKE = 'The checker did not wake up in time. Try again in a minute; the scan still works.';
 export const LOST = 'The checker lost this check, perhaps because it restarted. Compile again.';
+export const SIGN_IN_AGAIN = 'Sign in again to go on: your sign-in has ended.';
+export const PDF_GONE = 'The PDF is gone: the checker deletes it 30 minutes after the check, or when it restarts. Compile again.';
+export const PDF_SIGN_IN = 'Sign in again to download the PDF. It is kept for 30 minutes after the check.';
 
 /**
  * How long the page waits for the checker to wake: the longer of 120 s and
  * twice the cold start AC-68 records. Until AC-68's measurement on the live
- * worker, 120 s; DECISIONS.md D-81 says where to change it.
+ * worker, 120 s; DECISIONS.md D-82 says where to change it.
  */
 export const RECORDED_COLD_START_MS: number | null = null;
 export const WAKE_LIMIT_MS = Math.max(120_000, 2 * (RECORDED_COLD_START_MS ?? 0));
@@ -94,7 +97,20 @@ async function errorFrom(res: Response): Promise<CheckerError> {
   return new CheckerError(message, res.status, Number.isFinite(ra) && ra > 0 ? ra : null);
 }
 
-/** One health request, given up after `timeoutMs`. Null when there was no answer in time. */
+/** Answers that mean the instance is starting or its edge cannot reach it yet (Render's free instance). */
+export const ASLEEP_STATUSES = [502, 503, 504];
+
+/** The checker answered, but not as a checker does: a wrong address, a path that is not there (R3b.1-3). */
+export class NotAChecker extends Error {
+  override name = 'NotAChecker';
+}
+
+/**
+ * One health request, given up after `timeoutMs`. Null when the checker is
+ * asleep: no answer in time, no connection, or 502, 503 or 504. Any other
+ * answer that is not a health answer throws NotAChecker (R3b.1-3). A browser
+ * cannot tell a CORS refusal from a lost connection; both read as asleep.
+ */
 export async function health(d: CheckerDeps, timeoutMs = d.healthTimeoutMs ?? HEALTH_TIMEOUT_MS): Promise<CheckerHealth | null> {
   const ctl = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -104,17 +120,26 @@ export async function health(d: CheckerDeps, timeoutMs = d.healthTimeoutMs ?? HE
       resolve(null);
     }, timeoutMs);
   });
-  const ask = (async () => {
+  const ask = (async (): Promise<CheckerHealth | null | NotAChecker> => {
+    let res: Response;
     try {
-      const res = await d.fetch(`${d.base}/api/health`, { signal: ctl.signal, cache: 'no-store' });
-      if (!res.ok) return null;
-      return (await res.json()) as CheckerHealth;
+      res = await d.fetch(`${d.base}/api/health`, { signal: ctl.signal, cache: 'no-store' });
     } catch {
       return null;
     }
+    if (ASLEEP_STATUSES.includes(res.status)) return null;
+    try {
+      const body = res.ok ? ((await res.json()) as CheckerHealth) : null;
+      if (body && typeof body.compile === 'boolean') return body;
+    } catch {
+      // Not JSON: not the checker.
+    }
+    return new NotAChecker(`health answered ${res.status}`);
   })();
   try {
-    return await Promise.race([ask, timeout]);
+    const h = await Promise.race([ask, timeout]);
+    if (h instanceof NotAChecker) throw h;
+    return h;
   } finally {
     clearTimeout(timer);
   }
@@ -128,14 +153,25 @@ export async function health(d: CheckerDeps, timeoutMs = d.healthTimeoutMs ?? HE
  */
 export async function wake(d: CheckerDeps, onWaking: (elapsedSeconds: number) => void, limitMs = WAKE_LIMIT_MS, stale: () => boolean = () => false): Promise<CheckerHealth> {
   const started = d.now();
-  let h = await health(d);
+  const ask = async () => {
+    try {
+      return await health(d);
+    } catch (e) {
+      if (e instanceof NotAChecker) throw new CheckerError(NOT_AVAILABLE);
+      throw e;
+    }
+  };
+  let asked = d.now();
+  let h = await ask();
   while (!h) {
     if (stale()) throw new CheckerError('stale');
     const elapsed = d.now() - started;
     if (elapsed >= limitMs) throw new CheckerError(DID_NOT_WAKE);
     onWaking(Math.floor(elapsed / 1000));
-    await d.sleep(WAKE_POLL_MS);
-    h = await health(d);
+    // A request starts every 3 seconds (AC-27), also when the last one waited for its timeout (R3b.1-3).
+    await d.sleep(Math.max(0, WAKE_POLL_MS - (d.now() - asked)));
+    asked = d.now();
+    h = await ask();
   }
   if (!h.compile) throw new CheckerError(NOT_AVAILABLE, 503);
   return h;
@@ -157,6 +193,15 @@ export async function submit(d: CheckerDeps, zip: Uint8Array, mainFile: string, 
   return (await res.json()) as CheckerJob;
 }
 
+/** The signed-in person's token now; the sign-in library refreshes it, so it is asked before each request (R3b.1-2). */
+export type TokenSource = () => Promise<string | null>;
+
+async function tokenNow(token: TokenSource): Promise<string> {
+  const t = await token();
+  if (!t) throw new CheckerError(SIGN_IN_AGAIN, 401);
+  return t;
+}
+
 /** The job as the checker has it now. */
 export async function job(d: CheckerDeps, id: string, token: string): Promise<CheckerJob> {
   let res: Response;
@@ -172,10 +217,11 @@ export async function job(d: CheckerDeps, id: string, token: string): Promise<Ch
 
 /**
  * Asks about the job every 2 seconds until it is done or failed, telling
- * `onStatus` each change. A lost connection is retried for a minute before
- * it is an error.
+ * `onStatus` each change, with the token of the moment (R3b.1-2). A lost
+ * connection, or a 502, 503 or 504 from the checker's edge, is retried for a
+ * minute before it is an error (R3b.1-8).
  */
-export async function follow(d: CheckerDeps, first: CheckerJob, token: string, onStatus: (j: CheckerJob) => void, stale: () => boolean = () => false): Promise<CheckerJob> {
+export async function follow(d: CheckerDeps, first: CheckerJob, token: TokenSource, onStatus: (j: CheckerJob) => void, stale: () => boolean = () => false): Promise<CheckerJob> {
   let current = first;
   let lostSince: number | null = null;
   onStatus(current);
@@ -183,12 +229,13 @@ export async function follow(d: CheckerDeps, first: CheckerJob, token: string, o
     await d.sleep(JOB_POLL_MS);
     if (stale()) throw new CheckerError('stale');
     try {
-      const next = await job(d, current.id, token);
+      const next = await job(d, current.id, await tokenNow(token));
       lostSince = null;
       if (next.status !== current.status) onStatus(next);
       current = next;
     } catch (e) {
-      if (!(e instanceof CheckerError) || e.message !== UNREACHABLE) throw e;
+      const passing = e instanceof CheckerError && (e.message === UNREACHABLE || (e.status !== null && ASLEEP_STATUSES.includes(e.status)));
+      if (!passing) throw e;
       lostSince ??= d.now();
       if (d.now() - lostSince > 60_000) throw e;
     }
@@ -196,21 +243,33 @@ export async function follow(d: CheckerDeps, first: CheckerJob, token: string, o
   return current;
 }
 
-/** Deletes the job and its PDF on the checker (best effort; the checker deletes it after 30 minutes anyway). */
-export async function forget(d: CheckerDeps, id: string, token: string): Promise<void> {
+/**
+ * Deletes the job and its PDF on the checker; a running one is stopped, so the
+ * next job runs (R3b.1-7). Best effort: the checker deletes it after 30
+ * minutes anyway.
+ */
+export async function forget(d: CheckerDeps, id: string, token: TokenSource): Promise<void> {
   try {
-    await d.fetch(`${d.base}/api/jobs/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { authorization: `Bearer ${token}` } });
+    const t = await token();
+    if (!t) return;
+    await d.fetch(`${d.base}/api/jobs/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { authorization: `Bearer ${t}` } });
   } catch {
     // Nothing to do: the checker deletes it within 30 minutes.
   }
 }
 
-/** The job's PDF, for "Download the PDF". Null when it is gone. */
-export async function pdf(d: CheckerDeps, id: string, token: string): Promise<Blob | null> {
+/** The job's PDF, for "Download the PDF", with the token of the moment; or why there is none (R3b.1-2). */
+export async function pdf(d: CheckerDeps, id: string, token: TokenSource): Promise<{ blob: Blob } | { error: string }> {
+  const t = await token();
+  if (!t) return { error: PDF_SIGN_IN };
+  let res: Response;
   try {
-    const res = await d.fetch(`${d.base}/api/jobs/${encodeURIComponent(id)}/pdf`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-    return res.ok ? await res.blob() : null;
+    res = await d.fetch(`${d.base}/api/jobs/${encodeURIComponent(id)}/pdf`, { headers: { authorization: `Bearer ${t}` }, cache: 'no-store' });
   } catch {
-    return null;
+    return { error: UNREACHABLE };
   }
+  if (res.ok) return { blob: await res.blob() };
+  if (res.status === 404) return { error: PDF_GONE };
+  if (res.status === 401) return { error: PDF_SIGN_IN };
+  return { error: (await errorFrom(res)).message };
 }

@@ -799,8 +799,11 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       signedIn = !!id;
       navCourses.hidden = !signedIn;
       for (const b of root.querySelectorAll<HTMLButtonElement>('button.compile-open')) b.hidden = !signedIn;
-      // Another person, or none: a compile panel of the one before goes (its token is theirs).
+      // Another person, or none: a compile panel of the one before goes (its token is theirs),
+      // and so do that person's saved scans and unsaved checks, which are not the new person's (R3b.1-1).
       if (compilePanel.isConnected) hideCompile();
+      savedScans = new Map();
+      unsavedJobs = new Map();
       if (saveItems) drawSave();
       showPending();
       // A page that depends on who is signed in is drawn again, also for another person (R2.1-9).

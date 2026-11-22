@@ -167,10 +167,22 @@ export function compiledLine(r: Pick<CheckerResult, 'pages' | 'seconds' | 'warni
  * null when the message is not one of them (TeX's own words are then shown).
  * Outside programs get the scan's own words (S2-8, AC-8).
  */
+/**
+ * A missing file of a type the page does not send (R3b.1-5): it may be in the
+ * person's zip, so "add it" would be wrong. Null for a type the checker takes,
+ * or a name with no type.
+ */
+function notSent(name: string): string | null {
+  const base = name.slice(name.lastIndexOf('/') + 1);
+  const dot = base.lastIndexOf('.');
+  if (dot <= 0 || checkerTakes(name)) return null;
+  return `The checker does not take ${base.slice(dot).toLowerCase()} files, so ${name} was not sent; the compile needs it.`;
+}
+
 export const TEX_ERRORS: [RegExp, (m: RegExpExecArray) => string][] = [
   [/Undefined control sequence/i, () => 'A command is not defined. Check its spelling, or load the package that defines it.'],
-  [/LaTeX Error: File [`'‘]([^'’`]+)['’] not found/i, (m) => `The file ${m[1]} was not found. Add it to the zip, or check its name; packages outside TeX Live are not installed on the checker.`],
-  [/File [`'‘]([^'’`]+)['’] not found/i, (m) => `The file ${m[1]} was not found. Add it to the zip, or check its name.`],
+  [/LaTeX Error: File [`'‘]([^'’`]+)['’] not found/i, (m) => notSent(m[1]) ?? `The file ${m[1]} was not found. Add it to the zip, or check its name; packages outside TeX Live are not installed on the checker.`],
+  [/File [`'‘]([^'’`]+)['’] not found/i, (m) => notSent(m[1]) ?? `The file ${m[1]} was not found. Add it to the zip, or check its name.`],
   [/Missing \$ inserted/i, () => 'A math symbol is outside math mode: a $ is missing, or a _ or ^ is in plain text.'],
   [/Missing \\begin\{document\}/i, () => 'Text comes before \\begin{document}, or the preamble has a stray character.'],
   [/Environment (\S+) undefined/i, (m) => `The environment ${m[1]} is not defined. Load the package that defines it, or check its name.`],
@@ -186,7 +198,7 @@ export const TEX_ERRORS: [RegExp, (m: RegExpExecArray) => string][] = [
   [/Illegal unit of measure/i, () => 'A length has no unit or a wrong one (use pt, mm, cm, in or em).'],
   [/Unknown graphics extension/i, () => 'A figure has a file type the compile cannot read. Convert it to PDF or PNG.'],
   [/Emergency stop/i, () => 'The compile could not go on, usually because of the error just before it in the log.'],
-  [/luaotfload|font .* not (found|loadable)|Font \S+ not loadable/i, () => 'A font was not found. Use a font installed with TeX Live, or add the font file to the zip.'],
+  [/luaotfload|font .* not (found|loadable)|Font \S+ not loadable/i, () => 'A font was not found. Use a font installed with TeX Live: the checker does not take font files.'],
   [/shell escape|write18|\\immediate\\write18|-shell-escape/i, () => OUTSIDE_PROGRAM],
   [/minted|pythontex|gnuplot|epstopdf|inkscape|\\tikzexternalize/i, () => OUTSIDE_PROGRAM],
 ];
