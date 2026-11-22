@@ -457,7 +457,8 @@ describe('sending a project and following its job', () => {
 
   it('fetches the PDF and deletes a job', async () => {
     const s = stub();
-    expect(await (await pdf(s.deps, 'x', 't'))?.text()).toBe('%PDF-1.7');
+    // Its size, not its text: jsdom's Blob has no text() on every Node the CI runs.
+    expect((await pdf(s.deps, 'x', 't'))?.size).toBe('%PDF-1.7'.length);
     await forget(s.deps, 'x', 't');
     expect(s.calls.at(-1)).toMatchObject({ method: 'DELETE', url: `${BASE}/api/jobs/x`, auth: 'Bearer t' });
     s.deps.fetch = (async () => {
