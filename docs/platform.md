@@ -263,7 +263,10 @@ short:
   anyone could try at Auth's public `/verify`), stores an HMAC of them with
   the link's token hash in `platform.sign_in_codes`
   (`platform/supabase/shared/0017_sign_in_codes.sql`), and puts the code in
-  the subject and above the link. The browser checks a code with
+  the body above the link. Never in the subject (owner, 22 Nov 2026): every
+  sign-in email of an app keeps the link-only email's subject, `Your sign-in
+  link for <App>`, so a mailbox threads them, and the inbox preview line is a
+  preheader without the code. The browser checks a code with
   `{ action: 'verify', email, code, browserId }`; the function counts it
   under a row lock and, for the right code, answers the token hash, which
   the browser turns into a session with the same `verifyOtp` call as the

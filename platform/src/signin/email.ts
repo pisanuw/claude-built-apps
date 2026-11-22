@@ -8,7 +8,7 @@
  *
  * The sign-in email carries a 6-digit code above the link when the app has
  * the code box (signInEmail's `withCode`; code.ts, owner 22 November 2026):
- * the code large, in monospace, also in the subject and the text part, and
+ * the code large, in monospace, in the body only (HTML and text), and
  * the link below it while apps move to the code.
  *
  * Every email (docs/platform.md, "Email footer, logo and opt-out"):
@@ -105,6 +105,12 @@ export interface EmailParts {
   afterCode?: Array<{ text: string; href?: string }>;
   /** Paragraphs after it. */
   outro: string[];
+  /**
+   * The line an inbox list shows beside the subject, as a hidden block first
+   * in the HTML body, followed by blank filler so no body text (a code) is
+   * pulled in after it. Without it the HTML starts with the header, as before.
+   */
+  preheader?: string;
   /** The footer's first line: why this address got the email. Visitor emails only; without it there is no footer. */
   why?: string;
   /** A list of links after the intro (app-notify's new pages); each title links to its page. */
@@ -135,6 +141,10 @@ const HEAD_STYLE =
   `:root{color-scheme:light dark;supported-color-schemes:light dark}` +
   `@media (prefers-color-scheme:dark){.hw-brand{color:${DARK_BRAND} !important}.hw-link{color:${DARK_LINK} !important}}`;
 const FOOT_P = 'margin:0 0 8px';
+/** The hidden preheader: in the inbox list's preview, never on the page. */
+export const PREHEADER_STYLE = 'display:none;max-height:0;max-width:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:transparent;opacity:0';
+/** Blank characters after the preheader, so a preview runs out before it reaches the body (and the code). */
+export const PREHEADER_FILLER = '&#847;&zwnj;&nbsp;'.repeat(90);
 /** The code in the hook's code and reauthentication emails, unchanged since they were first sent. */
 export const HOOK_CODE_STYLE = 'font-size:24px;letter-spacing:4px;font-weight:600';
 /** The sign-in code: large monospace digits, selected whole by one tap where the client allows it. */
@@ -230,13 +240,14 @@ export function renderEmail(p: EmailParts, from = SIGN_IN_FROM, look: EmailLook 
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
     '<meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">' +
     `<title>${escapeHtml(p.subject)}</title><style>${HEAD_STYLE}</style>`;
+  const pre = p.preheader ? `<div style="${PREHEADER_STYLE}">${escapeHtml(p.preheader)}${PREHEADER_FILLER}</div>` : '';
   return {
     from,
     to: [p.to],
     reply_to: SUPPORT_EMAIL,
     subject: p.subject,
     text: `${body}\n`,
-    html: `<!doctype html><html lang="en"><head>${head}</head><body style="${STYLE}"><div style="max-width:560px">${headerHtml(look.logoUrl)}${html.join('')}</div></body></html>`,
+    html: `<!doctype html><html lang="en"><head>${head}</head><body style="${STYLE}">${pre}<div style="max-width:560px">${headerHtml(look.logoUrl)}${html.join('')}</div></body></html>`,
   };
 }
 
@@ -267,13 +278,22 @@ export interface EmailCode {
 
 /** What the code email says about where and how long the code works (UpvoteMe's words, HintWise's numbers). */
 export const CODE_WHERE = `Type it in the browser where you asked for it: it works only there, once, for ${SIGN_IN_CODE_MINUTES} minutes. Do not share it with anyone.`;
+
+/**
+ * The subject of every sign-in email of an app, with or without a code, so
+ * a mailbox threads them (owner, 22 Nov 2026: the code only in the body).
+ */
+export const signInSubject = (appName: string | null): string => (appName ? `Your sign-in link for ${appName}` : 'Your sign-in link');
 export const CODE_TAB_CLOSED = `Closed that tab? Open this page in that same browser and choose "${ENTER_CODE_LABEL}":`;
 export const CODE_OR_LINK = 'Or sign in with this link instead. It works in any browser, for about an hour.';
 
 /**
  * The sign-in email; `host` is the site it signs in to (default the link's
- * own host). With `withCode`, the code comes first (also in the subject and
- * the text part), then where to type it, then the link as the other way in.
+ * own host). With `withCode`, the code comes first, then where else to type
+ * it, then the link as the other way in. The code is in the body only: the
+ * subject is the link-only email's, and the preview line beside it in an
+ * inbox list is a preheader without the code; in the text part the code
+ * follows a paragraph long enough to keep it out of a preview there too.
  */
 export function signInEmail(to: string, link: string, appName: string | null, host: string = new URL(link).hostname, look: EmailLook = {}, withCode: EmailCode | null = null): EmailMessage {
   const site = appName ? `${appName} (${host})` : host;
@@ -281,11 +301,12 @@ export function signInEmail(to: string, link: string, appName: string | null, ho
     return renderEmail(
       {
         to,
-        subject: `${withCode.code} is your sign-in code${appName ? ` for ${appName}` : ''}`,
-        intro: [`Here is your ${SIGN_IN_CODE_LENGTH}-digit code to sign in to ${site}:`],
+        subject: signInSubject(appName),
+        preheader: `Your sign-in code for ${appName ?? host} is in this email. Type it in the browser where you asked for it.`,
+        intro: [`Here is your ${SIGN_IN_CODE_LENGTH}-digit code to sign in to ${site}. ${CODE_WHERE}`],
         code: withCode.code,
         bigCode: true,
-        afterCode: [{ text: CODE_WHERE }, { text: CODE_TAB_CLOSED, href: withCode.page }, { text: CODE_OR_LINK }],
+        afterCode: [{ text: CODE_TAB_CLOSED, href: withCode.page }, { text: CODE_OR_LINK }],
         link: { href: link, label: 'Sign in' },
         outro: ['If you did not ask for it, ignore this email.'],
         why: WHY.signIn(appName ?? host),
@@ -297,7 +318,7 @@ export function signInEmail(to: string, link: string, appName: string | null, ho
   return renderEmail(
     {
       to,
-      subject: appName ? `Your sign-in link for ${appName}` : 'Your sign-in link',
+      subject: signInSubject(appName),
       intro: [`Here is your link to sign in to ${site}:`],
       link: { href: link, label: 'Sign in' },
       outro: ['The link expires in about an hour. If you did not ask for it, ignore this email.'],

@@ -5,6 +5,8 @@ import {
   BRAND_INDIGO,
   CODE_STYLE,
   codeEmail,
+  PREHEADER_FILLER,
+  PREHEADER_STYLE,
   HOOK_CODE_STYLE,
   emailChangeCurrentEmail,
   emailChangeNewEmail,
@@ -65,12 +67,12 @@ describe('the sign-in email', () => {
     expect(r.subject).toBe('Reset your password');
     for (const m of [s1, c, r]) expect(m.from).toBe(SIGN_IN_FROM);
   });
-  it('puts the code first when the app has the code box: subject, text and a large monospace block, then the link', () => {
+  it('puts the code first in the body when the app has the code box: text and a large monospace block, then the link', () => {
     const page = 'https://paste-md.hintwise.org/';
     const m = signInEmail('ann@example.com', link, 'Paste Md', undefined, {}, { code: '004217', page });
-    expect(m.subject).toBe('004217 is your sign-in code for Paste Md');
-    expect(m.text).toContain('Here is your 6-digit code to sign in to Paste Md (paste-md.hintwise.org):\n\n004217\n\n');
-    expect(m.text).toContain('Type it in the browser where you asked for it: it works only there, once, for 10 minutes. Do not share it with anyone.');
+    expect(m.text).toContain(
+      'Here is your 6-digit code to sign in to Paste Md (paste-md.hintwise.org). Type it in the browser where you asked for it: it works only there, once, for 10 minutes. Do not share it with anyone.\n\n004217\n\n',
+    );
     // The way back names the template's own label.
     expect(m.text).toContain(`Closed that tab? Open this page in that same browser and choose "Type a code I asked for in this browser": ${page}\n`);
     expect(m.text).toContain('Or sign in with this link instead. It works in any browser, for about an hour.');
@@ -85,8 +87,32 @@ describe('the sign-in email', () => {
     expect(m.html).toContain('href="https://paste-md.hintwise.org/?token_hash=abc&amp;type=email"');
     expect(m.html.indexOf('004217')).toBeLessThan(m.html.indexOf('token_hash=abc'));
     const plain = signInEmail('ann@example.com', link, null, undefined, {}, { code: '004217', page });
-    expect(plain.subject).toBe('004217 is your sign-in code');
-    expect(plain.text).toContain('code to sign in to paste-md.hintwise.org:');
+    expect(plain.text).toContain('code to sign in to paste-md.hintwise.org. Type it');
+  });
+  it('keeps the code out of the subject and the inbox preview: the subject is the link-only email\'s, so a mailbox threads them', () => {
+    const page = 'https://paste-md.hintwise.org/';
+    for (const [code, app] of [['004217', 'Paste Md'], ['987650', null]] as const) {
+      const m = signInEmail('ann@example.com', link, app, undefined, {}, { code, page });
+      const linkOnly = signInEmail('ann@example.com', link, app);
+      expect(m.subject).toBe(linkOnly.subject);
+      expect(m.subject).toBe(app ? 'Your sign-in link for Paste Md' : 'Your sign-in link');
+      for (const d of new Set(code)) expect(m.subject).not.toContain(d);
+      expect(m.html).toContain(`<title>${m.subject}</title>`);
+      // The preview line: a hidden preheader first in the body, without the code, then blank filler.
+      const body = m.html.slice(m.html.indexOf('<body'));
+      const pre = body.match(/^<body[^>]*><div style="([^"]*)">([^<]*)<\/div>/)!;
+      expect(pre[1]).toBe(PREHEADER_STYLE);
+      expect(pre[2].startsWith(`Your sign-in code for ${app ?? 'paste-md.hintwise.org'} is in this email. Type it in the browser where you asked for it.`)).toBe(true);
+      expect(pre[2].endsWith(PREHEADER_FILLER)).toBe(true);
+      expect(pre[2].slice(0, -PREHEADER_FILLER.length)).not.toMatch(/[0-9]/); // no digit at all, so no part of the code
+      expect(pre[2]).not.toContain(code);
+      expect(m.html.indexOf(code)).toBeGreaterThan(m.html.indexOf(PREHEADER_FILLER) + PREHEADER_FILLER.length);
+      // In the text part, the code comes after a paragraph longer than an inbox preview.
+      expect(m.text.indexOf(code)).toBeGreaterThan(150);
+      expect(m.text).toContain(`\n\n${code}\n\n`);
+    }
+    expect(PREHEADER_STYLE).toContain('display:none');
+    expect(signInEmail('ann@example.com', link, 'Paste Md').html).not.toContain(PREHEADER_STYLE);
   });
   it('leaves the link-only email and the hook\'s code emails byte for byte as on main before the code (22 Nov 2026)', () => {
     // test/fixtures/sign-in-emails-main.json: these same calls rendered by main's email.ts at 4864b8a.

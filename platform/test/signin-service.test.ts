@@ -252,7 +252,7 @@ describe('handleSignInLink: the sign-in code', () => {
     expect(JSON.stringify(s.rpc)).not.toContain('042917');
     expect(s.finish().p_detail).toBe('with code; resend re_9');
     const [mail] = s.emails();
-    expect(mail.subject).toBe('042917 is your sign-in code for Pluck Lab');
+    expect(mail.subject).toBe('Your sign-in link for Pluck Lab'); // the link-only email's: the code is in the body only
     expect(mail.text).toContain('\n\n042917\n\n');
     expect(mail.text).toContain('Closed that tab? Open this page in that same browser and choose "Type a code I asked for in this browser": https://pluck-lab.hintwise.org/app\n');
     expect(mail.text).toContain('https://pluck-lab.hintwise.org/app?token_hash=hashed-1&type=email&email_hint=a***%40example.com\n');
