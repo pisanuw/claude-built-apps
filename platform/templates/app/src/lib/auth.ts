@@ -1,18 +1,22 @@
 /**
  * Sign-in for HintWise apps (docs/platform.md, sections 2 and "Sign-in links
- * and abuse limits"): Google, or a sign-in link by email. One Supabase user
+ * and abuse limits"): Google, or a 6-digit code by email. One Supabase user
  * pool, so a visitor signed in on one app is known to all of them. Passwords
  * are not offered.
  *
- * Email links go through the platform's sign-in-link function, not
- * supabase.auth.signInWithOtp: it spaces out links to one address (and from
+ * Email sign-in goes through the platform's sign-in-link function, not
+ * supabase.auth.signInWithOtp: it spaces out emails to one address (and from
  * one browser), asks for a Cloudflare Turnstile check when one address,
- * browser or network asks too often, and emails a link back to this page with
+ * browser or network asks too often, and emails a 6-digit code (owner, 22
+ * November 2026: "it should send a 6 digit code like upvoteme") above a link
+ * back to this page. The code is typed in the panel's code box
+ * (verifySignInCode): it works 10 minutes, only in this browser, and 5 wrong
+ * codes void it. While apps move to the code, the email keeps the link,
  * ?token_hash=...&type=email, which completeSignInFromUrl turns into a
  * session in any browser.
  *
  * mountSignIn draws UpvoteMe's look for the right of the app's top bar:
- * "Sign in with Google" and "Magic link", or, signed in, the person and
+ * "Sign in with Google" and "Email code", or, signed in, the person and
  * "Sign out" (round icon buttons below 640 px; signin-styles.ts).
  *
  * Every function takes its client, fetch, storage or loader as an optional
@@ -38,7 +42,15 @@ export const TURNSTILE_ACTION = 'sign-in';
 export const TURNSTILE_SCRIPT = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
 /** The Google button's text, as on UpvoteMe (one of the three the branding guidelines allow). */
 export const GOOGLE_BUTTON_TEXT = 'Sign in with Google';
-export const MAGIC_LINK_TEXT = 'Magic link';
+/** The bar's email button, as on UpvoteMe. */
+export const EMAIL_CODE_TEXT = 'Email code';
+/** The emailed code: platform/src/signin/code.ts has the same numbers and label. */
+export const SIGN_IN_CODE_LENGTH = 6;
+export const SIGN_IN_CODE_MINUTES = 10;
+/** The way back to the code step; the email names the same label (UpvoteMe's words). */
+export const ENTER_CODE_LABEL = 'Type a code I asked for in this browser';
+/** localStorage: when this browser last asked for a code. A time only, never the address or the code. */
+export const CODE_ASKED_KEY = 'hintwise.signInCodeAt';
 /** Failed checks in a row before the panel stops resubmitting new tokens on its own. */
 export const MAX_FAILED_CHECKS = 3;
 
@@ -55,7 +67,8 @@ export function signInWithGoogle(redirectTo: string, client: AuthClient = getSup
 
 /** What the sign-in-link function answers, as the panel uses it. */
 export type SignInLinkResult =
-  | { status: 'sent' }
+  /** withCode: the email carries a code, so the panel shows the code box; without it, only a link went. */
+  | { status: 'sent'; withCode?: boolean }
   | { status: 'wait'; retryAt: string }
   | { status: 'challenge'; siteKey: string; failed?: boolean }
   /** The address asked HintWise for no email (its "Stop all email" link): no link is sent; Google still works. */
@@ -66,12 +79,15 @@ export type SignInLinkResult =
 export const SUPPRESSED_MESSAGE = 'This address asked HintWise not to send it email. Sign in with Google instead, or write to support@hintwise.org from this address to turn email back on.';
 
 type KeyStore = Pick<Storage, 'getItem' | 'setItem'>;
+type MarkStore = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
 export interface SendLinkOptions {
   /** The Turnstile token, when the function asked for the check. */
   turnstileToken?: string;
+  /** Ask for a code above the link (default true); false for a page without the code box. */
+  withCode?: boolean;
   fetch?: typeof fetch;
-  /** Where the browser id lives; null keeps none (a new id per request). Default localStorage. */
+  /** Where the browser id lives; null keeps it in memory for this page. Default localStorage. */
   storage?: KeyStore | null;
   /** VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY; default import.meta.env. */
   env?: Record<string, unknown>;
@@ -80,7 +96,7 @@ export interface SendLinkOptions {
   randomId?: () => string;
 }
 
-function defaultStorage(): KeyStore | null {
+function defaultStorage(): Storage | null {
   try {
     return typeof localStorage === 'undefined' ? null : localStorage;
   } catch {
@@ -88,7 +104,14 @@ function defaultStorage(): KeyStore | null {
   }
 }
 
-/** This browser's id, created with crypto.randomUUID() the first time and kept in localStorage. */
+/** The id while the browser cannot keep one (storage blocked): one for the page, so a code is checked from the page that asked. */
+let pageBrowserId: string | null = null;
+
+/**
+ * This browser's id, created with crypto.randomUUID() the first time and
+ * kept in localStorage. A sign-in code works only with the id that asked for
+ * it, so when storage is blocked the id stays the same for the page's life.
+ */
 export function browserId(storage: KeyStore | null = defaultStorage(), randomId: () => string = () => crypto.randomUUID()): string {
   try {
     const v = storage?.getItem(BROWSER_ID_KEY);
@@ -96,13 +119,22 @@ export function browserId(storage: KeyStore | null = defaultStorage(), randomId:
   } catch {
     /* unreadable: make a new one */
   }
-  const id = randomId();
+  const id = pageBrowserId ?? randomId();
   try {
-    storage?.setItem(BROWSER_ID_KEY, id);
+    if (storage) {
+      storage.setItem(BROWSER_ID_KEY, id);
+      if (storage.getItem(BROWSER_ID_KEY) === id) return id;
+    }
   } catch {
-    /* not kept: the next request gets a new id */
+    /* not kept */
   }
+  pageBrowserId = id;
   return id;
+}
+
+/** Tests only: forget the page's id. */
+export function resetPageBrowserId(): void {
+  pageBrowserId = null;
 }
 
 /** The function's URL for the configured project, or null without Supabase env. */
@@ -114,7 +146,7 @@ export function signInLinkUrl(env: Record<string, unknown> = import.meta.env): s
 /** Reads the function's JSON answer; anything unexpected becomes an error with a message to show. */
 export function toLinkResult(httpStatus: number, data: unknown): SignInLinkResult {
   const d = typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : {};
-  if (d.status === 'sent') return { status: 'sent' };
+  if (d.status === 'sent') return d.withCode === true ? { status: 'sent', withCode: true } : { status: 'sent' };
   if (d.status === 'wait' && typeof d.retryAt === 'string') return { status: 'wait', retryAt: d.retryAt };
   if (d.status === 'challenge') {
     const siteKey = typeof d.siteKey === 'string' && d.siteKey ? d.siteKey : TURNSTILE_SITE_KEY;
@@ -125,31 +157,169 @@ export function toLinkResult(httpStatus: number, data: unknown): SignInLinkResul
   return { status: 'error', message };
 }
 
+const NOT_SET_UP = 'Email sign-in is not set up for this app.';
+const UNREACHABLE = 'Could not reach the sign-in service. Check your connection and try again.';
+
 /**
- * Asks the platform's sign-in-link function to email a sign-in link that
- * returns to `redirectTo` (a page of this app on https://<app>.hintwise.org).
- * Never throws: failures come back as { status: 'error', message }.
+ * Asks the platform's sign-in-link function to email a sign-in code (unless
+ * `withCode: false`) and a link that returns to `redirectTo` (a page of this
+ * app on https://<app>.hintwise.org). Never throws: failures come back as
+ * { status: 'error', message }.
  */
 export async function sendMagicLink(email: string, redirectTo: string, opts: SendLinkOptions = {}): Promise<SignInLinkResult> {
   const env = supabaseEnv(opts.env ?? import.meta.env);
   const url = signInLinkUrl(opts.env ?? import.meta.env);
-  if (!env || !url) return { status: 'error', message: 'Email sign-in is not set up for this app.' };
-  const body: Record<string, string> = {
+  if (!env || !url) return { status: 'error', message: NOT_SET_UP };
+  const body: Record<string, string | boolean> = {
     email,
     redirectTo,
     app: opts.app ?? APP_SLUG,
     browserId: browserId(opts.storage === undefined ? defaultStorage() : opts.storage, opts.randomId),
   };
+  if (opts.withCode !== false) body.withCode = true;
   if (opts.turnstileToken) body.turnstileToken = opts.turnstileToken;
   const doFetch = opts.fetch ?? fetch;
   let res: Response;
   try {
     res = await doFetch(url, { method: 'POST', headers: { 'content-type': 'application/json', apikey: env.anonKey }, body: JSON.stringify(body) });
   } catch {
-    return { status: 'error', message: 'Could not reach the sign-in service. Check your connection and try again.' };
+    return { status: 'error', message: UNREACHABLE };
   }
   const data: unknown = await res.json().catch(() => null);
   return toLinkResult(res.status, data);
+}
+
+// ---- The emailed code -------------------------------------------------------
+
+/**
+ * The digits of what was typed or pasted, or null. Spaces and hyphens are
+ * dropped ("123 456", "123-456") and full-width digits read as digits
+ * (NFKC); anything else, or another number of digits, is not a code.
+ */
+export function normalizeSignInCode(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length > 64) return null;
+  const digits = value.normalize('NFKC').replace(/[\s-]/g, '');
+  return new RegExp(`^[0-9]{${SIGN_IN_CODE_LENGTH}}$`).test(digits) ? digits : null;
+}
+
+/** What sign-in-link answers to a code (platform/src/signin/code.ts CodeAnswer). */
+export type CodeAnswer =
+  | { status: 'verified'; tokenHash: string }
+  | { status: 'wrong'; left: number }
+  | { status: 'void' }
+  | { status: 'expired' }
+  | { status: 'none' }
+  | { status: 'error'; message: string };
+
+/** Reads the function's answer to a code; anything unexpected becomes an error with a message to show. */
+export function toCodeAnswer(httpStatus: number, data: unknown): CodeAnswer {
+  const d = typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : {};
+  if (d.status === 'verified' && typeof d.tokenHash === 'string' && d.tokenHash) return { status: 'verified', tokenHash: d.tokenHash };
+  if (d.status === 'wrong' && typeof d.left === 'number' && Number.isInteger(d.left) && d.left >= 0) return { status: 'wrong', left: d.left };
+  if (d.status === 'void' || d.status === 'expired' || d.status === 'none') return { status: d.status };
+  const message = typeof d.message === 'string' && d.message ? d.message : `The sign-in service answered ${httpStatus}.`;
+  return { status: 'error', message };
+}
+
+/**
+ * The outcome of typing a code:
+ * - wrong: `left` more tries for this code (0: it is void now);
+ * - void: 5 wrong codes; expired: 10 minutes passed; none: no code for this
+ *   address from this browser (another browser asked, it was used, or a
+ *   newer one replaced it); spent: the code was right but Auth refused the
+ *   sign-in (the email's link was used first, or Auth's own expiry);
+ * - invalid: not 6 digits, nothing was sent; error: the service could not check it.
+ */
+export type CodeResult =
+  | { status: 'signed-in' }
+  | { status: 'wrong'; left: number }
+  | { status: 'void' | 'expired' | 'none' | 'spent' }
+  | { status: 'invalid' | 'error'; message: string };
+
+export const CODE_MESSAGES = {
+  required: `Enter the ${SIGN_IN_CODE_LENGTH}-digit code from the email.`,
+  invalid: `A sign-in code is ${SIGN_IN_CODE_LENGTH} digits. Check the email and type the code again.`,
+  void: 'Too many wrong tries for this code, so it no longer works. Send a new code.',
+  expired: 'That code has expired. Send a new code.',
+  none: 'No code for this address is waiting in this browser. Send a new code, or use the link in the email.',
+  spent: 'That code has expired or was already used. Send a new code.',
+} as const;
+
+/** The words for a code that did not sign the visitor in ('' when it did). */
+export function codeMessage(r: CodeResult): string {
+  if (r.status === 'signed-in') return '';
+  if (r.status === 'wrong') return r.left > 0 ? `That code is wrong. Check the email and try again (${r.left} ${r.left === 1 ? 'try' : 'tries'} left).` : CODE_MESSAGES.void;
+  if (r.status === 'invalid' || r.status === 'error') return r.message;
+  return CODE_MESSAGES[r.status];
+}
+
+export interface VerifyCodeOptions {
+  client?: AuthClient;
+  fetch?: typeof fetch;
+  /** Where the browser id lives (the one the code was asked with); default localStorage. */
+  storage?: KeyStore | null;
+  env?: Record<string, unknown>;
+  randomId?: () => string;
+}
+
+/**
+ * Checks a typed code with sign-in-link (`action: 'verify'`, with this
+ * browser's id: a code works only in the browser that asked for it). A right
+ * code answers the token hash of the email's link, and verifyOtp({
+ * token_hash, type: 'email' }) turns it into a session, as the link does.
+ * Never throws.
+ */
+export async function verifySignInCode(email: string, typed: string, opts: VerifyCodeOptions = {}): Promise<CodeResult> {
+  if (!typed.trim()) return { status: 'invalid', message: CODE_MESSAGES.required };
+  const code = normalizeSignInCode(typed);
+  if (!code) return { status: 'invalid', message: CODE_MESSAGES.invalid };
+  const env = supabaseEnv(opts.env ?? import.meta.env);
+  const url = signInLinkUrl(opts.env ?? import.meta.env);
+  if (!env || !url) return { status: 'error', message: NOT_SET_UP };
+  const body = { action: 'verify', email: email.trim(), code, browserId: browserId(opts.storage === undefined ? defaultStorage() : opts.storage, opts.randomId) };
+  const doFetch = opts.fetch ?? fetch;
+  let answer: CodeAnswer;
+  try {
+    const res = await doFetch(url, { method: 'POST', headers: { 'content-type': 'application/json', apikey: env.anonKey }, body: JSON.stringify(body) });
+    answer = toCodeAnswer(res.status, await res.json().catch(() => null));
+  } catch {
+    return { status: 'error', message: UNREACHABLE };
+  }
+  if (answer.status !== 'verified') return answer;
+  try {
+    const { error } = await (opts.client ?? getSupabase()).auth.verifyOtp({ token_hash: answer.tokenHash, type: 'email' });
+    return error ? { status: 'spent' } : { status: 'signed-in' };
+  } catch {
+    return { status: 'error', message: UNREACHABLE };
+  }
+}
+
+/** Notes that this browser asked for a code, so the panel offers ENTER_CODE_LABEL for its lifetime. */
+export function markCodeAsked(storage: MarkStore | null, now: number = Date.now()): void {
+  try {
+    storage?.setItem(CODE_ASKED_KEY, String(now));
+  } catch {
+    /* not kept: the label shows only on this page's code step */
+  }
+}
+
+/** True when this browser asked for a code less than SIGN_IN_CODE_MINUTES ago. */
+export function codeAskedRecently(storage: MarkStore | null, now: number = Date.now()): boolean {
+  try {
+    const at = Number(storage?.getItem(CODE_ASKED_KEY));
+    return Number.isFinite(at) && at > 0 && now >= at && now - at < SIGN_IN_CODE_MINUTES * 60_000;
+  } catch {
+    return false;
+  }
+}
+
+/** Forgets the note (after the code signed the visitor in). */
+export function forgetCodeAsked(storage: MarkStore | null): void {
+  try {
+    storage?.removeItem(CODE_ASKED_KEY);
+  } catch {
+    /* nothing to forget */
+  }
 }
 
 export type CompleteResult =
@@ -349,7 +519,7 @@ export function googleLogoSvg(): string {
   return googleG.replace(/^<svg width="40" height="40" viewBox="0 0 40 40"/, '<svg width="20" height="20" viewBox="10 10 20 20" focusable="false" aria-hidden="true"');
 }
 
-/** The envelope on the "Magic link" button, the one UpvoteMe shows (Heroicons' mail icon, MIT). */
+/** The envelope on the "Email code" button, the one UpvoteMe shows (Heroicons' mail icon, MIT). */
 export const ENVELOPE_SVG =
   '<svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" focusable="false" aria-hidden="true">' +
   '<path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>' +
@@ -396,9 +566,13 @@ export function googleButton(onClick: () => void): HTMLButtonElement {
   return b;
 }
 
-/** The "Magic link" button: the envelope, then its label. It opens the email form. */
-export function magicLinkButton(onClick: () => void): HTMLButtonElement {
-  return barButton('hw-signin-magic', ENVELOPE_SVG, MAGIC_LINK_TEXT, onClick);
+/**
+ * The "Email code" button: the envelope, then its label. It opens the email
+ * form. (Its class keeps the name it had as "Magic link", so an app's own
+ * theme for it still applies.)
+ */
+export function emailCodeButton(onClick: () => void): HTMLButtonElement {
+  return barButton('hw-signin-magic', ENVELOPE_SVG, EMAIL_CODE_TEXT, onClick);
 }
 
 /** The first letter of the address (or id), shown in the person's round badge. */
@@ -435,6 +609,16 @@ function button(text: string, onClick: () => void, type: 'button' | 'submit' = '
   return b;
 }
 
+/** A quieter button that reads as a link: the code step's "Send a new code" and the like. */
+function textButton(text: string, onClick: () => void): HTMLButtonElement {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'hw-signin-text';
+  b.textContent = text;
+  b.addEventListener('click', onClick);
+  return b;
+}
+
 /** "14:05" today, "Wednesday 09:12" on another day, in the visitor's own locale and time zone. */
 export function formatRetryAt(iso: string, now: Date = new Date()): string {
   const d = new Date(iso);
@@ -450,8 +634,13 @@ export interface SignInOptions {
   redirectTo?: string;
   /** Client for platform.ensure_profile; default: `client` when it has `schema`, false to skip. */
   profileClient?: ProfileClient | false;
-  /** Sends the email link; default sendMagicLink with the app's env. */
+  /** Sends the email (a code and a link); default sendMagicLink with the app's env. */
   sendLink?: (email: string, redirectTo: string, opts: { turnstileToken?: string }) => Promise<SignInLinkResult>;
+  /** Checks a typed code; default verifySignInCode with the app's env and `client`. */
+  verifyCode?: (email: string, code: string) => Promise<CodeResult>;
+  /** Where the panel notes that this browser asked for a code (a time only); default localStorage, null keeps none. */
+  storage?: MarkStore | null;
+  now?: () => number;
   loadTurnstile?: () => Promise<TurnstileApi>;
   formatTime?: (iso: string) => string;
   /** Finish a sign-in link found in the page URL (default true). */
@@ -469,12 +658,22 @@ function profileClientFor(client: AuthClient, opt: ProfileClient | false | undef
 
 let panelCount = 0;
 
+/** The code step: the address the code went to, and the error shown under the code box. */
+interface CodeStep {
+  email: string;
+  error: string;
+}
+
 /**
  * Renders the sign-in controls with plain DOM, for the right of the app's
  * top bar (UpvoteMe's look):
- * - signed out: "Sign in with Google" and "Magic link". "Magic link" opens a
- *   panel under the buttons with the email form for a sign-in link (and the
- *   Turnstile check when the function asks for it);
+ * - signed out: "Sign in with Google" and "Email code". "Email code" opens a
+ *   panel under the buttons with the email form (and the Turnstile check when
+ *   the function asks for it). Once the email is sent, the panel shows the
+ *   code box: "Sign-in code", "Sign in", "Send a new code" and "Use a
+ *   different email address". For 10 minutes after asking, the email form
+ *   also offers "Type a code I asked for in this browser", the way back the
+ *   email names;
  * - signed in: the person (their initial and address), which opens a panel
  *   with "Delete my account", and "Sign out".
  * The panel also opens on its own when there is something to read or do: a
@@ -491,6 +690,9 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
   const sendLink = opts.sendLink ?? ((email: string, to: string, o: { turnstileToken?: string }) => sendMagicLink(email, to, o));
   const getTurnstile = opts.loadTurnstile ?? (() => loadTurnstile());
   const formatTime = opts.formatTime ?? ((iso: string) => formatRetryAt(iso));
+  const verifyCode = opts.verifyCode ?? ((email: string, code: string) => verifySignInCode(email, code, { client }));
+  const storage = opts.storage === undefined ? defaultStorage() : opts.storage;
+  const now = opts.now ?? (() => Date.now());
   const doc = el.ownerDocument;
   const panelId = `hw-signin-panel-${(panelCount += 1)}`;
   let profiled: string | null = null;
@@ -516,6 +718,12 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
   let pendingFinish: { label: string; accept: () => Promise<CompleteResult> } | null = null;
   let shownUser: User | null = null;
   let shownUserId: string | null = null;
+  /** The code step, kept across re-renders while signed out; null shows the email form. */
+  let codeStep: CodeStep | null = null;
+  let codeInput: HTMLInputElement | null = null;
+  let codeError: HTMLElement | null = null;
+  let verifyButton: HTMLButtonElement | null = null;
+  let checking = false;
   ensureSignInStyles(doc);
   el.classList.add('hw-signin');
 
@@ -524,7 +732,7 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
     if (!panel || !toggle) return;
     panel.hidden = !value;
     toggle.setAttribute('aria-expanded', String(value));
-    if (value && focusField) panel.querySelector<HTMLInputElement>('input[type="email"]')?.focus();
+    if (value && focusField) panel.querySelector<HTMLInputElement>('input[type="email"], input.hw-signin-code-input')?.focus();
   };
 
   /** Shows a message in the panel (and opens it, so the message is seen). */
@@ -577,12 +785,24 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
     const result = await sendLink(email, redirectTo, token ? { turnstileToken: token } : {});
     // A token works once: reset the widget after every request, before any retry.
     if (turnstile && widget?.id) turnstile.reset(widget.id);
-    if (result.status === 'sent') {
+    if (result.status === 'sent' && result.withCode) {
+      dropWidget();
+      const again = codeStep?.email === email;
+      codeStep = { email, error: '' };
+      markCodeAsked(storage, now());
+      notice = again
+        ? `We sent a new code to ${email}. Earlier codes no longer work.`
+        : `We sent a ${SIGN_IN_CODE_LENGTH}-digit code to ${email}. It works for ${SIGN_IN_CODE_MINUTES} minutes, in this browser. Nothing after a few minutes? Check your spam folder.`;
+      open = true;
+      render(shownUser);
+      codeInput?.focus();
+    } else if (result.status === 'sent') {
+      // The email went with the link only (the code could not be stored).
       dropWidget();
       say(`Check ${email} for a sign-in link.`);
     } else if (result.status === 'wait') {
       dropWidget();
-      say(`You can ask for another link at ${formatTime(result.retryAt)}.`);
+      say(`You can ask for another code at ${formatTime(result.retryAt)}.`);
     } else if (result.status === 'suppressed') {
       // No link will come for this address: say why, as the service words it.
       dropWidget();
@@ -594,16 +814,111 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
         dropWidget();
         say('The check did not pass. Try again later, or sign in with Google.');
       } else {
-        say(result.failed ? 'The check did not pass. Try it once more.' : 'One more step: complete the check below to get your link.');
+        say(result.failed ? 'The check did not pass. Try it once more.' : 'One more step: complete the check below to get your code.');
         if (challengeBox) showChallenge(result.siteKey, challengeBox);
       }
     } else {
       // A reset widget would hand out a new token and resubmit on its own: drop it.
       dropWidget();
-      say(`Could not send the link: ${result.message}`);
+      say(`Could not send the code: ${result.message}`);
     }
     if (send) send.disabled = false;
   }
+
+  /** Shows (or clears) the error under the code box; with an error, the box is selected for the next try. */
+  const setCodeError = (step: CodeStep, text: string): void => {
+    step.error = text;
+    if (codeStep !== step || !codeInput || !codeError) return;
+    codeError.textContent = text;
+    if (text) {
+      codeInput.setAttribute('aria-invalid', 'true');
+      codeInput.focus();
+      codeInput.select();
+    } else {
+      codeInput.removeAttribute('aria-invalid');
+    }
+  };
+
+  /** One try at a code. Signed in, the auth event redraws the panel as the person. */
+  async function check(step: CodeStep, typed: string): Promise<void> {
+    if (checking || codeStep !== step) return;
+    checking = true;
+    if (verifyButton) verifyButton.disabled = true;
+    setCodeError(step, '');
+    const result = await verifyCode(step.email, typed);
+    checking = false;
+    if (result.status === 'signed-in') {
+      forgetCodeAsked(storage);
+      if (shownUserId === null) say('Signed in.');
+      return;
+    }
+    if (verifyButton) verifyButton.disabled = false;
+    setCodeError(step, codeMessage(result));
+  }
+
+  /** The code box and its two ways out, for the signed-out panel. */
+  const codeStepNodes = (step: CodeStep): HTMLElement[] => {
+    const id = `${panelId}-code`;
+    const form = document.createElement('form');
+    form.className = 'hw-signin-code-form';
+    form.noValidate = true;
+    const label = document.createElement('label');
+    label.htmlFor = id;
+    label.textContent = 'Sign-in code';
+    const hint = document.createElement('p');
+    hint.id = `${id}-hint`;
+    hint.className = 'hw-signin-hint';
+    hint.textContent = `${SIGN_IN_CODE_LENGTH} digits, from the email.`;
+    const input = document.createElement('input');
+    input.id = id;
+    input.name = 'code';
+    input.type = 'text';
+    input.className = 'hw-signin-code-input';
+    // Paste tolerant: no maxlength or pattern, so "123 456" or "123-456" goes in whole (normalizeSignInCode).
+    input.setAttribute('inputmode', 'numeric');
+    input.setAttribute('autocomplete', 'one-time-code');
+    input.setAttribute('autocapitalize', 'none');
+    input.setAttribute('autocorrect', 'off');
+    input.spellcheck = false;
+    const error = document.createElement('p');
+    error.id = `${id}-error`;
+    error.className = 'hw-signin-error';
+    error.setAttribute('role', 'alert');
+    input.setAttribute('aria-describedby', `${hint.id} ${error.id}`);
+    const submitButton = button('Sign in', () => undefined, 'submit');
+    submitButton.classList.add('hw-signin-verify');
+    submitButton.disabled = checking;
+    form.append(label, hint, input, error, submitButton);
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      void check(step, input.value);
+    });
+    input.addEventListener('input', () => {
+      if (step.error) setCodeError(step, '');
+    });
+
+    const actions = document.createElement('div');
+    actions.className = 'hw-signin-actions';
+    const again = textButton('Send a new code', () => {
+      failedChecks = 0;
+      void submit(step.email);
+    });
+    const other = textButton('Use a different email address', () => {
+      codeStep = null;
+      notice = '';
+      render(shownUser);
+      panel?.querySelector<HTMLInputElement>('input[type="email"]')?.focus();
+    });
+    actions.append(again, other);
+
+    codeInput = input;
+    codeError = error;
+    verifyButton = submitButton;
+    send = again;
+    error.textContent = step.error;
+    if (step.error) input.setAttribute('aria-invalid', 'true');
+    return [form, actions];
+  };
 
   /**
    * After "Delete my account": deleteAccount ends the session before it
@@ -622,6 +937,9 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
     status = null;
     challengeBox = null;
     send = null;
+    codeInput = null;
+    codeError = null;
+    verifyButton = null;
     if (user && profiles && profiled !== user.id) {
       // Once per signed-in user: the platform has no trigger on auth.users.
       profiled = user.id;
@@ -650,6 +968,7 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
     status.textContent = notice;
     if (user) {
       pendingFinish = null;
+      codeStep = null;
       // Kept only for the sign-out that "Sign in again" starts: a failed one must not leave it for a later sign-out.
       farewell = '';
       toggle = personButton(user, () => setOpen(!open));
@@ -684,7 +1003,7 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
     } else {
       pendingSwitch = null;
       const google = googleButton(() => void signInWithGoogle(redirectTo, client));
-      toggle = magicLinkButton(() => setOpen(!open, true));
+      toggle = emailCodeButton(() => setOpen(!open, true));
       if (pendingFinish) {
         const offer = pendingFinish;
         const note = document.createElement('p');
@@ -702,29 +1021,52 @@ export function mountSignIn(el: HTMLElement, opts: SignInOptions = {}): () => vo
         panel.append(note, finish);
       }
 
-      const form = document.createElement('form');
-      const input = document.createElement('input');
-      input.type = 'email';
-      input.required = true;
-      input.autocomplete = 'email';
-      input.placeholder = 'you@example.com';
-      input.setAttribute('aria-label', 'Email for a sign-in link');
-      send = button('Email me a sign-in link', () => undefined, 'submit');
-      send.classList.add('hw-signin-email');
-      form.append(input, send);
-
       challengeBox = document.createElement('div');
       challengeBox.className = 'hw-signin-challenge';
 
-      form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const email = input.value.trim();
-        if (!email) return;
-        failedChecks = 0;
-        void submit(email);
-      });
+      if (codeStep) {
+        // What was sent, and to whom, above the code box (the status is announced).
+        panel.append(status, ...codeStepNodes(codeStep), challengeBox);
+      } else {
+        const form = document.createElement('form');
+        const input = document.createElement('input');
+        input.type = 'email';
+        input.required = true;
+        input.autocomplete = 'email';
+        input.placeholder = 'you@example.com';
+        input.setAttribute('aria-label', 'Email for a sign-in code');
+        send = button('Email me a sign-in code', () => undefined, 'submit');
+        send.classList.add('hw-signin-email');
+        form.append(input, send);
 
-      panel.append(form, challengeBox, status);
+        form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const email = input.value.trim();
+          if (!email) return;
+          failedChecks = 0;
+          void submit(email);
+        });
+
+        panel.append(form);
+        if (codeAskedRecently(storage, now())) {
+          // The way back the email names: the code step for the address typed above.
+          const back = textButton(ENTER_CODE_LABEL, () => {
+            const email = input.value.trim();
+            if (!/^[^@\s]+@[^@\s]+$/.test(email)) {
+              say('Type the address the code went to, then choose this again.');
+              input.focus();
+              return;
+            }
+            codeStep = { email, error: '' };
+            notice = `Type the ${SIGN_IN_CODE_LENGTH}-digit code from the email we sent to ${email}.`;
+            render(shownUser);
+            codeInput?.focus();
+          });
+          back.classList.add('hw-signin-have-code');
+          panel.append(back);
+        }
+        panel.append(challengeBox, status);
+      }
       el.append(google, toggle, panel);
     }
     toggle.setAttribute('aria-controls', panelId);
