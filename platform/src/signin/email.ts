@@ -30,7 +30,7 @@
  * backgrounds. With images off, the logo's alt text reads "HintWise" in the
  * same indigo, and nothing else depends on the image.
  */
-import { ENTER_CODE_LABEL, SIGN_IN_CODE_LENGTH, SIGN_IN_CODE_MINUTES } from './code.ts';
+import { ENTER_CODE_LABEL, SIGN_IN_CODE_MINUTES } from './code.ts';
 import type { EmailMessage } from './resend.ts';
 import { hintwiseLabel } from './validate.ts';
 
@@ -108,7 +108,8 @@ export interface EmailParts {
   /**
    * The line an inbox list shows beside the subject, as a hidden block first
    * in the HTML body, followed by blank filler so no body text (a code) is
-   * pulled in after it. Without it the HTML starts with the header, as before.
+   * pulled in after it, and as the first paragraph of the text part. Without
+   * it both parts start as before.
    */
   preheader?: string;
   /** The footer's first line: why this address got the email. Visitor emails only; without it there is no footer. */
@@ -203,7 +204,8 @@ export function footerHtml(why: string, optOutUrl: string | null | undefined, op
  * support when there is none).
  */
 export function renderEmail(p: EmailParts, from = SIGN_IN_FROM, look: EmailLook = {}): EmailMessage {
-  const text: string[] = [...p.intro];
+  // The preheader also leads the text part: a client that builds its preview from text shows the same line.
+  const text: string[] = [...(p.preheader ? [p.preheader] : []), ...p.intro];
   const html: string[] = p.intro.map((s) => `<p>${escapeHtml(s)}</p>`);
   for (const it of p.items ?? []) {
     text.push([`${it.title}${it.date ? ` (${it.date})` : ''}`, it.url, ...(it.summary ? [it.summary] : [])].join('\n'));
@@ -277,7 +279,10 @@ export interface EmailCode {
 }
 
 /** What the code email says about where and how long the code works (UpvoteMe's words, HintWise's numbers). */
-export const CODE_WHERE = `Type it in the browser where you asked for it: it works only there, once, for ${SIGN_IN_CODE_MINUTES} minutes. Do not share it with anyone.`;
+export const CODE_WHERE =
+  'It works only in the browser where you asked for it, and only once. Do not share it with anyone: nobody from HintWise will ever ask you for it. If you did not ask for it, ignore this email.';
+/** After the code: how long it works (the first digits after the code, so none come before it). */
+export const CODE_MINUTES = `The code works for ${SIGN_IN_CODE_MINUTES} minutes.`;
 
 /**
  * The subject of every sign-in email of an app, with or without a code, so
@@ -289,11 +294,13 @@ export const CODE_OR_LINK = 'Or sign in with this link instead. It works in any 
 
 /**
  * The sign-in email; `host` is the site it signs in to (default the link's
- * own host). With `withCode`, the code comes first, then where else to type
- * it, then the link as the other way in. The code is in the body only: the
- * subject is the link-only email's, and the preview line beside it in an
- * inbox list is a preheader without the code; in the text part the code
- * follows a paragraph long enough to keep it out of a preview there too.
+ * own host). With `withCode`: a paragraph with no digit (where the code
+ * works, not to share it), the code, then how long it works and the way
+ * back, then the link as the other way in. The code is in the body only:
+ * the subject is the link-only email's, and the preview line beside it in an
+ * inbox list is a preheader without the code. The text part starts with the
+ * same preheader sentence, so the code comes after some 330 characters with
+ * no digit (past the 256 a JMAP preview may take from either part).
  */
 export function signInEmail(to: string, link: string, appName: string | null, host: string = new URL(link).hostname, look: EmailLook = {}, withCode: EmailCode | null = null): EmailMessage {
   const site = appName ? `${appName} (${host})` : host;
@@ -303,12 +310,12 @@ export function signInEmail(to: string, link: string, appName: string | null, ho
         to,
         subject: signInSubject(appName),
         preheader: `Your sign-in code for ${appName ?? host} is in this email. Type it in the browser where you asked for it.`,
-        intro: [`Here is your ${SIGN_IN_CODE_LENGTH}-digit code to sign in to ${site}. ${CODE_WHERE}`],
+        intro: [`Here is your code to sign in to ${site}. ${CODE_WHERE}`],
         code: withCode.code,
         bigCode: true,
-        afterCode: [{ text: CODE_TAB_CLOSED, href: withCode.page }, { text: CODE_OR_LINK }],
+        afterCode: [{ text: `${CODE_MINUTES} ${CODE_TAB_CLOSED}`, href: withCode.page }, { text: CODE_OR_LINK }],
         link: { href: link, label: 'Sign in' },
-        outro: ['If you did not ask for it, ignore this email.'],
+        outro: [],
         why: WHY.signIn(appName ?? host),
       },
       SIGN_IN_FROM,

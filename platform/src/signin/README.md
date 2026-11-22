@@ -115,8 +115,10 @@ What the visitor sees matches UpvoteMe: 6 digits; they work for 10 minutes,
 once, and only in the browser that asked; 5 wrong codes void the code;
 spaces, hyphens and full-width digits are fine when pasting; and the panel's
 way back, "Type a code I asked for in this browser", is the label the email
-names. The code is in the body only, large and in monospace at the top of
-the HTML and in the text part, then where to type it, then the link as the
+names. The code is in the body only. In order, both parts have: a paragraph
+with no digit (the site, where the code works, not to share it, to ignore
+the email if it was not you); the code (large and in monospace in the HTML);
+how long it works and the way back for a closed tab; then the link as the
 other way in.
 
 **The subject never carries the code** (owner, 22 Nov 2026). Every sign-in
@@ -125,9 +127,12 @@ link for Pluck Lab`, or `Your sign-in link` when the app is not named), so
 a mailbox threads them. The line an inbox list shows beside the subject is a
 hidden preheader without the code ("Your sign-in code for Pluck Lab is in
 this email. Type it in the browser where you asked for it."), followed by
-blank filler so no client pulls the code into the preview; in the text part
-the code follows a paragraph of about 200 characters, past a preview's
-length. Emails without a code have no preheader and are unchanged.
+blank filler so no client pulls the code into the preview. The text part
+starts with the same sentence, then the paragraph with no digit, so the code
+starts at character 332 for an unnamed short host (`localhost`) and 357 for
+Pluck Lab, past the 256 characters a JMAP preview may take from either part,
+with no digit before it. Emails without a code have no preheader and are
+unchanged.
 
 **Checking a code.** `POST` to the same function, from a page of an allowed
 app:

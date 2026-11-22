@@ -70,11 +70,17 @@ describe('the sign-in email', () => {
   it('puts the code first in the body when the app has the code box: text and a large monospace block, then the link', () => {
     const page = 'https://paste-md.hintwise.org/';
     const m = signInEmail('ann@example.com', link, 'Paste Md', undefined, {}, { code: '004217', page });
-    expect(m.text).toContain(
-      'Here is your 6-digit code to sign in to Paste Md (paste-md.hintwise.org). Type it in the browser where you asked for it: it works only there, once, for 10 minutes. Do not share it with anyone.\n\n004217\n\n',
+    expect(m.text).toBe(
+      [
+        'Your sign-in code for Paste Md is in this email. Type it in the browser where you asked for it.',
+        'Here is your code to sign in to Paste Md (paste-md.hintwise.org). It works only in the browser where you asked for it, and only once. Do not share it with anyone: nobody from HintWise will ever ask you for it. If you did not ask for it, ignore this email.',
+        '004217',
+        // The way back names the template's own label.
+        `The code works for 10 minutes. Closed that tab? Open this page in that same browser and choose "Type a code I asked for in this browser": ${page}`,
+        'Or sign in with this link instead. It works in any browser, for about an hour.',
+        link,
+      ].join('\n\n') + `\n\n----\n${m.text.split('\n\n----\n')[1]}`,
     );
-    // The way back names the template's own label.
-    expect(m.text).toContain(`Closed that tab? Open this page in that same browser and choose "Type a code I asked for in this browser": ${page}\n`);
     expect(m.text).toContain('Or sign in with this link instead. It works in any browser, for about an hour.');
     expect(m.text).toContain(`\n\n${link}\n\n`);
     expect(m.text.indexOf('004217')).toBeLessThan(m.text.indexOf(link));
@@ -87,7 +93,7 @@ describe('the sign-in email', () => {
     expect(m.html).toContain('href="https://paste-md.hintwise.org/?token_hash=abc&amp;type=email"');
     expect(m.html.indexOf('004217')).toBeLessThan(m.html.indexOf('token_hash=abc'));
     const plain = signInEmail('ann@example.com', link, null, undefined, {}, { code: '004217', page });
-    expect(plain.text).toContain('code to sign in to paste-md.hintwise.org. Type it');
+    expect(plain.text).toContain('Here is your code to sign in to paste-md.hintwise.org. It works only');
   });
   it('keeps the code out of the subject and the inbox preview: the subject is the link-only email\'s, so a mailbox threads them', () => {
     const page = 'https://paste-md.hintwise.org/';
@@ -107,10 +113,26 @@ describe('the sign-in email', () => {
       expect(pre[2].slice(0, -PREHEADER_FILLER.length)).not.toMatch(/[0-9]/); // no digit at all, so no part of the code
       expect(pre[2]).not.toContain(code);
       expect(m.html.indexOf(code)).toBeGreaterThan(m.html.indexOf(PREHEADER_FILLER) + PREHEADER_FILLER.length);
-      // In the text part, the code comes after a paragraph longer than an inbox preview.
-      expect(m.text.indexOf(code)).toBeGreaterThan(150);
+      expect(m.text.startsWith(pre[2].slice(0, -PREHEADER_FILLER.length))).toBe(true); // the text part leads with the same line
       expect(m.text).toContain(`\n\n${code}\n\n`);
     }
+    // In the text part, the code comes past what any client takes for a preview (JMAP: up to 256
+    // characters, from either part), with no digit before it: for the shortest host and a long name.
+    const cases: Array<[string, string | null, string]> = [
+      ['https://localhost/?token_hash=abc&type=email', null, '010101'],
+      ['https://paste-md.hintwise.org/?token_hash=abc&type=email', 'Paste Md', '989898'],
+      ['https://a-very-long-app-name-for-small-business-owners.hintwise.org/?token_hash=abc&type=email', 'A Very Long App Name For Small Business Owners', '123456'],
+    ];
+    const at: number[] = [];
+    for (const [href, app, code] of cases) {
+      const m = signInEmail('ann@example.com', href, app, undefined, {}, { code, page });
+      const first = m.text.indexOf(code);
+      at.push(first);
+      expect(first).toBeGreaterThanOrEqual(300);
+      expect(m.text.slice(0, first)).not.toMatch(/[0-9]/);
+      expect(m.html.slice(0, m.html.indexOf(`>${code}<`))).not.toContain(code);
+    }
+    expect(at[0]).toBe(Math.min(...at)); // the unnamed short host is the closest call
     expect(PREHEADER_STYLE).toContain('display:none');
     expect(signInEmail('ann@example.com', link, 'Paste Md').html).not.toContain(PREHEADER_STYLE);
   });
