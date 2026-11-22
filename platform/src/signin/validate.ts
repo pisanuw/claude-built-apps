@@ -1,10 +1,12 @@
 /**
  * Validation of a sign-in link request (src/signin/README.md):
- * POST JSON { email, redirectTo, app, browserId, turnstileToken? }.
+ * POST JSON { email, redirectTo, app, browserId, turnstileToken?, withCode? },
+ * and of a code to check: { action: 'verify', email, code, browserId }.
  * Pure; nothing throws on bad input. A failure also says which fields were
  * valid, so the request can still be logged under their hashed keys.
  */
 import { DEPLOYED_APP_LABELS } from './app-hosts.ts';
+import { normalizeSignInCode, SIGN_IN_CODE_LENGTH } from './code.ts';
 
 export const MAX_BODY_BYTES = 8192;
 export const APP_SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
@@ -32,6 +34,8 @@ export interface SignInRequest {
   app: string;
   browserId: string;
   turnstileToken?: string;
+  /** The page has the code box: the email carries a code above the link (code.ts). */
+  withCode?: boolean;
 }
 
 /** The fields that passed, for logging a refused request. */
@@ -125,5 +129,38 @@ export function parseSignInRequest(text: string): Parsed {
 
   const request: SignInRequest = { email, redirectTo, app, browserId };
   if (typeof token === 'string' && token) request.turnstileToken = token;
+  // Only a literal true asks for the code; apps without the code box send nothing.
+  if (body.withCode === true) request.withCode = true;
   return { ok: true, request };
+}
+
+/** A code to check: the address it went to, the code as digits, and the browser that asked for it. */
+export interface VerifyRequest {
+  email: string;
+  code: string;
+  browserId: string;
+}
+
+export type VerifyParsed = { ok: true; request: VerifyRequest } | { ok: false; status: number; message: string };
+
+/**
+ * The body as a code check, or null when it is not one (no `action:
+ * 'verify'`): then it is a request for a link, parsed by parseSignInRequest.
+ */
+export function parseVerifyRequest(text: string): VerifyParsed | null {
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!isObject(body) || body.action !== 'verify') return null;
+  const fail = (message: string): VerifyParsed => ({ ok: false, status: 400, message });
+  const email = normalizeEmail(body.email);
+  if (!email) return fail('Enter a valid email address.');
+  const code = normalizeSignInCode(body.code);
+  if (!code) return fail(`A sign-in code is ${SIGN_IN_CODE_LENGTH} digits.`);
+  const browserId = typeof body.browserId === 'string' && BROWSER_ID.test(body.browserId) ? body.browserId : null;
+  if (!browserId) return fail('"browserId" must be 8 to 64 letters, digits, dashes or underscores.');
+  return { ok: true, request: { email, code, browserId } };
 }

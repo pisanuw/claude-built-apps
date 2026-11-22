@@ -1,7 +1,7 @@
 # platform
 
 The shared HintWise platform: one Supabase project with a schema per app,
-sign-in by Google or magic link, an LLM gateway with spending caps, and a
+sign-in by Google or an emailed code, an LLM gateway with spending caps, and a
 daily usage email. The design is `docs/platform.md`; this folder holds the
 code. Nothing here holds a secret: the admin workflow has the repo secrets and
 prints names and booleans only.

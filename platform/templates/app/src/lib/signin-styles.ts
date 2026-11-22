@@ -6,9 +6,10 @@
  * The look is UpvoteMe's (https://upvoteme.hintwise.org; owner, 18 November
  * 2026; BUILD_ROUTINE.md, "Google sign-in button"): at the right of the
  * app's top bar, two separate outlined pill buttons, "Sign in with Google"
- * and "Magic link". "Magic link" opens a small panel under the buttons with
- * the email form. Signed in, the same place shows the person (opening a
- * panel with "Delete my account") and "Sign out".
+ * and "Email code". "Email code" opens a small panel under the buttons with
+ * the email form, then the box for the emailed code (owner, 22 November
+ * 2026). Signed in, the same place shows the person (opening a panel with
+ * "Delete my account") and "Sign out".
  *
  * Below 640 px every bar button becomes a round, bordered, icon-only button
  * whose label stays its accessible name: the owner's choice for phones. That
@@ -171,7 +172,67 @@ export const SIGN_IN_CSS = `
   border: 1px solid #747775;
   border-radius: 20px;
 }
-.hw-signin-user {
+.hw-signin-panel form.hw-signin-code-form {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0.375rem;
+}
+.hw-signin-code-form label {
+  font-weight: 600;
+}
+.hw-signin-hint {
+  font-size: 13px;
+  color: #444746;
+}
+.hw-signin-panel input.hw-signin-code-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 20px;
+  letter-spacing: 0.3em;
+  border: 1px solid #747775;
+  border-radius: 20px;
+}
+.hw-signin-panel input.hw-signin-code-input[aria-invalid='true'] {
+  border-color: #B3261E;
+}
+.hw-signin-error {
+  color: #B3261E;
+}
+.hw-signin-error:empty {
+  display: none;
+}
+.hw-signin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+.hw-signin-text {
+  padding: 0;
+  background: none;
+  border: 0;
+  color: #0B57D0;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.hw-signin-text:focus-visible {
+  outline: 2px solid #0B57D0;
+  outline-offset: 2px;
+}
+.hw-signin-text:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.hw-signin-user,
+.hw-signin-status,
+.hw-signin-note {
   overflow-wrap: anywhere;
 }
 .hw-signin-status:empty,

@@ -6,6 +6,11 @@
  * simple HTML, every value escaped. No times in the text: links expire "in
  * about an hour".
  *
+ * The sign-in email carries a 6-digit code above the link when the app has
+ * the code box (signInEmail's `withCode`; code.ts, owner 22 November 2026):
+ * the code large, in monospace, in the body only (HTML and text), and
+ * the link below it while apps move to the code.
+ *
  * Every email (docs/platform.md, "Email footer, logo and opt-out"):
  * - starts with the HintWise header: the logo (EMAIL_LOGO_URL, read through
  *   emailLogoUrl) or, without it, the text wordmark;
@@ -25,6 +30,7 @@
  * backgrounds. With images off, the logo's alt text reads "HintWise" in the
  * same indigo, and nothing else depends on the image.
  */
+import { ENTER_CODE_LABEL, SIGN_IN_CODE_MINUTES } from './code.ts';
 import type { EmailMessage } from './resend.ts';
 import { hintwiseLabel } from './validate.ts';
 
@@ -91,9 +97,21 @@ export interface EmailParts {
   /** Paragraphs before the link or code. */
   intro: string[];
   link?: { href: string; label: string };
+  /** Shown large, before the link when there is both. */
   code?: string;
+  /** The sign-in code's own look (CODE_STYLE); without it the hook's code emails keep HOOK_CODE_STYLE. */
+  bigCode?: boolean;
+  /** Paragraphs right after the code, before the link; each may end with a link (its address as the text). */
+  afterCode?: Array<{ text: string; href?: string }>;
   /** Paragraphs after it. */
   outro: string[];
+  /**
+   * The line an inbox list shows beside the subject, as a hidden block first
+   * in the HTML body, followed by blank filler so no body text (a code) is
+   * pulled in after it, and as the first paragraph of the text part. Without
+   * it both parts start as before.
+   */
+  preheader?: string;
   /** The footer's first line: why this address got the email. Visitor emails only; without it there is no footer. */
   why?: string;
   /** A list of links after the intro (app-notify's new pages); each title links to its page. */
@@ -124,6 +142,15 @@ const HEAD_STYLE =
   `:root{color-scheme:light dark;supported-color-schemes:light dark}` +
   `@media (prefers-color-scheme:dark){.hw-brand{color:${DARK_BRAND} !important}.hw-link{color:${DARK_LINK} !important}}`;
 const FOOT_P = 'margin:0 0 8px';
+/** The hidden preheader: in the inbox list's preview, never on the page. */
+export const PREHEADER_STYLE = 'display:none;max-height:0;max-width:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:transparent;opacity:0';
+/** Blank characters after the preheader, so a preview runs out before it reaches the body (and the code). */
+export const PREHEADER_FILLER = '&#847;&zwnj;&nbsp;'.repeat(90);
+/** The code in the hook's code and reauthentication emails, unchanged since they were first sent. */
+export const HOOK_CODE_STYLE = 'font-size:24px;letter-spacing:4px;font-weight:600';
+/** The sign-in code: large monospace digits, selected whole by one tap where the client allows it. */
+export const CODE_STYLE =
+  "margin:8px 0 16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:32px;line-height:40px;font-weight:700;letter-spacing:6px;-webkit-user-select:all;user-select:all";
 
 export const SUPPORT_PREFIX = 'Questions or trouble signing in?';
 export const SUPPORT_LINE = `${SUPPORT_PREFIX} ${SUPPORT_EMAIL} (or just reply).`;
@@ -177,7 +204,8 @@ export function footerHtml(why: string, optOutUrl: string | null | undefined, op
  * support when there is none).
  */
 export function renderEmail(p: EmailParts, from = SIGN_IN_FROM, look: EmailLook = {}): EmailMessage {
-  const text: string[] = [...p.intro];
+  // The preheader also leads the text part: a client that builds its preview from text shows the same line.
+  const text: string[] = [...(p.preheader ? [p.preheader] : []), ...p.intro];
   const html: string[] = p.intro.map((s) => `<p>${escapeHtml(s)}</p>`);
   for (const it of p.items ?? []) {
     text.push([`${it.title}${it.date ? ` (${it.date})` : ''}`, it.url, ...(it.summary ? [it.summary] : [])].join('\n'));
@@ -186,6 +214,14 @@ export function renderEmail(p: EmailParts, from = SIGN_IN_FROM, look: EmailLook 
     const summary = it.summary ? `<br>${escapeHtml(it.summary)}` : '';
     html.push(`<p>${title}${date}${summary}</p>`);
   }
+  if (p.code) {
+    text.push(p.code);
+    html.push(`<p style="${p.bigCode ? CODE_STYLE : HOOK_CODE_STYLE}">${escapeHtml(p.code)}</p>`);
+  }
+  for (const a of p.afterCode ?? []) {
+    text.push(a.href ? `${a.text} ${a.href}` : a.text);
+    html.push(`<p>${escapeHtml(a.text)}${a.href ? ` ${anchor(a.href, a.href)}` : ''}</p>`);
+  }
   if (p.link) {
     text.push(p.link.href);
     const href = escapeHtml(p.link.href);
@@ -193,10 +229,6 @@ export function renderEmail(p: EmailParts, from = SIGN_IN_FROM, look: EmailLook 
       `<p><a href="${href}" style="display:inline-block;padding:10px 18px;background-color:${BRAND_INDIGO};color:#ffffff;font-weight:600;text-decoration:none;border-radius:6px">${escapeHtml(p.link.label)}</a></p>`,
       `<p style="font-size:13px">Or paste this address into your browser:<br><span style="word-break:break-all">${href}</span></p>`,
     );
-  }
-  if (p.code) {
-    text.push(p.code);
-    html.push(`<p style="font-size:24px;letter-spacing:4px;font-weight:600">${escapeHtml(p.code)}</p>`);
   }
   // No "HintWise" sign-off: the header carries the logo or the wordmark, and the From name says it.
   text.push(...p.outro);
@@ -210,13 +242,14 @@ export function renderEmail(p: EmailParts, from = SIGN_IN_FROM, look: EmailLook 
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
     '<meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark">' +
     `<title>${escapeHtml(p.subject)}</title><style>${HEAD_STYLE}</style>`;
+  const pre = p.preheader ? `<div style="${PREHEADER_STYLE}">${escapeHtml(p.preheader)}${PREHEADER_FILLER}</div>` : '';
   return {
     from,
     to: [p.to],
     reply_to: SUPPORT_EMAIL,
     subject: p.subject,
     text: `${body}\n`,
-    html: `<!doctype html><html lang="en"><head>${head}</head><body style="${STYLE}"><div style="max-width:560px">${headerHtml(look.logoUrl)}${html.join('')}</div></body></html>`,
+    html: `<!doctype html><html lang="en"><head>${head}</head><body style="${STYLE}">${pre}<div style="max-width:560px">${headerHtml(look.logoUrl)}${html.join('')}</div></body></html>`,
   };
 }
 
@@ -239,13 +272,61 @@ export const WHY = {
   notice: (site: string | null): string => `You got this because the account with this address${on(site)} changed, and every change is reported to its address.`,
 } as const;
 
-/** The sign-in link email; `host` is the site it signs in to (default the link's own host). */
-export function signInEmail(to: string, link: string, appName: string | null, host: string = new URL(link).hostname, look: EmailLook = {}): EmailMessage {
+/** A sign-in code for the email, and the app page (no token) where the visitor can type it. */
+export interface EmailCode {
+  code: string;
+  page: string;
+}
+
+/** What the code email says about where and how long the code works (UpvoteMe's words, HintWise's numbers). */
+export const CODE_WHERE =
+  'It works only in the browser where you asked for it, and only once. Do not share it with anyone: nobody from HintWise will ever ask you for it. If you did not ask for it, ignore this email.';
+/** After the code: how long it works (the first digits after the code, so none come before it). */
+export const CODE_MINUTES = `The code works for ${SIGN_IN_CODE_MINUTES} minutes.`;
+
+/**
+ * The subject of every sign-in email of an app, with or without a code, so
+ * a mailbox threads them (owner, 22 Nov 2026: the code only in the body).
+ */
+export const signInSubject = (appName: string | null): string => (appName ? `Your sign-in link for ${appName}` : 'Your sign-in link');
+export const CODE_TAB_CLOSED = `Closed that tab? Open this page in that same browser and choose "${ENTER_CODE_LABEL}":`;
+export const CODE_OR_LINK = 'Or sign in with this link instead. It works in any browser, for about an hour.';
+
+/**
+ * The sign-in email; `host` is the site it signs in to (default the link's
+ * own host). With `withCode`: a paragraph with no digit (where the code
+ * works, not to share it), the code, then how long it works and the way
+ * back, then the link as the other way in. The code is in the body only:
+ * the subject is the link-only email's, and the preview line beside it in an
+ * inbox list is a preheader without the code. The text part starts with the
+ * same preheader sentence, so the code comes after some 330 characters with
+ * no digit (past the 256 a JMAP preview may take from either part).
+ */
+export function signInEmail(to: string, link: string, appName: string | null, host: string = new URL(link).hostname, look: EmailLook = {}, withCode: EmailCode | null = null): EmailMessage {
+  const site = appName ? `${appName} (${host})` : host;
+  if (withCode) {
+    return renderEmail(
+      {
+        to,
+        subject: signInSubject(appName),
+        preheader: `Your sign-in code for ${appName ?? host} is in this email. Type it in the browser where you asked for it.`,
+        intro: [`Here is your code to sign in to ${site}. ${CODE_WHERE}`],
+        code: withCode.code,
+        bigCode: true,
+        afterCode: [{ text: `${CODE_MINUTES} ${CODE_TAB_CLOSED}`, href: withCode.page }, { text: CODE_OR_LINK }],
+        link: { href: link, label: 'Sign in' },
+        outro: [],
+        why: WHY.signIn(appName ?? host),
+      },
+      SIGN_IN_FROM,
+      look,
+    );
+  }
   return renderEmail(
     {
       to,
-      subject: appName ? `Your sign-in link for ${appName}` : 'Your sign-in link',
-      intro: [`Here is your link to sign in to ${appName ? `${appName} (${host})` : host}:`],
+      subject: signInSubject(appName),
+      intro: [`Here is your link to sign in to ${site}:`],
       link: { href: link, label: 'Sign in' },
       outro: ['The link expires in about an hour. If you did not ask for it, ignore this email.'],
       why: WHY.signIn(appName ?? host),

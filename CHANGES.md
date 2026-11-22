@@ -742,4 +742,8 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 
 2026-11-22 [decision] lewis-alt-text CLI keeps the server-side refusal fallback for --use-own-key on Opus and Sonnet (owner approved)
 
+2026-11-22 [decision] platform: email sign-in is a 6-digit emailed code like UpvoteMe, the default for new apps (owner); the email keeps the link until every app has the code box
+
+2026-11-22 [code] platform: sign-in-link emails its own 6-digit code (withCode) and checks it (action verify, 0017 sign_in_codes); template panel gets the code box (branch feat/sign-in-code)
+
 2026-11-22 [doc] Added the session-relay skill at .claude/skills/session-relay/ (from the owner's zip), so every session on this repo, relay successors included, can load the skill HANDOFF.md names.

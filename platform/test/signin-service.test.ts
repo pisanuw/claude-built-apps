@@ -5,7 +5,7 @@ import type { Db } from '../src/signin/db.ts';
 import { restDb } from '../src/signin/db.ts';
 import type { BeginResult, KeyStats } from '../src/signin/policy.ts';
 import { optOutToken, SUPPRESSED_MESSAGE } from '../src/signin/optout.ts';
-import { handleSignInLink, PAUSED, raiseAlerts, type Deps, type SignInEnv } from '../src/signin/service.ts';
+import { answerShape, handleSignInLink, PAUSED, raiseAlerts, type Deps, type SignInEnv } from '../src/signin/service.ts';
 
 const NOW = new Date('2026-11-10T12:00:00.000Z');
 const ORIGIN = 'https://pluck-lab.hintwise.org';
@@ -35,6 +35,8 @@ interface Setup {
   failRpc?: string;
   /** What email_optout_check answers (default false: email on). */
   optedOut?: boolean;
+  /** What sign_in_code_check answers. */
+  codeCheck?: unknown;
 }
 
 function setup(o: Setup = {}) {
@@ -47,6 +49,8 @@ function setup(o: Setup = {}) {
       if (fn === 'sign_in_finish') return (o.counts === undefined ? quiet() : o.counts) as T;
       if (fn === 'sign_in_claim_alert') return (o.claim ?? true) as T;
       if (fn === 'email_optout_check') return (o.optedOut ?? false) as T;
+      if (fn === 'sign_in_code_check') return o.codeCheck as T;
+      if (fn === 'sign_in_code_issue') return '2026-11-10T12:10:00Z' as T;
       return 7 as T;
     }) as Db['rpc'],
   };
@@ -67,6 +71,7 @@ function setup(o: Setup = {}) {
     fetch: fetchFn as unknown as typeof fetch,
     db,
     now: () => NOW,
+    newCode: () => '042917',
     log: (m) => logs.push(m),
     background: (t) => tasks.push(t),
   };
@@ -226,6 +231,116 @@ describe('handleSignInLink: challenge', () => {
     const s = setup();
     await handleSignInLink(request({ turnstileToken: 'tok' }), s.deps);
     expect(s.calls.filter(([u]) => u.includes('siteverify'))).toHaveLength(0);
+  });
+});
+
+describe('handleSignInLink: the sign-in code', () => {
+  it('stores the code with the link\'s token hash and emails it above the link when the app asks for it', async () => {
+    const s = setup();
+    const res = await handleSignInLink(request({ withCode: true }), s.deps);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: 'sent', withCode: true });
+    expect(s.rpc.map(([f]) => f)).toEqual(['sign_in_begin', 'email_optout_check', 'sign_in_code_issue', 'sign_in_finish']);
+    const issue = s.rpc.find(([f]) => f === 'sign_in_code_issue')![1];
+    // Hashes only: the mailbox and the browser as the ladder keys them, the code bound to the address Auth keeps.
+    expect(issue).toEqual({
+      p_email_hash: hmac('email:ann@example.com'),
+      p_browser_hash: hmac('browser:browser-0123456789'),
+      p_code_hash: hmac('sign-in-code:ann+news@example.com:042917'),
+      p_token_hash: 'hashed-1',
+    });
+    expect(JSON.stringify(s.rpc)).not.toContain('042917');
+    expect(s.finish().p_detail).toBe('with code; resend re_9');
+    const [mail] = s.emails();
+    expect(mail.subject).toBe('Your sign-in link for Pluck Lab'); // the link-only email's: the code is in the body only
+    expect(mail.text).toContain('\n\n042917\n\n');
+    expect(mail.text).toContain('Closed that tab? Open this page in that same browser and choose "Type a code I asked for in this browser": https://pluck-lab.hintwise.org/app\n');
+    expect(mail.text).toContain('https://pluck-lab.hintwise.org/app?token_hash=hashed-1&type=email&email_hint=a***%40example.com\n');
+    expect(mail.text.indexOf('042917')).toBeLessThan(mail.text.indexOf('token_hash'));
+    expect(s.logs.join()).not.toContain('sign_in_code');
+  });
+  it('sends the link only, and says so, when the code cannot be stored', async () => {
+    const s = setup({ failRpc: 'sign_in_code_issue' });
+    const res = await handleSignInLink(request({ withCode: true }), s.deps);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: 'sent', withCode: false });
+    expect(s.logs.join()).toContain('sign_in_code_issue failed, sending the link only: sign_in_code_issue down');
+    expect(s.finish()).toMatchObject({ p_outcome: 'sent', p_detail: 'link only, code not stored: sign_in_code_issue down; resend re_9' });
+    const [mail] = s.emails();
+    expect(mail.subject).toBe('Your sign-in link for Pluck Lab');
+    expect(mail.text).not.toContain('042917');
+    expect(mail.text).toContain('token_hash=hashed-1');
+  });
+  it('makes no code for an app that does not ask for one', async () => {
+    const s = setup();
+    expect(await (await handleSignInLink(request({ withCode: 'yes' }), s.deps)).json()).toEqual({ status: 'sent' });
+    expect(s.rpc.map(([f]) => f)).not.toContain('sign_in_code_issue');
+    expect(s.emails()[0].subject).toBe('Your sign-in link for Pluck Lab');
+  });
+  it('stores no code when no link goes out', async () => {
+    const wait = setup({ begin: { ...fresh(), email: key({ sent: 1, last_sent_at: '2026-11-10T11:59:30.000Z' }) } });
+    expect((await handleSignInLink(request({ withCode: true }), wait.deps)).status).toBe(429);
+    const off = setup({ optedOut: true });
+    expect(await (await handleSignInLink(request({ withCode: true }), off.deps)).json()).toMatchObject({ status: 'suppressed' });
+    const down = setup({ generate: () => json(500, { msg: 'auth down' }) });
+    expect((await handleSignInLink(request({ withCode: true }), down.deps)).status).toBe(502);
+    for (const s of [wait, off, down]) expect(s.rpc.map(([f]) => f)).not.toContain('sign_in_code_issue');
+  });
+
+  const check = (over: Record<string, unknown> = {}, headers: Record<string, string> = {}) =>
+    request({ action: 'verify', email: 'Ann+news@Example.com', code: '042-917', browserId: 'browser-0123456789', redirectTo: undefined, app: undefined, ...over }, headers);
+  it('answers the token hash for the right code, checked under the hashed keys only', async () => {
+    const s = setup({ codeCheck: { status: 'ok', token_hash: 'hashed-1' } });
+    const res = await handleSignInLink(check(), s.deps);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('access-control-allow-origin')).toBe(ORIGIN);
+    expect(await res.json()).toEqual({ status: 'verified', tokenHash: 'hashed-1' });
+    expect(s.rpc).toEqual([
+      ['sign_in_code_check', { p_email_hash: hmac('email:ann@example.com'), p_browser_hash: hmac('browser:browser-0123456789'), p_code_hash: hmac('sign-in-code:ann+news@example.com:042917') }],
+    ]);
+    // A code check is not a sign-in request: no row in the log, no ladder step, no email.
+    expect(s.outcomes()).toEqual([]);
+    expect(s.calls).toEqual([]);
+  });
+  it('passes on a wrong code with the tries left, a void, an expired and a missing code as 400', async () => {
+    for (const answer of [{ status: 'wrong', left: 4 }, { status: 'wrong', left: 0 }, { status: 'void' }, { status: 'expired' }, { status: 'none' }]) {
+      const s = setup({ codeCheck: answer });
+      const res = await handleSignInLink(check(), s.deps);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual(answer);
+    }
+  });
+  it('refuses a code check from another origin or with a bad body, before any database call', async () => {
+    const s = setup();
+    const other = await handleSignInLink(check({}, { origin: 'https://evil.example' }), s.deps);
+    expect(other.status).toBe(403);
+    expect(other.headers.get('access-control-allow-origin')).toBeNull();
+    const bad = await handleSignInLink(check({ code: '12345' }), s.deps);
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toEqual({ status: 'error', message: 'A sign-in code is 6 digits.' });
+    expect(s.rpc).toEqual([]);
+  });
+  it('answers 500 when the check fails or answers oddly', async () => {
+    const down = setup({ failRpc: 'sign_in_code_check' });
+    const r1 = await handleSignInLink(check(), down.deps);
+    expect(r1.status).toBe(500);
+    expect(down.logs.join()).toContain('sign_in_code_check failed: sign_in_code_check down');
+    const odd = setup({ codeCheck: { status: 'ok' } });
+    expect((await handleSignInLink(check(), odd.deps)).status).toBe(500);
+    expect(odd.logs.join()).toContain('sign_in_code_check returned an unexpected answer (object, status ok)');
+    // An answer of another shape may still hold a live token hash: only its shape is logged.
+    const leaky = setup({ codeCheck: { status: 'verified', tokenHash: 'live-token-hash' } });
+    expect((await handleSignInLink(check(), leaky.deps)).status).toBe(500);
+    expect(leaky.logs.join()).not.toContain('live-token-hash');
+    expect(leaky.logs.join()).toContain('(object, status verified)');
+  });
+  it('describes an odd answer by its shape only', () => {
+    expect(answerShape(null)).toBe('null');
+    expect(answerShape('tok')).toBe('string');
+    expect(answerShape(7)).toBe('number');
+    expect(answerShape([1])).toBe('array');
+    expect(answerShape({ token_hash: 'x' })).toBe('object');
+    expect(answerShape({ status: 'Not A Word' })).toBe('object');
   });
 });
 

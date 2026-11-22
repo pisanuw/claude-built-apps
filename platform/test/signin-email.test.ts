@@ -3,7 +3,11 @@ import { ALERT_FROM, ALERT_LIMITS, alertDue, alertEmail, bypassAlertEmail, dueAl
 import {
   appDisplayName,
   BRAND_INDIGO,
+  CODE_STYLE,
   codeEmail,
+  PREHEADER_FILLER,
+  PREHEADER_STYLE,
+  HOOK_CODE_STYLE,
   emailChangeCurrentEmail,
   emailChangeNewEmail,
   emailLogoUrl,
@@ -22,6 +26,7 @@ import {
   SUPPORT_EMAIL,
 } from '../src/signin/email.ts';
 import type { EmailMessage } from '../src/signin/resend.ts';
+import mainEmails from './fixtures/sign-in-emails-main.json';
 
 const NOW = new Date('2026-11-10T12:00:00Z');
 const counts = (over: Partial<AlertCounts> = {}): AlertCounts => ({ ip_addresses_1h: 1, browser_addresses_1h: 1, email_requests_1h: 1, ip_challenge_failures_1h: 0, sent_1h: 1, alerts: {}, ...over });
@@ -61,6 +66,93 @@ describe('the sign-in email', () => {
     const r = recoveryEmail('ann@example.com', 'https://ref.supabase.co/auth/v1/verify?token=t&type=recovery');
     expect(r.subject).toBe('Reset your password');
     for (const m of [s1, c, r]) expect(m.from).toBe(SIGN_IN_FROM);
+  });
+  it('puts the code first in the body when the app has the code box: text and a large monospace block, then the link', () => {
+    const page = 'https://paste-md.hintwise.org/';
+    const m = signInEmail('ann@example.com', link, 'Paste Md', undefined, {}, { code: '004217', page });
+    expect(m.text).toBe(
+      [
+        'Your sign-in code for Paste Md is in this email. Type it in the browser where you asked for it.',
+        'Here is your code to sign in to Paste Md (paste-md.hintwise.org). It works only in the browser where you asked for it, and only once. Do not share it with anyone: nobody from HintWise will ever ask you for it. If you did not ask for it, ignore this email.',
+        '004217',
+        // The way back names the template's own label.
+        `The code works for 10 minutes. Closed that tab? Open this page in that same browser and choose "Type a code I asked for in this browser": ${page}`,
+        'Or sign in with this link instead. It works in any browser, for about an hour.',
+        link,
+      ].join('\n\n') + `\n\n----\n${m.text.split('\n\n----\n')[1]}`,
+    );
+    expect(m.text).toContain('Or sign in with this link instead. It works in any browser, for about an hour.');
+    expect(m.text).toContain(`\n\n${link}\n\n`);
+    expect(m.text.indexOf('004217')).toBeLessThan(m.text.indexOf(link));
+    expect(m.text).toContain('If you did not ask for it, ignore this email.');
+    expect(m.text).toContain('You got this because someone asked to sign in to Paste Md with this address.');
+    expect(m.html).toContain(`<p style="${CODE_STYLE}">004217</p>`);
+    expect(CODE_STYLE).toMatch(/monospace;font-size:32px;/);
+    expect(CODE_STYLE).toContain('user-select:all');
+    expect(m.html).toContain(`<a class="hw-link" href="${page}"`);
+    expect(m.html).toContain('href="https://paste-md.hintwise.org/?token_hash=abc&amp;type=email"');
+    expect(m.html.indexOf('004217')).toBeLessThan(m.html.indexOf('token_hash=abc'));
+    const plain = signInEmail('ann@example.com', link, null, undefined, {}, { code: '004217', page });
+    expect(plain.text).toContain('Here is your code to sign in to paste-md.hintwise.org. It works only');
+  });
+  it('keeps the code out of the subject and the inbox preview: the subject is the link-only email\'s, so a mailbox threads them', () => {
+    const page = 'https://paste-md.hintwise.org/';
+    for (const [code, app] of [['004217', 'Paste Md'], ['987650', null]] as const) {
+      const m = signInEmail('ann@example.com', link, app, undefined, {}, { code, page });
+      const linkOnly = signInEmail('ann@example.com', link, app);
+      expect(m.subject).toBe(linkOnly.subject);
+      expect(m.subject).toBe(app ? 'Your sign-in link for Paste Md' : 'Your sign-in link');
+      for (const d of new Set(code)) expect(m.subject).not.toContain(d);
+      expect(m.html).toContain(`<title>${m.subject}</title>`);
+      // The preview line: a hidden preheader first in the body, without the code, then blank filler.
+      const body = m.html.slice(m.html.indexOf('<body'));
+      const pre = body.match(/^<body[^>]*><div style="([^"]*)">([^<]*)<\/div>/)!;
+      expect(pre[1]).toBe(PREHEADER_STYLE);
+      expect(pre[2].startsWith(`Your sign-in code for ${app ?? 'paste-md.hintwise.org'} is in this email. Type it in the browser where you asked for it.`)).toBe(true);
+      expect(pre[2].endsWith(PREHEADER_FILLER)).toBe(true);
+      expect(pre[2].slice(0, -PREHEADER_FILLER.length)).not.toMatch(/[0-9]/); // no digit at all, so no part of the code
+      expect(pre[2]).not.toContain(code);
+      expect(m.html.indexOf(code)).toBeGreaterThan(m.html.indexOf(PREHEADER_FILLER) + PREHEADER_FILLER.length);
+      expect(m.text.startsWith(pre[2].slice(0, -PREHEADER_FILLER.length))).toBe(true); // the text part leads with the same line
+      expect(m.text).toContain(`\n\n${code}\n\n`);
+    }
+    // In the text part, the code comes past what any client takes for a preview (JMAP: up to 256
+    // characters, from either part), with no digit before it: for the shortest host and a long name.
+    const cases: Array<[string, string | null, string]> = [
+      ['https://localhost/?token_hash=abc&type=email', null, '010101'],
+      ['https://paste-md.hintwise.org/?token_hash=abc&type=email', 'Paste Md', '989898'],
+      ['https://a-very-long-app-name-for-small-business-owners.hintwise.org/?token_hash=abc&type=email', 'A Very Long App Name For Small Business Owners', '123456'],
+    ];
+    const at: number[] = [];
+    for (const [href, app, code] of cases) {
+      const m = signInEmail('ann@example.com', href, app, undefined, {}, { code, page });
+      const first = m.text.indexOf(code);
+      at.push(first);
+      expect(first).toBeGreaterThanOrEqual(300);
+      expect(m.text.slice(0, first)).not.toMatch(/[0-9]/);
+      expect(m.html.slice(0, m.html.indexOf(`>${code}<`))).not.toContain(code);
+    }
+    expect(at[0]).toBe(Math.min(...at)); // the unnamed short host is the closest call
+    expect(PREHEADER_STYLE).toContain('display:none');
+    expect(signInEmail('ann@example.com', link, 'Paste Md').html).not.toContain(PREHEADER_STYLE);
+  });
+  it('leaves the link-only email and the hook\'s code emails byte for byte as on main before the code (22 Nov 2026)', () => {
+    // test/fixtures/sign-in-emails-main.json: these same calls rendered by main's email.ts at 4864b8a.
+    const look = { optOutUrl: 'https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig', logoUrl: 'https://auth.hintwise.org/storage/v1/object/public/brand/hintwise-wordmark-email@2x.png' };
+    const href = 'https://pluck-lab.hintwise.org/app?token_hash=hashed-1&type=email&email_hint=a***%40example.com';
+    expect(signInEmail('Ann+news@Example.com', href, 'Pluck Lab', undefined, look)).toEqual(mainEmails.signInLinkOnly);
+    expect(signInEmail('ann@example.com', href, null)).toEqual(mainEmails.signInLinkOnlyPlain);
+    expect(signInEmail('ann@example.com', 'https://ref.supabase.co/auth/v1/verify?token=t&type=magiclink', null, 'wcv.example.org', look)).toEqual(mainEmails.hookMagicLink);
+    expect(codeEmail('ann@example.com', '123456', 'wcv.example.org', look)).toEqual(mainEmails.codeEmail);
+    expect(reauthenticationEmail('ann@example.com', '654321', 'wcv.example.org', look)).toEqual(mainEmails.reauthenticationEmail);
+    expect(mainEmails.codeEmail.html).toContain(`<p style="${HOOK_CODE_STYLE}">123456</p>`);
+  });
+  it('sends the link alone without a code', () => {
+    for (const m of [signInEmail('ann@example.com', link, 'Paste Md'), signInEmail('ann@example.com', link, 'Paste Md', undefined, {}, null)]) {
+      expect(m.subject).toBe('Your sign-in link for Paste Md');
+      expect(m.text).not.toContain('code');
+      expect(m.html).not.toContain(CODE_STYLE);
+    }
   });
   it('uses the plain subject when the app is not known', () => {
     const m = signInEmail('ann@example.com', link, null);

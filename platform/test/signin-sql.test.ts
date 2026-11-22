@@ -7,6 +7,7 @@ import { QUIET_HOURS } from '../src/signin/ladder.ts';
 import { IP_FREE_PER_HOUR, IP_HARD_LIMIT_PER_HOUR, PROJECT_SENT_BRAKE_PER_HOUR } from '../src/signin/policy.ts';
 import { OUTCOMES } from '../src/signin/service.ts';
 import { TURNSTILE_SITE_KEY } from '../src/signin/turnstile.ts';
+import { MAX_WRONG_CODES, SIGN_IN_CODE_MINUTES } from '../src/signin/code.ts';
 
 // The SQL keeps a few windows and names that the TypeScript also uses; this
 // keeps the two from drifting apart. (The SQL itself was exercised on
@@ -117,5 +118,69 @@ describe('0003_email_optout.sql', () => {
     expect(code3).not.toMatch(/create index (?!if not exists)/);
     expect(code3).not.toMatch(/create function/);
     expect(code3).toContain('on conflict (email_hash, scope) do nothing');
+  });
+});
+
+describe('0017_sign_in_codes.sql', () => {
+  const sql17 = fs.readFileSync(path.join(here, '..', 'supabase', 'shared', '0017_sign_in_codes.sql'), 'utf8');
+  const code17 = sql17.replace(/--.*$/gm, '');
+  const service = fs.readFileSync(path.join(here, '..', 'src', 'signin', 'service.ts'), 'utf8');
+  const fns = [...code17.matchAll(/create or replace function (platform\.\w+)\(([^)]*)\)/g)].map((m) => ({ name: m[1], params: m[2] }));
+
+  it('keeps the code\'s lifetime and wrong-code limit', () => {
+    expect(code17).toContain(`v_expires timestamptz := now() + interval '${SIGN_IN_CODE_MINUTES} minutes';`);
+    expect(code17).toContain(`if r.wrong >= ${MAX_WRONG_CODES} then`);
+    expect(code17).toContain(`'left', greatest(${MAX_WRONG_CODES} - (r.wrong + 1), 0)`);
+  });
+  it('stores hashes, never an address or a code, one row per mailbox, pruned an hour after expiry', () => {
+    expect(code17).toContain('email_hash text primary key');
+    expect(code17).toContain("check (email_hash ~ '^[0-9a-f]{64}$' and browser_hash ~ '^[0-9a-f]{64}$' and code_hash ~ '^[0-9a-f]{64}$')");
+    expect(code17).not.toMatch(/\b(email|code)\s+text\b/);
+    expect(code17).toContain('on conflict (email_hash) do update');
+    expect(code17).toContain("where expires_at < now() - interval '1 hour'");
+    expect(code17).toContain('for update skip locked');
+  });
+  it('counts nothing for another browser, deletes a used code, and counts a wrong one under the row lock', () => {
+    expect(code17).toContain('where email_hash = p_email_hash for update;');
+    expect(code17).toMatch(/if not found or r\.browser_hash is distinct from p_browser_hash then\s+return jsonb_build_object\('status', 'none'\);/);
+    expect(code17).toMatch(/if r\.code_hash = p_code_hash then\s+delete from platform\.sign_in_codes/);
+    expect(code17).toContain('update platform.sign_in_codes set wrong = wrong + 1');
+  });
+  it('has the two RPCs the function calls, with the parameter names it sends', () => {
+    expect(fns.map((f) => f.name).sort()).toEqual(['platform.sign_in_code_check', 'platform.sign_in_code_issue']);
+    for (const [fn, params] of [
+      ['sign_in_code_issue', ['p_email_hash', 'p_browser_hash', 'p_code_hash', 'p_token_hash']],
+      ['sign_in_code_check', ['p_email_hash', 'p_browser_hash', 'p_code_hash']],
+    ] as const) {
+      expect(service).toContain(`'${fn}'`);
+      const declared = fns.find((f) => f.name === `platform.${fn}`)!.params;
+      for (const p of params) {
+        expect(declared, `${fn}(${p})`).toContain(p);
+        expect(service).toContain(`${p}:`);
+      }
+    }
+  });
+  it('pins search_path on every function, has no security definer, and grants only to service_role', () => {
+    expect((code17.match(/set search_path = ''/g) ?? []).length).toBe(fns.length);
+    expect(code17).not.toMatch(/security definer/i);
+    for (const { name } of fns) {
+      expect(code17).toMatch(new RegExp(`revoke all on function ${name.replace('.', '\\.')}\\([^)]*\\) from public, anon, authenticated;`));
+      expect(code17).toMatch(new RegExp(`grant execute on function ${name.replace('.', '\\.')}\\([^)]*\\) to service_role;`));
+    }
+    expect(code17).toContain('alter table platform.sign_in_codes enable row level security;');
+    expect(code17).toContain('revoke all on table platform.sign_in_codes from public, anon, authenticated;');
+    expect(code17).not.toMatch(/grant [^;]* to (public|anon|authenticated)/);
+    expect(code17).not.toMatch(/create policy/);
+  });
+  it("passes check-schema's rules (RLS on, no anon access, no definer without search_path)", async () => {
+    process.env.SUPABASE_ADMIN_NO_RUN = '1';
+    const admin = await import('../supabase-admin.mjs');
+    const facts = { tables: [{ name: 'sign_in_codes', rls: true, policies: 0, anon_access: false, rows: 0 }], definers: [] };
+    expect(admin.schemaFindings('platform', facts, { sign_in_codes: 0 }, []).errors).toEqual([]);
+  });
+  it('is idempotent by construction', () => {
+    expect(code17).not.toMatch(/create table (?!if not exists)/);
+    expect(code17).not.toMatch(/create index (?!if not exists)/);
+    expect(code17).not.toMatch(/create function/);
   });
 });

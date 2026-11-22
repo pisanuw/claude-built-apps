@@ -45,10 +45,10 @@ no other provider without the owner's yes.
 |---|---|
 | The app | Vite + TypeScript from `platform/templates/app/`, on Netlify at `https://<slug>.hintwise.org`, deployed by the Deploy workflow from `deploy/target.yml` (Step 4). |
 | Server-side code (a secret, a webhook, a signed URL, sending email) | Netlify Functions in the same site: `netlify/functions/`, served at `/api/*` (the deploy runner bundles them; `netlify.functionsDir` in target.yml). A secret reaches them by name through target.yml `envPassthrough`, filled from a GitHub repo secret (`RESEND_API` is one already). A function that touches the database acts with the signed-in user's token, so row level security applies; apps never get the service-role key. |
-| Sign-in | Supabase Auth at `https://auth.hintwise.org`: Google through Supabase, and magic link (docs/platform.md section 2). Never add a Google OAuth client, a redirect URI or an auth setting for one app. Sign-in only returns to `https://*.hintwise.org/**`, so it cannot finish on localhost or a deploy preview: tests and the Playwright walkthrough mock it. |
+| Sign-in | Supabase Auth at `https://auth.hintwise.org`: Google through Supabase, and email sign-in by an emailed 6-digit code (the link also works during the move; owner, 22 November 2026: "That should be the default for all new apps"; docs/platform.md section 2). Never add a Google OAuth client, a redirect URI or an auth setting for one app. Sign-in only returns to `https://*.hintwise.org/**`, so it cannot finish on localhost or a deploy preview: tests and the Playwright walkthrough mock it. |
 | Data | Supabase Postgres in the app's own schema `app_<slug_>`, row level security on every table, migrations in `<slug>/supabase/migrations/` (Step 4). The project is shared with live apps: never touch `public` or another app's schema. |
 | Files | Supabase Storage: one private bucket per app named `<slug>`, created with its `storage.objects` policies in the app's migration; downloads through signed URLs. |
-| Sign-in email | Nothing to build: the platform's `sign-in-link` function sends the links through Resend (sign-in@hintwise.org); the template's `sendMagicLink` calls it. Never `signInWithOtp` (docs/platform.md, "Sign-in links"). |
+| Sign-in email | Nothing to build: the platform's `sign-in-link` function emails the 6-digit code and the link through Resend (sign-in@hintwise.org) and checks the code; the template's `sendMagicLink` asks for it and its panel has the code box (`verifySignInCode`). Never `signInWithOtp` (docs/platform.md, "Sign-in links"). |
 | App email (notifications, reports, reminders) | Resend, from a Netlify Function only (the key never reaches the browser), sender `<slug>@hintwise.org` with the app's name as the display name (hintwise.org is already the sending domain for sign-in mail and the usage report). No sending subdomains: Resend counts each one as a domain against the plan's limit (owner, 10 November 2026). Recurring mail is opt-in and carries an unsubscribe link; cap sends per user and per day in code, since every app shares hintwise.org's sending reputation. |
 | Model calls | The LLM gateway, with bring-your-own-key always offered (docs/platform.md section 3). |
 | Scheduled work | Netlify Scheduled Functions for light jobs (not yet used with this deploy runner: verify on first use); Render for heavy or long-running jobs. |
@@ -72,7 +72,8 @@ custom button, and it must keep to the guideline's custom-button rules
   best where it is in the top right as two separate buttons", and, showing
   UpvoteMe on a phone, "Upvote me looks like this on mobile which is my
   preference"): every app with sign-in puts two separate buttons at the
-  right of its top bar, "Sign in with Google" and "Magic link", as
+  right of its top bar, "Sign in with Google" and "Email code" (named
+  "Magic link" until the emailed code, 22 November 2026), as
   https://upvoteme.hintwise.org does. Below 640 px each becomes a round,
   bordered icon button (the unmodified G, and the envelope) with its full
   accessible name. This narrow-screen form is the owner's choice; whether
@@ -84,7 +85,7 @@ custom button, and it must keep to the guideline's custom-button rules
   before the logo, 10px after it, 12px after the text. Rectangular or pill
   shape. Scale the button only with its aspect ratio kept.
 - Prominence: at least as prominent as the other sign-in options (the
-  magic-link button), with about the same size and visual weight.
+  "Email code" button), with about the same size and visual weight.
 Use the template's Google button when `platform/templates/app` has one
 instead of drawing a new one, and check the button against this list on the
 polish day.
