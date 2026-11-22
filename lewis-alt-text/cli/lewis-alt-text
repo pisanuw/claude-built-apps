@@ -1,190 +1,26 @@
 #!/usr/bin/env -S node --no-warnings=ExperimentalWarning
-// Command-line alt text for Lewis structure images, with the same prompt and
-// checks as the web app. Needs Node 22.18 or newer, which runs the app's
-// TypeScript core directly; no npm install.
-//
-//   lewis-alt-text login                 sign this terminal in to HintWise (once)
-//   lewis-alt-text figure.png ...        alt text through the live app, on your allowance
-//   lewis-alt-text figure.png --local    alt text through your local claude CLI instead
-import { existsSync } from 'node:fs';
+// The command-line tool, run from a clone of this repository: Node runs the
+// TypeScript source in src/cli/ directly (Node 22.18 or newer; no npm
+// install). Everyone else downloads the single-file version from
+// https://lewis-alt-text.hintwise.org/terminal/ (built from the same source
+// by scripts/build-cli.mjs; instructions in cli/INSTRUCTIONS.md).
+import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
-import { parseArgs } from 'node:util';
-import { DEFAULT_MODEL, writeAltText } from '../src/core/alt-text.ts';
-import { formatReset } from '../src/core/caps.ts';
-import { MAX_SEND_BYTES } from '../src/core/image.ts';
-import { CapReachedError, createRemote, SignedOut, TERMINAL_URL } from '../src/core/remote.ts';
-import { FOCUSES, PURPOSES, sniffType, toBase64 } from '../src/core/request.ts';
-import { generateWithClaude } from './claude-cli.mjs';
-import { hintwiseConfig } from './config.mjs';
-import { fileStore } from './session-store.mjs';
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SKILL = path.join(HERE, '..', 'skill', 'lewis-structure-alt-text-v8.txt');
-const LOCAL_MAX_BYTES = 5 * 1024 * 1024; // the API's per-image limit
-const MODELS = { opus: 'claude-opus-5-5', sonnet: 'claude-sonnet-5-5', haiku: 'claude-haiku-5-5' };
-
-const HELP = `Usage:
-  lewis-alt-text login [--code CODE]   sign this terminal in to HintWise (once)
-  lewis-alt-text status                who is signed in, and how many alt texts are left
-  lewis-alt-text logout                sign this terminal out
-  lewis-alt-text IMAGE... [options]    write alt text through the live app
-                                       (https://lewis-alt-text.hintwise.org, your HintWise allowance)
-
-Options:
-  -p, --purpose P   ${Object.keys(PURPOSES).join(' | ')}   (default unknown, treated as a question)
-  -f, --focus F     ${Object.keys(FOCUSES).join(' | ')}
-  -c, --context T   caption, question text or lesson topic
-  -a, --audit       also print the atom-by-atom verification audit (to stderr)
-  -m, --model M     opus (default), sonnet or haiku; also $LEWIS_MODEL
-  -l, --local       use your local claude CLI (your Claude subscription) instead of the live app
-  -j, --json        print one JSON object per image
-  -h, --help
-
-Alt text goes to stdout, warnings to stderr.
-Exit status: 0 alt text written, 2 the model asked a question, 1 error.`;
-
-let parsed;
-try {
-  parsed = parseArgs({
-    allowPositionals: true,
-    options: {
-      purpose: { type: 'string', short: 'p', default: 'unknown' },
-      focus: { type: 'string', short: 'f', default: 'unknown' },
-      context: { type: 'string', short: 'c', default: '' },
-      audit: { type: 'boolean', short: 'a', default: false },
-      model: { type: 'string', short: 'm', default: process.env.LEWIS_MODEL || 'opus' },
-      local: { type: 'boolean', short: 'l', default: false },
-      json: { type: 'boolean', short: 'j', default: false },
-      code: { type: 'string' },
-      help: { type: 'boolean', short: 'h', default: false },
-    },
-  });
-} catch (e) {
-  console.error(`${e.message}\n\n${HELP}`);
-  process.exit(1);
-}
-const { values: o, positionals } = parsed;
-if (o.help || positionals.length === 0) {
-  console.log(HELP);
-  process.exit(o.help ? 0 : 1);
-}
-
-const store = fileStore();
-let remote;
-function getRemote() {
-  remote ??= createRemote({ ...hintwiseConfig(), store });
-  return remote;
-}
-
-const COMMANDS = new Set(['login', 'logout', 'status']);
-const command = COMMANDS.has(positionals[0]) && !existsSync(positionals[0]) ? positionals[0] : null;
-
-try {
-  if (command === 'login') process.exit(await login());
-  if (command === 'logout') process.exit(await logout());
-  if (command === 'status') process.exit(await status());
-  process.exit(await altTexts(positionals));
-} catch (e) {
-  console.error(`error: ${e.message}`);
+if (!process.features.typescript) {
+  console.error(`Running lewis-alt-text from the source needs Node.js 22.18 or newer (this is ${process.version}).
+Or download the single-file version, which does not: https://lewis-alt-text.hintwise.org/terminal/`);
   process.exit(1);
 }
 
-async function login() {
-  let code = o.code;
-  if (!code) {
-    console.error(`Sign this terminal in to HintWise:
-  1. Open ${TERMINAL_URL}
-  2. Enter your email there, then open the link HintWise emails you.
-  3. Paste the code it shows (or the whole link from the email) here.
-`);
-    const rl = createInterface({ input: process.stdin, output: process.stderr, terminal: process.stdin.isTTY });
-    code = await rl.question('Code: ');
-    rl.close();
-  }
-  const s = await getRemote().verify(code);
-  console.error(`Signed in${s.email ? ` as ${s.email}` : ''}. The session is saved in ${store.file} (readable only by you).`);
-  return 0;
-}
-
-async function logout() {
-  const had = await getRemote().logout();
-  console.error(had ? 'Signed out; the saved session is removed.' : 'This terminal was not signed in.');
-  return 0;
-}
-
-async function status() {
-  const s = await store.load();
-  if (!s) {
-    console.log('Not signed in. Run: lewis-alt-text login');
-    return 1;
-  }
-  const a = await getRemote().check();
-  const who = s.email ? `Signed in as ${s.email}.` : 'Signed in.';
-  if (!a.allowed) {
-    console.log(`${who} ${a.scope ? new CapReachedError(a.scope, a.resetsAt).message : 'The HintWise key is not available right now.'}`);
-  } else if (a.callsLeft !== null) {
-    const when = a.resetsAt ? `; more at ${formatReset(a.resetsAt)}` : '';
-    console.log(`${who} ${a.callsLeft} alt text${a.callsLeft === 1 ? '' : 's'} left${when}.`);
-  } else {
-    console.log(`${who} The HintWise key is available.`);
-  }
-  return 0;
-}
-
-async function altTexts(files) {
-  const skill = await readFile(SKILL, 'utf8');
-  const model = MODELS[o.model] ?? (o.model || DEFAULT_MODEL);
-  const options = { purpose: o.purpose, focus: o.focus, context: o.context, audit: o.audit };
-  const generate = o.local ? (req) => generateWithClaude(req) : getRemote().generate;
-  if (!o.local) await getRemote().session(); // fail early, before reading images, when signed out
-
-  let hadError = false;
-  let hadQuestion = false;
-  for (const file of files) {
-    let r;
-    let stop = false;
-    try {
-      const bytes = new Uint8Array(await readFile(file));
-      const limit = o.local ? LOCAL_MAX_BYTES : MAX_SEND_BYTES;
-      if (bytes.length > limit) {
-        throw new Error(
-          o.local
-            ? 'image is larger than 5 MB'
-            : `image is ${Math.round(bytes.length / 1024)} kB; the live app takes up to ${Math.round(MAX_SEND_BYTES / 1024)} kB. ` +
-                'Crop or shrink it (on a Mac: sips -Z 1568 in.png --out small.png), or use --local.',
-        );
-      }
-      const mediaType = sniffType(bytes);
-      if (!mediaType) throw new Error('not a PNG, JPEG, GIF or WebP image');
-      r = await writeAltText({ base64: toBase64(bytes), mediaType, options, skill, model, generate });
-    } catch (e) {
-      // Signed out or out of allowance: the other images would fail the same way.
-      stop = e instanceof SignedOut || e instanceof CapReachedError;
-      const extra = e instanceof CapReachedError ? ' Or run with --local.' : '';
-      r = { kind: 'error', message: e.message + extra, warnings: [] };
-    }
-    if (o.json) {
-      console.log(JSON.stringify({ file, ...r }));
-    } else {
-      if (files.length > 1) console.log(`== ${path.basename(file)} ==`);
-      if (r.kind === 'alt') {
-        if (r.audit) console.error(`--- audit ---\n${r.audit}\n-------------`);
-        console.log(r.altText);
-        for (const w of r.warnings) console.error(`warning: ${w}`);
-      } else if (r.kind === 'question') {
-        console.log(`QUESTION: ${r.question}`);
-        console.error('Answer it with --context "..." and run again.');
-      } else {
-        console.error(`error: ${file}: ${r.message}`);
-      }
-    }
-    hadError ||= r.kind === 'error';
-    hadQuestion ||= r.kind === 'question';
-    if (stop) break;
-  }
-  // An error outranks a question.
-  return hadError ? 1 : hadQuestion ? 2 : 0;
-}
+const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const pkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
+const { run } = await import('../src/cli/run.ts');
+await run({
+  skill: () => readFile(path.join(root, 'skill', 'lewis-structure-alt-text-v8.txt'), 'utf8'),
+  targetYml: () => readFileSync(path.join(root, 'deploy', 'target.yml'), 'utf8'),
+  version: `${pkg.version} (from source)`,
+  viaNode: false,
+});

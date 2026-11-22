@@ -7,6 +7,7 @@
  */
 import type { SignInLinkResult, TurnstileApi } from '../lib/auth';
 import { formatReset } from '../core/caps';
+import { DOWNLOAD_PATH, INSTRUCTIONS_URL } from '../core/remote';
 
 export interface TerminalDeps {
   /** Where the sign-in link returns: this page's address without query. */
@@ -28,7 +29,15 @@ const HELP = `
     <p class="lede">For the <a href="/">Lewis Structure Alt Text</a> command-line tool. It signs your terminal in to HintWise, so the tool can write alt text with your HintWise allowance.</p>
   </header>`;
 
-const ASK = `${HELP}
+const GET = `
+  <section class="card" aria-labelledby="get-h">
+    <h2 id="get-h">Get the tool</h2>
+    <p>One file that writes alt text for many images at once, a whole folder if you like. It needs <a href="https://nodejs.org">Node.js</a> (free; the LTS version).</p>
+    <p><a id="download" href="${DOWNLOAD_PATH}" download="lewis-alt-text.mjs">Download lewis-alt-text.mjs</a> · <a href="${INSTRUCTIONS_URL}">How to install and use it</a></p>
+    <p class="muted small">Then, in a terminal in the folder you saved it to, run <code>node lewis-alt-text.mjs login</code> and sign it in below.</p>
+  </section>`;
+
+const ASK = `${HELP}${GET}
   <section class="card" aria-labelledby="ask-h">
     <h2 id="ask-h">1. Get a sign-in link</h2>
     <form id="link-form" novalidate>

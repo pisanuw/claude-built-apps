@@ -117,6 +117,8 @@ const SHELL = `
     </div>
     <p class="muted small">Check the alt text against the image before you publish it. The model can miscount bonds, dots or charges.</p>
   </section>
+
+  <p class="muted small">Many figures? The <a href="/terminal/">command-line tool</a> writes alt text for a whole folder at once.</p>
 `;
 
 export interface App {

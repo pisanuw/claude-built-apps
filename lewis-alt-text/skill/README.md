@@ -11,5 +11,5 @@ with the author; until then, ask before reusing the skill text elsewhere.
 The app strips its two header lines (name, description), sends the rest as
 the system prompt, and appends a short section on single-shot use
 (`src/core/prompt.ts`). To update it, replace the file (keep the name, or
-change the imports in `src/main.ts`, `test/core/prompt.test.ts` and
-`cli/lewis-alt-text`) and rerun the tests.
+change the imports in `src/main.ts`, `test/core/prompt.test.ts`,
+`cli/lewis-alt-text` and `src/cli/bundle.ts`) and rerun the tests.
