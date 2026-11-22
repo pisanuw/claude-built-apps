@@ -119,6 +119,7 @@ const SHELL = `
   </section>
 
   <p class="muted small">Many figures? The <a href="/terminal/">command-line tool</a> writes alt text for a whole folder at once.</p>
+  <p class="muted small" id="credit">This app was built by HintWise for Scott Rayermann &lt;<a href="mailto:scottpr@uw.edu">scottpr@uw.edu</a>&gt; who created the initial skill for generating alt-text descriptions from images.</p>
 `;
 
 export interface App {
