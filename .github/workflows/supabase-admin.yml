@@ -8,7 +8,12 @@
 #   migrate <arg: slug>      run <slug>/supabase/migrations/*.sql the same way
 #   expose-schema <arg>      add a schema (platform, app_<slug_>) to PostgREST's db_schema
 #   check-schema <arg>       read-only security check of a schema
-#   configure-auth           additive auth settings; flags "--dry-run" and "--google"
+#   configure-auth           additive auth settings; flags "--dry-run", "--google", "--email-rate=N" and
+#                            "--otp-length=N": the digits of Auth's own email code, mailer_otp_length, 6 to 10
+#                            (owner, 22 Nov 2026: 10; run "--otp-length=10 --dry-run" first). Alone (without
+#                            --google or --email-rate) it sends mailer_otp_length and nothing else, and nothing
+#                            when the length is already N; it prints the length before and after and
+#                            mailer_otp_exp, which it never changes, as numbers
 #   keys                     print the URL and anon key as platform/supabase.json
 #   usage [arg: days]        print the LLM usage report
 #   domain-setup <arg: host> custom domain add-on: start it, create its Cloudflare records, verify
@@ -79,7 +84,7 @@ on:
         default: ''
         type: string
       flags:
-        description: 'Flags for the script, e.g. "--google --dry-run" (configure-auth), "--write" (keys), "--base=https://auth.hintwise.org" (check-google), "--callbacks-ready" (domain-activate), "--dry-run", "--allow-otp-apps", "--accept-external-breakage" (email-hook on)'
+        description: 'Flags for the script, e.g. "--google --dry-run" or "--otp-length=10 --dry-run" (configure-auth), "--write" (keys), "--base=https://auth.hintwise.org" (check-google), "--callbacks-ready" (domain-activate), "--dry-run", "--allow-otp-apps", "--accept-external-breakage" (email-hook on)'
         required: false
         default: ''
         type: string

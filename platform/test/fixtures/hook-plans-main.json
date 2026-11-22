@@ -1,0 +1,808 @@
+{
+ "signup external": {
+  "action": "send",
+  "actionType": "signup",
+  "email": "ann@example.com",
+  "host": "how-of-happiness.netlify.app",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Confirm your email address",
+    "text": "To finish signing up at how-of-happiness.netlify.app, confirm your email address:\n\nhttps://ref.supabase.co/auth/v1/verify?token=hash-1&type=signup&redirect_to=https%3A%2F%2Fhow-of-happiness.netlify.app%2Fwelcome\n\nThe link expires in about an hour. If you did not ask for this, ignore this email.\n\n----\nYou got this because someone signed up at how-of-happiness.netlify.app with this address. If it wasn't you, ignore it: the address stays unconfirmed.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "fee8d4ef5b56963e861f6cd727e4204ccb116b4b5c715e5275d4a3857c402dee"
+   }
+  ]
+ },
+ "invite external": {
+  "action": "send",
+  "actionType": "invite",
+  "email": "ann@example.com",
+  "host": "how-of-happiness.netlify.app",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "You are invited",
+    "text": "You have been invited to an account on how-of-happiness.netlify.app for ann@example.com. To accept, open this link:\n\nhttps://ref.supabase.co/auth/v1/verify?token=hash-1&type=invite&redirect_to=https%3A%2F%2Fhow-of-happiness.netlify.app%2Fwelcome\n\nIf you did not ask for this, ignore this email.\n\n----\nYou got this because someone invited this address to an account on how-of-happiness.netlify.app. If you don't want it, ignore it: nothing happens.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "33f4a010918a26c8c8c0f70bba85452a4d7c8b03c1c79dd0e6838f9f07601ec1"
+   }
+  ]
+ },
+ "magiclink external": {
+  "action": "send",
+  "actionType": "magiclink",
+  "email": "ann@example.com",
+  "host": "how-of-happiness.netlify.app",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your sign-in link",
+    "text": "Here is your link to sign in to how-of-happiness.netlify.app:\n\nhttps://ref.supabase.co/auth/v1/verify?token=hash-1&type=magiclink&redirect_to=https%3A%2F%2Fhow-of-happiness.netlify.app%2Fwelcome\n\nThe link expires in about an hour. If you did not ask for it, ignore this email.\n\n----\nYou got this because someone asked to sign in to how-of-happiness.netlify.app with this address. If it wasn't you, ignore it: nothing happens.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "e5bc9ae256a34ccf61d8c6d5f5d171a15c089d5c5efcd8a88207ae53e24b9aea"
+   }
+  ]
+ },
+ "recovery external": {
+  "action": "send",
+  "actionType": "recovery",
+  "email": "ann@example.com",
+  "host": "how-of-happiness.netlify.app",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Reset your password",
+    "text": "Someone asked to reset the password of the account for ann@example.com. To choose a new one, open this link:\n\nhttps://ref.supabase.co/auth/v1/verify?token=hash-1&type=recovery&redirect_to=https%3A%2F%2Fhow-of-happiness.netlify.app%2Fwelcome\n\nThe link expires in about an hour. If you did not ask for this, ignore this email.\n\n----\nYou got this because someone asked to reset the password of the account with this address on how-of-happiness.netlify.app. If it wasn't you, ignore it: the password stays the same.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "67de0ac29b19e0639165a98683dd1bd793a89b0b1ed55321d89a1ff389ace1f3"
+   }
+  ]
+ },
+ "email_change external": {
+  "action": "send",
+  "actionType": "email_change",
+  "email": "ann@example.com",
+  "host": "how-of-happiness.netlify.app",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Confirm the change of your email address",
+    "text": "Someone asked to change the email address of your account on how-of-happiness.netlify.app from ann@example.com to new@example.com. To confirm, open this link:\n\nhttps://ref.supabase.co/auth/v1/verify?token=hash-2&type=email_change&redirect_to=https%3A%2F%2Fhow-of-happiness.netlify.app%2Fwelcome\n\nThe link expires in about an hour. If this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because someone asked to move the account with this address on how-of-happiness.netlify.app to another address. If it wasn't you, ignore it and change your password: nothing changes unless this link is opened.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "ff563b9ce7952182892b79e1d698377d6c2b5f0a11b0f3f7a078e3f3e37a1ab8"
+   },
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "new@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Confirm your new email address",
+    "text": "To use new@example.com as the email address of your account on how-of-happiness.netlify.app, open this link:\n\nhttps://ref.supabase.co/auth/v1/verify?token=hash-1&type=email_change&redirect_to=https%3A%2F%2Fhow-of-happiness.netlify.app%2Fwelcome\n\nThe link expires in about an hour. If you did not ask for this, ignore this email.\n\n----\nYou got this because someone asked to use this address for an account on how-of-happiness.netlify.app. If it wasn't you, ignore it: nothing happens.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "c00f2461c217edd06ea16801ba4690d71c6d6f4863134f45e97f532c94afa0f0"
+   }
+  ]
+ },
+ "email external": {
+  "action": "send",
+  "actionType": "email",
+  "email": "ann@example.com",
+  "host": "how-of-happiness.netlify.app",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your sign-in code",
+    "text": "Your code to sign in to how-of-happiness.netlify.app is:\n\n8302917465\n\nThe code expires in about an hour. If you did not ask for this, ignore this email.\n\n----\nYou got this because someone asked for a code to sign in to how-of-happiness.netlify.app with this address. If it wasn't you, ignore it: nothing happens.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "1a1d387feae4d9c6c5fceb41ccf0a225c067604d1216eabd3a79457960d7e963"
+   }
+  ]
+ },
+ "reauthentication external": {
+  "action": "send",
+  "actionType": "reauthentication",
+  "email": "ann@example.com",
+  "host": "how-of-happiness.netlify.app",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your confirmation code",
+    "text": "Your confirmation code is:\n\n8302917465\n\nThe code expires in about an hour. If you did not ask for this, ignore this email.\n\n----\nYou got this because the account with this address on how-of-happiness.netlify.app asked for a code to confirm a change. If it wasn't you, ignore it and change your password: nothing changes without the code.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "95f6f5cea106b19b629143741e8d9239f7c94fa303a8de4d4d5a614f2029ea74"
+   }
+  ]
+ },
+ "password_changed_notification external": {
+  "action": "send",
+  "actionType": "password_changed_notification",
+  "email": "ann@example.com",
+  "host": "how-of-happiness.netlify.app",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account on how-of-happiness.netlify.app changed",
+    "text": "The password of your account was changed.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address on how-of-happiness.netlify.app changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "efe0b2476b3009a4ad1910e4b8eefbdb4f1f7cab79050a5c950a3d7d1c681c1a"
+   }
+  ]
+ },
+ "email_changed_notification external": {
+  "action": "send",
+  "actionType": "email_changed_notification",
+  "email": "ann@example.com",
+  "host": "how-of-happiness.netlify.app",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account on how-of-happiness.netlify.app changed",
+    "text": "The email address of your account was changed.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address on how-of-happiness.netlify.app changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "77f10a02dc34001d019a33477deef6f001b82a790188766841698ae08027026b"
+   }
+  ]
+ },
+ "phone_changed_notification external": {
+  "action": "send",
+  "actionType": "phone_changed_notification",
+  "email": "ann@example.com",
+  "host": "how-of-happiness.netlify.app",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account on how-of-happiness.netlify.app changed",
+    "text": "The phone number of your account was changed.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address on how-of-happiness.netlify.app changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "6f6722b30da0092eefa643e5f4578f2d648431940deb1360078995b19d89eafa"
+   }
+  ]
+ },
+ "identity_linked_notification external": {
+  "action": "send",
+  "actionType": "identity_linked_notification",
+  "email": "ann@example.com",
+  "host": "how-of-happiness.netlify.app",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account on how-of-happiness.netlify.app changed",
+    "text": "A sign-in method was linked to your account.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address on how-of-happiness.netlify.app changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "69ae19fd2bdb31efa1314338d3af3320e1220e86110c613bfd3b9df2ea1e25d2"
+   }
+  ]
+ },
+ "identity_unlinked_notification external": {
+  "action": "send",
+  "actionType": "identity_unlinked_notification",
+  "email": "ann@example.com",
+  "host": "how-of-happiness.netlify.app",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account on how-of-happiness.netlify.app changed",
+    "text": "A sign-in method was removed from your account.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address on how-of-happiness.netlify.app changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "eb7122c68b8f626907a1d379a9cf596f8fd25830111a35cf3e7fa9db74493569"
+   }
+  ]
+ },
+ "mfa_factor_enrolled_notification external": {
+  "action": "send",
+  "actionType": "mfa_factor_enrolled_notification",
+  "email": "ann@example.com",
+  "host": "how-of-happiness.netlify.app",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account on how-of-happiness.netlify.app changed",
+    "text": "A second sign-in step was added to your account.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address on how-of-happiness.netlify.app changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "1d792dceda1930b5b140995a5dfc0cdc4529f6f99bc053f581636be83f6c9d9e"
+   }
+  ]
+ },
+ "mfa_factor_unenrolled_notification external": {
+  "action": "send",
+  "actionType": "mfa_factor_unenrolled_notification",
+  "email": "ann@example.com",
+  "host": "how-of-happiness.netlify.app",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account on how-of-happiness.netlify.app changed",
+    "text": "A second sign-in step was removed from your account.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address on how-of-happiness.netlify.app changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "42f458c339373dfd73e5f37db73d5e8597311a236707735291ffdf81d247f1af"
+   }
+  ]
+ },
+ "some_new_notification external": {
+  "action": "send",
+  "actionType": "some_new_notification",
+  "email": "ann@example.com",
+  "host": "how-of-happiness.netlify.app",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account on how-of-happiness.netlify.app changed",
+    "text": "A setting of your account was changed.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address on how-of-happiness.netlify.app changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "bc69dbd1bb3a17ac5b47c3328a71e336d6ef8cf6a74c543a991ad14860c70c81"
+   }
+  ]
+ },
+ "email_change-single external": {
+  "action": "send",
+  "actionType": "email_change",
+  "email": "ann@example.com",
+  "host": "how-of-happiness.netlify.app",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "new@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Confirm your new email address",
+    "text": "To use new@example.com as the email address of your account on how-of-happiness.netlify.app, open this link:\n\nhttps://ref.supabase.co/auth/v1/verify?token=hash-1&type=email_change&redirect_to=https%3A%2F%2Fhow-of-happiness.netlify.app%2Fwelcome\n\nThe link expires in about an hour. If you did not ask for this, ignore this email.\n\n----\nYou got this because someone asked to use this address for an account on how-of-happiness.netlify.app. If it wasn't you, ignore it: nothing happens.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "c00f2461c217edd06ea16801ba4690d71c6d6f4863134f45e97f532c94afa0f0"
+   }
+  ]
+ },
+ "signup hintwise": {
+  "action": "refuse",
+  "actionType": "signup",
+  "email": "ann@example.com",
+  "host": "pluck-lab.hintwise.org",
+  "reason": "host"
+ },
+ "invite hintwise": {
+  "action": "send",
+  "actionType": "invite",
+  "email": "ann@example.com",
+  "host": "pluck-lab.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "You are invited",
+    "text": "You have been invited to an account on pluck-lab.hintwise.org for ann@example.com. To accept, open this link:\n\nhttps://ref.supabase.co/auth/v1/verify?token=hash-1&type=invite&redirect_to=https%3A%2F%2Fpluck-lab.hintwise.org%2Fapp\n\nIf you did not ask for this, ignore this email.\n\n----\nYou got this because someone invited this address to an account on pluck-lab.hintwise.org. If you don't want it, ignore it: nothing happens.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "cd9d8d6f518b50efc51e4685c5d0d2f0e93f00a049b11a106e0ae7b636d3aa2d"
+   }
+  ]
+ },
+ "magiclink hintwise": {
+  "action": "refuse",
+  "actionType": "magiclink",
+  "email": "ann@example.com",
+  "host": "pluck-lab.hintwise.org",
+  "reason": "host"
+ },
+ "recovery hintwise": {
+  "action": "refuse",
+  "actionType": "recovery",
+  "email": "ann@example.com",
+  "host": "pluck-lab.hintwise.org",
+  "reason": "host"
+ },
+ "email_change hintwise": {
+  "action": "send",
+  "actionType": "email_change",
+  "email": "ann@example.com",
+  "host": "pluck-lab.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Confirm the change of your email address",
+    "text": "Someone asked to change the email address of your account on pluck-lab.hintwise.org from ann@example.com to new@example.com. To confirm, open this link:\n\nhttps://ref.supabase.co/auth/v1/verify?token=hash-2&type=email_change&redirect_to=https%3A%2F%2Fpluck-lab.hintwise.org%2Fapp\n\nThe link expires in about an hour. If this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because someone asked to move the account with this address on pluck-lab.hintwise.org to another address. If it wasn't you, ignore it and change your password: nothing changes unless this link is opened.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "e30714759f698cc049f09af023c018ed3675786f1aa3a3366620b91000def1fe"
+   },
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "new@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Confirm your new email address",
+    "text": "To use new@example.com as the email address of your account on pluck-lab.hintwise.org, open this link:\n\nhttps://ref.supabase.co/auth/v1/verify?token=hash-1&type=email_change&redirect_to=https%3A%2F%2Fpluck-lab.hintwise.org%2Fapp\n\nThe link expires in about an hour. If you did not ask for this, ignore this email.\n\n----\nYou got this because someone asked to use this address for an account on pluck-lab.hintwise.org. If it wasn't you, ignore it: nothing happens.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "dff7da4acf002c6660c7bffd00c1446ec3eb053de44be0ec9815ba973fed04a9"
+   }
+  ]
+ },
+ "email hintwise": {
+  "action": "refuse",
+  "actionType": "email",
+  "email": "ann@example.com",
+  "host": "pluck-lab.hintwise.org",
+  "reason": "host"
+ },
+ "reauthentication hintwise": {
+  "action": "send",
+  "actionType": "reauthentication",
+  "email": "ann@example.com",
+  "host": "pluck-lab.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your confirmation code",
+    "text": "Your confirmation code is:\n\n8302917465\n\nThe code expires in about an hour. If you did not ask for this, ignore this email.\n\n----\nYou got this because the account with this address on pluck-lab.hintwise.org asked for a code to confirm a change. If it wasn't you, ignore it and change your password: nothing changes without the code.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "6edd7171ea64e36e42e12f1ee7ae45d13fa276aa6259bcf939ef6bd0a57b3b38"
+   }
+  ]
+ },
+ "password_changed_notification hintwise": {
+  "action": "send",
+  "actionType": "password_changed_notification",
+  "email": "ann@example.com",
+  "host": "pluck-lab.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account on pluck-lab.hintwise.org changed",
+    "text": "The password of your account was changed.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address on pluck-lab.hintwise.org changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "981287da3e368556ce621f41b3954220c6a46b8a3ddf803b711d38241d7b6f6c"
+   }
+  ]
+ },
+ "email_changed_notification hintwise": {
+  "action": "send",
+  "actionType": "email_changed_notification",
+  "email": "ann@example.com",
+  "host": "pluck-lab.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account on pluck-lab.hintwise.org changed",
+    "text": "The email address of your account was changed.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address on pluck-lab.hintwise.org changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "e2076c64302488ee54790f8f2bceddb5d8528d2235a7ea5910009503f536b31e"
+   }
+  ]
+ },
+ "phone_changed_notification hintwise": {
+  "action": "send",
+  "actionType": "phone_changed_notification",
+  "email": "ann@example.com",
+  "host": "pluck-lab.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account on pluck-lab.hintwise.org changed",
+    "text": "The phone number of your account was changed.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address on pluck-lab.hintwise.org changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "f272b87fe582d434ab9d10dcd17d0ff2340103fdbd5aa435deb4394e06618457"
+   }
+  ]
+ },
+ "identity_linked_notification hintwise": {
+  "action": "send",
+  "actionType": "identity_linked_notification",
+  "email": "ann@example.com",
+  "host": "pluck-lab.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account on pluck-lab.hintwise.org changed",
+    "text": "A sign-in method was linked to your account.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address on pluck-lab.hintwise.org changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "1057ee622e80901f5d87eb7d2a6628c4d96622347368b2412a071e8ea8d23db7"
+   }
+  ]
+ },
+ "identity_unlinked_notification hintwise": {
+  "action": "send",
+  "actionType": "identity_unlinked_notification",
+  "email": "ann@example.com",
+  "host": "pluck-lab.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account on pluck-lab.hintwise.org changed",
+    "text": "A sign-in method was removed from your account.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address on pluck-lab.hintwise.org changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "433be3da86b8140e5897c20ff481aabfd49e9f6d51030175530bee0fdc6c7bb8"
+   }
+  ]
+ },
+ "mfa_factor_enrolled_notification hintwise": {
+  "action": "send",
+  "actionType": "mfa_factor_enrolled_notification",
+  "email": "ann@example.com",
+  "host": "pluck-lab.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account on pluck-lab.hintwise.org changed",
+    "text": "A second sign-in step was added to your account.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address on pluck-lab.hintwise.org changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "5546c6a2d0998b298a932d4c11e28e1dc911638bb96bbcac4eac18baa761e9aa"
+   }
+  ]
+ },
+ "mfa_factor_unenrolled_notification hintwise": {
+  "action": "send",
+  "actionType": "mfa_factor_unenrolled_notification",
+  "email": "ann@example.com",
+  "host": "pluck-lab.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account on pluck-lab.hintwise.org changed",
+    "text": "A second sign-in step was removed from your account.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address on pluck-lab.hintwise.org changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "768ecca37dda941c605a96725d5d9fc780393ba307ec3ac5ed4b6b5272d0e40a"
+   }
+  ]
+ },
+ "some_new_notification hintwise": {
+  "action": "send",
+  "actionType": "some_new_notification",
+  "email": "ann@example.com",
+  "host": "pluck-lab.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account on pluck-lab.hintwise.org changed",
+    "text": "A setting of your account was changed.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address on pluck-lab.hintwise.org changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "6be5bf49c40f9291b817ed12d2ffaaa1b784111a813ae9602c1d82c48c15ea89"
+   }
+  ]
+ },
+ "email_change-single hintwise": {
+  "action": "send",
+  "actionType": "email_change",
+  "email": "ann@example.com",
+  "host": "pluck-lab.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "new@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Confirm your new email address",
+    "text": "To use new@example.com as the email address of your account on pluck-lab.hintwise.org, open this link:\n\nhttps://ref.supabase.co/auth/v1/verify?token=hash-1&type=email_change&redirect_to=https%3A%2F%2Fpluck-lab.hintwise.org%2Fapp\n\nThe link expires in about an hour. If you did not ask for this, ignore this email.\n\n----\nYou got this because someone asked to use this address for an account on pluck-lab.hintwise.org. If it wasn't you, ignore it: nothing happens.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "dff7da4acf002c6660c7bffd00c1446ec3eb053de44be0ec9815ba973fed04a9"
+   }
+  ]
+ },
+ "signup none": {
+  "action": "refuse",
+  "actionType": "signup",
+  "email": "ann@example.com",
+  "host": "auth.hintwise.org",
+  "reason": "host"
+ },
+ "invite none": {
+  "action": "send",
+  "actionType": "invite",
+  "email": "ann@example.com",
+  "host": "auth.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "You are invited",
+    "text": "You have been invited to an account for ann@example.com. To accept, open this link:\n\nhttps://ref.supabase.co/auth/v1/verify?token=hash-1&type=invite\n\nIf you did not ask for this, ignore this email.\n\n----\nYou got this because someone invited this address to an account. If you don't want it, ignore it: nothing happens.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "e4a51cfe4a805e34a0d98218b7a918bdfe19355acfdb81118d311f2430b27601"
+   }
+  ]
+ },
+ "magiclink none": {
+  "action": "refuse",
+  "actionType": "magiclink",
+  "email": "ann@example.com",
+  "host": "auth.hintwise.org",
+  "reason": "host"
+ },
+ "recovery none": {
+  "action": "refuse",
+  "actionType": "recovery",
+  "email": "ann@example.com",
+  "host": "auth.hintwise.org",
+  "reason": "host"
+ },
+ "email_change none": {
+  "action": "send",
+  "actionType": "email_change",
+  "email": "ann@example.com",
+  "host": "auth.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Confirm the change of your email address",
+    "text": "Someone asked to change the email address of your account from ann@example.com to new@example.com. To confirm, open this link:\n\nhttps://ref.supabase.co/auth/v1/verify?token=hash-2&type=email_change\n\nThe link expires in about an hour. If this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because someone asked to move the account with this address to another address. If it wasn't you, ignore it and change your password: nothing changes unless this link is opened.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "beac5f0ac4f0c2c4d2d2ba13d62a8c4be4fb878014e7836ba55e731a8478cf71"
+   },
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "new@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Confirm your new email address",
+    "text": "To use new@example.com as the email address of your account, open this link:\n\nhttps://ref.supabase.co/auth/v1/verify?token=hash-1&type=email_change\n\nThe link expires in about an hour. If you did not ask for this, ignore this email.\n\n----\nYou got this because someone asked to use this address for an account. If it wasn't you, ignore it: nothing happens.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "a2099d3fa4814b8b43834a8f760fe8b2184e16ec9e468ca2526963b5909260cc"
+   }
+  ]
+ },
+ "email none": {
+  "action": "refuse",
+  "actionType": "email",
+  "email": "ann@example.com",
+  "host": "auth.hintwise.org",
+  "reason": "host"
+ },
+ "reauthentication none": {
+  "action": "send",
+  "actionType": "reauthentication",
+  "email": "ann@example.com",
+  "host": "auth.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your confirmation code",
+    "text": "Your confirmation code is:\n\n8302917465\n\nThe code expires in about an hour. If you did not ask for this, ignore this email.\n\n----\nYou got this because the account with this address asked for a code to confirm a change. If it wasn't you, ignore it and change your password: nothing changes without the code.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "82e21a35025406a93d9b8a45f26caef96695a19641635f293b95038d01fe4328"
+   }
+  ]
+ },
+ "password_changed_notification none": {
+  "action": "send",
+  "actionType": "password_changed_notification",
+  "email": "ann@example.com",
+  "host": "auth.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account changed",
+    "text": "The password of your account was changed.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "1cf2312b7c2b1cfb75afe4f1b4cf096418fb3d71fadb089ae8ce7294f0f51a2a"
+   }
+  ]
+ },
+ "email_changed_notification none": {
+  "action": "send",
+  "actionType": "email_changed_notification",
+  "email": "ann@example.com",
+  "host": "auth.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account changed",
+    "text": "The email address of your account was changed.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "cc0738b7365a84af1ae6c63ce84a7be98baa19c83324a2be78336a4c583147d5"
+   }
+  ]
+ },
+ "phone_changed_notification none": {
+  "action": "send",
+  "actionType": "phone_changed_notification",
+  "email": "ann@example.com",
+  "host": "auth.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account changed",
+    "text": "The phone number of your account was changed.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "05c61718f6aefcaabf6c621181b796b797448e74c97266c6c375a43c184ca785"
+   }
+  ]
+ },
+ "identity_linked_notification none": {
+  "action": "send",
+  "actionType": "identity_linked_notification",
+  "email": "ann@example.com",
+  "host": "auth.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account changed",
+    "text": "A sign-in method was linked to your account.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "e0c100d1f112ae4a05ebac312a17a24092e39a73dc09dffa734c9a769e303c21"
+   }
+  ]
+ },
+ "identity_unlinked_notification none": {
+  "action": "send",
+  "actionType": "identity_unlinked_notification",
+  "email": "ann@example.com",
+  "host": "auth.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account changed",
+    "text": "A sign-in method was removed from your account.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "12b04877fe392f74d41204396805ea61986ce12b50fb52042b6fb812e1f89bdb"
+   }
+  ]
+ },
+ "mfa_factor_enrolled_notification none": {
+  "action": "send",
+  "actionType": "mfa_factor_enrolled_notification",
+  "email": "ann@example.com",
+  "host": "auth.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account changed",
+    "text": "A second sign-in step was added to your account.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "1f8e25355955c5f0ffda74be513b272cd4c566f6ca64b1947c79f39a423c6d51"
+   }
+  ]
+ },
+ "mfa_factor_unenrolled_notification none": {
+  "action": "send",
+  "actionType": "mfa_factor_unenrolled_notification",
+  "email": "ann@example.com",
+  "host": "auth.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account changed",
+    "text": "A second sign-in step was removed from your account.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "d1cfa2e6a013659019e132f6b7b599b799b189c76d3aa02dd97a997831d431df"
+   }
+  ]
+ },
+ "some_new_notification none": {
+  "action": "send",
+  "actionType": "some_new_notification",
+  "email": "ann@example.com",
+  "host": "auth.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "ann@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Your account changed",
+    "text": "A setting of your account was changed.\n\nIf this was not you, change your password or contact the site that sent it.\n\n----\nYou got this because the account with this address changed, and every change is reported to its address.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "e694793b0ba59b10e202a4409ef4a15e773e9be3eb4749b2e094ee513f1c7bc1"
+   }
+  ]
+ },
+ "email_change-single none": {
+  "action": "send",
+  "actionType": "email_change",
+  "email": "ann@example.com",
+  "host": "auth.hintwise.org",
+  "messages": [
+   {
+    "from": "HintWise <sign-in@hintwise.org>",
+    "to": [
+     "new@example.com"
+    ],
+    "reply_to": "support@hintwise.org",
+    "subject": "Confirm your new email address",
+    "text": "To use new@example.com as the email address of your account, open this link:\n\nhttps://ref.supabase.co/auth/v1/verify?token=hash-1&type=email_change\n\nThe link expires in about an hour. If you did not ask for this, ignore this email.\n\n----\nYou got this because someone asked to use this address for an account. If it wasn't you, ignore it: nothing happens.\nQuestions or trouble signing in? support@hintwise.org (or just reply).\nHintWise builds tools for small businesses, startups and educators. More apps: https://studio.hintwise.org/\nStop all email from HintWise (sign-in links too): https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig\n",
+    "html_sha256": "a2099d3fa4814b8b43834a8f760fe8b2184e16ec9e468ca2526963b5909260cc"
+   }
+  ]
+ }
+}

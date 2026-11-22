@@ -2,9 +2,11 @@
  * HintWise Send Email Hook: once switched on in Supabase Auth (the
  * "Supabase admin" workflow's email-hook on, with the owner's yes), Auth
  * hands every auth email to this function instead of sending it. Magic
- * links, sign-ups, sign-in codes and password recovery go out only for the
- * apps outside HintWise (HOOK_EXTERNAL_HOSTS); invites, email changes,
- * reauthentication codes and account notices for every app. All of it goes
+ * links (also for type `email`), sign-ups and password recovery go out only
+ * for the apps outside HintWise (HOOK_EXTERNAL_HOSTS); invites, email
+ * changes and account notices for every app. No email carries Auth's own
+ * code: reauthentication, whose only content is that code, is refused
+ * (owner, 22 Nov 2026). All of it goes
  * through Resend and the same per-address ladder as sign-in-link, with the
  * footer and its opt-out link, and nothing goes to an address that turned
  * HintWise email off. Other sign-in emails are refused with "Use the

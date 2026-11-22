@@ -12,10 +12,11 @@ The pure logic of three Supabase Edge Functions (design: `docs/platform.md`,
 - `auth-email-hook` (`platform/supabase/functions/auth-email-hook/index.ts`):
   Supabase Auth's Send Email hook. Once it is switched on, Auth hands it
   every auth email. It refuses the sign-in emails (magic link, sign-up,
-  code, recovery) unless they are for an app outside HintWise that shares
-  the project. It sends the account emails (invite, email change,
-  reauthentication, notices) for every app. All of it goes through the same
-  per-address ladder.
+  `email`, recovery) unless they are for an app outside HintWise that shares
+  the project. It sends the account emails (invite, email change, notices)
+  for every app. All of it goes through the same per-address ladder, as
+  links or notices: no email carries Auth's own code, and reauthentication,
+  which is nothing but that code, is refused ("Auth's own code" below).
 - `email-optout` (`platform/supabase/functions/email-optout/index.ts`): the
   page behind every email's "Stop all email from HintWise" link, and the
   support commands of `supabase-admin.mjs email-optout`.
@@ -168,7 +169,9 @@ replace, count reset; prunes rows an hour past expiry, up to 200) and
   `rate_limit_verify`), so no count of ours would hold for it. sign-in-link
   makes 6 random digits (Web Crypto, uniform), keeps only their HMAC, and a
   right code unlocks the token hash of the link in the same email. Auth's
-  own code is still shown to nobody, as before this change.
+  own code is shown to nobody: since 22 Nov 2026 not by the hook either
+  ("Auth's own code" under "Send Email hook"), and it is set to 10 digits
+  by `configure-auth --otp-length=10`.
 - **D-SC-2. Codes are checked by sign-in-link; the session comes from Auth
   in the browser.** The briefed option (b), the function calling Auth's
   `/verify` and handing back a session for `setSession`, would put every
@@ -208,7 +211,7 @@ replace, count reset; prunes rows an hour past expiry, up to 200) and
   changed, and the link below the code keeps its hour during the move. It
   must stay at least 600 seconds, or a right code near the end of its 10
   minutes would unlock a token Auth has already expired (the default is
-  3600). No auth config change.
+  3600). No auth config change (`mailer_otp_length` aside).
 - **D-SC-6. The app asks for the code (`withCode: true`).** An app without
   the code box gets the link-only email, so nobody receives a code with
   nowhere to type it: "both, until every app has the code box" applies to
@@ -344,12 +347,14 @@ project: a comma list, `*.` for a wildcard, never a hintwise.org name.
 
 | `email_action_type` | What the hook does |
 |---|---|
-| `magiclink`, `signup`, `email`, `recovery` for a host in `HOOK_EXTERNAL_HOSTS` | sent through the ladder: a link to `<SUPABASE_URL>/auth/v1/verify?token=<token_hash>&type=<type>&redirect_to=<redirect_to>`, or the code for `email` |
+| `magiclink`, `signup`, `email`, `recovery` for a host in `HOOK_EXTERNAL_HOSTS` | sent through the ladder: a link to `<SUPABASE_URL>/auth/v1/verify?token=<token_hash>&type=<type>&redirect_to=<redirect_to>`. `email` is the magic link's email with `type=email` in the link (no code since 22 Nov 2026) |
+| `email` without a `token_hash`, or with a `pkce_` one | refused with 403 "Use the HintWise sign-in-link service", logged, raises `bypass`: no working link can be made (Auth's GET `/verify` cannot read a PKCE hash with `type=email`) |
 | the same four for a hintwise.org page or an unknown host | refused with 403 "Use the HintWise sign-in-link service", logged `refused`, raises `bypass` (HintWise apps send these through sign-in-link) |
-| `invite`, `email_change`, `reauthentication` and every `*_notification`, for every host | sent through the ladder |
-| any other type | refused the same way |
+| `invite`, `email_change` and every `*_notification`, for every host | sent through the ladder |
+| `reauthentication`, for every host and every address | refused with 403 "Email confirmation codes are off. Sign out and back in, then make the change.", logged `refused` (detail `(auth code)`), raises `bypass` with its own subject: its only content is Auth's code |
+| any other type | refused with 403 "Use the HintWise sign-in-link service" |
 | `magiclink`, `signup`, `email`, `recovery` and every `*_notification` the plan sends, for an address on the opt-out list | answered as sent (`{}`) with nothing sent, before the ladder; logged `refused`, detail `suppressed, answered as sent`; no bypass alert. A refusal would tell anyone asking Auth for a recovery that the account exists and opted out (Auth answers an unknown address's recovery with 200 and sends nothing), and Auth only logs a failed notice |
-| `invite`, `email_change`, `reauthentication` for an address on the opt-out list | refused with 403 "This address asked HintWise not to send it email. Write to support@hintwise.org from this address to turn email back on.", before the ladder; logged `refused`, detail `suppressed`; no bypass alert. An email change sends neither message when either address is on the list |
+| `invite`, `email_change` for an address on the opt-out list | refused with 403 "This address asked HintWise not to send it email. Write to support@hintwise.org from this address to turn email back on.", before the ladder; logged `refused`, detail `suppressed`; no bypass alert. An email change sends neither message when either address is on the list |
 
 How Auth reads those answers (checked 11 Nov 2026):
 
@@ -383,6 +388,51 @@ still calls `signInWithOtp`, `signUp` or `resend` (`--allow-otp-apps`
 overrides). `on` also refuses with an empty `HOOK_EXTERNAL_HOSTS`, because
 every external app would lose its email (`--accept-external-breakage`
 overrides).
+
+### Auth's own code
+
+The owner, 22 Nov 2026: "I do not want that 10-digit code ever showing",
+then "10 digits yes". The shared project's Auth makes its own email code
+(the payload's `token` and `token_new`, `mailer_otp_length` digits), and
+anyone with the public anon key can try it at Auth's `/verify`. HintWise's
+sign-in code ("Sign-in codes" above) is a different code and is unchanged.
+
+- **No email carries it.** `parseHookPayload` drops `token` and
+  `token_new`, so `planHook` never sees them: every email is a link built
+  from a token hash, or a notice.
+  `test/signin-hook.test.ts` renders every action type for an outside
+  app, a HintWise app and no app, and checks that neither code, nor any run
+  of 6 digits, is in a subject, an HTML body or a text body; and that every
+  other email is byte for byte what main sent at 1382bd3
+  (`test/fixtures/hook-plans-main.json`).
+- **`email`** goes as the magic link does, with `type=email` in the link.
+  Auth's GET `/verify` reads that type for an implicit-flow hash and turns
+  it into `signup` or `magiclink` by the token it matches (`verify.go`,
+  `verifyTokenHash`, read 22 Nov 2026). A `pkce_` hash cannot go that way,
+  so it is refused, as is a payload without a hash. Today's Auth source
+  sends no `email` type to the hook at all (`signInWithOtp` sends
+  `magiclink`, or `signup` for a new address); the type is in Supabase's
+  documented list, so the hook handles it.
+- **`reauthentication`** is refused for every host. It is the code that
+  `supabase.auth.reauthenticate()` asks for before `updateUser({ password })`,
+  and Auth wants it only when
+  `security_update_password_require_reauthentication` is on and the session
+  is over a day old (`user.go`). No app in this repository, nor StepWise,
+  photo2pgn, udebt or YPai as their repositories stood when checked, calls
+  `reauthenticate()` or `updateUser`; HintWise apps have no passwords. A
+  person who meets the refusal signs out and back in (a fresh session needs
+  no code) or resets the password with the recovery link. `inspect` prints
+  the setting.
+- **10 digits.** `configure-auth --otp-length=10` (`--dry-run` first) sets
+  `mailer_otp_length` and, without `--google` or `--email-rate`, sends
+  nothing else: the GET answers `smtp_pass` only as a digest, so the full
+  patch would rewrite the SMTP password every run. Nothing is sent when the
+  length is already 10. The Management API takes 6 to 10, and Auth falls
+  back to 6 outside that range (`conf/configuration.go`, read 22 Nov 2026).
+  It changes nothing for links: they carry the token hash, whatever the
+  length. Nor for HintWise's code (`code.ts`, 6 digits of its own; sign-in-link
+  never reads `generate_link`'s `email_otp`). `mailer_otp_exp` stays as it is
+  (D-SC-5: at least 600 seconds; the default 3600).
 
 ## Email footer, logo and opt-out
 
@@ -484,15 +534,21 @@ sign-in-link or auth-email-hook until `optout-ready` sees
 - Get a sign-in link from sign-in-link: it answers `suppressed` (Google
   sign-in still works).
 - Get any Auth email through the hook. Sign-in emails and notices are
-  answered as sent and dropped; invite, reauthentication and email change
-  are refused (403). So an opted-out user cannot change their account's
+  answered as sent and dropped; invite and email change are refused
+  (403), and reauthentication is refused for everyone. So an opted-out user cannot change their account's
   email address (in either direction: from or to an opted-out address)
   until they turn email back on through support.
 
 **Where the opt-out does not hold (fail open).**
 
 - `email-hook off`: Auth then sends its own emails directly, without the
-  hook, so it ignores the opt-out list (sign-in-link still checks it).
+  hook, so it ignores the opt-out list (sign-in-link still checks it). It
+  sends them with the project's templates through Resend SMTP, and
+  Supabase's default reauthentication template shows Auth's code ("Enter
+  the code: {{ .Token }}"; Auth's built-in default, read 22 Nov 2026, has
+  `{{ .Token }}` in the subject and the body), so with the hook off the code
+  can show again. No template is changed yet: the owner decides on a
+  follow-up. The project's templates are not read by any command here.
 - Rotating `SIGN_IN_HASH_KEY` or `EMAIL_OPTOUT_SECRET`: the list is keyed by
   the hash, so a new hash key silently drops every opt-out (and every
   sign-in ladder), and a new opt-out secret breaks every stop link already

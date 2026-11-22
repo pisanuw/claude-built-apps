@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { HOOK_ACCOUNT_TYPES, HOOK_SIGN_IN_TYPES, hookError, isAccountType, quietWhenSuppressed, hookSecretBytes, hostAllowed, hostOf, parseHookPayload, parseHostList, planHook, sameText, TOLERANCE_SECONDS, verifyUrl, verifyWebhook, webhookSignature, type HookPayload } from '../src/signin/hook.ts';
+import { AUTH_CODE_REASON, CODE_ONLY_REFUSAL_MESSAGE, HOOK_ACCOUNT_TYPES, HOOK_CODE_ONLY_TYPES, HOOK_SIGN_IN_TYPES, hookError, isAccountType, quietWhenSuppressed, hookSecretBytes, hostAllowed, hostOf, parseHookPayload, parseHostList, planHook, sameText, TOLERANCE_SECONDS, verifyUrl, verifyWebhook, webhookSignature, type HookPayload, type HookPlan } from '../src/signin/hook.ts';
+import mainPlans from './fixtures/hook-plans-main.json';
+import { AUTH_CODE, AUTH_CODE_NEW, HOOK_ACTION_TYPES, MATRIX_AUTH_BASE, MATRIX_EXTERNAL_HOSTS, MATRIX_LOOK, matrixCases, pinnedPlan } from './hook-matrix.ts';
 
 const KEY = crypto.randomBytes(32);
 const SECRET = `v1,whsec_${KEY.toString('base64')}`;
@@ -58,7 +60,7 @@ describe('verifyWebhook (Standard Webhooks)', () => {
   });
 });
 
-const payload = (type: string, data: Partial<HookPayload['email_data']> = {}, user: Partial<HookPayload['user']> = {}) =>
+const payload = (type: string, data: Partial<HookPayload['email_data'] & { token: string; token_new: string }> = {}, user: Partial<HookPayload['user']> = {}) =>
   JSON.stringify({
     user: { id: 'u1', email: 'Ann@Example.com', ...user },
     email_data: { token: '123456', token_hash: 'th', redirect_to: 'https://pluck-lab.hintwise.org/', email_action_type: type, site_url: 'https://ref.supabase.co/auth/v1', token_new: '', token_hash_new: '', ...data },
@@ -70,6 +72,12 @@ describe('parseHookPayload', () => {
     expect(p.user).toEqual({ id: 'u1', email: 'ann@example.com', new_email: 'new@example.com' });
     expect(p.email_data.email_action_type).toBe('recovery');
     expect(p.email_data.token_hash).toBe('th');
+  });
+  it('drops Auth\'s own codes, token and token_new, so no email can show them', () => {
+    const text = payload('email_change', { token: '8302917465', token_new: '5937106284', token_hash_new: 'th2' });
+    const p = parseHookPayload(text)!;
+    expect(Object.keys(p.email_data).sort()).toEqual(['email_action_type', 'redirect_to', 'site_url', 'token_hash', 'token_hash_new']);
+    expect(JSON.stringify(p)).not.toMatch(/8302917465|5937106284/);
   });
   it('fills missing strings and refuses payloads without an address or type', () => {
     const p = parseHookPayload(JSON.stringify({ user: { email: 'a@b.org' }, email_data: { email_action_type: 'invite', token_hash: 5 } }))!;
@@ -120,13 +128,15 @@ describe('planHook', () => {
     expect(r.messages[0].text).toContain('sign in to how-of-happiness.netlify.app:');
     expect(r.messages[0].text).toContain('https://ref.supabase.co/auth/v1/verify?token=th&type=magiclink&redirect_to=https%3A%2F%2Fhow-of-happiness.netlify.app%2Fwelcome');
   });
-  it('sends a sign-up confirmation, a sign-in code and a recovery email for an external app', () => {
+  it('sends a sign-up confirmation, an email-type sign-in link and a recovery email for an external app', () => {
     const s = plan(payload('signup', ext));
     expect(s.action === 'send' && s.messages[0].subject).toBe('Confirm your email address');
     expect(s.action === 'send' && s.messages[0].text).toContain('type=signup');
+    // `email` goes as the magic link does, never as Auth's code (owner, 22 Nov 2026).
     const c = plan(payload('email', ext));
-    expect(c.action === 'send' && c.messages[0].subject).toBe('Your sign-in code');
-    expect(c.action === 'send' && c.messages[0].text).toContain('\n\n123456\n\n');
+    expect(c.action === 'send' && c.messages[0].subject).toBe('Your sign-in link');
+    expect(c.action === 'send' && c.messages[0].text).toContain('https://ref.supabase.co/auth/v1/verify?token=th&type=email&redirect_to=https%3A%2F%2Fhow-of-happiness.netlify.app%2Fwelcome');
+    expect(c.action === 'send' && c.messages[0].text).not.toContain('123456');
     const r = plan(payload('recovery', ext));
     expect(r.action === 'send' && r.messages[0].subject).toBe('Reset your password');
     expect(r.action === 'send' && r.messages[0].text).toContain('type=recovery');
@@ -142,11 +152,11 @@ describe('planHook', () => {
   });
   it('sends the account emails for every host: external, HintWise, unknown or none', () => {
     for (const data of [ext, hw, { redirect_to: 'https://evil.example/' }, { redirect_to: '', site_url: '' }]) {
-      for (const type of ['invite', 'email_change', 'reauthentication', 'password_changed_notification', 'some_new_notification']) {
+      for (const type of ['invite', 'email_change', 'password_changed_notification', 'some_new_notification']) {
         expect(plan(payload(type, data), []).action, `${type} ${JSON.stringify(data)}`).toBe('send');
       }
     }
-    expect(HOOK_ACCOUNT_TYPES).toEqual(['invite', 'email_change', 'reauthentication']);
+    expect(HOOK_ACCOUNT_TYPES).toEqual(['invite', 'email_change']);
     expect(isAccountType('mfa_factor_enrolled_notification')).toBe(true);
     expect(isAccountType('notification')).toBe(false);
   });
@@ -183,19 +193,78 @@ describe('planHook', () => {
     expect(other.action === 'send' && other.messages[0].to).toEqual(['ann@example.com']);
     expect(plan(payload('email_change', { token_hash: '' }))).toMatchObject({ action: 'refuse', reason: 'no token_hash' });
   });
-  it('sends the reauthentication code', () => {
-    const r = plan(payload('reauthentication', hw));
-    expect(r.action === 'send' && r.messages[0].text).toContain('\n\n123456\n\n');
-    expect(plan(payload('reauthentication', { token: '' }))).toMatchObject({ action: 'refuse', reason: 'no token' });
+  it('refuses reauthentication for every host, with its own message: its only content is Auth\'s code', () => {
+    expect(HOOK_CODE_ONLY_TYPES).toEqual(['reauthentication']);
+    for (const data of [ext, hw, { redirect_to: '', site_url: '' }, { token: '' }]) {
+      const r = plan(payload('reauthentication', data), EXT);
+      expect(r, JSON.stringify(data)).toMatchObject({ action: 'refuse', actionType: 'reauthentication', reason: AUTH_CODE_REASON, message: CODE_ONLY_REFUSAL_MESSAGE });
+    }
+    expect(isAccountType('reauthentication')).toBe(false);
     expect(plan(payload('invite', { token_hash: '' }))).toMatchObject({ action: 'refuse', reason: 'no token_hash' });
+    // Other refusals carry no message of their own (the service answers REFUSAL_MESSAGE).
+    expect(plan(payload('invite', { token_hash: '' }))).not.toHaveProperty('message');
   });
-  it('refuses an unknown type, and a sign-in payload without its token', () => {
+  it('refuses an unknown type, and a sign-in payload without what its link needs', () => {
     expect(plan(payload('carrier_pigeon', ext))).toMatchObject({ action: 'refuse', reason: 'type' });
     expect(plan(payload('magiclink', { ...ext, token_hash: '' }))).toMatchObject({ action: 'refuse', reason: 'no token_hash' });
-    expect(plan(payload('email', { ...ext, token: '' }))).toMatchObject({ action: 'refuse', reason: 'no token' });
+    expect(plan(payload('email', { ...ext, token_hash: '' }))).toMatchObject({ action: 'refuse', reason: 'no token_hash' });
+    // A PKCE hash cannot go through GET /verify with type=email (Auth's ParseAuthenticationMethod).
+    expect(plan(payload('email', { ...ext, token_hash: 'pkce_abc' }))).toMatchObject({ action: 'refuse', reason: 'pkce email' });
+    expect(plan(payload('magiclink', { ...ext, token_hash: 'pkce_abc' }))).toMatchObject({ action: 'send' });
+    // Auth's code is not needed for any email: without it the link still goes.
+    expect(plan(payload('email', { ...ext, token: '' }))).toMatchObject({ action: 'send' });
   });
   it('builds verify URLs and hook errors', () => {
     expect(verifyUrl('https://x.co///', 'h', 'invite')).toBe('https://x.co/auth/v1/verify?token=h&type=invite');
     expect(hookError(403, 'no')).toEqual({ error: { http_code: 403, message: 'no' } });
+  });
+});
+
+describe('Auth\'s own code never shows (owner, 22 Nov 2026)', () => {
+  const cases = matrixCases();
+  const planOf = (p: HookPayload): HookPlan => planHook(p, MATRIX_AUTH_BASE, MATRIX_EXTERNAL_HOSTS, () => MATRIX_LOOK);
+
+  it('renders every action type for an external host, a HintWise host and none, with neither token in the subject, the HTML or the text', () => {
+    expect(new Set(cases.map((c) => c.payload.email_data.email_action_type))).toEqual(new Set(HOOK_ACTION_TYPES));
+    let messages = 0;
+    for (const c of cases) {
+      const r = planOf(c.payload);
+      if (r.action !== 'send') continue;
+      for (const m of r.messages) {
+        messages++;
+        for (const part of [m.subject, m.html, m.text]) {
+          for (const code of [AUTH_CODE, AUTH_CODE_NEW]) expect(part, `${c.name}: ${m.subject}`).not.toContain(code);
+          // Not split up either: no run of 6 or more digits anywhere (the codes' digits never appear in order).
+          expect(part.replace(/&#\d+;/g, ''), `${c.name}: ${m.subject}`).not.toMatch(/\d{6,}/);
+        }
+      }
+    }
+    expect(messages).toBeGreaterThanOrEqual(30); // most cases send: the check is not vacuous
+    for (const site of ['external', 'hintwise', 'none']) expect(planOf(cases.find((c) => c.name === `reauthentication ${site}`)!.payload).action).toBe('refuse');
+    expect(planOf(cases.find((c) => c.name === 'email external')!.payload).action).toBe('send');
+  });
+
+  it('leaves every other email as main rendered it at 1382bd3, byte for byte', () => {
+    // test/fixtures/hook-plans-main.json: main's planHook for these same cases (HTML as sha256).
+    const pinned = mainPlans as Record<string, unknown>;
+    const changed = ['email external', 'reauthentication external', 'reauthentication hintwise', 'reauthentication none'];
+    expect(Object.keys(pinned).sort()).toEqual(cases.map((c) => c.name).sort());
+    for (const c of cases) {
+      if (changed.includes(c.name)) continue;
+      expect(pinnedPlan(planOf(c.payload)), c.name).toEqual(pinned[c.name]);
+    }
+    // What changed: main sent Auth's code in exactly these four.
+    for (const name of changed) {
+      const was = pinned[name] as { messages: Array<{ text: string }> };
+      expect(was.messages.some((m) => m.text.includes(AUTH_CODE)), name).toBe(true);
+    }
+    // `email` is now main's magic link, byte for byte, but for the link's type.
+    const email = planOf(cases.find((c) => c.name === 'email external')!.payload);
+    const magic = planOf(cases.find((c) => c.name === 'magiclink external')!.payload);
+    expect(email.action === 'send' && magic.action === 'send').toBe(true);
+    if (email.action !== 'send' || magic.action !== 'send') return;
+    const swap = (t: string) => t.split('type=magiclink').join('type=email');
+    expect(email.messages[0]).toEqual({ ...magic.messages[0], text: swap(magic.messages[0].text), html: swap(magic.messages[0].html) });
+    expect(pinnedPlan(magic)).toEqual(pinned['magiclink external']);
   });
 });

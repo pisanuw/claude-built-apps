@@ -4,10 +4,8 @@ import {
   appDisplayName,
   BRAND_INDIGO,
   CODE_STYLE,
-  codeEmail,
   PREHEADER_FILLER,
   PREHEADER_STYLE,
-  HOOK_CODE_STYLE,
   emailChangeCurrentEmail,
   emailChangeNewEmail,
   emailLogoUrl,
@@ -17,7 +15,6 @@ import {
   headerHtml,
   inviteEmail,
   noticeEmail,
-  reauthenticationEmail,
   recoveryEmail,
   renderEmail,
   signInEmail,
@@ -55,17 +52,13 @@ describe('the sign-in email', () => {
     const m = signInEmail('ann@example.com', 'https://ref.supabase.co/auth/v1/verify?token=t&type=magiclink', null, 'how-of-happiness.netlify.app');
     expect(m.text).toContain('sign in to how-of-happiness.netlify.app:');
   });
-  it('has the hook\'s sign-up, code and recovery emails', () => {
+  it('has the hook\'s sign-up and recovery emails (it has no code email: Auth\'s code is never sent, 22 Nov 2026)', () => {
     const s1 = signupEmail('ann@example.com', 'https://ref.supabase.co/auth/v1/verify?token=t&type=signup', 'wcv.example.org');
     expect(s1.subject).toBe('Confirm your email address');
     expect(s1.text).toContain('To finish signing up at wcv.example.org, confirm your email address:');
-    const c = codeEmail('ann@example.com', '123456', 'wcv.example.org');
-    expect(c.subject).toBe('Your sign-in code');
-    expect(c.text).toContain('\n\n123456\n\n');
-    expect(c.text).toContain('The code expires in about an hour.');
     const r = recoveryEmail('ann@example.com', 'https://ref.supabase.co/auth/v1/verify?token=t&type=recovery');
     expect(r.subject).toBe('Reset your password');
-    for (const m of [s1, c, r]) expect(m.from).toBe(SIGN_IN_FROM);
+    for (const m of [s1, r]) expect(m.from).toBe(SIGN_IN_FROM);
   });
   it('puts the code first in the body when the app has the code box: text and a large monospace block, then the link', () => {
     const page = 'https://paste-md.hintwise.org/';
@@ -136,16 +129,16 @@ describe('the sign-in email', () => {
     expect(PREHEADER_STYLE).toContain('display:none');
     expect(signInEmail('ann@example.com', link, 'Paste Md').html).not.toContain(PREHEADER_STYLE);
   });
-  it('leaves the link-only email and the hook\'s code emails byte for byte as on main before the code (22 Nov 2026)', () => {
+  it('leaves the link-only email and the hook\'s magic link byte for byte as on main before the code (22 Nov 2026)', () => {
     // test/fixtures/sign-in-emails-main.json: these same calls rendered by main's email.ts at 4864b8a.
+    // Its codeEmail and reauthenticationEmail entries went with those emails on 22 Nov 2026: no email
+    // carries Auth's code any more (test/fixtures/hook-plans-main.json pins every hook email).
     const look = { optOutUrl: 'https://auth.hintwise.org/functions/v1/email-optout?t=v1.abc.sig', logoUrl: 'https://auth.hintwise.org/storage/v1/object/public/brand/hintwise-wordmark-email@2x.png' };
     const href = 'https://pluck-lab.hintwise.org/app?token_hash=hashed-1&type=email&email_hint=a***%40example.com';
     expect(signInEmail('Ann+news@Example.com', href, 'Pluck Lab', undefined, look)).toEqual(mainEmails.signInLinkOnly);
     expect(signInEmail('ann@example.com', href, null)).toEqual(mainEmails.signInLinkOnlyPlain);
     expect(signInEmail('ann@example.com', 'https://ref.supabase.co/auth/v1/verify?token=t&type=magiclink', null, 'wcv.example.org', look)).toEqual(mainEmails.hookMagicLink);
-    expect(codeEmail('ann@example.com', '123456', 'wcv.example.org', look)).toEqual(mainEmails.codeEmail);
-    expect(reauthenticationEmail('ann@example.com', '654321', 'wcv.example.org', look)).toEqual(mainEmails.reauthenticationEmail);
-    expect(mainEmails.codeEmail.html).toContain(`<p style="${HOOK_CODE_STYLE}">123456</p>`);
+    expect(Object.keys(mainEmails)).toEqual(['signInLinkOnly', 'signInLinkOnlyPlain', 'hookMagicLink']);
   });
   it('sends the link alone without a code', () => {
     for (const m of [signInEmail('ann@example.com', link, 'Paste Md'), signInEmail('ann@example.com', link, 'Paste Md', undefined, {}, null)]) {
@@ -247,13 +240,11 @@ describe('the footer', () => {
   const cases: Array<[string, EmailMessage, string]> = [
     ['sign-in link', signInEmail('ann@example.com', 'https://pluck-lab.hintwise.org/?token_hash=a', 'Pluck Lab', undefined, look), "You got this because someone asked to sign in to Pluck Lab with this address. If it wasn't you, ignore it: nothing happens."],
     ['hook magic link', signInEmail('ann@example.com', HOOK, null, 'wcv.example.org', look), 'You got this because someone asked to sign in to wcv.example.org with this address.'],
-    ['sign-in code', codeEmail('ann@example.com', '123456', 'wcv.example.org', look), 'You got this because someone asked for a code to sign in to wcv.example.org with this address.'],
     ['signup', signupEmail('ann@example.com', HOOK, 'wcv.example.org', look), "You got this because someone signed up at wcv.example.org with this address. If it wasn't you, ignore it: the address stays unconfirmed."],
     ['recovery', recoveryEmail('ann@example.com', HOOK, 'wcv.example.org', look), 'reset the password of the account with this address on wcv.example.org. If it wasn\'t you, ignore it: the password stays the same.'],
     ['invite', inviteEmail('ann@example.com', HOOK, 'pluck-lab.hintwise.org', look), 'You got this because someone invited this address to an account on pluck-lab.hintwise.org.'],
     ['email change, current', emailChangeCurrentEmail('ann@example.com', 'new@example.com', HOOK, null, look), 'move the account with this address to another address. If it wasn\'t you, ignore it and change your password'],
     ['email change, new', emailChangeNewEmail('new@example.com', HOOK, null, look), 'You got this because someone asked to use this address for an account.'],
-    ['reauthentication', reauthenticationEmail('ann@example.com', '123456', null, look), 'asked for a code to confirm a change. If it wasn\'t you, ignore it and change your password: nothing changes without the code.'],
     ['notification', noticeEmail('ann@example.com', 'password_changed_notification', 'pluck-lab.hintwise.org', look), 'You got this because the account with this address on pluck-lab.hintwise.org changed, and every change is reported to its address.'],
   ];
   it.each(cases)('%s: why, support, about and stop, in that order, in text and HTML', (_name, m, why) => {
@@ -325,8 +316,8 @@ describe('the header and the brand colours', () => {
     expect(m.html.indexOf('class="hw-brand"')).toBeLessThan(m.html.indexOf('Here is your link'));
   });
   it('puts the logo first in every visitor email when it is set', () => {
-    const m = codeEmail('ann@example.com', '1', 'x.example', { logoUrl: LOGO });
-    expect(m.html.indexOf('<img')).toBeLessThan(m.html.indexOf('Your code'));
+    const m = recoveryEmail('ann@example.com', 'https://x.example/', 'x.example', { logoUrl: LOGO });
+    expect(m.html.indexOf('<img')).toBeLessThan(m.html.indexOf('Someone asked'));
   });
   it('colours the button and links deep indigo, never the old blue, and lightens them in dark mode', () => {
     const m = signInEmail('ann@example.com', 'https://pluck-lab.hintwise.org/', 'Pluck Lab', undefined, look);
