@@ -18,13 +18,16 @@ const OUTPUT_LINE_CHARS = 1000;
 /**
  * The page count from "Output written on x.pdf (22 pages, ...)", or null.
  * TeX writes that line after anything the document writes to its log, so only
- * the last one is read, and only its next 1,000 characters (the name may wrap
- * across lines): a log full of the phrase with no count stays linear (R3a.3-1).
+ * the last one is read, and only its next 1,000 characters: a log full of the
+ * phrase with no count stays linear (R3a.3-1). TeX wraps the line at 79
+ * characters, in the name or inside "(1 page" itself, so the line breaks are
+ * taken out first; a name in the upload holds no control character (R3a.F-2).
  */
 export function pageCount(log: string): number | null {
   const at = log.lastIndexOf(OUTPUT_WRITTEN);
   if (at < 0) return null;
-  const m = /^Output written on .*?\((\d+) pages?/s.exec(log.slice(at, at + OUTPUT_LINE_CHARS));
+  const line = log.slice(at, at + OUTPUT_LINE_CHARS).replace(/\r?\n/g, '');
+  const m = /^Output written on .*?\((\d+) pages?/.exec(line);
   return m ? Number(m[1]) : null;
 }
 

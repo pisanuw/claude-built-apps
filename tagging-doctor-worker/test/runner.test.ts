@@ -3,7 +3,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  AUX_READ_BYTES,
   BCF_READ_BYTES,
+  JAVA_NO_NETWORK,
   CANCELLED_MESSAGE,
   fileContains,
   NO_NETWORK,
@@ -286,6 +288,12 @@ describe('R3a.3-1 (a): the .bcf check over a file the job writes', () => {
       ['<datasource><![CDATA[', (n) => fill('<datasource><![CDATA[', n)],
       ['one opening, then CDATA openings', (n) => '<bcf:datasource>' + fill('<![CDATA[', n)],
       ['one opening, then text', (n) => '<bcf:datasource type="file">' + 'x'.repeat(n)],
+      // R3a.F-1: the shortest units the new reader skips or tracks.
+      ['one opening, then <? openings', (n) => '<bcf:datasource>' + fill('<?', n)],
+      ['one opening, then <! openings', (n) => '<bcf:datasource>' + fill('<!', n)],
+      ['an opening with an unclosed quote', (n) => '<datasource a="' + 'x'.repeat(n)],
+      ['openings with unclosed quotes', (n) => fill('<datasource a="', n)],
+      ['openings and quotes', (n) => fill('<datasource a=">"', n)],
     ];
     const time = (bcf: string) => {
       const t0 = performance.now();
@@ -316,5 +324,56 @@ describe('R3a.3-1 (a): the .bcf check over a file the job writes', () => {
     expect(far.result?.bibliography).toBe('biber');
     const near = await run({ tex: [(c, b) => (okRun(c, b), writeFileSync(path.join(c, `${b}.bcf`), pad + source))] });
     expect(near.failure).toMatchObject({ kind: 'bibliography', message: REMOTE_BIBLIOGRAPHY_MESSAGE });
+  });
+});
+
+describe('milestone 3b: the carried findings of milestone 3a in the runner', () => {
+  const ds = (value: string, attrs = 'type="file" datatype="bibtex"') => `<bcf:datasource ${attrs}>${value}</bcf:datasource>`;
+
+  it('R3a.F-1: a comment, a processing instruction or a quoted > in a data source is taken as remote', () => {
+    const forms = [
+      ds('http:<!---->//127.0.0.1:9/c1-mid.bib'),
+      ds('http://127.0.0.1:9/c2-end.bib<!-- x -->'),
+      ds('http://127.0.0.1:9/c3-pi.bib<?x y?>'),
+      ds('http://127.0.0.1:9/c4-quoted.bib', 'type="file" note="a>b"'),
+      ds("http://127.0.0.1:9/c5-quoted.bib", "type='file' note='<'"),
+      ds('<![CDATA[http://127.0.0.1:9/c6-cdata.bib]]>'),
+    ];
+    for (const f of forms.slice(0, 4)) expect(remoteDataSources(f), f).toHaveLength(1);
+    // A `<` inside a quoted value is not XML; it ends the tag, so the plain message is not given (biber's is, and nothing is fetched).
+    expect(remoteDataSources(forms[4])).toEqual([]);
+    expect(remoteDataSources(forms[5])).toHaveLength(1);
+    expect(remoteDataSources(ds('refs.bib'))).toEqual([]);
+    expect(remoteDataSources(ds('refs.bib', 'type="file" note="a>b"'))).toEqual([]);
+    // Two elements in a row are each read.
+    expect(remoteDataSources(ds('refs.bib') + ds('https://x/y.bib'))).toEqual(['https://x/y.bib']);
+    // An unclosed one before a real one does not hide it.
+    expect(remoteDataSources('<bcf:datasource type="file">refs.bib' + ds('https://x/y.bib'))).toEqual(['https://x/y.bib']);
+    expect(remoteDataSources('<bcf:datasource type="' + ds('https://x/y.bib'))).toEqual(['https://x/y.bib']);
+  });
+
+  it('R3a.F-3: the .aux is searched in its last 8 MB only', () => {
+    expect(AUX_READ_BYTES).toBe(8 * 1024 * 1024);
+    const file = path.join(folder.dir, 'huge.aux');
+    writeFileSync(file, '\\bibdata{refs}' + 'x'.repeat(AUX_READ_BYTES));
+    expect(fileContains(file, '\\bibdata{')).toBe(false);
+    writeFileSync(file, 'x'.repeat(AUX_READ_BYTES) + '\\bibdata{refs}');
+    expect(fileContains(file, '\\bibdata{')).toBe(true);
+    // Exactly at the edge of the window, and across a 1 MB piece inside it.
+    writeFileSync(file, 'y'.repeat(100) + '\\bibdata{refs}' + 'x'.repeat(AUX_READ_BYTES - 14));
+    expect(fileContains(file, '\\bibdata{')).toBe(true);
+    expect(fileContains(file, '\\bibdata{', 1024)).toBe(false);
+  });
+
+  it('R3a.3-2: veraPDF\'s Java gets empty nonProxyHosts, so loopback goes to the closed port too', async () => {
+    expect(JAVA_NO_NETWORK).toContain('-Dhttp.nonProxyHosts=');
+    expect(JAVA_NO_NETWORK).toContain('-DsocksNonProxyHosts=');
+    const calls: Call[] = [];
+    await run({}, 'main.tex', calls);
+    const java = calls.find((c) => c.argv.includes('java'))?.argv ?? [];
+    expect(java).toContain('-Dhttp.nonProxyHosts=');
+    expect(java).toContain('-DsocksNonProxyHosts=');
+    // Before the class name, where Java reads them.
+    expect(java.indexOf('-DsocksNonProxyHosts=')).toBeLessThan(java.indexOf('org.verapdf.apps.GreenfieldCliWrapper'));
   });
 });
