@@ -23,11 +23,14 @@
  *                           security definer functions pin search_path, a
  *                           signed-in stranger sees no row of real data, and
  *                           Supabase's security advisor; exits 1 on a finding
- *   configure-auth [--google] [--email-rate=N] [--dry-run]
+ *   configure-auth [--google] [--email-rate=N] [--otp-length=N] [--dry-run]
  *                           additive auth settings: hintwise.org redirect
  *                           allow-list, Resend SMTP (RESEND_API), email
  *                           rate limit; --google also switches the Google
- *                           client to HINTWISE_AUTH_GOOGLE_ID / _SECRET
+ *                           client to HINTWISE_AUTH_GOOGLE_ID / _SECRET;
+ *                           --otp-length=N (6 to 10) also sets the length of
+ *                           Auth's own email code, mailer_otp_length (owner,
+ *                           22 Nov 2026: 10), and leaves mailer_otp_exp as it is
  *   keys [--write]          print the project URL and anon (publishable) key
  *                           as the JSON for platform/supabase.json
  *   usage [days]            print platform.llm_usage_report(days) as tables
@@ -210,6 +213,8 @@ async function inspect() {
     const keep = /^(site_url|uri_allow_list|disable_signup|external_email_enabled|external_anonymous_users_enabled|mailer_autoconfirm|mailer_otp_exp|mailer_otp_length|smtp_host|smtp_port|smtp_user|smtp_sender_name|smtp_admin_email|smtp_max_frequency|rate_limit_email_sent|external_google_enabled|external_google_client_id|external_google_skip_nonce_check|password_min_length|jwt_exp|refresh_token_rotation_enabled|security_captcha_enabled|mfa_totp_enroll_enabled|external_github_enabled|external_apple_enabled|external_azure_enabled|hook_send_email_enabled|hook_send_email_uri)$/;
     const shown = Object.fromEntries(Object.entries(safe(a)).filter(([k]) => keep.test(k)));
     for (const [k, v] of Object.entries(shown)) console.log(`  ${k}: ${JSON.stringify(v)}`);
+    // A boolean, but its name has "password" in it, which safe() hides: whether a password change asks for a reauthentication code (the hook refuses those).
+    console.log(`  security_update_password_require_reauthentication: ${a.security_update_password_require_reauthentication === true}`);
     const providers = Object.entries(a).filter(([k, v]) => /^external_.*_enabled$/.test(k) && v === true).map(([k]) => k.replace(/^external_|_enabled$/g, ''));
     console.log(`  enabled providers: ${providers.join(', ') || '(none)'}`);
   } catch (e) { console.log('  cannot read:', String(e).slice(0, 200)); }
@@ -509,14 +514,46 @@ async function checkSchema(schema) {
 // ---- Auth -----------------------------------------------------------------
 
 const HINTWISE_REDIRECT = 'https://*.hintwise.org/**';
+/** Auth's own email code: the Management API takes 6 to 10 digits, and Auth falls back to 6 outside that range. */
+export const OTP_LENGTH_MIN = 6;
+export const OTP_LENGTH_MAX = 10;
+/** Pure: true for a length configure-auth may set. */
+export const isOtpLength = (n) => Number.isInteger(n) && n >= OTP_LENGTH_MIN && n <= OTP_LENGTH_MAX;
+
+/**
+ * Pure: the --otp-length flag's value as a number, undefined without the
+ * flag, or an error message for anything but a whole number from 6 to 10
+ * (digits only: "10", not "1e1" or "10.0").
+ * @param {string | undefined} text
+ * @returns {{ value?: number, error?: string }}
+ */
+export function parseOtpLength(text) {
+  if (text === undefined) return {};
+  const value = /^\d{1,2}$/.test(text) ? Number(text) : NaN;
+  if (!isOtpLength(value)) return { error: `--otp-length wants a whole number of digits from ${OTP_LENGTH_MIN} to ${OTP_LENGTH_MAX}, got ${JSON.stringify(text)}` };
+  return { value };
+}
+
+/**
+ * Pure: the lines configure-auth prints about Auth's code when --otp-length
+ * is given: the length now and the expiry kept, as numbers only.
+ */
+export function otpLines(current, otpLength) {
+  if (otpLength === undefined) return [];
+  const len = current?.mailer_otp_length ?? null;
+  const exp = current?.mailer_otp_exp ?? null;
+  return [
+    `Auth's email code: mailer_otp_length ${JSON.stringify(len)}${len === otpLength ? ' (already as wanted)' : ` -> ${otpLength}`}; mailer_otp_exp ${JSON.stringify(exp)} (not changed)`,
+  ];
+}
 
 /**
  * Pure: the additive PATCH for config/auth given the current config.
  * @param {Record<string, unknown>} current
  * @param {Record<string, string | undefined>} env
- * @param {{ google?: boolean, emailRate?: number }} [opts]
+ * @param {{ google?: boolean, emailRate?: number, otpLength?: number }} [opts]
  */
-export function authPatch(current, env, { google = false, emailRate } = {}) {
+export function authPatch(current, env, { google = false, emailRate, otpLength } = {}) {
   const patch = {};
   const want = (k, v) => { if (current[k] !== v) patch[k] = v; };
 
@@ -535,6 +572,13 @@ export function authPatch(current, env, { google = false, emailRate } = {}) {
   const rate = Number(current.rate_limit_email_sent);
   const wantRate = Math.max(30, Number.isInteger(emailRate) && emailRate > 0 ? emailRate : 30);
   if (!Number.isFinite(rate) || rate < wantRate) patch.rate_limit_email_sent = wantRate;
+  // The digits of Auth's own email code (the hook never emails it; anyone with
+  // the anon key can try it at /verify). Only with --otp-length; the expiry,
+  // mailer_otp_exp, is never touched here.
+  if (otpLength !== undefined) {
+    if (!isOtpLength(otpLength)) throw new Error(`otpLength must be a whole number from ${OTP_LENGTH_MIN} to ${OTP_LENGTH_MAX}, got ${otpLength}`);
+    want('mailer_otp_length', otpLength);
+  }
 
   if (google) {
     want('external_google_enabled', true);
@@ -554,8 +598,11 @@ async function configureAuth() {
   const rateFlag = flagValue('--email-rate');
   const emailRate = rateFlag === undefined ? undefined : Number(rateFlag);
   if (rateFlag !== undefined && !(Number.isInteger(emailRate) && emailRate > 0 && emailRate <= 10000)) fail(`--email-rate wants a whole number of emails an hour, got ${rateFlag}`);
+  const otp = parseOtpLength(flags.has('--otp-length') ? '' : flagValue('--otp-length'));
+  if (otp.error) fail(otp.error);
   const current = await api(`/v1/projects/${ref}/config/auth`);
-  const patch = authPatch(current, process.env, { google, emailRate });
+  const patch = authPatch(current, process.env, { google, emailRate, otpLength: otp.value });
+  for (const line of otpLines(current, otp.value)) console.log(line);
   const keys = Object.keys(patch);
   if (!keys.length) { console.log('Auth config already as wanted; nothing to change.'); return; }
   console.log(`${dryRun ? 'Would change' : 'Changing'} ${keys.length} key(s):`);
@@ -568,6 +615,7 @@ async function configureAuth() {
   const after = await api(`/v1/projects/${ref}/config/auth`);
   const shown = Object.fromEntries(Object.entries(safe(after)).filter(([k]) => keys.includes(k)));
   console.log('After:', JSON.stringify(shown));
+  if (otp.value !== undefined) console.log(`After: mailer_otp_length ${JSON.stringify(after?.mailer_otp_length ?? null)}; mailer_otp_exp ${JSON.stringify(after?.mailer_otp_exp ?? null)}`);
 }
 
 // ---- Keys -----------------------------------------------------------------

@@ -4,6 +4,9 @@ import { beforeAll, describe, expect, it } from 'vitest';
 // its pure helpers be imported without running a command.
 type Admin = typeof import('../supabase-admin.mjs');
 let authPatch: Admin['authPatch'];
+let parseOtpLength: Admin['parseOtpLength'];
+let otpLines: Admin['otpLines'];
+let isOtpLength: Admin['isOtpLength'];
 let pickAnonKey: Admin['pickAnonKey'];
 let parseGoogleRedirect: Admin['parseGoogleRedirect'];
 let stateReferrer: Admin['stateReferrer'];
@@ -17,6 +20,9 @@ beforeAll(async () => {
   process.env.SUPABASE_ADMIN_NO_RUN = '1';
   const m = await import('../supabase-admin.mjs');
   authPatch = m.authPatch;
+  parseOtpLength = m.parseOtpLength;
+  otpLines = m.otpLines;
+  isOtpLength = m.isOtpLength;
   pickAnonKey = m.pickAnonKey;
   parseGoogleRedirect = m.parseGoogleRedirect;
   stateReferrer = m.stateReferrer;
@@ -71,6 +77,47 @@ describe('authPatch', () => {
     expect(authPatch({ ...current, rate_limit_email_sent: 300 }, {}, { emailRate: 200 })).not.toHaveProperty('rate_limit_email_sent');
     expect(authPatch({ ...current, rate_limit_email_sent: 200 }, {}, { emailRate: 200 })).not.toHaveProperty('rate_limit_email_sent');
     expect(authPatch({ ...current, rate_limit_email_sent: 30 }, {}, { emailRate: 10 })).not.toHaveProperty('rate_limit_email_sent');
+  });
+  it('sets the length of Auth\'s email code only with --otp-length, and nothing else for it', () => {
+    const now = { ...current, mailer_otp_length: 6, mailer_otp_exp: 3600 };
+    const without = authPatch(now, {});
+    expect(without).not.toHaveProperty('mailer_otp_length');
+    const withIt = authPatch(now, {}, { otpLength: 10 });
+    // Additive: exactly one more key than the same run without the flag, and never the expiry.
+    expect(withIt).toEqual({ ...without, mailer_otp_length: 10 });
+    expect(withIt).not.toHaveProperty('mailer_otp_exp');
+    expect(authPatch({ ...now, mailer_otp_length: 10 }, {}, { otpLength: 10 })).toEqual(without);
+    expect(authPatch({ ...now, mailer_otp_length: null }, {}, { otpLength: 10 })).toMatchObject({ mailer_otp_length: 10 });
+    expect(authPatch({ ...now, mailer_otp_length: 10 }, {}, { otpLength: 6 })).toMatchObject({ mailer_otp_length: 6 });
+    // A project already set up gets only the length.
+    const done = {
+      uri_allow_list: 'https://x/**,https://*.hintwise.org/**',
+      external_email_enabled: true,
+      smtp_host: 'smtp.resend.com', smtp_port: '465', smtp_user: 'resend',
+      smtp_admin_email: 'sign-in@hintwise.org', smtp_sender_name: 'HintWise',
+      rate_limit_email_sent: 200, mailer_otp_length: 6, mailer_otp_exp: 3600,
+    };
+    expect(authPatch(done, {}, { otpLength: 10 })).toEqual({ mailer_otp_length: 10 });
+    for (const bad of [5, 11, 9.5, Number.NaN]) expect(() => authPatch(done, {}, { otpLength: bad })).toThrow(/from 6 to 10/);
+  });
+  it('reads --otp-length as a whole number of digits from 6 to 10', () => {
+    expect(parseOtpLength(undefined)).toEqual({});
+    expect(parseOtpLength('10')).toEqual({ value: 10 });
+    expect(parseOtpLength('6')).toEqual({ value: 6 });
+    for (const bad of ['', '5', '11', '1e1', '10.0', ' 10', '-10', 'ten', '010']) {
+      expect(parseOtpLength(bad).error, bad).toBe(`--otp-length wants a whole number of digits from 6 to 10, got ${JSON.stringify(bad)}`);
+    }
+    expect([5, 6, 10, 11].map((n) => isOtpLength(n))).toEqual([false, true, true, false]);
+  });
+  it('prints the code\'s length and expiry as numbers, and nothing without the flag', () => {
+    expect(otpLines({ mailer_otp_length: 6, mailer_otp_exp: 3600, smtp_pass: 're_secret' }, 10)).toEqual([
+      "Auth's email code: mailer_otp_length 6 -> 10; mailer_otp_exp 3600 (not changed)",
+    ]);
+    expect(otpLines({ mailer_otp_length: 10, mailer_otp_exp: 3600 }, 10)).toEqual(["Auth's email code: mailer_otp_length 10 (already as wanted); mailer_otp_exp 3600 (not changed)"]);
+    expect(otpLines({}, 10)).toEqual(["Auth's email code: mailer_otp_length null -> 10; mailer_otp_exp null (not changed)"]);
+    expect(otpLines(null, 10)[0]).toContain('null -> 10');
+    expect(otpLines({ mailer_otp_length: 6 }, undefined)).toEqual([]);
+    expect(otpLines({ smtp_pass: 're_secret' }, 10).join()).not.toContain('re_secret');
   });
   it('switches the Google client only with --google and only when both values are present', () => {
     const env = { HINTWISE_AUTH_GOOGLE_ID: '985338662899-new', HINTWISE_AUTH_GOOGLE_SECRET: 's' };
