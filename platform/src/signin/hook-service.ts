@@ -4,16 +4,18 @@
  * Send Email hook is switched on; it never calls it before.
  *
  * An email the plan allows (hook.ts: the sign-in emails for a host in
- * HOOK_EXTERNAL_HOSTS, the account emails for every host) goes through the
+ * HOOK_EXTERNAL_HOSTS, the account emails for every host, each a link or a
+ * notice, never Auth's own code) goes through the
  * same per-address ladder as sign-in-link: sign_in_begin under each
  * recipient's canonical mailbox, the fixed 'hook' IP key and no browser,
  * with no per-IP limit. A recipient who turned HintWise email off
  * (optout.ts) stops it first, whatever the type, logged as 'refused' with
  * detail 'suppressed' and no bypass alert: the sign-in emails and the
  * notices are answered as sent (200 {}) with nothing sent (hook.ts
- * quietWhenSuppressed), invite, email change and reauthentication are
+ * quietWhenSuppressed), invite and email change are
  * refused with 403. Then a due wait for any recipient refuses it. Everything else the plan refuses is logged as 'refused' and
- * raises the bypass alert.
+ * raises the bypass alert; reauthentication (hook.ts HOOK_CODE_ONLY_TYPES)
+ * is one of those, refused for every host and address with its own message.
  *
  * Each message carries the header (logo or wordmark), Reply-To support and
  * the footer with its recipient's opt-out link.
@@ -22,7 +24,8 @@
  *   200 {}                                    the email went out (or, for an opted-out
  *                                             address, a sign-in email or notice was dropped)
  *   200 { error: { http_code, message } }     Auth answers the app with that status and message
- *                                             (403 refused or suppressed, 429 wait)
+ *                                             (403 refused or suppressed, 429 wait; a refusal's
+ *                                             message is the plan's, else REFUSAL_MESSAGE)
  *   401 { error: ... }                        bad or missing signature (Auth reports a 500)
  *   413 { error: ... }                        a body far larger than Auth sends
  */
@@ -136,7 +139,7 @@ async function handleHookPost(req: Request, deps: HookDeps): Promise<Response> {
       const task = (async () => {
         try {
           if ((await db.rpc<boolean>('sign_in_claim_alert', { p_kind: 'bypass' })) !== true) return;
-          const res = await sendEmail(deps.fetch, resend, bypassAlertEmail(admin, { emailHash: hashes.email_hash, actionType: plan.actionType, redirectHost: plan.host }));
+          const res = await sendEmail(deps.fetch, resend, bypassAlertEmail(admin, { emailHash: hashes.email_hash, actionType: plan.actionType, redirectHost: plan.host, reason: plan.reason }));
           if (!res.ok) log(`auth-email-hook: bypass alert not sent: ${res.message}`);
         } catch (e) {
           log(`auth-email-hook: bypass alert failed: ${errorText(e)}`);
@@ -144,7 +147,7 @@ async function handleHookPost(req: Request, deps: HookDeps): Promise<Response> {
       })();
       deps.background?.(task);
     }
-    return reply(200, hookError(403, REFUSAL_MESSAGE));
+    return reply(200, hookError(403, plan.message ?? REFUSAL_MESSAGE));
   }
 
   // Allowed: each recipient through the same per-address ladder as sign-in-link.

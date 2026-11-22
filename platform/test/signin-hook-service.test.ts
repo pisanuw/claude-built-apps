@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import type { AlertCounts } from '../src/signin/alerts.ts';
 import type { Db } from '../src/signin/db.ts';
+import { CODE_ONLY_REFUSAL_MESSAGE } from '../src/signin/hook.ts';
 import { handleEmailHook, HOOK_WAIT_MESSAGE, type HookDeps, type HookEnv } from '../src/signin/hook-service.ts';
 import { HOOK_SUPPRESSED_MESSAGE } from '../src/signin/optout.ts';
 import type { BeginResult, KeyStats } from '../src/signin/policy.ts';
@@ -101,11 +102,13 @@ describe('handleEmailHook: emails it lets through', () => {
     expect(s.sent[0]).toMatchObject({ from: 'HintWise <sign-in@hintwise.org>', to: ['ann+news@example.com'], subject: 'Your sign-in link' });
     expect(String(s.sent[0].text)).toContain('https://ref.supabase.co/auth/v1/verify?token=th&type=magiclink');
   });
-  it('lets sign-up, code and recovery through for a wildcard host', async () => {
+  it('lets sign-up, email and recovery through for a wildcard host, each as a link without Auth\'s code', async () => {
     for (const type of ['signup', 'email', 'recovery']) {
       const s = setup();
       expect(await (await handleEmailHook(signed(type, { redirect_to: 'https://app.wcv.example/' }), s.deps)).json()).toEqual({});
       expect(s.sent).toHaveLength(1);
+      expect(String(s.sent[0].text)).toContain(`https://ref.supabase.co/auth/v1/verify?token=th&type=${type}&redirect_to=https%3A%2F%2Fapp.wcv.example%2F`);
+      for (const part of ['subject', 'text', 'html']) expect(String(s.sent[0][part]), `${type} ${part}`).not.toContain('123456');
     }
   });
   it('refuses with 429 when the address ladder says wait', async () => {
@@ -187,8 +190,8 @@ describe('handleEmailHook: account emails', () => {
     expect(s.rpc.filter(([fn]) => fn === 'sign_in_finish').map(([, a]) => a.p_outcome)).toEqual(['sent', 'error']);
     expect(s.logs.join()).toContain('1 of 2 went out');
   });
-  it('sends reauthentication, notices and invites for HintWise apps and unknown hosts too', async () => {
-    for (const [type, redirect] of [['reauthentication', HW], ['password_changed_notification', ''], ['invite', HW], ['identity_linked_notification', 'https://evil.example/']]) {
+  it('sends notices and invites for HintWise apps and unknown hosts too', async () => {
+    for (const [type, redirect] of [['password_changed_notification', ''], ['invite', HW], ['identity_linked_notification', 'https://evil.example/']]) {
       const s = setup();
       expect(await (await handleEmailHook(signed(type, { redirect_to: redirect }), s.deps)).json(), type).toEqual({});
       expect(s.sent).toHaveLength(1);
@@ -198,6 +201,35 @@ describe('handleEmailHook: account emails', () => {
 });
 
 describe('handleEmailHook: refusals', () => {
+  it('refuses reauthentication for every host with its own message, sends nothing, and tells the owner why', async () => {
+    for (const redirect of [EXT, 'https://pluck-lab.hintwise.org/settings', '']) {
+      const s = setup();
+      const res = await handleEmailHook(signed('reauthentication', { redirect_to: redirect }), s.deps);
+      expect(await res.json(), redirect).toEqual({ error: { http_code: 403, message: CODE_ONLY_REFUSAL_MESSAGE } });
+      expect(s.rpc[0][0]).toBe('sign_in_log');
+      expect(s.rpc[0][1]).toMatchObject({ p_outcome: 'refused', p_detail: expect.stringMatching(/^bypass: reauthentication via .* \(auth code\)$/) });
+      expect(s.rpc.some(([fn]) => fn === 'sign_in_begin' || fn === 'email_optout_check')).toBe(false);
+      await s.settle();
+      // Only the owner's alert went out, and it says what was refused and why.
+      expect(s.sent).toHaveLength(1);
+      expect(s.sent[0]).toMatchObject({ to: ['owner@example.org'], subject: "HintWise sign-in alert: an email with only Auth's code was refused" });
+      expect(String(s.sent[0].text)).toContain('supabase.auth.reauthenticate()');
+      expect(String(s.sent[0].text)).not.toContain('123456');
+    }
+    expect(CODE_ONLY_REFUSAL_MESSAGE).toBe('Email confirmation codes are off. Sign out and back in, then make the change.');
+  });
+  it('refuses an email-type payload whose link could not work', async () => {
+    for (const [data, reason] of [[{ token_hash: '' }, 'no token_hash'], [{ token_hash: 'pkce_abc' }, 'pkce email']] as const) {
+      const s = setup();
+      const res = await handleEmailHook(signed('email', data), s.deps);
+      // An error Auth passes on to the app, not a silent 200 with nothing sent.
+      expect(await res.json(), reason).toEqual({ error: { http_code: 403, message: 'Use the HintWise sign-in-link service' } });
+      expect(s.rpc[0][1]).toMatchObject({ p_detail: `bypass: email via how-of-happiness.netlify.app (${reason})` });
+      await s.settle();
+      expect(s.sent.map((m) => m.to)).toEqual([['owner@example.org']]);
+      expect(String(s.sent[0].subject)).toBe('HintWise sign-in alert: a sign-in email went around sign-in-link');
+    }
+  });
   it('refuses a HintWise app\'s direct magic link, logs it under the canonical mailbox and alerts once', async () => {
     const s = setup();
     const res = await handleEmailHook(signed('magiclink', { redirect_to: 'https://pluck-lab.hintwise.org/' }), s.deps);
@@ -332,8 +364,8 @@ describe('handleEmailHook: footer, logo and opt-out', () => {
       expect(s.logs.join()).not.toContain('ann');
     }
   });
-  it('refuses invite and reauthentication for an opted-out address with 403', async () => {
-    for (const type of ['invite', 'reauthentication']) {
+  it('refuses invite for an opted-out address with 403', async () => {
+    for (const type of ['invite']) {
       const s = setup({ suppressed: (h) => h === ann });
       const res = await handleEmailHook(signed(type, { redirect_to: HW }, { email: 'ann@example.com' }), s.deps);
       expect(await res.json(), type).toEqual({ error: { http_code: 403, message: HOOK_SUPPRESSED_MESSAGE } });

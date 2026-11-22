@@ -8,6 +8,7 @@
  * once a link went out).
  */
 import { renderEmail } from './email.ts';
+import { AUTH_CODE_REASON } from './hook.ts';
 import { shortHash, type KeyHashes } from './keys.ts';
 import type { EmailMessage } from './resend.ts';
 import { num as n } from './util.ts';
@@ -109,17 +110,29 @@ export function alertEmail(kind: Exclude<AlertKind, 'bypass'>, c: AlertCounts, c
   return renderEmail({ to, subject: `HintWise sign-in alert: ${TITLES[kind]}`, intro, outro: outro.filter(Boolean) }, ALERT_FROM);
 }
 
-/** The alert for a magic link or sign-up that reached Supabase Auth directly and was refused by the hook. */
-export function bypassAlertEmail(to: string, ctx: { emailHash: string | null; actionType: string; redirectHost: string | null }): EmailMessage {
+/**
+ * The alert for an email the hook refused: a magic link or sign-up that
+ * reached Supabase Auth directly, or (reason AUTH_CODE_REASON) an email whose
+ * only content would be Auth's own code.
+ */
+export function bypassAlertEmail(to: string, ctx: { emailHash: string | null; actionType: string; redirectHost: string | null; reason?: string }): EmailMessage {
+  const where = `Address hash ${shortHash(ctx.emailHash)}; return page ${ctx.redirectHost ?? '(none)'}.`;
+  const codeOnly = ctx.reason === AUTH_CODE_REASON;
   return renderEmail(
     {
       to,
-      subject: `HintWise sign-in alert: ${TITLES.bypass}`,
-      intro: [
-        `Supabase Auth was asked to email a ${ctx.actionType} directly (signInWithOtp or signUp), not through the sign-in-link function. The send-email hook refused it.`,
-        `Address hash ${shortHash(ctx.emailHash)}; return page ${ctx.redirectHost ?? '(none)'}.`,
-        'An app still calling signInWithOtp needs the template\'s sendMagicLink; anything else is someone trying to get around the limits.',
-      ],
+      subject: `HintWise sign-in alert: ${codeOnly ? 'an email with only Auth\'s code was refused' : TITLES.bypass}`,
+      intro: codeOnly
+        ? [
+            `An app asked Supabase Auth for a ${ctx.actionType} email, whose only content is Auth's own code (supabase.auth.reauthenticate(), before a password change). The send-email hook refused it: no email carries Auth's code (owner, 22 Nov 2026).`,
+            where,
+            'The person can sign out and back in, then change the password without a code (Auth asks for one only when the session is over a day old), or reset it with the recovery link.',
+          ]
+        : [
+            `Supabase Auth was asked to email a ${ctx.actionType} directly (signInWithOtp or signUp), not through the sign-in-link function. The send-email hook refused it.`,
+            where,
+            'An app still calling signInWithOtp needs the template\'s sendMagicLink; anything else is someone trying to get around the limits.',
+          ],
       outro: [lookup('email_hash', ctx.emailHash), 'At most one alert of this kind an hour.'].filter(Boolean),
     },
     ALERT_FROM,

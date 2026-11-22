@@ -886,15 +886,17 @@ export const EMAIL_HOOK_SECRETS = ['SEND_EMAIL_HOOK_SECRET', 'RESEND_API', 'SIGN
 
 /** The same lists as platform/src/signin/hook.ts (a test keeps them equal). */
 export const HOOK_SIGN_IN_TYPES = ['magiclink', 'signup', 'email', 'recovery'];
-export const HOOK_ACCOUNT_TYPES = ['invite', 'email_change', 'reauthentication'];
+export const HOOK_ACCOUNT_TYPES = ['invite', 'email_change'];
+export const HOOK_CODE_ONLY_TYPES = ['reauthentication'];
 
 /** Pure: which types auth-email-hook refuses or sends for which hosts, printed by email-hook check. */
 export function hookPolicyLines(hosts) {
   const ext = hosts.length ? hosts.join(', ') : '(none)';
   return [
     `Refused (logged, bypass alert): ${HOOK_SIGN_IN_TYPES.join(', ')} for hintwise.org pages and every host not in HOOK_EXTERNAL_HOSTS; HintWise apps send these through sign-in-link.`,
-    `Sent through the per-address ladder: ${HOOK_SIGN_IN_TYPES.join(', ')} for ${ext}.`,
-    `Sent through the per-address ladder: ${HOOK_ACCOUNT_TYPES.join(', ')} and every *_notification, for every host.`,
+    `Sent through the per-address ladder, as links: ${HOOK_SIGN_IN_TYPES.join(', ')} for ${ext}.`,
+    `Sent through the per-address ladder, as links or notices: ${HOOK_ACCOUNT_TYPES.join(', ')} and every *_notification, for every host.`,
+    `Refused for every host (logged, bypass alert): ${HOOK_CODE_ONLY_TYPES.join(', ')}, whose only content is Auth's own code. No email carries Auth's code.`,
     'Refused: any other type.',
     'Refused, every type: an address on the opt-out list (platform.email_optouts), logged as refused (suppressed), no bypass alert.',
   ];

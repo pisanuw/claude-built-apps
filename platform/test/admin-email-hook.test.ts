@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { HOOK_ACCOUNT_TYPES, HOOK_SIGN_IN_TYPES } from '../src/signin/hook.ts';
+import { HOOK_ACCOUNT_TYPES, HOOK_CODE_ONLY_TYPES, HOOK_SIGN_IN_TYPES } from '../src/signin/hook.ts';
 
 type Admin = typeof import('../supabase-admin.mjs');
 let m: Admin;
@@ -75,14 +75,16 @@ describe('email-hook', () => {
   it('says which types the hook refuses or sends for which hosts, with the same lists as the hook', () => {
     expect(m.HOOK_SIGN_IN_TYPES).toEqual([...HOOK_SIGN_IN_TYPES]);
     expect(m.HOOK_ACCOUNT_TYPES).toEqual([...HOOK_ACCOUNT_TYPES]);
+    expect(m.HOOK_CODE_ONLY_TYPES).toEqual([...HOOK_CODE_ONLY_TYPES]);
     expect(m.hookPolicyLines(['how-of-happiness.netlify.app', '*.wcv.example'])).toEqual([
       'Refused (logged, bypass alert): magiclink, signup, email, recovery for hintwise.org pages and every host not in HOOK_EXTERNAL_HOSTS; HintWise apps send these through sign-in-link.',
-      'Sent through the per-address ladder: magiclink, signup, email, recovery for how-of-happiness.netlify.app, *.wcv.example.',
-      'Sent through the per-address ladder: invite, email_change, reauthentication and every *_notification, for every host.',
+      'Sent through the per-address ladder, as links: magiclink, signup, email, recovery for how-of-happiness.netlify.app, *.wcv.example.',
+      'Sent through the per-address ladder, as links or notices: invite, email_change and every *_notification, for every host.',
+      "Refused for every host (logged, bypass alert): reauthentication, whose only content is Auth's own code. No email carries Auth's code.",
       'Refused: any other type.',
       'Refused, every type: an address on the opt-out list (platform.email_optouts), logged as refused (suppressed), no bypass alert.',
     ]);
-    expect(m.hookPolicyLines([])[1]).toBe('Sent through the per-address ladder: magiclink, signup, email, recovery for (none).');
+    expect(m.hookPolicyLines([])[1]).toBe('Sent through the per-address ladder, as links: magiclink, signup, email, recovery for (none).');
   });
   it('computes HOOK_EXTERNAL_HOSTS from the auth allow-list and site URL, minus hintwise.org', () => {
     const cfg = {

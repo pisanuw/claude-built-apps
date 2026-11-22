@@ -57,6 +57,9 @@ Email footer, logo and opt-out (`docs/platform.md`): `apply-shared`,
 `check-schema platform`, `brand-upload`, `set-sign-in-secrets`,
 `deploy-function email-optout`, `deploy-function sign-in-link`,
 `deploy-function auth-email-hook`, `email-hook check`.
+No Auth code in any email (owner, 22 Nov 2026; `src/signin/README.md`,
+"Auth's own code"): `deploy-function auth-email-hook`, then
+`configure-auth --otp-length=10 --dry-run`, then `configure-auth --otp-length=10`.
 
 ## Deploy integration
 

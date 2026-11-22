@@ -113,7 +113,9 @@ Google stays.
   its own `redirectTo`, so the site URL only matters as a fallback);
   `external_email_enabled` is already true and `mailer_autoconfirm` false; the
   SMTP fields above are added (they lift the email limit from 2 to 30 an hour,
-  `rate_limit_email_sent`, which `configure-auth` sets to 30). The Google
+  `rate_limit_email_sent`, which `configure-auth` sets to 30). With
+  `--otp-length=N` it also sets `mailer_otp_length`, the digits of Auth's
+  own email code (owner, 22 Nov 2026: 10; "Auth's own code" below). The Google
   client is **not** switched by default: the project signs in through client
   `989071206831-`; moving to the HintWise client (`985338662899-`) keeps the
   same Google identities (Google's `sub` is the same for every client) but is
@@ -273,9 +275,19 @@ short:
   link. A code works 10 minutes, once, only in the browser that asked (a
   try from another browser counts nothing), and the 5th wrong code voids
   it. A newer code for the address replaces it, whoever asked; before the
-  link goes, codes must be kept per address and browser (D-SC-3). Auth's settings do not change: `mailer_otp_exp` (default an hour)
+  link goes, codes must be kept per address and browser (D-SC-3). `mailer_otp_exp` (default an hour)
   stays, and the link keeps it during the move. Apps that do not ask get
   the link-only email.
+- **Auth's own code** (owner, 22 Nov 2026: "I do not want that 10-digit
+  code ever showing", then "10 digits yes"). Auth makes its own email code
+  (the hook payload's `token`), which anyone with the anon key can try at
+  Auth's `/verify`. No email shows it: `auth-email-hook` sends links and
+  notices only, sends Auth's `email` type as the magic link with
+  `type=email`, and refuses `reauthentication`, whose only content is the
+  code. `configure-auth --otp-length=10` makes it 10 digits
+  (`mailer_otp_length`, 6 to 10); links (token hash) and HintWise's own
+  6-digit code do not depend on it, and `mailer_otp_exp` stays.
+  `platform/src/signin/README.md`, "Auth's own code".
 - **Log.** Every request is a row in `platform.sign_in_requests`: hashed
   keys (HMAC-SHA256 under the function secret `SIGN_IN_HASH_KEY`), app,
   outcome, detail. Rows are kept 30 days. Only the service role touches it,
@@ -289,16 +301,21 @@ short:
   - more than 100 links go out in an hour.
 - **Closing the side door.** Supabase's Send Email hook, the function
   `auth-email-hook`, takes every auth email once it is switched on.
-  - Magic links, sign-ups, sign-in codes and password recovery are sent only
-    for the apps outside HintWise on this project, the hosts in
+  - Magic links (Auth's `email` type too, as a link), sign-ups and password
+    recovery are sent only for the apps outside HintWise on this project,
+    the hosts in
     `HOOK_EXTERNAL_HOSTS`. That list is computed from the auth redirect
     allow-list and site URL by `set-sign-in-secrets`; rerun it after
     changing the allow-list.
   - The same four for a hintwise.org page or an unknown host are refused
     with 403 "Use the HintWise sign-in-link service", logged, and raise the
     bypass alert. HintWise apps send them through sign-in-link.
-  - Invite, email change (both messages), reauthentication and account
-    notices are sent for every host.
+  - Invite, email change (both messages) and account notices are sent for
+    every host.
+  - No email carries Auth's own code: `reauthentication`, which is only
+    that code, is refused for every host, with "Email confirmation codes
+    are off. Sign out and back in, then make the change." (owner, 22 Nov
+    2026).
   - Everything the hook sends goes through the same per-address ladder. A
     due wait refuses it.
 
@@ -363,8 +380,8 @@ The contract is `platform/src/signin/README.md`.
   - sign-in-link answers `suppressed` instead of sending. auth-email-hook
     sends nothing to the address: sign-in emails and notices are answered as
     sent (so a recovery request does not reveal the opt-out, and a notice
-    never fails a change), invite, reauthentication and email change are
-    refused. So an opted-out user cannot change their account's email
+    never fails a change), invite and email change are refused
+    (reauthentication is refused for everyone). So an opted-out user cannot change their account's email
     address until email is back on.
   - Support: `email-optout status|add|remove` with the address in the
     workflow's `email` input, masked in the log, which shows only the

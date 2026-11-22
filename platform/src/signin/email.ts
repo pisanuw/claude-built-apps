@@ -1,10 +1,13 @@
 /**
  * The emails visitors get: the sign-in link, and the Auth emails the
- * send-email hook sends (magic link, sign-up confirmation, sign-in code and
- * password recovery for apps outside HintWise; invite, email change,
- * reauthentication and account notices for every app). Plain text plus
- * simple HTML, every value escaped. No times in the text: links expire "in
- * about an hour".
+ * send-email hook sends (magic link, sign-up confirmation and password
+ * recovery for apps outside HintWise; invite, email change and account
+ * notices for every app). Plain text plus simple HTML, every value escaped.
+ * No times in the text: links expire "in about an hour".
+ *
+ * None of them carries Auth's own code (owner, 22 Nov 2026): the hook's
+ * emails are links or notices, and the only code in any email is HintWise's
+ * own sign-in code below.
  *
  * The sign-in email carries a 6-digit code above the link when the app has
  * the code box (signInEmail's `withCode`; code.ts, owner 22 November 2026):
@@ -97,10 +100,8 @@ export interface EmailParts {
   /** Paragraphs before the link or code. */
   intro: string[];
   link?: { href: string; label: string };
-  /** Shown large, before the link when there is both. */
+  /** HintWise's own sign-in code (code.ts), shown large (CODE_STYLE), before the link when there is both. Never Auth's code. */
   code?: string;
-  /** The sign-in code's own look (CODE_STYLE); without it the hook's code emails keep HOOK_CODE_STYLE. */
-  bigCode?: boolean;
   /** Paragraphs right after the code, before the link; each may end with a link (its address as the text). */
   afterCode?: Array<{ text: string; href?: string }>;
   /** Paragraphs after it. */
@@ -146,8 +147,6 @@ const FOOT_P = 'margin:0 0 8px';
 export const PREHEADER_STYLE = 'display:none;max-height:0;max-width:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:transparent;opacity:0';
 /** Blank characters after the preheader, so a preview runs out before it reaches the body (and the code). */
 export const PREHEADER_FILLER = '&#847;&zwnj;&nbsp;'.repeat(90);
-/** The code in the hook's code and reauthentication emails, unchanged since they were first sent. */
-export const HOOK_CODE_STYLE = 'font-size:24px;letter-spacing:4px;font-weight:600';
 /** The sign-in code: large monospace digits, selected whole by one tap where the client allows it. */
 export const CODE_STYLE =
   "margin:8px 0 16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:32px;line-height:40px;font-weight:700;letter-spacing:6px;-webkit-user-select:all;user-select:all";
@@ -216,7 +215,7 @@ export function renderEmail(p: EmailParts, from = SIGN_IN_FROM, look: EmailLook 
   }
   if (p.code) {
     text.push(p.code);
-    html.push(`<p style="${p.bigCode ? CODE_STYLE : HOOK_CODE_STYLE}">${escapeHtml(p.code)}</p>`);
+    html.push(`<p style="${CODE_STYLE}">${escapeHtml(p.code)}</p>`);
   }
   for (const a of p.afterCode ?? []) {
     text.push(a.href ? `${a.text} ${a.href}` : a.text);
@@ -260,15 +259,12 @@ const on = (site: string | null): string => (site ? ` on ${site}` : '');
 
 export const WHY = {
   signIn: (app: string): string => `You got this because someone asked to sign in to ${app} with this address. ${IGNORE_IT}`,
-  code: (site: string): string => `You got this because someone asked for a code to sign in to ${site} with this address. ${IGNORE_IT}`,
   signup: (site: string): string => `You got this because someone signed up at ${site} with this address. If it wasn't you, ignore it: the address stays unconfirmed.`,
   recovery: (site: string | null): string => `You got this because someone asked to reset the password of the account with this address${on(site)}. If it wasn't you, ignore it: the password stays the same.`,
   invite: (site: string | null): string => `You got this because someone invited this address to an account${on(site)}. If you don't want it, ignore it: nothing happens.`,
   emailChangeCurrent: (site: string | null): string =>
     `You got this because someone asked to move the account with this address${on(site)} to another address. If it wasn't you, ignore it and change your password: nothing changes unless this link is opened.`,
   emailChangeNew: (site: string | null): string => `You got this because someone asked to use this address for an account${on(site)}. ${IGNORE_IT}`,
-  reauthentication: (site: string | null): string =>
-    `You got this because the account with this address${on(site)} asked for a code to confirm a change. If it wasn't you, ignore it and change your password: nothing changes without the code.`,
   notice: (site: string | null): string => `You got this because the account with this address${on(site)} changed, and every change is reported to its address.`,
 } as const;
 
@@ -312,7 +308,6 @@ export function signInEmail(to: string, link: string, appName: string | null, ho
         preheader: `Your sign-in code for ${appName ?? host} is in this email. Type it in the browser where you asked for it.`,
         intro: [`Here is your code to sign in to ${site}. ${CODE_WHERE}`],
         code: withCode.code,
-        bigCode: true,
         afterCode: [{ text: `${CODE_MINUTES} ${CODE_TAB_CLOSED}`, href: withCode.page }, { text: CODE_OR_LINK }],
         link: { href: link, label: 'Sign in' },
         outro: [],
@@ -341,15 +336,13 @@ const EXPIRES = 'The link expires in about an hour.';
 
 // The send-email hook's emails. Worded for any app on the project, HintWise
 // or not. The last argument of each is the recipient's look (opt-out link, logo).
+// Each is a link or a notice: the hook has no email that shows Auth's code.
 
 export const recoveryEmail = (to: string, href: string, site: string | null = null, look: EmailLook = {}): EmailMessage =>
   renderEmail({ to, subject: 'Reset your password', intro: [`Someone asked to reset the password of the account for ${to}. To choose a new one, open this link:`], link: { href, label: 'Reset password' }, outro: [`${EXPIRES} ${IGNORE}`], why: WHY.recovery(site) }, SIGN_IN_FROM, look);
 
 export const signupEmail = (to: string, href: string, host: string, look: EmailLook = {}): EmailMessage =>
   renderEmail({ to, subject: 'Confirm your email address', intro: [`To finish signing up at ${host}, confirm your email address:`], link: { href, label: 'Confirm my address' }, outro: [`${EXPIRES} ${IGNORE}`], why: WHY.signup(host) }, SIGN_IN_FROM, look);
-
-export const codeEmail = (to: string, code: string, host: string, look: EmailLook = {}): EmailMessage =>
-  renderEmail({ to, subject: 'Your sign-in code', intro: [`Your code to sign in to ${host} is:`], code, outro: [`The code expires in about an hour. ${IGNORE}`], why: WHY.code(host) }, SIGN_IN_FROM, look);
 
 /** "your account" or "your account on <host>". */
 const account = (host: string | null): string => (host ? `your account on ${host}` : 'your account');
@@ -369,9 +362,6 @@ export const emailChangeCurrentEmail = (to: string, newEmail: string, href: stri
 /** To the new address when the email changes. */
 export const emailChangeNewEmail = (to: string, href: string, host: string | null, look: EmailLook = {}): EmailMessage =>
   renderEmail({ to, subject: 'Confirm your new email address', intro: [`To use ${to} as the email address of ${account(host)}, open this link:`], link: { href, label: 'Confirm this address' }, outro: [`${EXPIRES} ${IGNORE}`], why: WHY.emailChangeNew(host) }, SIGN_IN_FROM, look);
-
-export const reauthenticationEmail = (to: string, code: string, host: string | null = null, look: EmailLook = {}): EmailMessage =>
-  renderEmail({ to, subject: 'Your confirmation code', intro: ['Your confirmation code is:'], code, outro: [`The code expires in about an hour. ${IGNORE}`], why: WHY.reauthentication(host) }, SIGN_IN_FROM, look);
 
 /** One sentence per account notice of the send-email hook; other *_notification types get the generic one. */
 export const NOTICES: Readonly<Record<string, string>> = {
