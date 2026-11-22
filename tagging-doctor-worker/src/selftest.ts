@@ -21,6 +21,20 @@ export interface SelfTest {
   checkedAt: string;
 }
 
+/** True when TeX runs as a user of its own and runs at all: only then is a job taken (D-68, R3a.2-3 b). */
+export function canCompile(test: Pick<SelfTest, 'separateUser' | 'texRuns'>): boolean {
+  return test.separateUser && test.texRuns;
+}
+
+/**
+ * The user jobs run as: the wanted TeX user when `canCompile`, else none, so
+ * the queue's `maxWaiting` is 0 exactly when health says `compile: false`
+ * (R3a.3-3 a).
+ */
+export function jobUser(test: Pick<SelfTest, 'separateUser' | 'texRuns'>, wanted: User | null): User | null {
+  return canCompile(test) ? wanted : null;
+}
+
 export async function selfTest(opts: {
   user: User | null;
   jobsRoot: string;

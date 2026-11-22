@@ -30,7 +30,7 @@ export interface Config {
   retentionMs: number;
   /** AC-32: 25 MB. */
   maxBodyBytes: number;
-  /** AC-33: at most 3 jobs wait (none if TeX cannot run as another user, AC-64). */
+  /** AC-33: at most 3 jobs wait. With no TeX user of its own the worker takes no job at all (D-68, AC-64), and health shows 0. */
   maxWaiting: number;
   /** AC-33: one user gets at most 5 jobs an hour. */
   perUserPerHour: number;

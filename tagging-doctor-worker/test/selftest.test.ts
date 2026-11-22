@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { RunResult, Spawner } from '../src/sandbox.ts';
-import { selfTest } from '../src/selftest.ts';
+import { canCompile, jobUser, selfTest } from '../src/selftest.ts';
 
 let root = '';
 beforeEach(() => (root = mkdtempSync(path.join(tmpdir(), 'tdw-st-'))));
@@ -43,5 +43,15 @@ describe('AC-64: the startup self-test', () => {
   it('says so when no TeX user is set', async () => {
     const r = await selfTest({ ...base, jobsRoot: root, user: null, spawner: spawner({}) });
     expect(r).toMatchObject({ separateUser: false, texUid: null, texRuns: false });
+  });
+});
+
+describe('R3a.3-3 (a): jobs get the TeX user only when a compile is possible', () => {
+  it('needs both a user of its own and a TeX that runs as it', () => {
+    for (const [separateUser, texRuns, can] of [[true, true, true], [true, false, false], [false, true, false], [false, false, false]] as const) {
+      expect(canCompile({ separateUser, texRuns }), `${separateUser} ${texRuns}`).toBe(can);
+      expect(jobUser({ separateUser, texRuns }, user), `${separateUser} ${texRuns}`).toBe(can ? user : null);
+    }
+    expect(jobUser({ separateUser: true, texRuns: true }, null)).toBeNull();
   });
 });

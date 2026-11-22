@@ -6,7 +6,7 @@ import { Jobs, resetRoot } from './jobs.ts';
 import { createLogger } from './log.ts';
 import { TexRunner } from './runner.ts';
 import { killUserProcesses, spawnWithDeadline, sweepOwned } from './sandbox.ts';
-import { selfTest } from './selftest.ts';
+import { jobUser, selfTest } from './selftest.ts';
 import { createHandler } from './server.ts';
 import { readVersions } from './versions.ts';
 
@@ -17,8 +17,9 @@ const wanted = cfg.texUid === null || cfg.texGid === null ? null : { uid: cfg.te
 
 resetRoot(cfg.jobsRoot);
 const test = await selfTest({ user: wanted, jobsRoot: cfg.jobsRoot, texBin: cfg.texBin, spawner: spawnWithDeadline, serverUid });
-// TeX runs as the TeX user only when the self-test shows that works; otherwise the worker takes no job (D-68).
-const user = test.separateUser ? wanted : null;
+// TeX runs as the TeX user only when the self-test shows that works; otherwise the worker takes no job (D-68)
+// and no job may wait (R3a.3-3 a).
+const user = jobUser(test, wanted);
 log.log('self-test', { separateUser: test.separateUser, ok: test.texRuns, uid: serverUid, texUid: test.texUid ?? undefined });
 
 const afterJob = () => {

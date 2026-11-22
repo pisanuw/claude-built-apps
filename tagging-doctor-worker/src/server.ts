@@ -16,7 +16,7 @@ import { AuthUnavailable, bearer, type Verify } from './auth.ts';
 import type { Config } from './config.ts';
 import type { Job, Jobs } from './jobs.ts';
 import type { Logger } from './log.ts';
-import type { SelfTest } from './selftest.ts';
+import { canCompile as compiles, type SelfTest } from './selftest.ts';
 import { inspectUpload, UploadError } from './zip.ts';
 
 export interface Health {
@@ -158,7 +158,7 @@ export function createHandler(d: ServerDeps) {
       : { vary: 'Origin' };
 
   // R3a.2-3 (b): a TeX user of its own, and a TeX that runs as it.
-  const canCompile = d.selfTest.separateUser && d.selfTest.texRuns;
+  const canCompile = compiles(d.selfTest);
   const health = (): Health => ({
     status: 'ok',
     compile: canCompile,

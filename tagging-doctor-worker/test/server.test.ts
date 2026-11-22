@@ -10,6 +10,7 @@ import { LOCAL_ORIGIN, PRODUCTION_ORIGIN } from '../src/config.ts';
 import { Jobs, resetRoot } from '../src/jobs.ts';
 import { createLogger } from '../src/log.ts';
 import type { Runner } from '../src/runner.ts';
+import { jobUser } from '../src/selftest.ts';
 import { createHandler, UNAVAILABLE_MESSAGE } from '../src/server.ts';
 import { makeZip } from './zipmaker.ts';
 
@@ -62,7 +63,8 @@ async function start(allowedOrigins = [PRODUCTION_ORIGIN], selfTest = SELF_TEST,
     cfg: { jobsRoot: root, texCacheSource: null, jobLimitMs: 120_000, retentionMs: 1_800_000, maxWaiting: 3, perUserPerHour: 5 },
     runner,
     log,
-    user: { uid: process.getuid?.() ?? 0, gid: process.getgid?.() ?? 0 },
+    // As main.ts wires it: the TeX user only when the self-test allows a compile (R3a.3-3 a).
+    user: jobUser(selfTest, { uid: process.getuid?.() ?? 0, gid: process.getgid?.() ?? 0 }),
     afterJob: () => {},
     now: () => t,
   });
@@ -378,6 +380,8 @@ describe('R3a.2-3 (b): a TeX that does not run as its user, no compile', () => {
     await start([PRODUCTION_ORIGIN], { ...SELF_TEST, texRuns: false });
     expect(await body(fetch(`${base}/api/health`))).toMatchObject({ compile: false, selfTest: { separateUser: true, texRuns: false } });
     expect((await post()).status).toBe(503);
+    // R3a.3-3 (a): the queue says the same as `compile`: no job may wait.
+    expect((await body(fetch(`${base}/api/health`))).queue).toMatchObject({ maxWaiting: 0 });
   });
 });
 
