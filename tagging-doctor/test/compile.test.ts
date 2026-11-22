@@ -46,6 +46,7 @@ import {
   NotAChecker,
   PDF_GONE,
   PDF_SIGN_IN,
+  RECORDED_COLD_START_MS,
   SIGN_IN_AGAIN,
   WAKE_LIMIT_MS,
   WAKE_POLL_MS,
@@ -423,7 +424,10 @@ describe('AC-27: waking the checker', () => {
   });
 
   it('gives up after the longer of 120 s and twice the recorded cold start', async () => {
-    expect(WAKE_LIMIT_MS).toBeGreaterThanOrEqual(120_000);
+    expect(WAKE_LIMIT_MS).toBe(Math.max(120_000, 2 * (RECORDED_COLD_START_MS ?? 0)));
+    // AC-68's cold start on the live worker (D-96): 12.6 s, so the wait stays 120 s.
+    expect(RECORDED_COLD_START_MS).toBe(12_633);
+    expect(WAKE_LIMIT_MS).toBe(120_000);
     const s = stub({ health: 'asleep' });
     const ticks: number[] = [];
     await expect(wake(s.deps, (t) => ticks.push(t))).rejects.toThrow(DID_NOT_WAKE);

@@ -61,10 +61,11 @@ export const PDF_SIGN_IN = 'Sign in again to download the PDF. It is kept for 30
 
 /**
  * How long the page waits for the checker to wake: the longer of 120 s and
- * twice the cold start AC-68 records. Until AC-68's measurement on the live
- * worker, 120 s; DECISIONS.md D-82 says where to change it.
+ * twice the cold start AC-68 records (DECISIONS.md D-82 and D-96). Measured on
+ * the live worker on 2026-11-22: 12.6 s from the first health request after
+ * 16 idle minutes to its 200, so the wait stays 120 s.
  */
-export const RECORDED_COLD_START_MS: number | null = null;
+export const RECORDED_COLD_START_MS: number | null = 12_633;
 export const WAKE_LIMIT_MS = Math.max(120_000, 2 * (RECORDED_COLD_START_MS ?? 0));
 /** AC-27: the wake poll asks every 3 seconds. */
 export const WAKE_POLL_MS = 3_000;
