@@ -10,9 +10,13 @@
  * supabase/config.toml). All logic lives in platform/src/signin/ (vitest);
  * this file only passes Deno's environment, fetch and waitUntil.
  *
- * Request:  POST JSON { email, redirectTo, app, browserId, turnstileToken? }
- * Response: 200 {status:'sent'} | 200 {status:'suppressed', message} | 429 {status:'wait', retryAt}
+ * Request:  POST JSON { email, redirectTo, app, browserId, turnstileToken?, withCode? }
+ * Response: 200 {status:'sent', withCode?} | 200 {status:'suppressed', message} | 429 {status:'wait', retryAt}
  *           | 403 {status:'challenge', siteKey, failed?} | 4xx/5xx {status:'error', message}
+ * A sign-in code (withCode: the email carries a 6-digit code above the link):
+ * Request:  POST JSON { action: 'verify', email, code, browserId }
+ * Response: 200 {status:'verified', tokenHash} | 400 {status:'wrong', left} | 400 {status:'void' | 'expired' | 'none'}
+ *           | 4xx/5xx {status:'error', message}
  */
 import { handleSignInLink, type SignInEnv } from '../../../src/signin/service.ts';
 

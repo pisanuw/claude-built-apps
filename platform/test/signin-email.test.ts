@@ -3,6 +3,7 @@ import { ALERT_FROM, ALERT_LIMITS, alertDue, alertEmail, bypassAlertEmail, dueAl
 import {
   appDisplayName,
   BRAND_INDIGO,
+  CODE_STYLE,
   codeEmail,
   emailChangeCurrentEmail,
   emailChangeNewEmail,
@@ -61,6 +62,36 @@ describe('the sign-in email', () => {
     const r = recoveryEmail('ann@example.com', 'https://ref.supabase.co/auth/v1/verify?token=t&type=recovery');
     expect(r.subject).toBe('Reset your password');
     for (const m of [s1, c, r]) expect(m.from).toBe(SIGN_IN_FROM);
+  });
+  it('puts the code first when the app has the code box: subject, text and a large monospace block, then the link', () => {
+    const page = 'https://paste-md.hintwise.org/';
+    const m = signInEmail('ann@example.com', link, 'Paste Md', undefined, {}, { code: '004217', page });
+    expect(m.subject).toBe('004217 is your sign-in code for Paste Md');
+    expect(m.text).toContain('Here is your 6-digit code to sign in to Paste Md (paste-md.hintwise.org):\n\n004217\n\n');
+    expect(m.text).toContain('Type it in the browser where you asked for it: it works only there, once, for 10 minutes. Do not share it with anyone.');
+    // The way back names the template's own label.
+    expect(m.text).toContain(`Closed that tab? Open this page in that same browser and choose "Type a code I asked for in this browser": ${page}\n`);
+    expect(m.text).toContain('Or sign in with this link instead. It works in any browser, for about an hour.');
+    expect(m.text).toContain(`\n\n${link}\n\n`);
+    expect(m.text.indexOf('004217')).toBeLessThan(m.text.indexOf(link));
+    expect(m.text).toContain('If you did not ask for it, ignore this email.');
+    expect(m.text).toContain('You got this because someone asked to sign in to Paste Md with this address.');
+    expect(m.html).toContain(`<p style="${CODE_STYLE}">004217</p>`);
+    expect(CODE_STYLE).toMatch(/monospace;font-size:32px;/);
+    expect(CODE_STYLE).toContain('user-select:all');
+    expect(m.html).toContain(`<a class="hw-link" href="${page}"`);
+    expect(m.html).toContain('href="https://paste-md.hintwise.org/?token_hash=abc&amp;type=email"');
+    expect(m.html.indexOf('004217')).toBeLessThan(m.html.indexOf('token_hash=abc'));
+    const plain = signInEmail('ann@example.com', link, null, undefined, {}, { code: '004217', page });
+    expect(plain.subject).toBe('004217 is your sign-in code');
+    expect(plain.text).toContain('code to sign in to paste-md.hintwise.org:');
+  });
+  it('sends the link alone without a code', () => {
+    for (const m of [signInEmail('ann@example.com', link, 'Paste Md'), signInEmail('ann@example.com', link, 'Paste Md', undefined, {}, null)]) {
+      expect(m.subject).toBe('Your sign-in link for Paste Md');
+      expect(m.text).not.toContain('code');
+      expect(m.html).not.toContain(CODE_STYLE);
+    }
   });
   it('uses the plain subject when the app is not known', () => {
     const m = signInEmail('ann@example.com', link, null);

@@ -7,12 +7,18 @@
  * Flow: CORS and method; validate; hash the keys; sign_in_begin (counts,
  * and a 'pending' row under a per-address lock); decide; wait, challenge,
  * or (once the address is known not to have turned HintWise email off)
- * create the link and email it with the footer and its opt-out link;
+ * create the link, store a sign-in code when the app asked for one
+ * (code.ts), and email them with the footer and its opt-out link;
  * sign_in_finish with the outcome; alerts in the background.
+ *
+ * A body with `action: 'verify'` is a code to check instead (handleVerify):
+ * sign_in_code_check counts it and, for the right code, answers the link's
+ * token hash, which the browser turns into a session with verifyOtp.
  */
 import { jsonHeaders, preflight, type CorsOptions } from '../gateway/cors.ts';
 import { alertEmail, dueAlerts, type AlertCounts, type AlertKind } from './alerts.ts';
 import { restDb, type Db } from './db.ts';
+import { codeAnswer, codeHash, generateSignInCode, readCodeCheck, type CodeAnswer } from './code.ts';
 import { appDisplayName, signInEmail } from './email.ts';
 import { clientIp, hashKeys, maskEmail, UNKNOWN_IP, type KeyHashes } from './keys.ts';
 import { createLinkToken, signInLink } from './link.ts';
@@ -21,7 +27,7 @@ import { decide, decisionDetail, IP_HARD_LIMIT_PER_HOUR, type BeginResult, type 
 import { sendEmail } from './resend.ts';
 import { TURNSTILE_SITE_KEY, verifyTurnstile } from './turnstile.ts';
 import { errorText, readBody } from './util.ts';
-import { isAppOrigin, MAX_BODY_BYTES, parseSignInRequest, type Known, type Parsed } from './validate.ts';
+import { isAppOrigin, MAX_BODY_BYTES, parseSignInRequest, parseVerifyRequest, type Known, type Parsed, type VerifyRequest } from './validate.ts';
 
 /** CORS for the pages of deployed apps only (validate.ts isAppOrigin). */
 const APP_CORS: CorsOptions = { dev: false, allow: (o) => isAppOrigin(o) };
@@ -52,15 +58,22 @@ export interface Deps {
   /** Default: PostgREST over `fetch` with the service-role key. */
   db?: Db;
   now?: () => Date;
+  /** The sign-in code's digits; default code.ts generateSignInCode (Web Crypto). */
+  newCode?: () => string;
   /** Operational messages (the function log); never raw addresses or IPs. */
   log?: (message: string) => void;
   /** Work that may finish after the answer (EdgeRuntime.waitUntil on Supabase). */
   background?: (task: Promise<unknown>) => void;
 }
 
-/** The answers the browser gets (the template's SignInLinkResult). */
+/**
+ * The answers the browser gets (the template's SignInLinkResult and, for
+ * `action: 'verify'`, its CodeAnswer). `withCode` is there only when the
+ * request asked for a code: false means the email went with the link only.
+ */
 export type SignInAnswer =
-  | { status: 'sent' }
+  | { status: 'sent'; withCode?: boolean }
+  | CodeAnswer
   | { status: 'wait'; retryAt: string }
   | { status: 'challenge'; siteKey: string; failed?: boolean }
   | { status: 'suppressed'; message: string }
@@ -137,6 +150,12 @@ async function handlePost(req: Request, deps: Deps, reply: (status: number, body
   // key, so one busy network could throttle everyone. The challenge covers it.
   const ipLimit = ipKnown ? IP_HARD_LIMIT_PER_HOUR : null;
   const text = await readBody(req, MAX_BODY_BYTES);
+  const verify = text === null ? null : parseVerifyRequest(text);
+  if (verify) {
+    if (!isAppOrigin(origin)) return reply(403, { status: 'error', message: 'Check sign-in codes from a HintWise app.' });
+    if (!verify.ok) return reply(verify.status, { status: 'error', message: verify.message });
+    return handleVerify(verify.request, db, hashKey, log, reply);
+  }
   const parsed: Parsed = text === null ? { ok: false, status: 413, message: 'The request is too large.', known: {} } : parseSignInRequest(text);
 
   /** One finished row for a request refused before sign_in_begin. */
@@ -256,14 +275,62 @@ async function handlePost(req: Request, deps: Deps, reply: (status: number, body
   }
   if (link.createdUser) notes.push('user created before the link');
 
+  // The code unlocks this link's token hash (code.ts). When it cannot be
+  // stored, the email goes with the link only and the answer says so:
+  // sign-in never fails for want of a code.
+  let code: string | null = null;
+  if (r.withCode) {
+    try {
+      const fresh = (deps.newCode ?? generateSignInCode)();
+      await db.rpc('sign_in_code_issue', {
+        p_email_hash: hashes.email_hash,
+        p_browser_hash: hashes.browser_hash,
+        p_code_hash: await codeHash(hashKey, r.email, fresh),
+        p_token_hash: link.hashedToken,
+      });
+      code = fresh;
+      notes.push('with code');
+    } catch (e) {
+      log(`sign_in_code_issue failed, sending the link only: ${errorText(e)}`);
+      notes.push(`link only, code not stored: ${errorText(e)}`.slice(0, 200));
+    }
+  }
+
   if (!env.EMAIL_OPTOUT_SECRET) log('EMAIL_OPTOUT_SECRET is unset: the footer names support instead of an opt-out link');
   const look = await emailLook(env, hashes.email_hash);
-  const email = signInEmail(r.email, signInLink(r.redirectTo, link.hashedToken, maskEmail(r.email)), appDisplayName(r.app, r.redirectTo), undefined, look);
+  const href = signInLink(r.redirectTo, link.hashedToken, maskEmail(r.email));
+  const email = signInEmail(r.email, href, appDisplayName(r.app, r.redirectTo), undefined, look, code ? { code, page: r.redirectTo } : null);
   const sent = await sendEmail(deps.fetch, resendKey, email);
   if (!sent.ok) {
     await finish('error', sent.message);
     return reply(502, { status: 'error', message: 'Could not send the email. Try again in a minute.' });
   }
   await finish('sent', sent.id ? `resend ${sent.id}` : '');
-  return reply(200, { status: 'sent' });
+  return reply(200, r.withCode ? { status: 'sent', withCode: code !== null } : { status: 'sent' });
+}
+
+/**
+ * Checks a code (README.md, "Sign-in codes"). One RPC does the counting
+ * under a row lock: another browser's code, or none, answers `none` and
+ * counts nothing; a wrong code counts; the 5th voids it; the right one
+ * deletes the row and answers the link's token hash. Nothing is written to
+ * sign_in_requests, whose rows feed the ladders.
+ */
+async function handleVerify(v: VerifyRequest, db: Db, hashKey: string, log: (m: string) => void, reply: (status: number, body: SignInAnswer) => Response): Promise<Response> {
+  const keys = await hashKeys(hashKey, { email: v.email, browserId: v.browserId });
+  let check;
+  try {
+    const raw = await db.rpc<unknown>('sign_in_code_check', {
+      p_email_hash: keys.email_hash,
+      p_browser_hash: keys.browser_hash,
+      p_code_hash: await codeHash(hashKey, v.email, v.code),
+    });
+    check = readCodeCheck(raw);
+    if (!check) throw new Error(`sign_in_code_check returned ${JSON.stringify(raw).slice(0, 100)}`);
+  } catch (e) {
+    log(`sign_in_code_check failed: ${errorText(e)}`);
+    return reply(500, { status: 'error', message: SORRY });
+  }
+  const { http, body } = codeAnswer(check);
+  return reply(http, body);
 }
