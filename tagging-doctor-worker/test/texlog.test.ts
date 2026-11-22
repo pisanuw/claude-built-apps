@@ -62,3 +62,37 @@ describe('R3a.3-1 (b): the page count over a log the document fills itself', () 
     expect(time(flood(8 * 1024 * 1024))).toBeLessThan(5_000);
   }, 120_000);
 });
+
+describe('R3a.F-2: the page count when TeX wraps the line inside the count', () => {
+  /** TeX's log: lines of at most 79 characters, the text starting at `column`. */
+  const wrap = (text: string, column: number) => {
+    const lines: string[] = [];
+    let rest = text;
+    let room = 79 - column;
+    while (rest.length > room) {
+      lines.push(rest.slice(0, room));
+      rest = rest.slice(room);
+      room = 79;
+    }
+    lines.push(rest);
+    return lines.join('\n');
+  };
+  it('reads it for every name length from 40 to 140 characters, for 1 page and 22 pages, at any column', () => {
+    for (const [count, word] of [[1, 'page'], [22, 'pages']] as const) {
+      for (let n = 40; n <= 140; n++) {
+        for (const column of [0, 1, 3]) {
+          const line = `Output written on ${'n'.repeat(n)}.pdf (${count} ${word}, 2880 bytes).`;
+          const log = `(./main.aux) )${column ? '\n' + ' '.repeat(column) : '\n'}${wrap(line, column)}\n`;
+          expect(pageCount(log), `${count} ${n} ${column}`).toBe(count);
+        }
+      }
+    }
+  });
+
+  it('still reads the wrapping the reviewer saw at 52, 54 and 56 characters', () => {
+    expect(pageCount(`Output written on ${'a'.repeat(52)}.pdf (1 pa\nge, 2880 bytes).`)).toBe(1);
+    expect(pageCount(`Output written on ${'a'.repeat(54)}.pdf (1\n page, 2880 bytes).`)).toBe(1);
+    expect(pageCount(`Output written on ${'a'.repeat(56)}.pdf (\n1 page, 2880 bytes).`)).toBe(1);
+    expect(pageCount(`Output written on ${'a'.repeat(56)}.pdf (2\r\n2 pages, 2880 bytes).`)).toBe(22);
+  });
+});

@@ -62,7 +62,8 @@ whole course at once.
 - Your files are never stored. Files named like student records (`grades`,
   `gradebook`, `roster`, `students`, any extension), and every file in a folder
   named so (`grades/`), are left out of the scan and never read; remove them
-  from course folders.
+  from course folders. If such a folder holds course material, not student
+  records, rename it and drop the zip again.
 - When you sign in and save, the app keeps your courses, the project names and,
   for each saved scan, its verdict and counts and, per finding, the file path,
   the line, the package name and an excerpt of at most 200 characters. They are
@@ -71,13 +72,36 @@ whole course at once.
   Delete a project or a course from its page. **Delete my account**, in the
   panel under your name, deletes your sign-in and what every HintWise app keeps
   for you.
+- **Compile and check**, when you are signed in, sends the project's files
+  (only the types the checker uses, never a student record) to the HintWise
+  checker on Render in the US (region oregon), which compiles them with
+  LuaLaTeX, checks the PDF with veraPDF and deletes everything within 30
+  minutes. For a saved scan the app keeps the check's status, times, page count,
+  warnings and the PDF/UA failures by clause, never the PDF or your files.
+  Upload only materials you wrote or may change.
 - Visits are counted without cookies. The app's **What we keep** page says the
-  same, and what the later compile and alt-text steps will send.
+  same, and what the later alt-text step will send.
+
+## Compile and check
+
+Signed in, **Compile and check** runs a real compile and a PDF/UA-2 check:
+
+- the page count, the compile time and the LaTeX warnings, or, when the
+  project does not compile, the first error in plain words with its file and
+  line, and the last 50 lines of the log;
+- whether the PDF passed veraPDF's PDF/UA-2 check, with the profile and the
+  veraPDF version, and the failures grouped by clause of the standard, the
+  most frequent first, in plain words.
+
+The checker sleeps when nobody uses it; the first check then waits about a
+minute while it wakes ("Waking the checker"). One check runs at a time, at
+most five per person an hour, and each stops after two minutes. The checker
+runs no outside programs (EPS conversion, `minted`, `pythontex`).
 
 ## Limits
 
 A zip of at most 20 MB, 2000 files and 100 MB unpacked. Password-protected
-zips cannot be read.
+zips cannot be read. The checker takes at most 25 MB.
 
 ## Credits
 
@@ -99,7 +123,8 @@ Vite and TypeScript, no framework. The scan is pure TypeScript in `src/core/`:
 | `scan.ts` | Main-file detection, the file walk, the status lookups and the preamble checks |
 | `status.ts` | The status data and its mapping to groups |
 | `report.ts` | The HTML and JSON downloads (`schema/report.schema.json`) |
-| `outzip.ts` | The one place that builds a zip of a project (for the later upload and patch) |
+| `outzip.ts` | The one place that builds a zip of a project (the checker's upload, and the later patch) |
+| `compile.ts` | What goes to the checker, its answer in plain words (`src/data/verapdf-rules.json`), and the saved job row |
 | `saved.ts` | What a saved scan holds, the rescan delta, the course report and the export |
 
 Saved data goes through `src/lib/store.ts` (`CourseStore` over a `Db`: Supabase
@@ -108,6 +133,10 @@ preview`). The schema is `supabase/migrations/0001_init.sql`; `test/schema.test.
 runs it on PGlite and checks row level security, the composite keys and the
 cascades. Without the Supabase env (`vite preview`, `npm run e2e`) sign-in is a
 stand-in that signs a preview person in (`src/ui/preview-account.ts`).
+The checker (`tagging-doctor-worker/`) is called by `src/lib/checker.ts` at
+`VITE_CHECKER_URL`; "Compile and check" shows only when `VITE_COMPILE_CHECK` is
+`on` (`.env.example`). The walkthrough builds with a stand-in address and
+answers the checker's routes itself.
 
 ```bash
 npm ci

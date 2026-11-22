@@ -359,10 +359,10 @@ describe('R2.1-9: seven small things', () => {
 
   it('says the database\'s two errors in plain words', () => {
     expect(plainError(new Error('projects: insert or update on table "projects" violates foreign key constraint "x"'))).toBe(
-      'the course or project is no longer there, perhaps deleted in another tab. Reload the page and choose again',
+      'the course or project is no longer there, perhaps deleted in another tab. Choose the course again',
     );
     expect(plainError(new Error('projects: duplicate key value violates unique constraint "y"'))).toMatch(/^a project of that name was saved at the same moment/);
-    expect(plainError(new TypeError('Failed to fetch'))).toBe('the connection was lost. Check it and try again');
+    expect(plainError(new TypeError('Failed to fetch'))).toBe('the connection was lost; check it');
     expect(plainError('odd')).toBe('odd');
   });
 

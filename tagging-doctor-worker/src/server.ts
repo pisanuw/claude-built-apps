@@ -61,9 +61,25 @@ function send(res: ServerResponse, status: number, body: unknown, headers: Recor
 }
 
 export const CUT_SHORT = 'The upload was cut short.';
-export const TOO_SLOW = 'The upload took longer than a minute. Try again on a faster connection, or with a smaller zip.';
-/** R3a.2-2: a body must arrive within a minute, so a slow one cannot hold a slot for long. */
-export const BODY_LIMIT_MS = 60_000;
+export const TOO_SLOW = 'The upload took too long. Try again on a faster connection, or with a smaller zip.';
+/**
+ * R3a.2-2: how long a body may take: 30 s plus 10 s per declared MB, at most
+ * 110 s (under the server's 120-second request limit and the slot's 130 s
+ * backstop). A small zip cannot hold a slot for long, and a 25 MB one needs
+ * about 1.9 Mbit/s, not 3.4. With no Content-Length, the most.
+ */
+export const BODY_LIMIT_BASE_MS = 30_000;
+export const BODY_LIMIT_PER_MB_MS = 10_000;
+export const BODY_LIMIT_MAX_MS = 110_000;
+export function bodyLimitMs(declaredBytes: number): number {
+  if (!(declaredBytes > 0)) return BODY_LIMIT_MAX_MS;
+  return Math.min(BODY_LIMIT_MAX_MS, BODY_LIMIT_BASE_MS + BODY_LIMIT_PER_MB_MS * Math.ceil(declaredBytes / (1024 * 1024)));
+}
+
+/** The endings of an upload that are the client's doing, and count against it (R3b.1-9). */
+export function clientsFault(status: number): boolean {
+  return status === 400 || status === 408 || status === 413;
+}
 
 /** True when the client has already gone, before its body was read (R3a.2-1). */
 export function gone(req: IncomingMessage): boolean {
@@ -225,13 +241,25 @@ export function createHandler(d: ServerDeps) {
         throw new HttpError(429, slot.message, slot.reason, { 'retry-after': String(slot.retryAfter), connection: 'close' });
       }
       try {
-        await receiveBody(req, slot.file, d.cfg.maxBodyBytes, d.cfg.bodyLimitMs ?? BODY_LIMIT_MS);
+        try {
+          await receiveBody(req, slot.file, d.cfg.maxBodyBytes, d.cfg.bodyLimitMs ?? bodyLimitMs(declared));
+        } catch (e) {
+          // R3a.2-2: a body that did not arrive (cut short 400, too slow 408, too large 413) held a slot for
+          // nothing; it costs its user. The server's own failure (500, a write error) does not (R3b.1-9, D-86).
+          if (e instanceof HttpError && clientsFault(e.status)) d.jobs.uploadFailed(userId);
+          throw e;
+        }
         const mainFile = url.searchParams.get('mainFile') ?? '';
         let entries;
         try {
           entries = inspectUpload(readFileSync(slot.file), mainFile);
         } catch (e) {
-          if (e instanceof UploadError) throw new HttpError(400, e.message, e.kind === 'main-file' ? 'bad-main-file' : 'bad-upload');
+          if (e instanceof UploadError) {
+            // R3a.2-2 (m3b r1, D-86): a body that arrived but is not a usable zip held a slot too, slowly or not;
+            // the page builds its zip itself, so a person never sends one.
+            d.jobs.uploadFailed(userId);
+            throw new HttpError(400, e.message, e.kind === 'main-file' ? 'bad-main-file' : 'bad-upload');
+          }
           throw e;
         }
         const job = d.jobs.submit(userId, slot.file, mainFile, entries);

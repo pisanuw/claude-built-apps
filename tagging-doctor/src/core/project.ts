@@ -91,12 +91,22 @@ export const RENAME_FOLDER = 'If this folder holds course material, not student 
  * The sentences after "No .tex file with \documentclass was found." when
  * .tex files were left out with their folders (AC-78), one per such folder:
  * "2 files in Calculus-for-students/ were left out as student records; see
- * the warning below to have them read." Empty when none was.
+ * the warning below to have them read." ("1 file … to have it read" for one,
+ * R2.2-3). Past three such folders, one sentence names the first three and
+ * counts the rest, so the message stays short (R2.C-3). Empty when none was.
  */
 export function leftOutDocumentsLines(p: Pick<Project, 'leftOut' | 'leftOutFolders'>): string[] {
-  return p.leftOutFolders
-    .filter((f) => p.leftOut.some((path) => path.startsWith(f.folder) && /\.(tex|ltx)$/i.test(path)))
-    .map((f) => `${f.files === 1 ? '1 file' : `${f.files} files`} in ${f.folder} ${f.files === 1 ? 'was' : 'were'} left out as student records; see the warning below to have them read.`);
+  const folders = p.leftOutFolders.filter((f) => p.leftOut.some((path) => path.startsWith(f.folder) && /\.(tex|ltx)$/i.test(path)));
+  if (folders.length > 3) {
+    const files = folders.reduce((n, f) => n + f.files, 0);
+    const named = folders.slice(0, 3).map((f) => f.folder).join(', ');
+    return [`${files} files in ${folders.length} folders (${named} and ${folders.length - 3} more) were left out as student records; see the warnings below to have them read.`];
+  }
+  return folders.map((f) =>
+    f.files === 1
+      ? `1 file in ${f.folder} was left out as student records; see the warning below to have it read.`
+      : `${f.files} files in ${f.folder} were left out as student records; see the warning below to have them read.`,
+  );
 }
 
 export interface LeftOutFolder {

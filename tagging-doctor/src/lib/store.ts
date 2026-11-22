@@ -6,6 +6,7 @@
  * security keeps every call to the signed-in user's rows and the database
  * fills user_id (so this code never sends or filters by user).
  */
+import type { JobRecord, JobSummary } from '../core/compile';
 import { blockerDelta, type Delta, type SaveItem, type StoredFinding, type StoredScan, type StoredSummary } from '../core/saved';
 import { newId } from './repository';
 
@@ -44,6 +45,10 @@ export interface JobRow {
   scan_id: string;
   kind: 'check' | 'patched-check';
   status: string;
+  started_at: string | null;
+  finished_at: string | null;
+  result: JobSummary | null;
+  error: string | null;
   created_at: string;
 }
 
@@ -219,6 +224,7 @@ export interface ProjectHistory {
   course: CourseRow | undefined;
   /** Newest first, each with its change against the scan before it. */
   scans: { scan: ScanRow; delta: Delta | null }[];
+  /** Newest first (AC-35). */
   jobs: JobRow[];
   altTexts: AltTextRow[];
 }
@@ -301,10 +307,16 @@ export class CourseStore {
     }
     if (created) existing.push(project);
     else if (project.main_file !== item.mainFile) {
-      // The project's main file is the one of its latest scan (R2.1-9).
-      await this.db.update('projects', project.id, { main_file: item.mainFile });
-      project = { ...project, main_file: item.mainFile };
-      existing[existing.findIndex((p) => p.id === project?.id)] = project;
+      // The project's main file is the one of its latest scan (R2.1-9). It is a
+      // label: the scan is saved already, so a failure here does not undo the
+      // save, and a retry does not store the scan twice (R2.2-2).
+      try {
+        await this.db.update('projects', project.id, { main_file: item.mainFile });
+        project = { ...project, main_file: item.mainFile };
+        existing[existing.findIndex((p) => p.id === project?.id)] = project;
+      } catch {
+        // The project keeps its earlier main file until the next save.
+      }
     }
     return { project, scan, created, delta: previous ? blockerDelta(previous, scan) : null };
   }
@@ -315,11 +327,16 @@ export class CourseStore {
     const [course, scans, jobs, altTexts] = await Promise.all([
       this.course(project.course_id),
       this.scansOf([projectId]),
-      this.db.select<JobRow>('jobs', { project_id: projectId }),
+      this.db.select<JobRow>('jobs', { project_id: projectId }).then((rows) => sortByCreated(rows).reverse()),
       this.db.select<AltTextRow>('alt_texts', { project_id: projectId }),
     ]);
     const withDelta = scans.map((scan, i) => ({ scan, delta: i > 0 ? blockerDelta(scans[i - 1], scan) : null }));
     return { project, course, scans: withDelta.reverse(), jobs, altTexts };
+  }
+
+  /** A finished compile of a saved scan (AC-35): its kind, status, timings and result summary; no PDF, no source. */
+  async saveJob(projectId: string, scanId: string, record: JobRecord): Promise<JobRow> {
+    return this.db.insert<JobRow>('jobs', { project_id: projectId, scan_id: scanId, ...record });
   }
 
   async deleteProject(id: string): Promise<void> {

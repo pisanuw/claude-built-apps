@@ -45,7 +45,8 @@ describe('AC-13: the page loads nothing from another host', () => {
     // AC-13 (CR-3): the sign-in panel loads Cloudflare Turnstile when the sign-in-link function asks for a check.
     const loadHosts = new Set(['challenges.cloudflare.com']);
     // The calls of sign-in (sign-in-link, delete-account) go to VITE_SUPABASE_URL, auth.hintwise.org in target.yml.
-    const callers = new Set(['src/lib/auth.ts', 'src/lib/account.ts']);
+    // From M3b the checker's calls go to VITE_CHECKER_URL (src/lib/checker.ts, through the fetch main.ts hands it).
+    const callers = new Set(['src/lib/auth.ts', 'src/lib/account.ts', 'src/lib/checker.ts', 'src/main.ts']);
     for (const f of files) {
       const body = read(f).replace(/\/\*[\s\S]*?\*\//g, '');
       if (!callers.has(f)) expect(body, f).not.toMatch(/\bfetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon|EventSource|importScripts/);
@@ -56,6 +57,16 @@ describe('AC-13: the page loads nothing from another host', () => {
     }
     const target = read('deploy/target.yml');
     expect(target).toMatch(/VITE_SUPABASE_URL: https:\/\/auth\.hintwise\.org\n/);
+    // AC-13 (M3b): the worker's address, the one the Deploy run prints, as one value.
+    expect(target).toMatch(/VITE_CHECKER_URL: https:\/\/tagging-doctor-worker\.onrender\.com\n/);
+    // CR-11, need 4 (D-97): Compile and check is on in the released build.
+    expect(target).toMatch(/VITE_COMPILE_CHECK: 'on'\n/);
+    // Every request of the checker client goes to that one base address.
+    const checker = read('src/lib/checker.ts').replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const m of checker.matchAll(/\bfetch\(([^,)]+)/g)) expect(m[1].trim(), m[0]).toMatch(/^`\$\{d\.base\}\/api\//);
+    expect([...checker.matchAll(/\bfetch\(/g)].length).toBeGreaterThanOrEqual(5);
+    // main.ts's fetch is the browser's, handed to the checker client only.
+    expect(read('src/main.ts')).toMatch(/fetch: \(\.\.\.a\) => fetch\(\.\.\.a\)/);
   });
 
   it('sets no content security policy of its own in this milestone', () => {

@@ -9,12 +9,15 @@
  */
 import { leftOutDocumentsLines, openProject, type Project } from '../core/project';
 import { buildReport, countsLine, downloadName, figuresLine, GROUP_HELP, GROUP_TITLES, leftOutLine, reportHtml, reportJson, where, findingTitle } from '../core/report';
-import { COULD_NOT_SCAN, findMainFiles, scanDocument, type DocumentScan, type Finding } from '../core/scan';
+import { COULD_NOT_SCAN, findMainFiles, scanDocument, wellFormed, type DocumentScan, type Finding } from '../core/scan';
 import { plainWords } from '../core/fixes';
 import type { Group, StatusIndex } from '../core/status';
 import { LIMITS, ZipError } from '../core/zip';
 import { defaultProjectName, toStoredScan, type SaveItem } from '../core/saved';
+import type { SavedResult } from '../lib/store';
 import type { CourseStore } from '../lib/store';
+import { jobRecord, type CheckerJob } from '../core/compile';
+import { mountCompile, KEPT, type CompileDeps } from './compile';
 import { KEEP_HASH, renderCourse, renderCourseReport, renderCourses, renderKeep, renderNotFound, renderProject, renderSaveDialog, type PageCtx } from './pages';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -37,6 +40,8 @@ export interface Account {
   onUser(cb: (user: { id: string } | null) => void): void;
   /** The signed-in person's saved courses. */
   store(): CourseStore;
+  /** The signed-in person's access token, for the checker (milestone 3b). */
+  token?(): Promise<string | null>;
 }
 
 export interface AppDeps {
@@ -51,6 +56,8 @@ export interface AppDeps {
   account?: Account;
   confirm?: (message: string) => boolean;
   print?: () => void;
+  /** Compile and check (milestone 3b): present when the build turns it on and names the checker (src/lib/checker.ts). */
+  compile?: Omit<CompileDeps, 'token' | 'session'>;
 }
 
 /** sessionStorage key of a save asked for before signing in (it holds what a saved scan holds, no more). */
@@ -148,6 +155,13 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   const navCourses = $<HTMLElement>('nav-courses');
   const savePanel = el('section', { id: 'save', class: 'save-panel', 'aria-labelledby': 'save-h' });
   savePanel.hidden = true;
+  const compilePanel = el('section', { id: 'compile', class: 'compile-panel', 'aria-labelledby': 'compile-h' });
+  compilePanel.hidden = true;
+  let compileRun: { cancel: () => void } | null = null;
+  /** The saved scan of each main file of this drop, so a job row can name it (AC-35). */
+  let savedScans = new Map<string, { projectId: string; scanId: string }>();
+  /** Finished jobs of this drop whose scan is not saved yet: saving keeps them (AC-27, "Save to keep this result"). */
+  let unsavedJobs = new Map<string, CheckerJob>();
   const account = deps.account;
   let signedIn = false;
   /** The signed-in person's id; the dialog and the pages are redrawn only when it changes (R2.1-2). */
@@ -216,6 +230,9 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     shown = null;
     scannedAll = false;
     hideSave();
+    hideCompile();
+    savedScans = new Map();
+    unsavedJobs = new Map();
   }
 
   function showError(message: string) {
@@ -431,17 +448,93 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       const save = el('button', { type: 'button', class: 'save' }, scannedAll ? 'Save all to a course' : 'Save');
       save.addEventListener('click', () => openSave(wrap, scannedAll ? 'all' : 'one'));
       wrap.append(' ', save);
+      if (deps.compile) {
+        // Signed in only (SPEC §4, Scan screen); shown and hidden as the person signs in and out.
+        const compile = el('button', { type: 'button', class: 'compile-open' }, 'Compile and check');
+        compile.hidden = !signedIn;
+        compile.addEventListener('click', () => openCompile(wrap));
+        wrap.append(' ', compile);
+      }
     }
     return wrap;
+  }
+
+  // ---- Compile and check (milestone 3b) ---------------------------------------
+
+  function openCompile(after: HTMLElement) {
+    if (!deps.compile || !account || !project || !shown) return;
+    const main = shown;
+    hideCompile();
+    after.after(compilePanel);
+    compilePanel.hidden = false;
+    compileRun = mountCompile(
+      compilePanel,
+      { ...deps.compile, token: async () => (account.token ? account.token() : null), session: deps.session },
+      {
+        project,
+        mainFile: main,
+        keep: (job) => keepJob(main, job),
+        save: () => openSave(compilePanel, 'one', currentItems('one')),
+        onClose: hideCompile,
+      },
+    );
+    (compilePanel.querySelector('#compile-h') as HTMLElement | null)?.focus();
+  }
+
+  function hideCompile() {
+    compileRun?.cancel();
+    compileRun = null;
+    compilePanel.hidden = true;
+    compilePanel.replaceChildren();
+    compilePanel.remove();
+  }
+
+  /** Writes the job row when the scan of `main` is saved (AC-35); else keeps the job for a later save. */
+  async function keepJob(main: string, job: CheckerJob): Promise<boolean> {
+    // Keyed as the save items name it (wellFormed).
+    main = wellFormed(main);
+    const saved = savedScans.get(main);
+    const record = jobRecord(job);
+    if (!record) return false;
+    if (!saved || !account || !signedIn) {
+      unsavedJobs.set(main, job);
+      return false;
+    }
+    unsavedJobs.delete(main);
+    await account.store().saveJob(saved.projectId, saved.scanId, record);
+    return true;
+  }
+
+  /** After a save: remember the saved scans, and write the rows of results shown before it (AC-27, AC-35). */
+  function onSaved(items: SaveItem[], mode: 'one' | 'all', results: SavedResult[]) {
+    for (const r of results) {
+      const item = mode === 'one' ? items[0] : items.find((i) => i.name.trim() === r.project.name);
+      if (item) savedScans.set(item.mainFile, { projectId: r.project.id, scanId: r.scan.id });
+    }
+    for (const [main, job] of [...unsavedJobs]) {
+      if (!savedScans.has(main)) continue;
+      void keepJob(main, job).then(
+        (kept) => {
+          if (!kept) return;
+          const line = compilePanel.querySelector('.save-to-keep');
+          line?.replaceWith(el('p', { class: 'kept' }, KEPT));
+        },
+        () => {
+          const line = compilePanel.querySelector('.save-to-keep');
+          line?.replaceWith(el('p', { class: 'help', role: 'alert' }, 'The scan is saved, but the check could not be added to its history.'));
+        },
+      );
+    }
   }
 
   /** What a save of the scan on screen holds (AC-17, AC-23). */
   function currentItems(mode: 'one' | 'all'): SaveItem[] {
     const p = project as Project;
     const asOf = (index as StatusIndex).data.asOf;
-    if (mode === 'all') return mains.map((m) => ({ name: m, mainFile: m, scan: toStoredScan(scans.get(m) as DocumentScan, asOf) }));
+    // Names go through wellFormed: the database refuses NUL and half characters in JSON (R2.2-3).
+    if (mode === 'all') return mains.map((m) => ({ name: wellFormed(m), mainFile: wellFormed(m), scan: toStoredScan(scans.get(m) as DocumentScan, asOf) }));
     const main = shown as string;
-    return [{ name: mains.length > 1 ? main : defaultProjectName(p.name), mainFile: main, scan: toStoredScan(scans.get(main) as DocumentScan, asOf) }];
+    return [{ name: wellFormed(mains.length > 1 ? main : defaultProjectName(p.name)), mainFile: wellFormed(main), scan: toStoredScan(scans.get(main) as DocumentScan, asOf) }];
   }
 
   /** "Save": the save dialog when signed in; signed out, sign-in, keeping the save for after it (AC-16). */
@@ -463,7 +556,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       // Signing in from the panel redraws it: keep the focus in it (acceptance m2, focus note).
       const active = document.activeElement;
       const hadFocus = !active || active === document.body || savePanel.contains(active);
-      renderSaveDialog(savePanel, { store: account.store(), items, mode, onClose: closeSave });
+      renderSaveDialog(savePanel, { store: account.store(), items, mode, onClose: closeSave, onSaved: (results) => onSaved(items, mode, results) });
       if (hadFocus) (savePanel.querySelector('#save-h') as HTMLElement | null)?.focus();
       return;
     }
@@ -556,6 +649,8 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   }
 
   function renderResult(main: string) {
+    // A compile of the document shown before no longer applies.
+    if (compilePanel.isConnected && main !== shown) hideCompile();
     shown = main;
     if (scannedAll) {
       for (const b of allEl.querySelectorAll<HTMLButtonElement>('button[data-show]')) {
@@ -703,6 +798,12 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       userId = id;
       signedIn = !!id;
       navCourses.hidden = !signedIn;
+      for (const b of root.querySelectorAll<HTMLButtonElement>('button.compile-open')) b.hidden = !signedIn;
+      // Another person, or none: a compile panel of the one before goes (its token is theirs),
+      // and so do that person's saved scans and unsaved checks, which are not the new person's (R3b.1-1).
+      if (compilePanel.isConnected) hideCompile();
+      savedScans = new Map();
+      unsavedJobs = new Map();
       if (saveItems) drawSave();
       showPending();
       // A page that depends on who is signed in is drawn again, also for another person (R2.1-9).
@@ -723,7 +824,12 @@ function wrapTable(table: HTMLElement): HTMLElement {
 
 /** The browser's download of a text file. */
 export function browserDownload(name: string, type: string, content: string): void {
-  const url = URL.createObjectURL(new Blob([content], { type }));
+  browserDownloadBlob(name, new Blob([content], { type }));
+}
+
+/** The browser's download of a file it holds (the checker's PDF). */
+export function browserDownloadBlob(name: string, blob: Blob): void {
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = name;
