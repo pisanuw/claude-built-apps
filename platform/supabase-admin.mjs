@@ -28,9 +28,10 @@
  *                           allow-list, Resend SMTP (RESEND_API), email
  *                           rate limit; --google also switches the Google
  *                           client to HINTWISE_AUTH_GOOGLE_ID / _SECRET;
- *                           --otp-length=N (6 to 10) also sets the length of
+ *                           --otp-length=N (6 to 10) sets the length of
  *                           Auth's own email code, mailer_otp_length (owner,
- *                           22 Nov 2026: 10), and leaves mailer_otp_exp as it is
+ *                           22 Nov 2026: 10), and leaves mailer_otp_exp as it
+ *                           is; alone, it sends that key and nothing else
  *   keys [--write]          print the project URL and anon (publishable) key
  *                           as the JSON for platform/supabase.json
  *   usage [days]            print platform.llm_usage_report(days) as tables
@@ -548,7 +549,19 @@ export function otpLines(current, otpLength) {
 }
 
 /**
- * Pure: the additive PATCH for config/auth given the current config.
+ * Pure: true when configure-auth sends mailer_otp_length and nothing else:
+ * --otp-length without --google or --email-rate, the flags that widen the
+ * patch. The usual settings are then left alone, smtp_pass above all: the
+ * GET answers it only as a digest, never the key, so comparing it with
+ * RESEND_API would rewrite it on every run.
+ * @param {{ google?: boolean, emailRate?: number, otpLength?: number }} [opts]
+ */
+export const otpOnly = ({ google = false, emailRate, otpLength } = {}) => otpLength !== undefined && !google && emailRate === undefined;
+
+/**
+ * Pure: the additive PATCH for config/auth given the current config. With
+ * --otp-length alone (otpOnly), only mailer_otp_length, and only when it
+ * differs.
  * @param {Record<string, unknown>} current
  * @param {Record<string, string | undefined>} env
  * @param {{ google?: boolean, emailRate?: number, otpLength?: number }} [opts]
@@ -556,6 +569,11 @@ export function otpLines(current, otpLength) {
 export function authPatch(current, env, { google = false, emailRate, otpLength } = {}) {
   const patch = {};
   const want = (k, v) => { if (current[k] !== v) patch[k] = v; };
+  if (otpLength !== undefined && !isOtpLength(otpLength)) throw new Error(`otpLength must be a whole number from ${OTP_LENGTH_MIN} to ${OTP_LENGTH_MAX}, got ${otpLength}`);
+  if (otpOnly({ google, emailRate, otpLength })) {
+    want('mailer_otp_length', otpLength);
+    return patch;
+  }
 
   const allow = String(current.uri_allow_list || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (!allow.includes(HINTWISE_REDIRECT)) patch.uri_allow_list = [...allow, HINTWISE_REDIRECT].join(',');
@@ -575,10 +593,7 @@ export function authPatch(current, env, { google = false, emailRate, otpLength }
   // The digits of Auth's own email code (the hook never emails it; anyone with
   // the anon key can try it at /verify). Only with --otp-length; the expiry,
   // mailer_otp_exp, is never touched here.
-  if (otpLength !== undefined) {
-    if (!isOtpLength(otpLength)) throw new Error(`otpLength must be a whole number from ${OTP_LENGTH_MIN} to ${OTP_LENGTH_MAX}, got ${otpLength}`);
-    want('mailer_otp_length', otpLength);
-  }
+  if (otpLength !== undefined) want('mailer_otp_length', otpLength);
 
   if (google) {
     want('external_google_enabled', true);
@@ -591,7 +606,6 @@ export function authPatch(current, env, { google = false, emailRate, otpLength }
 async function configureAuth() {
   const google = flags.has('--google');
   const dryRun = flags.has('--dry-run');
-  if (!process.env.RESEND_API) console.log('::warning::RESEND_API is not set; smtp_pass will not be changed');
   if (google && !(process.env.HINTWISE_AUTH_GOOGLE_ID && process.env.HINTWISE_AUTH_GOOGLE_SECRET)) {
     fail('--google needs HINTWISE_AUTH_GOOGLE_ID and HINTWISE_AUTH_GOOGLE_SECRET');
   }
@@ -600,8 +614,11 @@ async function configureAuth() {
   if (rateFlag !== undefined && !(Number.isInteger(emailRate) && emailRate > 0 && emailRate <= 10000)) fail(`--email-rate wants a whole number of emails an hour, got ${rateFlag}`);
   const otp = parseOtpLength(flags.has('--otp-length') ? '' : flagValue('--otp-length'));
   if (otp.error) fail(otp.error);
+  const opts = { google, emailRate, otpLength: otp.value };
+  if (otpOnly(opts)) console.log('--otp-length alone: only mailer_otp_length is sent; every other auth setting is left as it is.');
+  else if (!process.env.RESEND_API) console.log('::warning::RESEND_API is not set; smtp_pass will not be changed');
   const current = await api(`/v1/projects/${ref}/config/auth`);
-  const patch = authPatch(current, process.env, { google, emailRate, otpLength: otp.value });
+  const patch = authPatch(current, process.env, opts);
   for (const line of otpLines(current, otp.value)) console.log(line);
   const keys = Object.keys(patch);
   if (!keys.length) { console.log('Auth config already as wanted; nothing to change.'); return; }
