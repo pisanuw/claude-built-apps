@@ -1,0 +1,185 @@
+{
+  "about": "The ISO 14289-2 rules of veraPDF 1.30.4's PDF/UA-2 profile (PDFUA-2-ISO32005.xml in cli-1.30.4.jar) for each clause src/data/verapdf-rules.json maps, extracted 2026-11-22 (m3b review round 1, R3b.1-6). The words of a clause must fit every one of its tests.",
+  "rules": [
+    {
+      "clause": "5",
+      "test": 1,
+      "description": "The PDF/UA version of a file shall be specified in the value of the Metadata entry in the document catalog using the PDF/UA identification schema"
+    },
+    {
+      "clause": "5",
+      "test": 2,
+      "description": "The value of \"pdfuaid:part\" shall be the part number of the International Standard to which the file conforms"
+    },
+    {
+      "clause": "5",
+      "test": 3,
+      "description": "Property \"part\" of the PDF/UA Identification Schema shall have namespace prefix \"pdfuaid\""
+    },
+    {
+      "clause": "5",
+      "test": 4,
+      "description": "Property \"rev\" of the PDF/UA Identification Schema shall have namespace prefix \"pdfuaid\""
+    },
+    {
+      "clause": "5",
+      "test": 5,
+      "description": "The value of \"pdfuaid:rev\" shall be \"2024\""
+    },
+    {
+      "clause": "6.1",
+      "test": 1,
+      "description": "The file version shall be 2.0, specified either in the header or as the value of the Version entry in the document's catalog dictionary"
+    },
+    {
+      "clause": "6.2",
+      "test": 1,
+      "description": "The document catalog dictionary shall include a MarkInfo dictionary containing an entry, Marked, whose value shall be true"
+    },
+    {
+      "clause": "8.2.1",
+      "test": 1,
+      "description": "The logical structure of the conforming file shall be described by a structure hierarchy rooted in the StructTreeRoot entry of the document catalog dictionary, as described in ISO 32000-2:2020, 14.7"
+    },
+    {
+      "clause": "8.2.1",
+      "test": 2,
+      "description": "A structure element dictionary shall contain the P (parent) entry according to ISO 32000-2:2020, 14.7.2, Table 323"
+    },
+    {
+      "clause": "8.2.2",
+      "test": 1,
+      "description": "Content that is not considered real shall be an artifact"
+    },
+    {
+      "clause": "8.2.4",
+      "test": 1,
+      "description": "All structure elements shall belong to, or be role mapped to, at least one of the following namespaces specified in ISO 32000-2:2020, 14.8.6: — the PDF 1.7 namespace; — the PDF 2.0 namespace; — the MathML namespace"
+    },
+    {
+      "clause": "8.2.4",
+      "test": 2,
+      "description": "A circular mapping shall not exist"
+    },
+    {
+      "clause": "8.2.4",
+      "test": 3,
+      "description": "Within a given explicitly provided namespace, structure types shall not be role mapped to other structure types in the same namespace"
+    },
+    {
+      "clause": "8.2.4",
+      "test": 4,
+      "description": "All structure elements shall belong to, or be role mapped to, at least one of the following namespaces specified in ISO 32000-2:2020, 14.8.6: — the PDF 1.7 namespace; — the PDF 2.0 namespace; — the MathML namespace"
+    },
+    {
+      "clause": "8.2.5.2",
+      "test": 1,
+      "description": "The structure tree root shall contain a single Document structure element as its only child, as specified in ISO 32000-2:2020, Annex L and ISO/TS 32005"
+    },
+    {
+      "clause": "8.2.5.2",
+      "test": 2,
+      "description": "The structure tree root shall contain a single Document structure element as its only child. The namespace for that element shall be specified as the PDF 2.0 namespace"
+    },
+    {
+      "clause": "8.2.5.20",
+      "test": 1,
+      "description": "When used as real content, a link annotation and its associated content shall be enclosed in either a Link or Reference structure element"
+    },
+    {
+      "clause": "8.2.5.20",
+      "test": 2,
+      "description": "Link annotations that target different locations shall be in separate Link or Reference structure elements"
+    },
+    {
+      "clause": "8.2.5.26",
+      "test": 1,
+      "description": "Tables shall be regular. A table cell shall not have intersection with other cells"
+    },
+    {
+      "clause": "8.2.5.26",
+      "test": 2,
+      "description": "Tables shall be regular. Row groupings formed by THead, TBody and TFoot structure elements shall be regular. Table columns shall have the same number of rows (taking into account row spans) in table and each row groupings formed by THead, TBody and TFoot structure elements"
+    },
+    {
+      "clause": "8.2.5.26",
+      "test": 3,
+      "description": "Tables shall be regular. Table rows shall have the same number of columns (taking into account column spans)"
+    },
+    {
+      "clause": "8.2.5.26",
+      "test": 4,
+      "description": "Tables shall be regular. Table rows shall have the same number of columns (taking into account column spans)"
+    },
+    {
+      "clause": "8.2.5.26",
+      "test": 5,
+      "description": "When a table contains header cells, that table shall provide sufficient semantic information to allow accurate determination of which of its table header cells (structure element TH) pertain to other cells as specified in ISO 32000-2:2020, 14.8.5.7"
+    },
+    {
+      "clause": "8.2.5.26",
+      "test": 6,
+      "description": "When a table contains header cells, that table shall provide sufficient semantic information to allow accurate determination of which of its table header cells (structure element TH) pertain to other cells as specified in ISO 32000-2:2020, 14.8.5.7"
+    },
+    {
+      "clause": "8.2.5.28.2",
+      "test": 1,
+      "description": "A Figure structure element shall have at least one of the following properties: a) an alternate description (Alt property), as specified in ISO 32000-2:2020, 14.9.3; b) a replacement text (ActualText property) that represents the content enclosed by the Figure structure element"
+    },
+    {
+      "clause": "8.4.3",
+      "test": 1,
+      "description": "In all cases, where real content maps to Unicode PUA values, an ActualText or Alt entry shall be present"
+    },
+    {
+      "clause": "8.4.3",
+      "test": 2,
+      "description": "The ActualText entry shall not contain any PUA values"
+    },
+    {
+      "clause": "8.4.3",
+      "test": 3,
+      "description": "The Alt entry shall not contain any PUA values"
+    },
+    {
+      "clause": "8.4.4",
+      "test": 1,
+      "description": "The default natural language for content and text strings shall be specified using the Lang entry, with a non-empty value, in the catalog dictionary"
+    },
+    {
+      "clause": "8.4.4",
+      "test": 2,
+      "description": "If the Lang entry is present in the document's Catalog dictionary or in a structure element dictionary or property list, its value shall be a language identifier as described in ISO 32000-2:2020, 14.9.2. A language identifier shall be a Language-Tag as defined in RFC 3066, Tags for the Identification of Languages"
+    },
+    {
+      "clause": "8.8",
+      "test": 1,
+      "description": "All destinations whose target lies within the current document shall be structure destinations"
+    },
+    {
+      "clause": "8.8",
+      "test": 2,
+      "description": "All destinations whose target lies within the current document shall be structure destinations"
+    },
+    {
+      "clause": "8.9.3.3",
+      "test": 1,
+      "description": "Every page that includes an annotation shall contain a Tabs entry in its page dictionary in accordance with ISO 32000-2:2020, Table 31, and its value shall be A, W or S"
+    },
+    {
+      "clause": "8.11.1",
+      "test": 1,
+      "description": "The Metadata stream as specified in ISO 32000-2:2020, 14.3 in the document catalog dictionary shall contain a dc:title entry"
+    },
+    {
+      "clause": "8.11.1",
+      "test": 2,
+      "description": "The Catalog dictionary of a conforming file shall contain the Metadata key whose value is a metadata stream as defined in ISO 32000-2:2020, 14.3. The metadata stream dictionary shall contain entry Type with value /Metadata and entry Subtype with value /XML"
+    },
+    {
+      "clause": "8.11.2",
+      "test": 1,
+      "description": "The ViewerPreferences dictionary of the document catalog dictionary shall be present and shall contain at least the DisplayDocTitle key with a value of true, as described in ISO 32000-2:2020, Table 147"
+    }
+  ]
+}

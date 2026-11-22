@@ -11,7 +11,7 @@ import { Jobs, resetRoot } from '../src/jobs.ts';
 import { createLogger } from '../src/log.ts';
 import type { Runner } from '../src/runner.ts';
 import { jobUser } from '../src/selftest.ts';
-import { createHandler, UNAVAILABLE_MESSAGE } from '../src/server.ts';
+import { bodyLimitMs, clientsFault, createHandler, UNAVAILABLE_MESSAGE } from '../src/server.ts';
 import { makeZip } from './zipmaker.ts';
 
 const SOURCE_MARK = 'SOURCEMARKERq7';
@@ -226,8 +226,9 @@ describe('AC-32: the upload, as the API answers it', () => {
       [ZIP, 'mainFile=-main.tex', 'may not start with -, & or \\.'],
       [ZIP, 'mainFile=main.tex&mode=patch', 'The only mode is "check".'],
     ];
-    for (const [upload, q, message] of cases) {
-      const r = await post(upload, q);
+    // Alternating accounts: each bad upload counts against its account since m3b r1 (D-86), five an hour.
+    for (const [i, [upload, q, message]] of cases.entries()) {
+      const r = await post(upload, q, auth(i % 2 ? TOKEN_B : TOKEN_A));
       expect(r.status, message).toBe(400);
       expect((await body(r)).error).toContain(message);
     }
@@ -426,6 +427,62 @@ describe('R3a.2-1 and R3a.2-2: slots of uploads that do not arrive', () => {
     expect(readdirSync(root).filter((f) => f.endsWith('.part'))).toEqual([]);
     expect((await body(fetch(`${base}/api/health`))).queue).toMatchObject({ uploading: 0 });
     held.abort();
+  });
+
+  it('R3a.2-2 (m3b): the time a body may take grows with its declared size, up to 110 s', () => {
+    const MB = 1024 * 1024;
+    expect(bodyLimitMs(0)).toBe(110_000);
+    expect(bodyLimitMs(NaN)).toBe(110_000);
+    expect(bodyLimitMs(1)).toBe(40_000);
+    expect(bodyLimitMs(MB)).toBe(40_000);
+    expect(bodyLimitMs(MB + 1)).toBe(50_000);
+    expect(bodyLimitMs(8 * MB)).toBe(110_000);
+    expect(bodyLimitMs(25 * MB)).toBe(110_000);
+  });
+
+  it('R3a.2-2 (m3b): bodies that do not arrive count against their user, apart from the five jobs an hour', async () => {
+    await new Promise((r) => server.close(r));
+    await start([PRODUCTION_ORIGIN], SELF_TEST, verify, 300);
+    // Five bodies too slow (408), as four accounts reconnecting did in round 3.
+    for (let i = 0; i < 5; i++) {
+      const held = holdUpload(TOKEN_A);
+      expect(await held.answer).toBe(408);
+      held.abort();
+      await settle();
+    }
+    const sixth = await post();
+    expect(sixth.status).toBe(429);
+    expect(((await sixth.json()) as { error: string }).error).toMatch(/^5 of your uploads this hour did not arrive whole\. Try again in 60 minutes/);
+    expect(Number(sixth.headers.get('retry-after'))).toBeGreaterThan(3500);
+    // Another user is not affected, and failed uploads take nothing from AC-33's count of jobs.
+    expect((await post(ZIP, 'mainFile=main.tex', auth(TOKEN_B))).status).toBe(202);
+    t += 3_600_001;
+    expect((await post()).status).toBe(202);
+  });
+
+  it('R3a.2-2 (m3b r1): a body that arrives but is not a usable zip counts too; four do not block, the sixth upload is refused', async () => {
+    // Four bad zips: the fifth upload, a good one, is still taken (the old code took every one).
+    for (let i = 0; i < 4; i++) expect((await post(new Uint8Array(30))).status).toBe(400);
+    expect((await post()).status).toBe(202);
+    // The fifth bad zip; then the account is refused.
+    expect((await post(new Uint8Array(30))).status).toBe(400);
+    const r = await post();
+    expect(r.status).toBe(429);
+    expect(r.headers.get('retry-after')).toBeTruthy();
+  });
+
+  it('R3b.1-9: the server\'s own failure to store an upload does not count against the person', async () => {
+    const reserve = jobs.reserve.bind(jobs);
+    // The slot's file in a folder that is not there: the write fails, as on a full disk (500).
+    jobs.reserve = (u, h) => {
+      const slot = reserve(u, h);
+      return slot.ok ? { ...slot, file: path.join(root, 'no-such-folder', 'x.part') } : slot;
+    };
+    for (let i = 0; i < 6; i++) expect((await post()).status).toBe(500);
+    jobs.reserve = reserve;
+    expect((await post()).status).toBe(202);
+    expect(clientsFault(500)).toBe(false);
+    for (const s of [400, 408, 413]) expect(clientsFault(s)).toBe(true);
   });
 
   it('shows uploads in flight in the health route', async () => {

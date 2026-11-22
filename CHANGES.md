@@ -730,6 +730,7 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-20 [code] tagging-doctor day 2: milestone 2 (sign-in, courses, saved scans and history, course report, export and delete, app_tagging_doctor schema); record folders left out (CR-1, CR-6), class fixes (CR-2), copy-named zips and the course report's data line (CR-4, CR-5)
 2026-11-21 [code] tagging-doctor day 3: milestone 3a (tagging-doctor-worker: LuaLaTeX and veraPDF checker for Render's free instance, isolation, limits, hostile fixtures; Docker services in the Render deploy runner); code review escalated after round 3 on one finding
 2026-11-22 [code] tagging-doctor day 4: milestone 3a fix after the ruling (linear .bcf check and page count on capped input; queue matches `compile`); diff check APPROVE; release requested
+2026-11-22 [code] tagging-doctor day 4: milestone 3b (Compile and check on the live checker, plain-words TeX errors, veraPDF clauses, job rows; owner-run AC-68 zips, CR-11); review r2 APPROVE
 
 2026-11-22 [code] lewis-alt-text: CLI is now one downloadable file (dist/cli/lewis-alt-text.mjs, link on /terminal/), hardened for newcomers; cli/INSTRUCTIONS.md for people with no terminal experience
 

@@ -7,6 +7,7 @@
  * names: the roles anon and authenticated, auth.users, and auth.uid()
  * reading the request's claim, as Supabase's does.
  */
+import { jobRecord } from '../src/core/compile';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -255,6 +256,33 @@ describe('AC-23 in the database: an excerpt longer than 200 characters is refuse
   it('refuses findings that are not a list, and an unknown job kind', async () => {
     expect(await failure(as(A, `insert into ${S}.scans (project_id, data_as_of, summary, findings) values ($1, '2026-11-19', '{}', '{}')`, [a.project]))).toMatch(/23514|check constraint/);
     expect(await failure(as(A, `insert into ${S}.jobs (project_id, scan_id, kind, status) values ($1, $2, 'other', 'done')`, [a.project, a.scan]))).toMatch(/23514|check constraint/);
+  });
+});
+
+describe('AC-35 (M3b): the row the page writes for a finished check fits the jobs table', () => {
+  it('takes jobRecord\'s row for a done and a failed check, as its owner', async () => {
+    const done = jobRecord({
+      id: 'x', status: 'done', mainFile: 'main.tex', createdAt: '2026-11-22T12:00:00.000Z', startedAt: '2026-11-22T12:00:01.000Z', finishedAt: '2026-11-22T12:00:09.000Z',
+      result: {
+        pages: 22, seconds: 7.7, warnings: 3, runs: 2, bibliography: null, validationError: null,
+        validation: { profile: 'PDF/UA-2 + Tagged PDF validation profile', verapdfVersion: 'veraPDF 1.30.4', compliant: false, failedRules: 1, failedChecks: 229, clauses: [{ specification: 'ISO 14289-2:2024', clause: '8.2.2', testNumber: 1, failedChecks: 229, description: 'd' }] },
+      },
+      failure: null, logTail: ['secret source line'], pdf: true, expiresAt: null, note: null,
+    });
+    const failed = jobRecord({
+      id: 'y', status: 'failed', mainFile: 'main.tex', createdAt: '2026-11-22T12:00:00.000Z', startedAt: '2026-11-22T12:00:01.000Z', finishedAt: '2026-11-22T12:00:03.000Z',
+      result: null, failure: { kind: 'compile-error', message: 'LuaLaTeX stopped with an error.', error: { file: 'main.tex', line: 3, message: 'Undefined control sequence.' } }, logTail: [], pdf: false, expiresAt: null, note: null,
+    });
+    for (const r of [done, failed]) {
+      const row = r as NonNullable<typeof r>;
+      const [j] = await as<{ status: string; result: unknown; error: string | null; started_at: string }>(
+        A,
+        `insert into ${S}.jobs (project_id, scan_id, kind, status, started_at, finished_at, result, error) values ($1, $2, $3, $4, $5, $6, $7, $8) returning status, result, error, started_at`,
+        [a.project, a.scan, row.kind, row.status, row.started_at, row.finished_at, row.result === null ? null : JSON.stringify(row.result), row.error],
+      );
+      expect(j.status).toBe(row.status);
+      expect(JSON.stringify(j.result ?? '')).not.toContain('secret source line');
+    }
   });
 });
 

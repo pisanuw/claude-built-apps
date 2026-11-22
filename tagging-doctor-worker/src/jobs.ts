@@ -41,7 +41,7 @@ export interface Job {
   deleted: boolean;
 }
 
-export type Admission = { ok: true } | { ok: false; reason: 'busy' | 'hourly-limit'; message: string; retryAfter: number };
+export type Admission = { ok: true } | { ok: false; reason: 'busy' | 'hourly-limit' | 'failed-uploads'; message: string; retryAfter: number };
 
 /** A place held for an upload whose body is being received (R3a.1-1). */
 export interface Slot {
@@ -57,6 +57,13 @@ export const BUSY_MESSAGE = 'The checker is busy, try again in a minute.';
 export const SLOT_HOLD_MS = 130_000;
 export const UPLOADING_MESSAGE = 'Your last upload is still being received. Wait for it to finish, then try again.';
 const HOUR = 3_600_000;
+/**
+ * R3a.2-2: uploads that held a slot and did not become a job (cut short, too
+ * slow, too large, or not a usable zip) a user may have in an hour. Counted
+ * apart from AC-33's five jobs an hour, so that count is unchanged. The
+ * server's own failures are not counted (D-80, D-86).
+ */
+export const FAILED_UPLOADS_PER_HOUR = 5;
 
 export interface JobsOptions {
   cfg: Pick<Config, 'jobsRoot' | 'texCacheSource' | 'jobLimitMs' | 'retentionMs' | 'maxWaiting' | 'perUserPerHour'>;
@@ -80,6 +87,8 @@ export class Jobs {
   private readonly jobs = new Map<string, Job>();
   private readonly queue: string[] = [];
   private readonly accepted = new Map<string, number[]>();
+  /** When each user's uploads ended without a job, in the last hour (R3a.2-2). */
+  private readonly failedUploads = new Map<string, number[]>();
   private running: string | null = null;
   private runningAbort: AbortController | null = null;
   /** Uploads whose bodies are being received, by user (R3a.1-1). */
@@ -121,6 +130,19 @@ export class Jobs {
       return { ok: false, reason: 'busy', message: UPLOADING_MESSAGE, retryAfter: 60 };
     }
     const since = this.now() - HOUR;
+    const failed = (this.failedUploads.get(userId) ?? []).filter((t) => t > since);
+    if (failed.length) this.failedUploads.set(userId, failed);
+    else this.failedUploads.delete(userId);
+    if (failed.length >= FAILED_UPLOADS_PER_HOUR) {
+      const retryAfter = Math.max(1, Math.ceil((failed[0] + HOUR - this.now()) / 1000));
+      const minutes = Math.ceil(retryAfter / 60);
+      return {
+        ok: false,
+        reason: 'failed-uploads',
+        message: `${FAILED_UPLOADS_PER_HOUR} of your uploads this hour did not arrive whole. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}, on a steadier connection or with a smaller zip.`,
+        retryAfter,
+      };
+    }
     const mine = (this.accepted.get(userId) ?? []).filter((t) => t > since);
     this.accepted.set(userId, mine);
     if (mine.length >= this.o.cfg.perUserPerHour) {
@@ -134,6 +156,11 @@ export class Jobs {
       };
     }
     return { ok: true };
+  }
+
+  /** Counts an upload of `userId` that ended without a job (R3a.2-2). */
+  uploadFailed(userId: string): void {
+    this.failedUploads.set(userId, [...(this.failedUploads.get(userId) ?? []), this.now()]);
   }
 
   /**

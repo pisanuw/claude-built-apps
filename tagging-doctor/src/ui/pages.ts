@@ -22,6 +22,7 @@ import {
 } from '../core/saved';
 import { SaveError, type CourseRow, type CourseStore, type ProjectRow, type SavedResult } from '../lib/store';
 import type { StatusData } from '../core/status';
+import { jobLine } from '../core/compile';
 
 export interface PageCtx {
   /** The signed-in person's store, or null when signed out. */
@@ -47,9 +48,9 @@ export const NO_PROJECTS = 'No projects yet. Drop a project to scan it.';
  */
 export function plainError(e: unknown): string {
   const m = e instanceof Error ? e.message : String(e);
-  if (/foreign key/i.test(m)) return 'the course or project is no longer there, perhaps deleted in another tab. Reload the page and choose again';
+  if (/foreign key/i.test(m)) return 'the course or project is no longer there, perhaps deleted in another tab. Choose the course again';
   if (/duplicate key|unique constraint/i.test(m)) return 'a project of that name was saved at the same moment, perhaps in another tab. Save again to add this scan to it';
-  if (/failed to fetch|networkerror|network request failed/i.test(m)) return 'the connection was lost. Check it and try again';
+  if (/failed to fetch|networkerror|network request failed/i.test(m)) return 'the connection was lost; check it';
   return m;
 }
 
@@ -204,8 +205,8 @@ function notFound(text: string): HTMLElement[] {
 }
 
 /** The data of a course's report (AC-20). */
-export async function courseReport(store: CourseStore, id: string, now: Date, data: StatusData): Promise<CourseReport | null> {
-  const course = await store.course(id);
+export async function courseReport(store: CourseStore, id: string, now: Date, data: StatusData, known?: CourseRow): Promise<CourseReport | null> {
+  const course = known ?? (await store.course(id));
   if (!course) return null;
   const projects = await store.projects(id);
   // Summaries first; then the findings of the latest scan of each project only (R2.1-6).
@@ -224,7 +225,8 @@ export async function courseReport(store: CourseStore, id: string, now: Date, da
 export function renderCourseReport(page: HTMLElement, ctx: PageCtx, id: string): Promise<void> {
   return withStates(page, 'Course report', ctx, 'the course report', async (store) => {
     const [data, found] = await Promise.all([ctx.loadData(), store.course(id)]);
-    const r = found ? await courseReport(store, id, ctx.now(), data) : null;
+    // The course row read once (R2.2-3).
+    const r = found ? await courseReport(store, id, ctx.now(), data, found) : null;
     if (!r) return notFound('This course was not found. It may have been deleted.');
     const actions = el('p', { class: 'actions no-print' });
     actions.append(
@@ -267,7 +269,23 @@ export function renderProject(page: HTMLElement, ctx: PageCtx, id: string, go: (
       );
     }
     out.push(el('h3', {}, 'Checks'));
-    out.push(el('p', { class: 'empty' }, h.jobs.length ? `${h.jobs.length === 1 ? '1 check' : `${h.jobs.length} checks`} saved.` : 'No checks yet. Compile and check comes in a later version.'));
+    if (!h.jobs.length) out.push(el('p', { class: 'empty' }, 'No checks yet. “Compile and check” on a saved scan adds one here.'));
+    else {
+      // Each check names the scan whose files were compiled (AC-35).
+      const savedAt = new Map(h.scans.map(({ scan }) => [scan.id, shortDateTime(scan.created_at)]));
+      out.push(
+        table(
+          'Checks, newest first',
+          ['Finished', 'Scan saved', 'Kind', 'Result'],
+          h.jobs.map((j) => [
+            j.finished_at ? shortDateTime(j.finished_at) : shortDateTime(j.created_at),
+            savedAt.get(j.scan_id) ?? 'an earlier scan',
+            j.kind === 'patched-check' ? 'patched copy' : 'original',
+            jobLine(j),
+          ]),
+        ),
+      );
+    }
     out.push(el('h3', {}, 'Alt texts'));
     out.push(el('p', { class: 'empty' }, h.altTexts.length ? `${h.altTexts.length === 1 ? '1 alt text' : `${h.altTexts.length} alt texts`} saved.` : 'No saved alt texts.'));
     const actions = el('p', { class: 'actions' });
@@ -292,7 +310,7 @@ export const KEEP_POINTS: string[] = [
   'When you save a scan, we keep its report only: the verdict and the counts, and for each finding the file path, the line number, the package name and an excerpt of at most 200 characters. Saved reports hold excerpts only, never whole files.',
   'Saved reports stay until you delete them. You can delete a project or a course, with its scans, checks and alt texts; download everything with “Export my data” on My courses; and delete your account with “Delete my account”, in the panel under your name, which removes what every HintWise app keeps for you.',
   'Your account and saved reports are kept in HintWise’s database at Supabase, in the US (US East).',
-  'Compile and check (in a later version) sends the project’s files to the HintWise checker, which runs on Render in the US (region oregon). The checker deletes a job’s files within 30 minutes. Upload only materials you wrote or may change.',
+  'Compile and check sends the project’s files to the HintWise checker, which runs on Render in the US (region oregon). The checker deletes a job’s files within 30 minutes. Upload only materials you wrote or may change. For a saved scan, the check’s result is kept with the project: its status, times, page count, warnings and the PDF/UA failures by clause, never the PDF or your files.',
   'A figure draft (in a later version) sends the image and up to 1,200 characters of the text around it to Anthropic: directly, with your own key, or through HintWise’s gateway. The gateway records when each person first and last used the app.',
   'Visits are counted without cookies.',
 ];
@@ -327,8 +345,11 @@ export function renderSaveDialog(panel: HTMLElement, opts: SaveDialogOpts): void
   const load = async () => {
     try {
       courses = await store.courses();
+      // A dialog drawn again meanwhile (sign-out, another person) is not this one any more (R2.2-3).
+      if (!panel.contains(h)) return;
       draw();
     } catch (e) {
+      if (!panel.contains(h)) return;
       const retry = el('p');
       retry.append(button('Retry', () => void load()), ' ', button('Cancel', opts.onClose));
       panel.replaceChildren(h, keep, el('p', { role: 'alert' }, `Could not load your courses: ${plainError(e)}`), retry);

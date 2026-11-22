@@ -6,7 +6,7 @@
  * project's own rc files. Every step runs as the TeX user with the AC-64
  * flags, and all the steps share one 120-second limit.
  */
-import { closeSync, openSync, readSync, rmSync } from 'node:fs';
+import { closeSync, fstatSync, openSync, readSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { JAVA_LIMITS, TEX_LIMITS, readTail, safeJobFile, wrap, type Spawner, type User } from './sandbox.ts';
 import { firstError, pageCount, tail, warningCount, wantsRerun, type TexError } from './texlog.ts';
@@ -69,16 +69,24 @@ export const CANCELLED_MESSAGE = 'The check was deleted.';
 /**
  * No tool a job runs reaches the network (AC-31, SPEC §4; R3a.1-2, D-72).
  * TeX has `--nosocket`; biber fetches through Perl's LWP, which honours these
- * variables, so every step gets them, pointing at a closed port below 1024
- * (which the TeX user cannot listen on), and no `no_proxy`.
+ * variables, so every step gets them, pointing at a closed port, and no
+ * `no_proxy`. Nothing of a job can listen on that port because no process of a
+ * job can open a socket (`--nosocket`, no shell escape, and every step's
+ * processes are killed after it), not because the port is below 1024: in a
+ * container's own network namespace any user may bind it (R3a.3-2).
  */
 export const DEAD_PROXY = 'http://127.0.0.1:9';
 export const NO_NETWORK: Record<string, string> = Object.fromEntries(
   ['http_proxy', 'https_proxy', 'ftp_proxy', 'all_proxy'].flatMap((k) => [[k, DEAD_PROXY], [k.toUpperCase(), DEAD_PROXY]]),
 );
-/** The same for Java (veraPDF): every HTTP, HTTPS and socket connection goes to that closed port. */
+/** The same for Java (veraPDF): every HTTP, HTTPS and socket connection goes to that closed port, loopback included (R3a.3-2). */
 export const JAVA_NO_NETWORK = [
   '-Djava.net.useSystemProxies=false',
+  // Java's defaults (localhost|127.*|[::1]) send loopback around the proxy; only an empty value closes that (R3a.3-2).
+  '-Dhttp.nonProxyHosts=',
+  '-DsocksNonProxyHosts=',
+  // The third list: FTP falls back to the SOCKS proxy, but its own default sends loopback around it (R3a.3-2, m3b r1).
+  '-Dftp.nonProxyHosts=',
   '-Dhttp.proxyHost=127.0.0.1',
   '-Dhttp.proxyPort=9',
   '-Dhttps.proxyHost=127.0.0.1',
@@ -95,13 +103,27 @@ export const JAVA_NO_NETWORK = [
 export const BCF_READ_BYTES = 1024 * 1024;
 
 /**
- * A `datasource` element under any prefix, with spaces in the end tag. No part
- * of it can cross a `<` except a CDATA opening, and the body is unrolled, so
- * the time grows with the input's size, not its square, whatever a job writes
- * (R3a.3-1, D-76: it runs on the server's only thread). A CDATA section that
- * holds a `<` is not found; that costs only the plain message.
+ * The start of a `datasource` element under any prefix, and its end tag, with
+ * spaces in it. Neither can cross a `<`, and the rest of the opening tag is
+ * read by `tagEnd`, so each attempt ends at the next `<` (R3a.3-1, D-76: this
+ * runs on the server's only thread).
  */
-const DATASOURCE = /<(?:[\w.-]+:)?datasource\b[^<>]*>([^<]*(?:<!\[CDATA\[[^<]*)*)<\/\s*(?:[\w.-]+:)?datasource\s*>/g;
+const DATASOURCE_START = /<(?:[\w.-]+:)?datasource\b/g;
+const DATASOURCE_CLOSE = /<\/\s*(?:[\w.-]+:)?datasource\s*>/y;
+
+/** Where the tag whose attributes start at `i` ends (after its `>`), or -1; a `>` in quotes does not end it (R3a.F-1). */
+function tagEnd(text: string, i: number): number {
+  let quote = '';
+  for (; i < text.length; i++) {
+    const c = text[i];
+    if (c === '<') return -1;
+    if (quote) {
+      if (c === quote) quote = '';
+    } else if (c === '"' || c === "'") quote = c;
+    else if (c === '>') return i + 1;
+  }
+  return -1;
+}
 
 /**
  * The data sources in a biber control file (.bcf) that would make biber fetch
@@ -112,24 +134,48 @@ const DATASOURCE = /<(?:[\w.-]+:)?datasource\b[^<>]*>([^<]*(?:<!\[CDATA\[[^<]*)*
  */
 export function remoteDataSources(bcf: string): string[] {
   const found: string[] = [];
-  for (const m of bcf.matchAll(DATASOURCE)) {
-    const raw = m[1];
+  const open = new RegExp(DATASOURCE_START.source, 'g');
+  const close = new RegExp(DATASOURCE_CLOSE.source, 'y');
+  for (let m = open.exec(bcf); m; m = open.exec(bcf)) {
+    const start = tagEnd(bcf, open.lastIndex);
+    if (start < 0) continue;
+    // The value runs to the next `<` that does not open a comment, a CDATA
+    // section or a processing instruction (`<!`, `<?`); there the closing tag
+    // must stand. A loop, not a regex, so no input can overflow the regex
+    // stack (R3a.F-1). Each value ends at the next element, so it stays linear.
+    let at = bcf.indexOf('<', start);
+    while (at >= 0 && (bcf[at + 1] === '!' || bcf[at + 1] === '?')) at = bcf.indexOf('<', at + 1);
+    if (at < 0) break;
+    close.lastIndex = at;
+    if (!close.test(bcf)) continue;
+    const raw = bcf.slice(start, at);
     const value = raw.replace(/&amp;/g, '&').trim();
-    if (/&#|<!\[CDATA\[/i.test(raw) || /^[a-z][a-z0-9+.-]+:/i.test(value)) found.push(value);
+    // Markup inside the value (a character reference, CDATA, a comment or a
+    // processing instruction) is taken as remote: biber reads it through.
+    if (/&#|<[!?]/.test(raw) || /^[a-z][a-z0-9+.-]+:/i.test(value)) found.push(value);
+    open.lastIndex = close.lastIndex;
   }
   return found;
 }
 
 /**
- * True when the file holds `needle`, read in 1 MB pieces that overlap by the
- * needle's length, so a large file is never held whole (R3a.1-4, R3a.2-3 c).
+ * How much of the `.aux` is searched for `\bibdata`: its last 8 MB (R3a.F-3).
+ * A real one is well under 1 MB; on a larger one only the bibliography of the
+ * job itself can be missed. About 65 ms at 0.1 CPU, against 1.6 s for 200 MB.
  */
-export function fileContains(file: string, needle: string): boolean {
+export const AUX_READ_BYTES = 8 * 1024 * 1024;
+
+/**
+ * True when the file's last `maxBytes` hold `needle`, read in 1 MB pieces that
+ * overlap by the needle's length, so a large file is never held whole
+ * (R3a.1-4, R3a.2-3 c, R3a.F-3).
+ */
+export function fileContains(file: string, needle: string, maxBytes = AUX_READ_BYTES): boolean {
   const fd = openSync(file, 'r');
   try {
     const piece = Buffer.alloc(1024 * 1024);
     let carry = '';
-    let pos = 0;
+    let pos = Math.max(0, fstatSync(fd).size - maxBytes);
     for (;;) {
       const n = readSync(fd, piece, 0, piece.length, pos);
       if (n === 0) return false;

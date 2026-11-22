@@ -188,6 +188,8 @@ function excerptAt(text: string, offset: number): string {
   let end = offset;
   const hi = Math.min(text.length, offset + 200);
   while (end < hi && text[end] !== '\n') end++;
+  // Nor end between the two halves of one (R2.2-3).
+  if (end > start && isHigh(text.charCodeAt(end - 1))) end--;
   let line = text.slice(start, end).trim();
   if (cut) line = `\u2026${line}`;
   return line.length > 200 ? `${cutAt(line, 199)}\u2026` : line;
@@ -447,17 +449,20 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
  * outside every brace group, so one inside a macro definition does not cut
  * the file (R1.2-2). When none does, because a `{` is never closed, the first
  * \end{document} after the body's \begin{document} ends it (R1.3-2); TeX
- * finishes such a file there, with a warning. The body's \begin{document} is
- * the first one outside every brace group: one inside a definition
- * (\newenvironment{doc}{\begin{document}}…) is not the body (R2.1-3).
- * Without such a \begin{document} there is no fallback. Null when nothing ends
- * the document. One pass, linear in the text.
+ * finishes such a file there, with a warning. A \begin{document} seen at
+ * brace depth d is the body until its group closes: one inside a definition
+ * (\newenvironment{doc}{\begin{document}}…) closes and is forgotten with the
+ * \end{document} kept after it (R2.1-3), and one after a stray `{` in the
+ * preamble never closes, so it stays the body (R2.2-1). Without such a
+ * \begin{document} there is no fallback. Null when nothing ends the
+ * document. One pass, linear in the text.
  */
 function endOfDocument(src: string, from: number): { start: number; end: number } | null {
   const END = /\\end\s*\{document\}/y;
   const BEGIN = /\\begin\s*\{document\}/y;
   let depth = 0;
-  let body = false;
+  /** The depth of the body's \begin{document}, while its group is open. */
+  let body: number | null = null;
   let first: { start: number; end: number } | null = null;
   for (let k = from; k < src.length; k++) {
     const c = src[k];
@@ -466,22 +471,29 @@ function endOfDocument(src: string, from: number): { start: number; end: number 
       if (END.test(src)) {
         const hit = { start: k, end: END.lastIndex };
         if (depth === 0) return hit;
-        if (body) first ??= hit;
+        if (body !== null) first ??= hit;
         // Its own braces balance, so the depth after it is unchanged.
         k = hit.end - 1;
         continue;
       }
       BEGIN.lastIndex = k;
       if (BEGIN.test(src)) {
-        if (depth === 0) body = true;
+        body ??= depth;
         k = BEGIN.lastIndex - 1;
         continue;
       }
       k++;
     } else if (c === '{') depth++;
-    else if (c === '}' && depth > 0) depth--;
+    else if (c === '}' && depth > 0) {
+      depth--;
+      if (body !== null && depth < body) {
+        // Its group closed: it was inside a definition, not the body.
+        body = null;
+        first = null;
+      }
+    }
   }
-  return first;
+  return body !== null ? first : null;
 }
 
 /** An `alt` or `actualtext` with some text, or `artifact` (decorative). */
