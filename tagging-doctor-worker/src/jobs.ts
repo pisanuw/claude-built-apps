@@ -58,10 +58,10 @@ export const SLOT_HOLD_MS = 130_000;
 export const UPLOADING_MESSAGE = 'Your last upload is still being received. Wait for it to finish, then try again.';
 const HOUR = 3_600_000;
 /**
- * R3a.2-2: uploads whose body did not arrive (cut short, too slow, too large)
- * a user may have in an hour. Counted apart from AC-33's five jobs an hour, so
- * that count is unchanged; a body that arrives but is not a usable zip (400) is
- * quick and is not counted.
+ * R3a.2-2: uploads that held a slot and did not become a job (cut short, too
+ * slow, too large, or not a usable zip) a user may have in an hour. Counted
+ * apart from AC-33's five jobs an hour, so that count is unchanged. The
+ * server's own failures are not counted (D-80, D-86).
  */
 export const FAILED_UPLOADS_PER_HOUR = 5;
 
@@ -139,7 +139,7 @@ export class Jobs {
       return {
         ok: false,
         reason: 'failed-uploads',
-        message: `${FAILED_UPLOADS_PER_HOUR} of your uploads did not arrive this hour. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}, on a steadier connection or with a smaller zip.`,
+        message: `${FAILED_UPLOADS_PER_HOUR} of your uploads this hour did not arrive whole. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}, on a steadier connection or with a smaller zip.`,
         retryAfter,
       };
     }

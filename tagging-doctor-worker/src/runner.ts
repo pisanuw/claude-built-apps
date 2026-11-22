@@ -85,6 +85,8 @@ export const JAVA_NO_NETWORK = [
   // Java's defaults (localhost|127.*|[::1]) send loopback around the proxy; only an empty value closes that (R3a.3-2).
   '-Dhttp.nonProxyHosts=',
   '-DsocksNonProxyHosts=',
+  // The third list: FTP falls back to the SOCKS proxy, but its own default sends loopback around it (R3a.3-2, m3b r1).
+  '-Dftp.nonProxyHosts=',
   '-Dhttp.proxyHost=127.0.0.1',
   '-Dhttp.proxyPort=9',
   '-Dhttps.proxyHost=127.0.0.1',

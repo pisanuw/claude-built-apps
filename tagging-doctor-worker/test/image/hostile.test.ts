@@ -240,28 +240,35 @@ describe('AC-31: hostile fixtures', () => {
       w.exec(['rm', '-rf', '/srv/biber']);
     });
 
-    it('R3a.3-2: veraPDF\'s Java with the worker\'s flags reaches nothing on loopback; without the two empty nonProxyHosts it does', async () => {
+    it('R3a.3-2: veraPDF\'s Java with the worker\'s flags reaches nothing on loopback; without the empty nonProxyHosts lists it does, and without the ftp one an ftp address is reached', async () => {
       const program = [
         'import java.net.*;',
         'public class Fetch { public static void main(String[] a) { for (String u : a) { try {',
-        '  HttpURLConnection c = (HttpURLConnection) new URL(u).openConnection(); c.setConnectTimeout(3000); c.setReadTimeout(3000);',
-        '  System.out.println("FETCHED " + u + " " + c.getResponseCode());',
+        '  URLConnection c = new URL(u).openConnection(); c.setConnectTimeout(3000); c.setReadTimeout(3000); c.connect();',
+        '  System.out.println("FETCHED " + u + " " + (c instanceof HttpURLConnection h ? h.getResponseCode() : c.getInputStream().read()));',
         '} catch (Exception e) { System.out.println("REFUSED " + u + " " + e); } } } }',
       ].join('\n');
       w.exec(['sh', '-c', 'rm -rf /srv/java && install -d -o 10001 -g 10001 -m 0700 /srv/java']);
       docker(['exec', '-i', w.name, 'sh', '-c', 'cat > /srv/java/Fetch.java && chown 10001:10001 /srv/java/Fetch.java'], program);
       const port = listener.url.split(':').at(-1);
       const asTex = async (flags: string[]) => {
-        const cmd = `cd /srv/java && timeout 120 setpriv --reuid=10001 --regid=10001 --clear-groups env -i PATH=/usr/bin:/bin HOME=/srv/java java -Djava.io.tmpdir=/srv/java ${flags.join(' ')} Fetch.java http://127.0.0.1:${port}/java-loopback http://localhost:${port}/java-localhost 2>&1 || true`;
+        const cmd = `cd /srv/java && timeout 120 setpriv --reuid=10001 --regid=10001 --clear-groups env -i PATH=/usr/bin:/bin HOME=/srv/java java -Djava.io.tmpdir=/srv/java ${flags.join(' ')} Fetch.java http://127.0.0.1:${port}/java-loopback http://localhost:${port}/java-localhost ftp://127.0.0.1:${port}/java-ftp 2>&1 || true`;
         return (await execFileP('docker', ['exec', w.name, 'sh', '-c', cmd])).stdout;
       };
       const blocked = await asTex(JAVA_NO_NETWORK);
       expect(blocked).toContain(`REFUSED http://127.0.0.1:${port}/java-loopback`);
       expect(blocked).toContain(`REFUSED http://localhost:${port}/java-localhost`);
+      // FTP's own list (m3b r1, R3a.3-2): refused too.
+      expect(blocked).toContain(`REFUSED ftp://127.0.0.1:${port}/java-ftp`);
       expect(listener.seen).toEqual([]);
-      // The control: the flags of milestone 3a, without the two, let loopback through.
+      // The control: the flags without the three empty lists let loopback through (HTTP answers 200; FTP connects).
       const open = await asTex(JAVA_NO_NETWORK.filter((f) => !/NonProxyHosts|nonProxyHosts/.test(f)));
       expect(open).toContain(`FETCHED http://127.0.0.1:${port}/java-loopback 200`);
+      expect(listener.seen.length).toBeGreaterThan(0);
+      // FTP alone, with only the FTP list left at Java's default: it reaches the listener (what m3b r1 found).
+      listener.seen.length = 0;
+      const ftpOnly = await asTex(JAVA_NO_NETWORK.filter((f) => f !== '-Dftp.nonProxyHosts='));
+      expect(ftpOnly).toContain(`REFUSED http://127.0.0.1:${port}/java-loopback`);
       expect(listener.seen.length).toBeGreaterThan(0);
       listener.seen.length = 0;
       w.exec(['rm', '-rf', '/srv/java']);

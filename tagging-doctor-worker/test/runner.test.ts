@@ -368,6 +368,8 @@ describe('milestone 3b: the carried findings of milestone 3a in the runner', () 
   it('R3a.3-2: veraPDF\'s Java gets empty nonProxyHosts, so loopback goes to the closed port too', async () => {
     expect(JAVA_NO_NETWORK).toContain('-Dhttp.nonProxyHosts=');
     expect(JAVA_NO_NETWORK).toContain('-DsocksNonProxyHosts=');
+    // The third list, FTP's (m3b r1).
+    expect(JAVA_NO_NETWORK).toContain('-Dftp.nonProxyHosts=');
     const calls: Call[] = [];
     await run({}, 'main.tex', calls);
     const java = calls.find((c) => c.argv.includes('java'))?.argv ?? [];
