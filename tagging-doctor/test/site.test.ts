@@ -57,8 +57,9 @@ describe('AC-13: the page loads nothing from another host', () => {
     }
     const target = read('deploy/target.yml');
     expect(target).toMatch(/VITE_SUPABASE_URL: https:\/\/auth\.hintwise\.org\n/);
-    // AC-13 (M3b): the worker's address, the one the Deploy run prints, as one value.
-    expect(target).toMatch(/VITE_CHECKER_URL: https:\/\/tagging-doctor-worker\.onrender\.com\n/);
+    // AC-13 (M4, CR-13): backend-hub's address with the checker's prefix, as one value; no longer the worker's.
+    expect(target).toMatch(/VITE_CHECKER_URL: https:\/\/backend-hub-wk2e\.onrender\.com\/tagging-doctor\n/);
+    expect(target).not.toMatch(/tagging-doctor-worker\.onrender\.com/);
     // CR-11, need 4 (D-97): Compile and check is on in the released build.
     expect(target).toMatch(/VITE_COMPILE_CHECK: 'on'\n/);
     // Every request of the checker client goes to that one base address.

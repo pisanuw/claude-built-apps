@@ -205,8 +205,8 @@ test('AC-13: the built scripts name only the hosts the criterion lists', async (
     'www.w3.org',
     // supabase-js's default auth address, replaced by VITE_SUPABASE_URL (auth.hintwise.org) in every client the app makes.
     'localhost',
-    // From M3b the checker's address (VITE_CHECKER_URL): the live one AC-13 names, and the walkthrough's stand-in.
-    'tagging-doctor-worker.onrender.com',
+    // The checker's address (VITE_CHECKER_URL): from M4 backend-hub's, with the prefix (CR-13), and the walkthrough's stand-in.
+    'backend-hub-wk2e.onrender.com',
     new URL(CHECKER_STUB).hostname,
   ]);
   const seen = new Set<string>();

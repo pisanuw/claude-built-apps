@@ -7,7 +7,14 @@
  */
 import { CLAUSE_WORDS, MAPPED_SPECIFICATION, type CheckerJob } from './compile';
 
-export type ClauseChange = 'fixed' | 'new' | 'unchanged';
+/**
+ * What happened to a clause (AC-42's fixed, new, unchanged; R4a.1-8 b): a
+ * clause that fails in both results is "unchanged" only with the same number
+ * of failed checks, else "fewer" or "more". "unknown" when a side's list of
+ * rules is not complete (R4a.1-8 a), so a clause missing from it may still
+ * fail there, and a count on it may be short.
+ */
+export type ClauseChange = 'fixed' | 'new' | 'unchanged' | 'fewer' | 'more' | 'unknown';
 
 export interface RunSide {
   /** True when the checker made a PDF. */
@@ -50,6 +57,17 @@ export function side(job: CheckerJob): RunSide {
   };
 }
 
+/**
+ * True when the result lists every rule that failed: veraPDF's report counts
+ * the failed rules, and the checker sends one entry per rule (at most the
+ * checker's cap; before m4b, the 20 most frequent). A result with no check is
+ * not complete.
+ */
+export function complete(job: CheckerJob): boolean {
+  const v = job.status === 'done' ? job.result?.validation : null;
+  return !!v && v.clauses.length >= v.failedRules;
+}
+
 function byClause(job: CheckerJob): Map<string, { specification: string; clause: string; count: number; description: string }> {
   const out = new Map<string, { specification: string; clause: string; count: number; description: string }>();
   const v = job.status === 'done' ? job.result?.validation : null;
@@ -66,6 +84,16 @@ function byClause(job: CheckerJob): Map<string, { specification: string; clause:
 export function compareJobs(original: CheckerJob, patched: CheckerJob): Comparison {
   const a = byClause(original);
   const b = byClause(patched);
+  const known = { a: complete(original), b: complete(patched) };
+  const change = (x: number | undefined, y: number | undefined): ClauseChange => {
+    if (x !== undefined && y !== undefined) {
+      if (!known.a || !known.b) return 'unknown';
+      return y === x ? 'unchanged' : y < x ? 'fewer' : 'more';
+    }
+    // In one list only: fixed or new only when the other list is complete.
+    if (x !== undefined) return known.b ? 'fixed' : 'unknown';
+    return known.a ? 'new' : 'unknown';
+  };
   const rows: CompareRow[] = [];
   for (const k of new Set([...a.keys(), ...b.keys()])) {
     const x = a.get(k);
@@ -78,7 +106,7 @@ export function compareJobs(original: CheckerJob, patched: CheckerJob): Comparis
       words: mapped ?? any.description,
       original: x?.count ?? null,
       patched: y?.count ?? null,
-      change: x && y ? 'unchanged' : x ? 'fixed' : 'new',
+      change: change(x?.count, y?.count),
     });
   }
   rows.sort((p, q) => Math.max(q.original ?? 0, q.patched ?? 0) - Math.max(p.original ?? 0, p.patched ?? 0) || p.clause.localeCompare(q.clause, 'en', { numeric: true }));
@@ -147,4 +175,11 @@ export function trendLine(c: Comparison): string {
   }
 }
 
-export const CHANGE_WORDS: Record<ClauseChange, string> = { fixed: 'Fixed', new: 'New', unchanged: 'Unchanged' };
+export const CHANGE_WORDS: Record<ClauseChange, string> = {
+  fixed: 'Fixed',
+  new: 'New',
+  unchanged: 'Unchanged',
+  fewer: 'Fewer',
+  more: 'More',
+  unknown: 'Not known: not in the list of the most frequent',
+};

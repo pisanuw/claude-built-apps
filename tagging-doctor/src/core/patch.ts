@@ -135,7 +135,9 @@ export function documentLanguage(project: Project, scan: Pick<DocumentScan, 'fil
   }
   if (provided) return resolve(provided, `from babel’s main language, ${provided}`);
   if (babel) {
-    const main = babel.map((o) => /^main\s*=\s*(.+)$/.exec(o)?.[1]?.trim()).find(Boolean);
+    // babel takes main= with a plain name; with a modifier (main=spanish.mexico) TeX Live 2026's babel passes
+    // over it and the last language is the main one (seen on the image, R4a.3-3).
+    const main = babel.map((o) => /^main\s*=\s*(.+)$/.exec(o)?.[1]?.trim()).find((m) => m && !m.includes('.'));
     if (main) return resolve(main, `from babel’s main language, ${main}`);
     // Babel reads the class's options and its own; the last language named is the main one. Babel's own
     // options name languages, except a few flags; the class's are counted only when the table knows them
@@ -362,22 +364,43 @@ export function topLevelBegin(src: string): number {
 }
 
 /**
- * Where the unicode-math line goes before: the top-level \begin{document}.
- * When the preamble leaves a brace open, none is at the top level; the scan
- * then takes the first \begin{document} as the body's start (R2.2-1), and so
- * does this, at the start of its line, outside the open group (R4a.2-4 c).
+ * Where the unicode-math line goes (R4a.3-1): before the \begin{document}
+ * that the scan takes as the body (scan.ts, endOfDocument: the first one
+ * whose brace group never closes). At the top level, just before it. When
+ * the preamble leaves a brace open, only when exactly one group is open, its
+ * `{` stands on the same line as that \begin{document}, and only blanks come
+ * before the `{` on that line: the line goes at the line's start, outside the
+ * group (round 2's `{\begin{document}`). Any other layout gets no line
+ * ("open-brace"), as an argument or the class line would be the wrong place.
+ * One pass, linear in the text.
  */
-function bodyBegin(src: string): number {
+export function unicodeMathPlace(src: string): { at: number; begin: number } | 'no-begin' | 'open-brace' {
   const top = topLevelBegin(src);
-  if (top >= 0) return top;
-  let depth = 0;
+  if (top >= 0) return { at: top, begin: top };
+  const BEGIN = /\\begin\s*\{document\}/y;
+  const open: number[] = [];
+  let body: { at: number; depth: number; brace: number } | null = null;
   for (let k = 0; k < src.length; k++) {
-    if (src[k] === '\\') k++;
-    else if (src[k] === '{') depth++;
-    else if (src[k] === '}' && depth > 0) depth--;
+    const c = src[k];
+    if (c === '\\') {
+      BEGIN.lastIndex = k;
+      if (body === null && BEGIN.test(src)) {
+        body = { at: k, depth: open.length, brace: open[open.length - 1] ?? -1 };
+        k = BEGIN.lastIndex - 1;
+        continue;
+      }
+      k++;
+    } else if (c === '{') open.push(k);
+    else if (c === '}' && open.length) {
+      open.pop();
+      // Its group closed: that \begin{document} was inside a definition, not the body.
+      if (body !== null && open.length < body.depth) body = null;
+    }
   }
-  const first = depth > 0 ? src.search(/\\begin\s*\{document\}/) : -1;
-  return first < 0 ? -1 : src.lastIndexOf('\n', first - 1) + 1;
+  if (body === null) return 'no-begin';
+  const lineStart = src.lastIndexOf('\n', body.at - 1) + 1;
+  if (body.depth === 1 && body.brace >= lineStart && !src.slice(lineStart, body.brace).trim()) return { at: lineStart, begin: body.at };
+  return 'open-brace';
 }
 
 const utf8Strict = new TextDecoder('utf-8', { fatal: true });
@@ -637,7 +660,11 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
     const magic = /^%\s*!\s*TEX\s+(?:TS-)?program\s*=\s*(\S+)/im.exec(sources.get(main).text ?? '');
     if (magic && !/lua/i.test(magic[1])) {
       const line = lineIndex(sources.get(main).text ?? '')(magic.index);
-      card.what += ` Line ${line} of ${main}, “${magic[0].trim()}”, tells your editor to use ${magic[1]}; change it to lualatex.`;
+      const hint = ` Line ${line} of ${main}, “${magic[0].trim()}”, tells your editor to use ${magic[1]}; change it to lualatex.`;
+      card.what += hint;
+      // With no engine card (no inputenc or fontenc), the metadata card says it, as tagging needs LuaLaTeX too (Manager's minor 2 at af12111).
+      const meta = work[0].card;
+      if (!w.ops.length && meta.state === 'ready') meta.what += ` Compile the copy with LuaLaTeX.${hint}`;
     }
     if (w.ops.length) {
       card.changes = changesOf(sources, w.ops);
@@ -686,7 +713,7 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
     const clashing = [...loaded].filter((n) => UNICODE_MATH_CLASHES.has(n));
     const f = readable(main);
     const text = f?.text ?? '';
-    const begin = f ? bodyBegin(sources.get(main).src ?? '') : -1;
+    const place = f ? unicodeMathPlace(sources.get(main).src ?? '') : 'no-begin';
     if (loaded.has('unicode-math')) {
       card.state = 'already-done';
       card.what = 'Nothing: the document loads unicode-math.';
@@ -699,17 +726,25 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
       card.state = 'not-needed';
       card.what = `Nothing: unicode-math does not go with ${clashing.join(', ')}.`;
       card.note = `Not added: the document loads ${clashing.join(', ')}, which the LaTeX Project’s status list marks “Incompatible with unicode-math”.`;
-    } else if (!f || begin < 0) {
+    } else if (!f || typeof place === 'string') {
       card.state = 'not-needed';
-      card.what = !f ? `Nothing: ${main} is not saved as UTF-8.` : `Nothing: \\begin{document} is not in ${main}.`;
-      card.note = !f ? `${main} is not saved as UTF-8, so the patch does not change it.` : `Not added: \\begin{document} is not in ${main}.`;
+      card.what = !f
+        ? `Nothing: ${main} is not saved as UTF-8.`
+        : place === 'open-brace'
+          ? `Nothing: a brace is left open in ${main}'s preamble.`
+          : `Nothing: \\begin{document} is not in ${main}.`;
+      card.note = !f
+        ? `${main} is not saved as UTF-8, so the patch does not change it.`
+        : place === 'open-brace'
+          ? `Not added: a { in ${main}'s preamble is never closed, so the patch cannot tell where the preamble ends. Close it, then scan again.`
+          : `Not added: \\begin{document} is not in ${main}.`;
     } else {
       // Just before \begin{document}, on a line of its own, wherever that \begin stands (R4a.1-6).
       const eol = eolOf(text);
       // Only blanks before it on its line: at the line's start, so its indent stays (R4a.2-4 b).
-      const start = text.lastIndexOf('\n', begin - 1) + 1;
-      const lineStart = !text.slice(start, begin).trim();
-      const at = lineStart ? start : begin;
+      const start = text.lastIndexOf('\n', place.at - 1) + 1;
+      const lineStart = !text.slice(start, place.at).trim();
+      const at = lineStart ? start : place.at;
       const ins: Edit = { path: main, from: at, to: at, text: `${lineStart ? '' : eol}\\usepackage{unicode-math}${eol}`, rank: 1 };
       w.inserts.push(ins);
       card.changes = shown(main, text, [ins]);
@@ -770,8 +805,13 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
 function changesOf(sources: Sources, ops: ListOp[]): ShownChange[] {
   const out: ShownChange[] = [];
   const byPath = new Map<string, ListOp[]>();
-  for (const o of ops) byPath.set(o.path, [...(byPath.get(o.path) ?? []), o]);
-  for (const [path, list] of byPath) out.push(...shown(path, (sources.get(path).utf8 as { text: string }).text, opsToEdits(sources, list)));
+  // Lists grown in place and joined by a loop, so the work stays linear in the operations (R4a.3-4 a).
+  for (const o of ops) {
+    const list = byPath.get(o.path);
+    if (list) list.push(o);
+    else byPath.set(o.path, [o]);
+  }
+  for (const [path, list] of byPath) for (const c of shown(path, (sources.get(path).utf8 as { text: string }).text, opsToEdits(sources, list))) out.push(c);
   return out;
 }
 
@@ -806,7 +846,11 @@ export function applyFixes(project: Project, scan: DocumentScan, accepted: Reado
   const chosen = work.filter((w) => w.card.state === 'ready' && accepted.has(w.card.id));
   const edits = [...chosen.flatMap((w) => w.inserts), ...opsToEdits(sources, chosen.flatMap((w) => w.ops))];
   const byPath = new Map<string, Edit[]>();
-  for (const e of edits) byPath.set(e.path, [...(byPath.get(e.path) ?? []), e]);
+  for (const e of edits) {
+    const list = byPath.get(e.path);
+    if (list) list.push(e);
+    else byPath.set(e.path, [e]);
+  }
   const files = new Map<string, string>();
   const diffs: string[] = [];
   for (const path of [...byPath.keys()].sort()) {
@@ -831,10 +875,19 @@ function joinLines(text: string, edits: Edit[]): Edit[] {
   return edits.map((e) => {
     const eol = /^\r?\n/.exec(e.text)?.[0];
     if (e.to !== e.from || !eol) return e;
-    const emptied = edits.some(
-      (r) => r.to > r.from && !r.text && r.to <= e.from && !text.slice(r.to, e.from).trim() && !text.slice(text.lastIndexOf('\n', r.from - 1) + 1, r.from).trim(),
-    );
-    return emptied ? { ...e, text: e.text.slice(eol.length) } : e;
+    // What is left on the line before the insertion once the removals there are made: one or several
+    // (inputenc and fontenc both on the \begin{document} line, R4a.3-4 c).
+    const lineStart = text.lastIndexOf('\n', e.from - 1) + 1;
+    const removals = edits.filter((r) => r.to > r.from && !r.text && r.from >= lineStart && r.to <= e.from).sort((x, y) => x.from - y.from);
+    if (!removals.length) return e;
+    let left = '';
+    let k = lineStart;
+    for (const r of removals) {
+      if (r.from > k) left += text.slice(k, r.from);
+      k = Math.max(k, r.to);
+    }
+    left += text.slice(k, e.from);
+    return left.trim() ? e : { ...e, text: e.text.slice(eol.length) };
   });
 }
 
@@ -883,7 +936,9 @@ export function unifiedDiff(path: string, text: string, edits: Edit[]): string {
       for (const l of before) body.push(`-${l}`);
       if (rs[r].b === oldLines.length && !endsWithNl && before.length) body.push('\\ No newline at end of file');
       for (const l of after) body.push(`+${l}`);
-      if (rs[r].b === oldLines.length && !endsWithNl && after.length && !rs[r].newSeg.endsWith('\n')) body.push('\\ No newline at end of file');
+      // Whenever the region reaches the file's end and its new text has no line end: also when the old
+      // file had one (a marked file whose every line goes leaves the mark alone, R4a.3-4 b).
+      if (rs[r].b === oldLines.length && after.length && !rs[r].newSeg.endsWith('\n')) body.push('\\ No newline at end of file');
       oldCount += before.length;
       newCount += after.length;
       line = rs[r].b;
@@ -896,7 +951,9 @@ export function unifiedDiff(path: string, text: string, edits: Edit[]): string {
     }
     const oldStart = oldCount ? start + 1 : start;
     const newStart = newCount ? start + 1 + delta : start + delta;
-    out.push(`@@ -${oldStart},${oldCount} +${newStart},${newCount} @@`, ...body);
+    // One push per line: a spread of a hunk of 100,000 lines overflows the call stack (R4a.3-4 a).
+    out.push(`@@ -${oldStart},${oldCount} +${newStart},${newCount} @@`);
+    for (const l of body) out.push(l);
     delta += newCount - oldCount;
     i = j + 1;
   }

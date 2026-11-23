@@ -111,11 +111,13 @@ export const BABEL_FLAGS = new Set(['activeacute', 'activegrave', 'keepshorthand
  * a key=value, one of babel's flags, or one of babel-spanish's own options
  * (es-tabla, es-nodecimaldot and the other es-… names, mexico, mexico-com;
  * spanish.ldf). A modifier after a dot is dropped: spanish.mexico is spanish
- * (R4a.2-1).
+ * (R4a.2-1). A trailing package date, `{babel}[2020/01/01]`, is not a
+ * language (R4a.3-3).
  */
 export function babelLanguage(option: string): string | null {
   const o = option.trim();
-  if (!o || o.includes('=')) return null;
+  // A key (main=…) is not a name, nor a package date the readers take with the options ([2020/01/01], R4a.3-3).
+  if (!o || o.includes('=') || o.includes('/') || /^\d/.test(o)) return null;
   const name = o.split('.')[0].trim();
   const lower = name.toLowerCase();
   if (!name || BABEL_FLAGS.has(lower) || lower.startsWith('es-') || lower === 'mexico' || lower === 'mexico-com') return null;
@@ -194,6 +196,8 @@ interface Ctx {
   beamer: boolean;
   /** True while the main file is read up to its \documentclass. */
   beforeClass: boolean;
+  /** True once the main file's \begin{document} is read: a file read after it is in the body. */
+  inBody: boolean;
   metadataFile: string | null;
 }
 
@@ -342,6 +346,42 @@ function within(dir: string, path: string): boolean {
   return dir === '' || path.startsWith(`${dir}/`);
 }
 
+const utf8Check = new TextDecoder('utf-8', { fatal: true });
+
+/** True when the file is saved as UTF-8 (a byte order mark allowed): the patch changes only such files (D-100). */
+function savedAsUtf8(project: Project, path: string): boolean {
+  if (!project.has(path)) return false;
+  try {
+    utf8Check.decode(project.bytes(path));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Commands after which a \DocumentMetadata is named, defined or tested, not called (R4a.3-2). */
+const NOT_A_CALL = /\\(?:providecommand|newcommand|renewcommand|DeclareRobustCommand|[gex]?def|let|ifdefined|ifx|show|meaning|string|(?:New|Renew|Provide|Declare)DocumentCommand|(?:New|Renew)CommandCopy|let\s*\\[A-Za-z@]+\s*=?)\s*\*?\s*\{?\s*$/;
+
+/**
+ * For offsets taken in increasing order: true when a command there is a call,
+ * outside every brace group and not after a command that defines or tests
+ * it. One pass over the text for all the offsets asked.
+ */
+function callAt(src: string): (offset: number) => boolean {
+  let k = 0;
+  let depth = 0;
+  return (offset) => {
+    for (; k < offset; k++) {
+      const c = src[k];
+      if (c === '\\') k++;
+      else if (c === '{') depth++;
+      else if (c === '}' && depth > 0) depth--;
+    }
+    if (depth > 0) return false;
+    return !NOT_A_CALL.test(src.slice(Math.max(0, offset - 60), offset));
+  };
+}
+
 function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' | 'style'): void {
   if (ctx.visited.has(path)) return;
   ctx.visited.add(path);
@@ -374,6 +414,7 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
 
   let docclassOffset = -1;
   let metadataOffset = -1;
+  const call = callAt(src);
   if (role === 'main') ctx.beforeClass = true;
   for (const c of cmds) {
     switch (c.name) {
@@ -431,11 +472,20 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
         });
         break;
       case 'DocumentMetadata': {
-        // The main file's line, or one in a .tex file the main file reads before \documentclass (an \input
-        // above it); not a style or class file's, which only defines or names the command (R4a.2-3).
-        const counts = role === 'main' || (role === 'input' && ctx.beforeClass);
-        if (!counts) break;
-        if (role === 'main' && metadataOffset < 0) metadataOffset = c.offset;
+        if (role === 'main') {
+          if (metadataOffset < 0) metadataOffset = c.offset;
+        } else {
+          // In another file (an \input, a style or a class): only a call, at the top level and not after a
+          // command that defines or tests it (R4a.3-2; R4a.2-3 went by the file's type), and only in the
+          // preamble: a file read in the body is text the main file prints.
+          if (ctx.inBody || !call(c.offset)) break;
+          if (!ctx.beforeClass) {
+            warn(ctx, 'misplaced-document-metadata', at(c.offset), `\\DocumentMetadata in ${path} is read after \\documentclass, so it is misplaced: it must come before it.`, {
+              name: 'Move \\DocumentMetadata above \\documentclass',
+              detail: `Cut the \\DocumentMetadata line from ${path} and paste it above \\documentclass in the main file.`,
+            });
+          }
+        }
         ctx.metadataFile ??= path;
         if (keyValues(c.args[0]).get('lang')) ctx.languageSet = true;
         break;
@@ -455,6 +505,7 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
         for (const lib of splitList(c.args[0])) lookupAndReport(ctx, `tikzlibrary-${lib}`, 'library', at(c.offset));
         break;
       case 'begin':
+        if (role === 'main' && c.args[0].trim() === 'document') ctx.inBody = true;
         if (c.args[0].trim() === 'tikzpicture') {
           const kv = keyValues(c.opts.join(','));
           ctx.figures.push({ kind: 'tikz', path, line: lineOf(c.offset), hasAlt: hasAltKey(kv) });
@@ -465,10 +516,11 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
 
   if (role === 'main') {
     if (docclassOffset >= 0 && metadataOffset < 0 && ctx.metadataFile === null) {
-      warn(ctx, 'no-document-metadata', at(docclassOffset), 'There is no \\DocumentMetadata line, which switches tagging on. Added by the patch.', {
-        name: 'Add \\DocumentMetadata (added by the patch)',
-        detail: 'The patch puts a \\DocumentMetadata line before \\documentclass, with the document language and PDF/UA settings.',
-      });
+      // The patch adds the line only to a main file saved as UTF-8; otherwise it is the person's to add (Manager's minor 1 at af12111).
+      const patched = savedAsUtf8(ctx.project, path);
+      warn(ctx, 'no-document-metadata', at(docclassOffset), `There is no \\DocumentMetadata line, which switches tagging on.${patched ? ' Added by the patch.' : ''}`, patched
+        ? { name: 'Add \\DocumentMetadata (added by the patch)', detail: 'The patch puts a \\DocumentMetadata line before \\documentclass, with the document language and PDF/UA settings.' }
+        : { name: 'Add \\DocumentMetadata by hand', detail: `${path} is not saved as UTF-8, so the patch does not change it. Add a \\DocumentMetadata line before \\documentclass by hand, with the document language and PDF/UA settings, or save the file as UTF-8 and drop the project again.` });
     }
     if (docclassOffset >= 0 && metadataOffset > docclassOffset) {
       warn(ctx, 'misplaced-document-metadata', at(metadataOffset), '\\DocumentMetadata comes after \\documentclass, so it is misplaced: it must be the first line.', {
@@ -709,6 +761,7 @@ export function scanDocument(project: Project, mainFile: string, index: StatusIn
     titleSet: false,
     beamer: false,
     beforeClass: false,
+    inBody: false,
     metadataFile: null,
   };
   visitFile(ctx, mainFile, ctx.mainDir, 'main');
@@ -732,7 +785,17 @@ export function scanDocument(project: Project, mainFile: string, index: StatusIn
       line: docWhere.line,
       excerpt: docWhere.excerpt,
       message: 'The document does not set its language, so a screen reader may read it with the wrong voice.',
-      fix: { name: 'Set the language (added by the patch)', detail: 'The patch writes lang=en-US into \\DocumentMetadata, or the language you choose.' },
+      // The patch writes the language only into the line it adds: not into a \DocumentMetadata the document has, nor into a main
+      // file it does not change (Manager's minor 1 at af12111).
+      fix:
+        ctx.metadataFile === null && savedAsUtf8(ctx.project, mainFile)
+          ? { name: 'Set the language (added by the patch)', detail: 'The patch writes lang=en-US into \\DocumentMetadata, or the language you choose.' }
+          : {
+              name: 'Set the language by hand',
+              detail: ctx.metadataFile
+                ? `Add lang=en-US (or the document's language) to the \\DocumentMetadata line in ${ctx.metadataFile}; the patch leaves that line alone.`
+                : `Add lang=en-US (or the document's language) to the \\DocumentMetadata line you add to ${mainFile}.`,
+            },
     });
   }
   if (!ctx.titleSet) {

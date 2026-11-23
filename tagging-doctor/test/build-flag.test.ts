@@ -14,11 +14,11 @@ const ROOT = path.join(__dirname, '..');
 const dirs: string[] = [];
 
 /** The files a browser loads: the page and its scripts, not the source maps. */
-async function built(flag: string | undefined): Promise<{ files: string[]; text: string }> {
+async function built(flag: string | undefined, checker = 'https://checker.example.org'): Promise<{ files: string[]; text: string }> {
   const out = fs.mkdtempSync(path.join(os.tmpdir(), 'td-build-'));
   dirs.push(out);
   const saved = { ...process.env };
-  process.env.VITE_CHECKER_URL = 'https://checker.example.org';
+  process.env.VITE_CHECKER_URL = checker;
   process.env.VITE_COMPILE_CHECK = 'on';
   if (flag === undefined) delete process.env.VITE_COMPARE_PATCHED;
   else process.env.VITE_COMPARE_PATCHED = flag;
@@ -57,6 +57,19 @@ describe('AC-80: the build flag of "Compile patched and compare"', () => {
     const on = await built('on');
     expect(on.files.some((f) => /compare-.*\.js$/.test(f))).toBe(true);
     expect(on.text).toContain('Compile patched and compare');
+  }, 240_000);
+
+  it('AC-13 (CR-13): the build with deploy/target.yml\'s values calls the checker in backend-hub under its prefix, and no longer the worker', async () => {
+    const target = fs.readFileSync(path.join(ROOT, 'deploy', 'target.yml'), 'utf8');
+    const url = /^\s*VITE_CHECKER_URL:\s*(\S+)\s*$/m.exec(target)?.[1];
+    expect(url).toBe('https://backend-hub-wk2e.onrender.com/tagging-doctor');
+    expect(/^\s*VITE_COMPARE_PATCHED:/m.test(target)).toBe(false);
+    const prod = await built(undefined, url);
+    expect(prod.text).toContain('https://backend-hub-wk2e.onrender.com/tagging-doctor');
+    expect(prod.text).not.toContain('tagging-doctor-worker.onrender.com');
+    const hosts = new Set([...prod.text.matchAll(/https?:\/\/([a-z0-9.-]+)/gi)].map((m) => m[1].toLowerCase()));
+    expect(hosts.has('backend-hub-wk2e.onrender.com')).toBe(true);
+    expect([...hosts].filter((h) => h.endsWith('onrender.com'))).toEqual(['backend-hub-wk2e.onrender.com']);
   }, 240_000);
 
   it('is named in .env.example and left off in the app\'s deploy file', () => {

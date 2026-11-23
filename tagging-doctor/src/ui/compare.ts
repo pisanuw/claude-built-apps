@@ -13,7 +13,7 @@
 import { CHECKER_MAX_BYTES, checkerTakes, type CheckerJob } from '../core/compile';
 import { CHANGE_WORDS, compareJobs, compiledWords, failuresWords, finished, madeItFail, trendLine, type PatchedRun } from '../core/compare';
 import { projectZip } from '../core/outzip';
-import { CheckerError, forget, runJob, SENDING, WAKING, type CheckerDeps, type TokenSource } from '../lib/checker';
+import { CheckerError, forget, keptToken, runJob, SENDING, WAKING, type CheckerDeps, type TokenSource } from '../lib/checker';
 import { CHECK_TAKES, progress, realClock, type Clock } from './progress';
 import { jobResult, mainFileRefusal, NOTICE_KEY, TOO_LARGE, UPLOAD_NOTICE } from './compile';
 import type { FixesCtx } from './fixes';
@@ -109,6 +109,8 @@ export function compareSlot(deps: CompareDeps): (slot: HTMLElement, ctx: FixesCt
 }
 
 export function mountCompare(slot: HTMLElement, deps: CompareDeps, ctx: FixesCtx): { cancel: () => void } {
+  // The last token these checks used, for their DELETE when the person signs out (R4a.2-4 g).
+  const tok = keptToken(deps.token);
   let gen = 0;
   let running = false;
   /** Jobs the checker holds for the current run, deleted on Cancel. */
@@ -137,7 +139,7 @@ export function mountCompare(slot: HTMLElement, deps: CompareDeps, ctx: FixesCtx
     gen++;
     prog.stop();
     running = false;
-    for (const id of sent) void forget(deps.checker, id, deps.token);
+    for (const id of sent) void forget(deps.checker, id, tok.orLast);
     sent = [];
   }
 
@@ -174,7 +176,7 @@ export function mountCompare(slot: HTMLElement, deps: CompareDeps, ctx: FixesCtx
     }));
     let left: number | null = null;
     const once = (zip: Uint8Array, label: string) =>
-      runJob(deps.checker, zip, ctx.scan.mainFile, deps.token, {
+      runJob(deps.checker, zip, ctx.scan.mainFile, tok.token, {
         // AC-81: each of the two checks counts from its own sending.
         onStatus: (text) => {
           if (stale() || !text) return;
@@ -185,7 +187,7 @@ export function mountCompare(slot: HTMLElement, deps: CompareDeps, ctx: FixesCtx
         onSent: (first) => {
           sent.push(first.id);
           if (typeof first.checksLeft === 'number') left = first.checksLeft;
-          if (stale()) void forget(deps.checker, first.id, deps.token);
+          if (stale()) void forget(deps.checker, first.id, tok.orLast);
         },
         stale,
       });

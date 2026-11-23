@@ -197,8 +197,17 @@ export function mountFixes(panel: HTMLElement, opts: FixesOpts): { cancel: () =>
   function drawActions() {
     const dl = el('button', { type: 'button', class: 'primary', id: 'download-patched' }, 'Download patched zip');
     dl.addEventListener('click', () => {
-      const result = ctx.patch();
-      const zip = patchedZip(project, result);
+      let result: ReturnType<typeof ctx.patch>;
+      let zip: Uint8Array;
+      try {
+        result = ctx.patch();
+        zip = patchedZip(project, result);
+      } catch (e) {
+        // Nothing is downloaded, and the page says so (R4a.3-4 d); the upload is never changed.
+        console.warn('tagging-doctor: the patched copy could not be made', e);
+        live.textContent = 'Something went wrong while making the copy, so nothing was downloaded. Your project is unchanged. Skip the last fix you accepted and try again.';
+        return;
+      }
       opts.downloadBlob(patchedZipName(project.name), new Blob([zip as BlobPart], { type: 'application/zip' }));
       live.textContent = result.applied.length ? `Downloaded the copy with ${result.applied.length === 1 ? '1 fix' : `${result.applied.length} fixes`}.` : 'Downloaded the copy with no fix: none is accepted.';
     });
