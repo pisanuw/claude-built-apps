@@ -395,8 +395,12 @@ export function bodyBeginOf(src: string): { at: number; depth: number; brace: nu
   return body;
 }
 
-/** The keys \DocumentMetadata takes (LaTeX's documentmetadata-support, 2026): an argument of only these is a call's (R4b.1-6 a). */
-const METADATA_KEYS = new Set(['lang', 'pdfversion', 'pdfstandard', 'tagging', 'tagging-setup', 'testphase', 'xmp', 'uncompress', 'debug', 'backend', 'colorprofiles', 'nopdfinfo', 'pdfmanagement', 'firstaidoff']);
+/**
+ * The keys \DocumentMetadata takes in the checker's TeX Live 2026, as LaTeX on
+ * the image answers `\keys_if_exist:nnTF {document/metadata}` (R4b.2-1 a): an
+ * argument of only these is a call's (R4b.1-6 a).
+ */
+const METADATA_KEYS = new Set(['lang', 'language', 'other-languages', 'pdfversion', 'pdfstandard', 'tagging', 'tagging-setup', 'testphase', 'xmp', 'uncompress', 'debug', 'backend', 'colorprofiles', 'check-tagging-status']);
 
 /** True when the argument is empty or a key list of \DocumentMetadata's keys, not code (`{ \def\x{1} }` after a test of the command). */
 function metadataArgument(arg: string): boolean {

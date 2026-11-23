@@ -335,6 +335,28 @@ describe('R4b.1-6: what R4a.3-2\'s fix left', () => {
     expect(card(plan, 'metadata')?.state).toBe('already-done');
   });
 
+  it.each([
+    ['language= with tagging=', 'language=en-US, tagging=on'],
+    ['check-tagging-status', 'lang=en-US, check-tagging-status'],
+    ['other-languages', 'lang=de, other-languages={en}'],
+    ['beside them, lang= as before', 'lang=en-US, tagging=on'],
+  ])('(a) R4b.2-1: a real call with a key of TeX Live 2026 is one: %s', (_l, keys) => {
+    const { scan, plan } = setup({ 'main.tex': '\\RequirePackage{setup}\n\\documentclass{article}\n\\begin{document}\nHi\n\\end{document}\n', 'setup.sty': `\\DocumentMetadata{${keys}}\n` });
+    expect(scan.metadataFile).toBe('setup.sty');
+    expect(card(plan, 'metadata')?.state).toBe('already-done');
+  });
+
+  it('(a) R4b.2-1: \\input{meta} above the class with language= counts, and the default copy gets no second \\DocumentMetadata', () => {
+    for (const keys of ['language=en-US,tagging=on', 'lang=en-US,tagging=on']) {
+      const files = { 'main.tex': '\\input{meta}\n\\documentclass{article}\n\\begin{document}\nHi\n\\end{document}\n', 'meta.tex': `\\DocumentMetadata{${keys}}\n` };
+      const { p, scan, plan } = setup(files);
+      expect(scan.metadataFile).toBe('meta.tex');
+      expect(card(plan, 'metadata')?.state).toBe('already-done');
+      const r = applyFixes(p, scan, new Set(['metadata', 'engine']));
+      expect(r.files.get('main.tex') ?? files['main.tex']).not.toContain('\\DocumentMetadata');
+    }
+  });
+
   it('(b) a definition holding \\begin{document} does not start the body: a real \\DocumentMetadata read after it, above the class, counts', () => {
     const b = setup({ 'main.tex': '\\newcommand{\\go}{\\begin{document}}\n\\input{meta}\n\\documentclass{article}\n\\begin{document}\nHi\n\\end{document}\n', 'meta.tex': '\\DocumentMetadata{lang=en-US}\n' });
     expect(b.scan.metadataFile).toBe('meta.tex');

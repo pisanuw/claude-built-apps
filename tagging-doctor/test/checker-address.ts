@@ -6,6 +6,6 @@
  * compile: true, points the app at the hub. Step 2's commit changes this
  * file and that one line of deploy/target.yml, and nothing else.
  */
-export const CHECKER_ADDRESS = 'https://tagging-doctor-worker.onrender.com';
-/** The address the app does not call in this step. */
-export const NOT_CALLED = 'https://backend-hub-wk2e.onrender.com/tagging-doctor';
+export const CHECKER_ADDRESS = 'https://backend-hub-wk2e.onrender.com/tagging-doctor';
+/** The address the app does not call in this step: the free worker's, retired (CR-13). */
+export const NOT_CALLED = 'https://tagging-doctor-worker.onrender.com';
