@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { build } from 'vite';
 import { afterAll, describe, expect, it } from 'vitest';
+import { CHECKER_ADDRESS, NOT_CALLED } from './checker-address';
 
 const ROOT = path.join(__dirname, '..');
 const dirs: string[] = [];
@@ -59,17 +60,17 @@ describe('AC-80: the build flag of "Compile patched and compare"', () => {
     expect(on.text).toContain('Compile patched and compare');
   }, 240_000);
 
-  it('AC-13 (CR-13): the build with deploy/target.yml\'s values calls the checker in backend-hub under its prefix, and no longer the worker', async () => {
+  it('AC-13 (CR-13): the build with deploy/target.yml\'s values calls the one checker address of this release step, and not the other', async () => {
     const target = fs.readFileSync(path.join(ROOT, 'deploy', 'target.yml'), 'utf8');
     const url = /^\s*VITE_CHECKER_URL:\s*(\S+)\s*$/m.exec(target)?.[1];
-    expect(url).toBe('https://backend-hub-wk2e.onrender.com/tagging-doctor');
+    expect(url).toBe(CHECKER_ADDRESS);
     expect(/^\s*VITE_COMPARE_PATCHED:/m.test(target)).toBe(false);
     const prod = await built(undefined, url);
-    expect(prod.text).toContain('https://backend-hub-wk2e.onrender.com/tagging-doctor');
-    expect(prod.text).not.toContain('tagging-doctor-worker.onrender.com');
+    expect(prod.text).toContain(CHECKER_ADDRESS);
+    const host = new URL(CHECKER_ADDRESS).hostname;
+    expect(prod.text).not.toContain(new URL(NOT_CALLED).hostname);
     const hosts = new Set([...prod.text.matchAll(/https?:\/\/([a-z0-9.-]+)/gi)].map((m) => m[1].toLowerCase()));
-    expect(hosts.has('backend-hub-wk2e.onrender.com')).toBe(true);
-    expect([...hosts].filter((h) => h.endsWith('onrender.com'))).toEqual(['backend-hub-wk2e.onrender.com']);
+    expect([...hosts].filter((h) => h.endsWith('onrender.com'))).toEqual([host]);
   }, 240_000);
 
   it('is named in .env.example and left off in the app\'s deploy file', () => {

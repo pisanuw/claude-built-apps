@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { CHECKER_ADDRESS, NOT_CALLED } from './checker-address';
 
 const APP = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => fs.readFileSync(path.join(APP, p), 'utf8');
@@ -57,9 +58,9 @@ describe('AC-13: the page loads nothing from another host', () => {
     }
     const target = read('deploy/target.yml');
     expect(target).toMatch(/VITE_SUPABASE_URL: https:\/\/auth\.hintwise\.org\n/);
-    // AC-13 (M4, CR-13): backend-hub's address with the checker's prefix, as one value; no longer the worker's.
-    expect(target).toMatch(/VITE_CHECKER_URL: https:\/\/backend-hub-wk2e\.onrender\.com\/tagging-doctor\n/);
-    expect(target).not.toMatch(/tagging-doctor-worker\.onrender\.com/);
+    // AC-13: the checker's address as one value, the one of this release step (test/checker-address.ts, D-133).
+    expect(target).toContain(`VITE_CHECKER_URL: ${CHECKER_ADDRESS}\n`);
+    expect(target).not.toContain(new URL(NOT_CALLED).hostname);
     // CR-11, need 4 (D-97): Compile and check is on in the released build.
     expect(target).toMatch(/VITE_COMPILE_CHECK: 'on'\n/);
     // Every request of the checker client goes to that one base address.
