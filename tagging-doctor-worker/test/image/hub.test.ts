@@ -13,10 +13,11 @@
  *     mounts still answer.
  * And mult-streak's players' file and the hub's environment are out of a job's reach.
  */
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { docker, FIXTURES, fixture, freshToken, IN_HUB, projectZip, Worker, type JobView } from './harness.ts';
+import { docker, FIXTURES, fixture, freshToken, IMAGE, IN_HUB, projectZip, Worker, type JobView } from './harness.ts';
 
 const AC68_TAGGED = new Uint8Array(readFileSync(path.join(FIXTURES, 'ac68', 'math-notes-tagged.zip')));
 const PROBE_LIMIT_MS = 2_000;
@@ -163,5 +164,23 @@ describe.runIf(IN_HUB)('AC-82 on the hub’s image, with mult-streak mounted', (
     expect(results.match(/blocked/g)?.length).toBe(3);
     expect(`${j.logTail.join('\n')}\n${await w.pdfText(j.id, token)}`).not.toContain(mark);
     expect(w.texUserFiles()).toEqual([]);
+  });
+});
+
+describe.runIf(IN_HUB)('R4b.1-1: the hub runs with NODE_ENV=production, as on the native runtime', () => {
+  it('an error reaching Express gives no stack trace, and mult-streak still refuses to start without COOKIE_SECRET', async () => {
+    w = await Worker.start();
+    expect(w.exec(['sh', '-c', 'tr "\\0" "\\n" < /proc/1/environ | grep "^NODE_ENV="']).trim()).toBe('NODE_ENV=production');
+    const r = await fetch(`${w.root}/mult-streak/api/answer`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{bad' });
+    const text = await r.text();
+    expect(r.status).toBe(400);
+    expect(text).not.toMatch(/SyntaxError|node_modules|\/app\//);
+    // The checker's own routes are as before.
+    expect((await fetch(`${w.base}/api/health`)).status).toBe(200);
+    const name = `tdw-nosecret-${process.pid}`;
+    const run = spawnSync('docker', ['run', '--name', name, '-e', 'PORT=4999', IMAGE], { encoding: 'utf8', timeout: 60_000 });
+    spawnSync('docker', ['rm', '-f', name]);
+    expect(run.status).toBe(1);
+    expect(`${run.stdout}${run.stderr}`).toContain('COOKIE_SECRET must be set in production');
   });
 });

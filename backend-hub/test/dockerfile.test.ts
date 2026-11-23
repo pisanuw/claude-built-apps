@@ -49,8 +49,10 @@ describe('backend-hub/Dockerfile', () => {
     // mult-streak's players' file is the server's alone: a job's TeX cannot read it.
     expect(hub).toContain('install -d -m 0700 -o root -g root /app/backend-hub/data');
     expect(hub).toContain('CMD ["node", "--disable-warning=ExperimentalWarning", "dist/index.js"]');
-    // mult-streak keeps its environment: the image does not set NODE_ENV.
-    expect(HUB).not.toMatch(/NODE_ENV/);
+    // NODE_ENV=production, which Render gave the native hub and does not give a Docker service (R4b.1-1):
+    // Express hides stack traces, and mult-streak refuses to start without COOKIE_SECRET, as before.
+    expect(hub).toMatch(/^ENV NODE_ENV=production /m);
+    expect(stage(HUB, 'build').join('\n')).not.toMatch(/NODE_ENV/); // npm ci still installs the build's dev tools
   });
 
   it('takes its files from backend-hub/, mult-streak/, tagging-doctor-worker/ and the footer script, each let in by its .dockerignore', () => {

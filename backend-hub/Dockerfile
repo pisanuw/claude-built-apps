@@ -99,7 +99,12 @@ RUN install -d -m 0711 -o root -g root /jobs \
  && install -d -m 0700 -o root -g root /app/backend-hub/data \
  && chmod -R go-w /app
 WORKDIR /app/backend-hub
-ENV PORT=10000 \
+# Render gives a native Node service NODE_ENV=production and a Docker one
+# nothing (render.com/docs/environment-variables), so the image sets it, as
+# the native hub had it: Express hides stack traces, and mult-streak refuses
+# to start without COOKIE_SECRET (R4b.1-1). The checker does not read it.
+ENV NODE_ENV=production \
+    PORT=10000 \
     TAGGING_DOCTOR_CHECKER=/app/tagging-doctor-worker/src/mount.ts \
     TAGGING_DOCTOR_JOBS_ROOT=/jobs
 EXPOSE 10000
