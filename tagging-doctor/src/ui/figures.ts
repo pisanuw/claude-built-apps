@@ -54,6 +54,8 @@ export interface FigureChoice {
   note: string | null;
   /** The text the model gave, so a saved text is credited to the model only while it is that text (D-153). */
   drafted?: string;
+  /** How often a change of person emptied it (R5b.2-5 h): a draft out across that is still used. */
+  forgotten?: number;
 }
 
 /** The drafts out for one document: their figure ids, and the panel on the page that draws an arriving answer. */
@@ -291,11 +293,14 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
     const c = choice(f.id);
     busy.add(f.id);
     c.error = null;
-    const asked = { text: c.text, status: c.status };
+    const asked = { text: c.text, status: c.status, forgotten: c.forgotten ?? 0 };
     drawFigure(f);
     try {
       const r = await draftFigure(f, d);
-      if (c.text !== asked.text || c.status !== asked.status) {
+      // Emptied by a change of person while out: used if the figure is still empty (R5b.2-5 h).
+      const emptied = (c.forgotten ?? 0) !== asked.forgotten;
+      const changed = emptied ? c.status !== 'none' || c.text.trim() !== '' : c.text !== asked.text || c.status !== asked.status;
+      if (changed) {
         c.note = 'A draft arrived after you changed this figure, so your text and choice were kept.';
         return;
       }

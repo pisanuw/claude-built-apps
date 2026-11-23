@@ -183,10 +183,12 @@ export function restoreAlts(
   fresh: () => FigureChoice,
 ): { restored: string[]; stale: string[] } {
   const byPath = new Map(rows.map((r) => [r.figure_path, r]));
-  // First a saved row of the same file (or the same source file's pictures) with the same fingerprint, its own
-  // position first; then the row at the figure's position. So a picture added above others does not shift their
-  // texts onto each other (R5b.1-4). A row taken once is not used again, and a row whose fingerprint is a figure's
-  // of this version is not shown as another figure's earlier text.
+  // Three passes (R5b.1-4, R5b.2-2). First every figure takes the row at its own slot when the fingerprint is
+  // the same, so an image used twice keeps each use's text in place. Then a figure that can take a text (none in
+  // its source, not started on) and has none yet takes an unused row of the same file (or the same source file's
+  // pictures) with its fingerprint, the first in slot order: a picture added above others leaves them their texts.
+  // Last, the row at its own slot whose file changed, as an earlier text; not a row whose fingerprint is another
+  // figure's of this version. A row is used once.
   const used = new Set<SavedAlt>();
   const match = new Map<string, SavedAlt>();
   const hashesOf = new Map<string, Set<string>>();
@@ -196,22 +198,28 @@ export function restoreAlts(
     if (!hashesOf.has(k.base)) hashesOf.set(k.base, new Set());
     hashesOf.get(k.base)?.add(k.hash);
   }
+  const slotNumber = (path: string) => Number(/#(?:tikz-)?(\d+)$/.exec(path)?.[1] ?? 1);
+  const inSlotOrder = [...rows].sort((a, b) => slotNumber(a.figure_path) - slotNumber(b.figure_path));
+  const take = (id: string, row: SavedAlt) => {
+    used.add(row);
+    match.set(id, row);
+  };
   for (const f of figures) {
     const k = keys.get(f.id);
-    if (!k) continue;
-    const same = rows.filter((r) => !used.has(r) && baseOf(r.figure_path) === k.base && r.figure_hash === k.hash);
-    const row = same.find((r) => r.figure_path === k.path) ?? same[0];
-    if (row) {
-      used.add(row);
-      match.set(f.id, row);
-    }
+    const row = k && byPath.get(k.path);
+    if (k && row && row.figure_hash === k.hash && !used.has(row)) take(f.id, row);
+  }
+  for (const f of figures) {
+    const k = keys.get(f.id);
+    if (!k || match.has(f.id) || f.existing || !untouched(choices.get(f.id))) continue;
+    const row = inSlotOrder.find((r) => !used.has(r) && baseOf(r.figure_path) === k.base && r.figure_hash === k.hash);
+    if (row) take(f.id, row);
   }
   for (const f of figures) {
     const k = keys.get(f.id);
     const row = k && byPath.get(k.path);
     if (!k || !row || match.has(f.id) || used.has(row) || hashesOf.get(k.base)?.has(row.figure_hash)) continue;
-    used.add(row);
-    match.set(f.id, row);
+    take(f.id, row);
   }
   const restored: string[] = [];
   const stale: string[] = [];

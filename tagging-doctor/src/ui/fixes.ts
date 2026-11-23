@@ -77,16 +77,18 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string,
 
 /**
  * Takes back what a restore put on the page from the person's saved rows
- * (R5b.1-1): a figure still as the restore left it is emptied; one the
- * person changed since keeps their text and choice, without the restore's
- * note. Returns the ids changed.
+ * (R5b.1-1, R5b.2-1): a figure whose text is still the restored text is
+ * emptied, whatever its choice now (Skip or Decorative leave the text in the
+ * box); one whose text the person changed keeps it, without the restore's
+ * note. The choice is emptied in place, and marked, so a draft that is out
+ * for it still arrives (R5b.2-5 h). Returns the ids changed.
  */
 export function forgetRestored(state: FixesState): string[] {
   const out: string[] = [];
   for (const [id, was] of state.restored) {
     const c = state.alts.get(id);
     if (!c) continue;
-    if (c.text === was.text && c.status === was.status) state.alts.set(id, { ...newChoice(), error: c.error });
+    if (c.text === was.text) Object.assign(c, { ...newChoice(), error: c.error, forgotten: (c.forgotten ?? 0) + 1 });
     else if (was.note && c.note === was.note) c.note = null;
     else continue;
     out.push(id);
