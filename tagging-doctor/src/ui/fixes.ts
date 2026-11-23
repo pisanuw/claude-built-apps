@@ -11,7 +11,7 @@ import { applyFixes, metadataRefusal, patchedZip, patchedZipName, suggestFixes, 
 import type { Project } from '../core/project';
 import type { DocumentScan } from '../core/scan';
 import { altEdits, figureAttention, listFigures, styleFigureAttention, type FigureItem } from '../core/figures';
-import { approvedDecisions, mountFigures, newDrafting, type DraftingState, type FigureChoice, type FiguresOpts } from './figures';
+import { approvedDecisions, mountFigures, newChoice, newDrafting, type DraftingState, type FigureChoice, type FiguresOpts } from './figures';
 
 export const FIXES_INTRO = 'Each fix is made on a copy of your files, which stay as they are. Accept or skip each one, then download the copy.';
 export const NOTHING_UPLOADED = 'The fixes are made in your browser and upload nothing. A figure draft, below, is sent only when you ask for it.';
@@ -56,10 +56,16 @@ export interface FixesState {
   alts: Map<string, FigureChoice>;
   /** The drafts out, so a panel drawn again knows them (R5a.2-1). */
   drafting: DraftingState;
+  /**
+   * The figures a restore filled or noted from the signed-in person's saved
+   * project, each as the restore left it (R5b.1-1): on a change of person,
+   * those still so are emptied, as they came from that person's rows.
+   */
+  restored: Map<string, Pick<FigureChoice, 'text' | 'status' | 'note'>>;
 }
 
 export function newFixesState(): FixesState {
-  return { choices: new Map(), highlighted: null, alts: new Map(), drafting: newDrafting() };
+  return { choices: new Map(), highlighted: null, alts: new Map(), drafting: newDrafting(), restored: new Map() };
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, text?: string): HTMLElementTagNameMap[K] {
@@ -67,6 +73,26 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string,
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
   if (text !== undefined) e.textContent = text;
   return e;
+}
+
+/**
+ * Takes back what a restore put on the page from the person's saved rows
+ * (R5b.1-1): a figure still as the restore left it is emptied; one the
+ * person changed since keeps their text and choice, without the restore's
+ * note. Returns the ids changed.
+ */
+export function forgetRestored(state: FixesState): string[] {
+  const out: string[] = [];
+  for (const [id, was] of state.restored) {
+    const c = state.alts.get(id);
+    if (!c) continue;
+    if (c.text === was.text && c.status === was.status) state.alts.set(id, { ...newChoice(), error: c.error });
+    else if (was.note && c.note === was.note) c.note = null;
+    else continue;
+    out.push(id);
+  }
+  state.restored.clear();
+  return out;
 }
 
 /** The ids the patch applies: accepted cards (by default or by choice) that change something. */

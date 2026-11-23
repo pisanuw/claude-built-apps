@@ -36,6 +36,19 @@ export interface StoredSummary {
   ok: number;
   notes: string[];
   figures: { images: number; imagesWithoutAlt: number; tikz: number; tikzWithoutAlt: number };
+  /**
+   * What this version's patched copy carries from Tagging Doctor (AC-52,
+   * D-153): the saved alt texts and decorative marks of this version's own
+   * figures, for files unchanged since they were approved, that the patch
+   * writes. Set by the page after the save and after each change; absent on
+   * a scan saved before milestone 5b, or whose figure panel never ran.
+   */
+  altCopy?: AltCopy;
+}
+
+export interface AltCopy {
+  approved: number;
+  decorative: number;
 }
 
 /** The part of a scans row the app writes. */
@@ -186,11 +199,11 @@ export interface ReportCheck {
   older: boolean;
 }
 
-/** Figures with alt text in the latest scan's sources, out of its figures, and the texts approved in Tagging Doctor (AC-52, AC-51). */
+/** Figures with alt text in the latest scan's sources, out of its figures, and what that version's patched copy adds (AC-52, AC-51). */
 export interface ReportAlt {
   withAlt: number;
   figures: number;
-  approved: number;
+  copy: AltCopy | null;
 }
 
 /** What the course report needs of a saved check (a jobs row). */
@@ -241,7 +254,6 @@ export function courseRows(
   projects: { id: string; name: string; main_file: string }[],
   latest: Map<string, { id?: string; created_at: string; summary: StoredSummary }>,
   checks: Map<string, CheckRow> = new Map(),
-  approved: Map<string, number> = new Map(),
 ): CourseReportRow[] {
   return projects.map((p) => {
     const s = latest.get(p.id);
@@ -255,7 +267,7 @@ export function courseRows(
       warnings: s ? s.summary.warnings : 0,
       scannedAt: s ? s.created_at : null,
       check: j ? { kind: j.kind === 'patched-check' ? 'patched' : 'original', at: j.finished_at ?? j.created_at, result: checkResult(j), older: !s || j.scan_id !== s.id } : null,
-      alt: fg ? { figures: fg.images + fg.tikz, withAlt: fg.images - fg.imagesWithoutAlt + (fg.tikz - fg.tikzWithoutAlt), approved: approved.get(p.id) ?? 0 } : null,
+      alt: fg ? { figures: fg.images + fg.tikz, withAlt: fg.images - fg.imagesWithoutAlt + (fg.tikz - fg.tikzWithoutAlt), copy: s?.summary.altCopy ?? null } : null,
     };
   });
 }
@@ -266,12 +278,21 @@ export function checkWords(c: ReportCheck | null | undefined, timeZone?: string)
   return `${c.result} (${c.kind === 'patched' ? 'the patched copy' : 'the original'}, ${shortDate(c.at, timeZone)}${c.older ? '; older than the latest scan' : ''})`;
 }
 
-/** "3 of 10 figures; 5 more approved in Tagging Doctor", "no figures", or "not run" (AC-52). */
+/**
+ * "3 of 10 figures", with what the latest version's patched copy adds:
+ * "; in Tagging Doctor's patched copy, 2 more with alt text and 1 marked
+ * decorative"; "no figures", or "not run" (AC-52, D-153).
+ */
 export function altWords(a: ReportAlt | null | undefined): string {
   if (!a) return 'not run';
   if (!a.figures) return 'no figures';
   const base = `${a.withAlt} of ${a.figures} ${a.figures === 1 ? 'figure' : 'figures'}`;
-  return a.approved ? `${base}; ${a.approved} approved in Tagging Doctor, in its patched copy` : base;
+  const c = a.copy;
+  if (!c || (!c.approved && !c.decorative)) return base;
+  const parts: string[] = [];
+  if (c.approved) parts.push(`${c.approved} more with alt text`);
+  if (c.decorative) parts.push(`${c.decorative} marked decorative`);
+  return `${base}; in Tagging Doctor’s patched copy, ${parts.join(' and ')}`;
 }
 
 /** The blockers of the latest scans, sorted by how many projects each affects, then by name (AC-20). */

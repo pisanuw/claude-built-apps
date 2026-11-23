@@ -19,10 +19,10 @@ import type { CourseStore } from '../lib/store';
 import { jobRecord, type CheckerJob, type JobRecord } from '../core/compile';
 import { finished } from '../core/compare';
 import { mountCompile, KEPT, type CompileDeps } from './compile';
-import { mountFixes, newFixesState, type FixesState } from './fixes';
+import { forgetRestored, mountFixes, newFixesState, type FixesState } from './fixes';
 import { newChoice, type FiguresOpts } from './figures';
 import { listFigures, type FigureItem } from '../core/figures';
-import { altSync, figureKeys, restoreAlts, restoredWords, type FigureKey } from '../lib/alts';
+import { altCopyOf, altSync, figureKeys, restoreAlts, restoredWords, type FigureKey } from '../lib/alts';
 import type { CompareDeps, compareSlot as CompareSlot } from './compare';
 import { KEEP_HASH, renderCourse, renderCourseReport, renderCourses, renderKeep, renderNotFound, renderProject, renderSaveDialog, type PageCtx } from './pages';
 
@@ -697,7 +697,12 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       const [rows, { figures, keys }] = await Promise.all([store.altTexts(projectId), slots]);
       if (gone()) return;
       const r = restoreAlts(figures, keys, rows, state.alts, newChoice);
-      for (const id of [...r.restored, ...r.stale]) state.drafting.draw?.(id);
+      for (const id of [...r.restored, ...r.stale]) {
+        // What came from this person's rows, so a change of person can take it back (R5b.1-1).
+        const c = state.alts.get(id);
+        if (c) state.restored.set(id, { text: c.text, status: c.status, note: c.note });
+        state.drafting.draw?.(id);
+      }
       const words = restoredWords(r.restored.length, r.stale.length);
       if (words && fixesFor === main) fixesRun?.say(words);
     } catch (e) {
@@ -720,6 +725,8 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
         const { figures, keys } = await slots;
         const { want, drop } = altSync(figures, keys, state.alts);
         if (want.length || drop.length) await store.syncAltTexts(saved.projectId, want, drop);
+        // What this version's copy carries of the saved texts, for the course report (AC-52, D-153).
+        await store.setAltCopy(saved.scanId, altCopyOf(p, figures, keys, state.alts));
       })
       .catch((e) => {
         console.warn('tagging-doctor: the alt texts could not be saved', e);
@@ -1034,6 +1041,10 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       if (compileFor !== null) hideCompile();
       savedScans = new Map();
       unsavedJobs = new Map();
+      // Texts and notes a restore read from the person before are theirs, not the page's: they go,
+      // unless that person changed them since; the next person's own restore comes when the panel is drawn (R5b.1-1).
+      for (const state of fixStates.values()) forgetRestored(state);
+      restoreAsked = new Set();
       // That person's checks are not the new person's; the fix panel is drawn again, with or without the compare.
       originals = new Map();
       if (fixesFor !== null) drawFixes();

@@ -213,14 +213,12 @@ export async function courseReport(store: CourseStore, id: string, now: Date, da
   // Summaries first; then the findings of the latest scan of each project only (R2.1-6).
   const latestSummaries = latestByProject(await store.scanSummaries(projects.map((p) => p.id)));
   const ids = projects.map((p) => p.id);
-  const [latest, jobs, alts] = await Promise.all([store.scansById([...latestSummaries.values()].map((x) => x.id)).then(latestByProject), store.jobsOf(ids), store.altTextsOf(ids)]);
-  // AC-52: each project's latest check, and how many alt texts it has approved here.
-  const approved = new Map<string, number>();
-  for (const a of alts) approved.set(a.project_id, (approved.get(a.project_id) ?? 0) + 1);
+  const [latest, jobs] = await Promise.all([store.scansById([...latestSummaries.values()].map((x) => x.id)).then(latestByProject), store.jobsOf(ids)]);
+  // AC-52: each project's latest check; what its latest version's copy carries is in that scan's summary (D-153).
   return {
     course: { name: course.name, term: course.term },
     generatedAt: now.toISOString(),
-    rows: courseRows(projects, latest, latestCheck(jobs), approved),
+    rows: courseRows(projects, latest, latestCheck(jobs)),
     blockers: blockerTable(projects, latest),
     data: reportData(latest.values(), data),
   };

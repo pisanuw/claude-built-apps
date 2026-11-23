@@ -32,23 +32,25 @@ describe('AC-52: each project row shows its latest check and alt text coverage',
       ],
       new Map([
         ['p1', { id: 's9', created_at: '2026-11-22T00:00:00Z', ...s }],
-        ['p2', { id: 's2', created_at: '2026-11-22T00:00:00Z', ...s }],
+        ['p2', { id: 's2', created_at: '2026-11-22T00:00:00Z', ...s, summary: { ...s.summary, altCopy: { approved: 1, decorative: 0 } } }],
         ['p3', { id: 's3', created_at: '2026-11-22T00:00:00Z', ...s }],
       ]),
       latest,
-      new Map([['p2', 1]]),
     );
     expect(checkWords(rows[0].check, 'UTC')).toBe('Did not compile. (the patched copy, 21 Nov 2026; older than the latest scan)');
     expect(checkWords(rows[1].check, 'UTC')).toMatch(/^3 pages, compiled in 20.0 s.*Passed the PDF\/UA-2 check\. \(the original, 22 Nov 2026\)$/);
     expect(checkWords(rows[2].check)).toBe('not run');
     expect(checkWords(rows[3].check)).toBe('not run');
     // The scan's figures: two images and the artifact, one TikZ picture; alt or artifact on two of the four.
-    expect(rows[0].alt).toEqual({ figures: 4, withAlt: 2, approved: 0 });
+    expect(rows[0].alt).toEqual({ figures: 4, withAlt: 2, copy: null });
     expect(altWords(rows[0].alt)).toBe('2 of 4 figures');
-    expect(altWords(rows[1].alt)).toBe('2 of 4 figures; 1 approved in Tagging Doctor, in its patched copy');
+    expect(altWords(rows[1].alt)).toBe('2 of 4 figures; in Tagging Doctor’s patched copy, 1 more with alt text');
     expect(altWords(rows[3].alt)).toBe('not run');
-    expect(altWords({ figures: 0, withAlt: 0, approved: 0 })).toBe('no figures');
-    expect(altWords({ figures: 1, withAlt: 1, approved: 0 })).toBe('1 of 1 figure');
+    expect(altWords({ figures: 0, withAlt: 0, copy: null })).toBe('no figures');
+    expect(altWords({ figures: 1, withAlt: 1, copy: null })).toBe('1 of 1 figure');
+    expect(altWords({ figures: 3, withAlt: 0, copy: { approved: 0, decorative: 0 } })).toBe('0 of 3 figures');
+    expect(altWords({ figures: 3, withAlt: 0, copy: { approved: 2, decorative: 1 } })).toBe('0 of 3 figures; in Tagging Doctor’s patched copy, 2 more with alt text and 1 marked decorative');
+    expect(altWords({ figures: 3, withAlt: 0, copy: { approved: 0, decorative: 1 } })).toBe('0 of 3 figures; in Tagging Doctor’s patched copy, 1 marked decorative');
     // A failed check's detail names files and lines: not in a report that is handed on.
     expect(checkWords(rows[0].check)).not.toContain('main.tex');
   });

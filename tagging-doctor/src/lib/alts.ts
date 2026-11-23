@@ -15,8 +15,9 @@
  * A figure with no file in the zip, or a `#1` in a definition, has no slot
  * and is not saved.
  */
-import type { FigureItem } from '../core/figures';
+import { altEdits, normalizeAlt, type AltDecision, type FigureItem } from '../core/figures';
 import type { Project } from '../core/project';
+import type { AltCopy } from '../core/saved';
 import type { FigureChoice } from '../ui/figures';
 
 export interface FigureKey {
@@ -176,4 +177,23 @@ export function restoredWords(restored: number, stale: number): string | null {
   if (restored) parts.push(`${restored === 1 ? '1 alt text' : `${restored} alt texts`} restored from the saved project, for files that are unchanged`);
   if (stale) parts.push(`${stale === 1 ? '1 figure has' : `${stale} figures have`} a saved text for an earlier version of its file, shown on the figure`);
   return parts.length ? `${parts.join('; ')}.` : null;
+}
+
+/**
+ * What the patched copy of this version carries of the texts saved with a
+ * slot (AC-52, D-153): the approved texts and decorative marks of figures
+ * that have a slot, that the patch writes (not a TikZ picture, a definition,
+ * a file not in UTF-8, or a text D-147 leaves out).
+ */
+export function altCopyOf(project: Project, figures: FigureItem[], keys: ReadonlyMap<string, FigureKey>, choices: ReadonlyMap<string, FigureChoice>): AltCopy {
+  const decisions = new Map<string, AltDecision>();
+  for (const f of figures) {
+    const c = choices.get(f.id);
+    if (!keys.has(f.id) || !c || f.existing) continue;
+    if (c.status === 'approved' && normalizeAlt(c.text)) decisions.set(f.id, { decision: 'approved', text: c.text });
+    else if (c.status === 'decorative') decisions.set(f.id, { decision: 'decorative', text: '' });
+  }
+  const edits = altEdits(project, figures, decisions);
+  const approved = edits.filter((e) => e.text.includes('alt={')).length;
+  return { approved, decorative: edits.length - approved };
 }

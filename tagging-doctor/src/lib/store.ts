@@ -7,7 +7,7 @@
  * fills user_id (so this code never sends or filters by user).
  */
 import type { JobRecord, JobSummary } from '../core/compile';
-import { blockerDelta, type Delta, type SaveItem, type StoredFinding, type StoredScan, type StoredSummary } from '../core/saved';
+import { blockerDelta, type AltCopy, type Delta, type SaveItem, type StoredFinding, type StoredScan, type StoredSummary } from '../core/saved';
 import type { AltWant } from './alts';
 import { newId } from './repository';
 
@@ -314,6 +314,19 @@ export class CourseStore {
       removed++;
     }
     return { written, removed };
+  }
+
+  /**
+   * Records with a saved scan what its version's patched copy carries from
+   * Tagging Doctor (AC-52, D-153), in its summary; nothing is written when
+   * it is already so. The page calls it after each sync of the document.
+   */
+  async setAltCopy(scanId: string, altCopy: AltCopy): Promise<void> {
+    const row = (await this.db.select<Pick<ScanRow, 'id' | 'summary'>>('scans', { id: scanId }, 'id, summary'))[0];
+    if (!row) return;
+    const was = row.summary.altCopy;
+    if (was && was.approved === altCopy.approved && was.decorative === altCopy.decorative) return;
+    await this.db.update('scans', scanId, { summary: { ...row.summary, altCopy } });
   }
 
   async altTextsOf(projectIds: string[]): Promise<AltTextRow[]> {
