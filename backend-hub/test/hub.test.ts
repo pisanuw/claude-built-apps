@@ -40,6 +40,30 @@ describe('createHub', () => {
     expect(res.body).toEqual({ status: 'ok', apps: MOUNTS });
   });
 
+  it('keeps its own health route the hub’s: the checker’s is under its prefix (CR-13)', async () => {
+    const { app } = createHub({ multStreak: fakeMultStreak() });
+    const res = await request(app).get('/api/health');
+    expect(res.body.status).toBe('ok');
+    expect(res.body.apps).toMatchObject({ 'mult-streak': 'mounted', chat: 'reserved', dsa: 'standalone', 'tagging-doctor': 'mounted' });
+    expect(res.body).not.toHaveProperty('compile');
+  });
+
+  it('mounts the checker at /tagging-doctor, and its stand-in when there is none', async () => {
+    const handle = vi.fn(async (req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ url: req.url }));
+    });
+    const withChecker = createHub({ multStreak: fakeMultStreak(), checker: { handle } }).app;
+    const r = await request(withChecker).get('/tagging-doctor/api/jobs/abc?x=1');
+    expect(r.body).toEqual({ url: '/api/jobs/abc?x=1' });
+    const without = createHub({ multStreak: fakeMultStreak() }).app;
+    const h = await request(without).get('/tagging-doctor/api/health');
+    expect(h.status).toBe(200);
+    expect(h.body.compile).toBe(false);
+    const idx = await request(without).get('/');
+    expect(idx.text).toContain('href="/tagging-doctor/api/health"');
+  });
+
   it('redirects /mult-streak to /mult-streak/ so relative fetches resolve', async () => {
     const { app } = createHub({ multStreak: fakeMultStreak() });
     const res = await request(app).get('/mult-streak');
