@@ -600,17 +600,44 @@ describe('R4a.2-4 (g): signing out while a check runs stops it on the checker', 
     expect(c.deletes).toHaveLength(1);
   });
 
-  it('Compile patched and compare: both checks’ jobs are deleted; and the token is not kept for a later delete', async () => {
-    const c = stub((patched) => (patched ? patchedDone() : job()), { realSleep: true });
+  it('Compile patched and compare, both jobs sent (R4b.1-5): a sign-out deletes both, the running patched one included', async () => {
+    // The patched job stays running, as math-notes' does for 47 s.
+    const c = stub((patched) => (patched ? job({ status: 'running', result: null }) : job()), { realSleep: true });
     const t = page({ compare: true, checker: c });
     await t.app.handleFile(file('week1.zip', PROJECT));
     t.button('Suggest fixes').click();
     t.button('Compile patched and compare').click();
-    for (let i = 0; i < 200 && !c.posts.length; i++) await settle(1);
+    for (let i = 0; i < 400 && c.posts.length < 2; i++) await settle(1);
+    expect(c.posts.map((p) => p.patched)).toEqual([false, true]);
     t.setUser(null);
     await settle();
-    expect(c.deletes.length).toBeGreaterThanOrEqual(1);
-    expect(new Set(c.deletes).size).toBe(c.deletes.length);
+    expect(c.deletes).toHaveLength(2);
+    expect(c.deletes.some((id) => id.includes('b'))).toBe(true); // the patched job's id
+    expect(new Set(c.deletes).size).toBe(2);
+  });
+
+  it('Compile patched and compare (R4b.1-5): a sign-out while the patched upload is on its way deletes that job once its id is known', async () => {
+    const c = stub((patched) => (patched ? job({ status: 'running', result: null }) : job()), { realSleep: true });
+    const real = c.deps.fetch;
+    let release: () => void = () => {};
+    const held = new Promise<void>((r) => (release = r));
+    c.deps.fetch = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
+      // The second upload (the patched copy) waits until the test lets it through.
+      if ((init.method ?? 'GET') === 'POST' && c.posts.length === 1) await held;
+      return real(input, init);
+    }) as typeof fetch;
+    const t = page({ compare: true, checker: c });
+    await t.app.handleFile(file('week1.zip', PROJECT));
+    t.button('Suggest fixes').click();
+    t.button('Compile patched and compare').click();
+    for (let i = 0; i < 400 && !c.gets.length; i++) await settle(1);
+    for (let i = 0; i < 100; i++) await settle(1);
+    t.setUser(null);
+    await settle();
+    release();
+    for (let i = 0; i < 100 && c.deletes.length < 2; i++) await settle(1);
+    expect(c.posts).toHaveLength(2);
+    expect(new Set(c.deletes).size).toBe(2);
   });
 });
 

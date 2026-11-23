@@ -135,11 +135,16 @@ export function mountCompare(slot: HTMLElement, deps: CompareDeps, ctx: FixesCtx
     actions.replaceChildren(button(COMPARE_LABEL, () => void start(), { class: 'primary', id: 'compare-go' }));
   }
 
+  /** The token of the last stop, asked once and used for every job of it: `orLast` gives a kept token only once (R4b.1-5). */
+  let stopToken: Promise<string | null> | null = null;
+
   function stop() {
     gen++;
     prog.stop();
     running = false;
-    for (const id of sent) void forget(deps.checker, id, tok.orLast);
+    const t = tok.orLast();
+    stopToken = t;
+    for (const id of sent) void forget(deps.checker, id, () => t);
     sent = [];
   }
 
@@ -187,7 +192,11 @@ export function mountCompare(slot: HTMLElement, deps: CompareDeps, ctx: FixesCtx
         onSent: (first) => {
           sent.push(first.id);
           if (typeof first.checksLeft === 'number') left = first.checksLeft;
-          if (stale()) void forget(deps.checker, first.id, tok.orLast);
+          // Stopped while this upload was on its way: the job goes with the stop's token (R4b.1-5).
+          if (stale()) {
+            const t = stopToken;
+            void forget(deps.checker, first.id, t ? () => t : tok.orLast);
+          }
         },
         stale,
       });
