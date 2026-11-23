@@ -66,6 +66,8 @@ When it fires, if you took over from a previous session that is not yet archived
 
 - **Stamp the time only from `date`**, converted to the report time zone, never from a time you plan to send at.
 - **"Waiting for you" writes every open decision out in full, every time:** the question, its options and the recommendation. The owner may not be able to reach old reports, so never point at an earlier card.
+- **Every card is self-contained.** A card, and each item on it, carries in full whatever the owner needs to act: the exact text of a file or a change, the links, the commands, and what a working run prints. It never refers back to an earlier message, card, note or item ("the exact wording is in my note of 16:56", "as above", "see the 10:00 card"). If the owner would have to scroll back to act, copy the text into the card.
+- **The card comes last.** When a reply also carries the card's text (in chat, or beside a `SendUserFile`), put the card's text at the very end, after everything else, whenever possible, so it is the last thing the owner reads.
 - **List an owner action only once it can be done now.** One that waits on a merge or a date stays off the list until it is due. When it is due, give the exact copy-paste command and what a working run prints.
 - **Never list deleting merged branches.** Turn on the repository's "Automatically delete head branches" setting at setup (the owner does this in Settings → General), and say "Nothing open" when nothing is.
 - **Say what is not verified.**
@@ -144,7 +146,7 @@ When it fires:
 
 The owner is often away, so a question must never stall the work.
 
-- **Send each decision as a short card.** One Markdown file, sent with `SendUserFile` (`status: proactive`), holding the question, numbered options, a recommendation and what happens with no answer. Then keep working on something else.
+- **Send each decision as a short card.** One Markdown file, sent with `SendUserFile` (`status: proactive`), holding the question, numbered options, a recommendation and what happens with no answer. It is self-contained, with no reference back to an earlier message or card, and when the reply also prints it, it comes last (the status report rules above). Then keep working on something else.
 - **Set a check-in for 15 minutes later** (`send_later`).
 - **With no answer by then, take the recommendation.** Put it in the next status report's "What's new", with how to undo it, and keep a one-line undo under "Defaults taken" in each report until the owner acknowledges it.
 - **The default never covers** writing production data, spending money, deploying unless the owner asked for deploys, deleting what cannot be restored, rotating secrets, rewriting shared history or publishing outside the session. Those wait for an explicit yes.
@@ -160,4 +162,5 @@ The owner is often away, so a question must never stall the work.
 - **Don't poll.** Routines and notifications wake the session; a `sleep` loop wastes the turn and is often blocked.
 - **Times drift.** Stamp from `date` and convert, and write routine times in the routine time zone and report times in the report time zone. The handoff document says which is which.
 - **Merged branches leak back onto the owner's list.** A branch merged before the auto-delete setting was turned on stays on the remote. Don't list it as an owner action; the session usually cannot delete it either.
+- **A card points back.** An item said "the exact change wording is in my earlier note" instead of giving the wording, and the owner had to go looking for it. Every card stands alone: copy the text in, every time.
 - **The new session repeats the old one's last hour.** The handoff's "next, in order" should start with what is actually next, not with what the previous session already finished after the document was written. Re-check against git before starting.
