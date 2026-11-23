@@ -293,6 +293,8 @@ interface CardWork {
 export interface PatchOptions {
   /** The language the person chose for \DocumentMetadata; else the document's own (AC-38). */
   language?: string;
+  /** The approved alt texts as edits (figures.ts, `altEdits`; AC-49). They are in the copy whatever cards are accepted. */
+  alts?: readonly { path: string; from: number; to: number; text: string }[];
 }
 
 interface SwapEntry {
@@ -817,6 +819,8 @@ export interface PatchResult {
   diff: string;
   /** The ids of the cards that changed something. */
   applied: string[];
+  /** How many alt texts (or decorative marks) the copy got (AC-49). */
+  altTexts: number;
 }
 
 export const DIFF_NAME = 'tagging-doctor.diff';
@@ -825,7 +829,8 @@ export const DIFF_NAME = 'tagging-doctor.diff';
 export function applyFixes(project: Project, scan: DocumentScan, accepted: ReadonlySet<string>, opts: PatchOptions = {}, swaps: SwapEntry[] = SWAPS): PatchResult {
   const { work, sources } = plan(project, scan, opts, swaps);
   const chosen = work.filter((w) => w.card.state === 'ready' && accepted.has(w.card.id));
-  const edits = [...chosen.flatMap((w) => w.inserts), ...opsToEdits(sources, chosen.flatMap((w) => w.ops))];
+  const alts: Edit[] = (opts.alts ?? []).map((a) => ({ ...a, rank: 1000 }));
+  const edits = [...chosen.flatMap((w) => w.inserts), ...opsToEdits(sources, chosen.flatMap((w) => w.ops)), ...alts];
   const byPath = new Map<string, Edit[]>();
   for (const e of edits) {
     const list = byPath.get(e.path);
@@ -843,7 +848,12 @@ export function applyFixes(project: Project, scan: DocumentScan, accepted: Reado
     diffs.push(f.bom ? unifiedDiff(path, `\uFEFF${f.text}`, list.map((e) => ({ ...e, from: e.from + 1, to: e.to + 1 }))) : unifiedDiff(path, f.text, list));
   }
   const header = '# Tagging Doctor: the changes in this copy. To make them in your own copy: patch -p1 < tagging-doctor.diff\n';
-  return { files, diff: header + (diffs.length ? diffs.join('') : '# No changes: no fix was accepted.\n'), applied: chosen.filter((w) => w.inserts.length || w.ops.length).map((w) => w.card.id) };
+  return {
+    files,
+    diff: header + (diffs.length ? diffs.join('') : '# No changes: no fix was accepted.\n'),
+    applied: chosen.filter((w) => w.inserts.length || w.ops.length).map((w) => w.card.id),
+    altTexts: alts.length,
+  };
 }
 
 /**
