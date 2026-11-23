@@ -363,6 +363,49 @@ function savedAsUtf8(project: Project, path: string): boolean {
 const NOT_A_CALL = /\\(?:providecommand|newcommand|renewcommand|DeclareRobustCommand|[gex]?def|let|ifdefined|ifx|show|meaning|string|(?:New|Renew|Provide|Declare)DocumentCommand|(?:New|Renew)CommandCopy|let\s*\\[A-Za-z@]+\s*=?)\s*\*?\s*\{?\s*$/;
 
 /**
+ * The body's \begin{document} in a (blanked) main file: the first one whose
+ * brace group never closes, as endOfDocument reads it (one at the top level
+ * is that one; one inside a definition, \newcommand{\go}{\begin{document}},
+ * is not). `depth` is the number of groups open at it, `brace` the innermost
+ * open `{` (-1 at the top level). Null without one. Linear. The patch takes
+ * the unicode-math line's place from it (R4a.3-1), the scan the start of the
+ * body (R4b.1-6 b).
+ */
+export function bodyBeginOf(src: string): { at: number; depth: number; brace: number } | null {
+  const BEGIN = /\\begin\s*\{document\}/y;
+  const open: number[] = [];
+  let body: { at: number; depth: number; brace: number } | null = null;
+  for (let k = 0; k < src.length; k++) {
+    const c = src[k];
+    if (c === '\\') {
+      BEGIN.lastIndex = k;
+      if (body === null && BEGIN.test(src)) {
+        body = { at: k, depth: open.length, brace: open[open.length - 1] ?? -1 };
+        k = BEGIN.lastIndex - 1;
+        continue;
+      }
+      k++;
+    } else if (c === '{') open.push(k);
+    else if (c === '}' && open.length) {
+      open.pop();
+      // Its group closed: that \begin{document} was inside a definition, not the body.
+      if (body !== null && open.length < body.depth) body = null;
+    }
+  }
+  return body;
+}
+
+/** The keys \DocumentMetadata takes (LaTeX's documentmetadata-support, 2026): an argument of only these is a call's (R4b.1-6 a). */
+const METADATA_KEYS = new Set(['lang', 'pdfversion', 'pdfstandard', 'tagging', 'tagging-setup', 'testphase', 'xmp', 'uncompress', 'debug', 'backend', 'colorprofiles', 'nopdfinfo', 'pdfmanagement', 'firstaidoff']);
+
+/** True when the argument is empty or a key list of \DocumentMetadata's keys, not code (`{ \def\x{1} }` after a test of the command). */
+function metadataArgument(arg: string): boolean {
+  if (!arg.trim()) return true;
+  const keys = [...keyValues(arg).keys()].map((k) => k.trim().toLowerCase()).filter(Boolean);
+  return keys.length > 0 && keys.every((k) => METADATA_KEYS.has(k));
+}
+
+/**
  * For offsets taken in increasing order: true when a command there is a call,
  * outside every brace group and not after a command that defines or tests
  * it. One pass over the text for all the offsets asked.
@@ -415,6 +458,7 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
   let docclassOffset = -1;
   let metadataOffset = -1;
   const call = callAt(src);
+  const bodyAt = role === 'main' ? (bodyBeginOf(src)?.at ?? -1) : -1;
   if (role === 'main') ctx.beforeClass = true;
   for (const c of cmds) {
     switch (c.name) {
@@ -478,7 +522,7 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
           // In another file (an \input, a style or a class): only a call, at the top level and not after a
           // command that defines or tests it (R4a.3-2; R4a.2-3 went by the file's type), and only in the
           // preamble: a file read in the body is text the main file prints.
-          if (ctx.inBody || !call(c.offset)) break;
+          if (ctx.inBody || !call(c.offset) || !metadataArgument(c.args[0] ?? '')) break;
           if (!ctx.beforeClass) {
             warn(ctx, 'misplaced-document-metadata', at(c.offset), `\\DocumentMetadata in ${path} is read after \\documentclass, so it is misplaced: it must come before it.`, {
               name: 'Move \\DocumentMetadata above \\documentclass',
@@ -505,7 +549,8 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
         for (const lib of splitList(c.args[0])) lookupAndReport(ctx, `tikzlibrary-${lib}`, 'library', at(c.offset));
         break;
       case 'begin':
-        if (role === 'main' && c.args[0].trim() === 'document') ctx.inBody = true;
+        // Only the body's own \begin{document}, not one inside a definition above it (R4b.1-6 b).
+        if (role === 'main' && c.offset === bodyAt) ctx.inBody = true;
         if (c.args[0].trim() === 'tikzpicture') {
           const kv = keyValues(c.opts.join(','));
           ctx.figures.push({ kind: 'tikz', path, line: lineOf(c.offset), hasAlt: hasAltKey(kv) });

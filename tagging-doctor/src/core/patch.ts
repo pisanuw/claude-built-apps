@@ -14,7 +14,7 @@
 import { groupEnds, keyValues, lineIndex, splitList } from './latex';
 import { projectZip } from './outzip';
 import type { Project } from './project';
-import { babelLanguage, BEAMER_NOTE, scannedSource, type DocumentScan, type Finding } from './scan';
+import { babelLanguage, BEAMER_NOTE, bodyBeginOf, scannedSource, type DocumentScan, type Finding } from './scan';
 import swapsData from '../data/package-swaps.json';
 
 // ---- AC-38: the \DocumentMetadata line --------------------------------------------
@@ -377,26 +377,7 @@ export function topLevelBegin(src: string): number {
 export function unicodeMathPlace(src: string): { at: number; begin: number } | 'no-begin' | 'open-brace' {
   const top = topLevelBegin(src);
   if (top >= 0) return { at: top, begin: top };
-  const BEGIN = /\\begin\s*\{document\}/y;
-  const open: number[] = [];
-  let body: { at: number; depth: number; brace: number } | null = null;
-  for (let k = 0; k < src.length; k++) {
-    const c = src[k];
-    if (c === '\\') {
-      BEGIN.lastIndex = k;
-      if (body === null && BEGIN.test(src)) {
-        body = { at: k, depth: open.length, brace: open[open.length - 1] ?? -1 };
-        k = BEGIN.lastIndex - 1;
-        continue;
-      }
-      k++;
-    } else if (c === '{') open.push(k);
-    else if (c === '}' && open.length) {
-      open.pop();
-      // Its group closed: that \begin{document} was inside a definition, not the body.
-      if (body !== null && open.length < body.depth) body = null;
-    }
-  }
+  const body = bodyBeginOf(src);
   if (body === null) return 'no-begin';
   const lineStart = src.lastIndexOf('\n', body.at - 1) + 1;
   if (body.depth === 1 && body.brace >= lineStart && !src.slice(lineStart, body.brace).trim()) return { at: lineStart, begin: body.at };

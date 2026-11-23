@@ -310,3 +310,40 @@ describe('AC-42 at m4b\'s acceptance: a side with no check names why, and the ri
     expect(words(cut, done([clause('1.1', 2)]))).toContainEqual(['1.1', 'unknown', 'Not known: not in the list of the most frequent']);
   });
 });
+
+describe('R4b.1-6: what R4a.3-2\'s fix left', () => {
+  const MAIN = '\\documentclass{article}\n\\usepackage{my}\n\\begin{document}\nHi\n\\end{document}\n';
+  it.each([
+    ['an expl3 test in a style file', { 'main.tex': MAIN, 'my.sty': '\\cs_if_exist:NTF \\DocumentMetadata { \\def\\x{1} } { \\def\\x{0} }\n' }],
+    ['\\@ifdefinable in a style file', { 'main.tex': MAIN, 'my.sty': '\\@ifdefinable\\DocumentMetadata{\\def\\x{1}}\n' }],
+    ['an expl3 test in a class', { 'main.tex': '\\documentclass{course}\n\\begin{document}\nHi\n\\end{document}\n', 'course.cls': '\\LoadClass{article}\n\\cs_if_exist:NTF \\DocumentMetadata { \\def\\x{1} } { }\n' }],
+  ])('(a) %s is a test, not a call: the card is ready and no "misplaced"', (_l, files) => {
+    const { scan, plan } = setup(files as Record<string, string>);
+    expect(scan.metadataFile).toBeNull();
+    expect(card(plan, 'metadata')?.state).toBe('ready');
+    expect(scan.findings.some((f) => f.rule === 'misplaced-document-metadata')).toBe(false);
+  });
+
+  it.each([
+    ['setup.sty with lang= and tagging=', '\\DocumentMetadata{lang=de,tagging=on}\n'],
+    ['an empty \\DocumentMetadata{}', '\\DocumentMetadata{}\n'],
+    ['testphase', '\\DocumentMetadata{testphase=phase-III}\n'],
+    ['tagging-setup with braces and commas', '\\DocumentMetadata{tagging=on, tagging-setup={math/setup={mathml-SE,mathml-AF}}}\n'],
+  ])('(a) a real call is still one: %s', (_l, sty) => {
+    const { scan, plan } = setup({ 'main.tex': `\\RequirePackage{setup}\n\\documentclass{article}\n\\begin{document}\nHi\n\\end{document}\n`, 'setup.sty': sty });
+    expect(scan.metadataFile).toBe('setup.sty');
+    expect(card(plan, 'metadata')?.state).toBe('already-done');
+  });
+
+  it('(b) a definition holding \\begin{document} does not start the body: a real \\DocumentMetadata read after it, above the class, counts', () => {
+    const b = setup({ 'main.tex': '\\newcommand{\\go}{\\begin{document}}\n\\input{meta}\n\\documentclass{article}\n\\begin{document}\nHi\n\\end{document}\n', 'meta.tex': '\\DocumentMetadata{lang=en-US}\n' });
+    expect(b.scan.metadataFile).toBe('meta.tex');
+    expect(card(b.plan, 'metadata')?.state).toBe('already-done');
+    // A file read in the real body is still text.
+    const help = setup({ 'main.tex': '\\documentclass{article}\n\\begin{document}\n\\input{help}\n\\end{document}\n', 'help.tex': 'Put \\DocumentMetadata{tagging=on} first.\n' });
+    expect(help.scan.metadataFile).toBeNull();
+    // After a brace left open, the body is still found (round 2's case).
+    const brace = setup({ 'main.tex': '\\documentclass{article}\n{\\begin{document}\n\\input{help}\n\\end{document}\n', 'help.tex': '\\DocumentMetadata{tagging=on}\n' });
+    expect(brace.scan.metadataFile).toBeNull();
+  });
+});
