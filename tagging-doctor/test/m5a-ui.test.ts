@@ -283,7 +283,9 @@ describe('review round 1 on the page', () => {
   });
 
   it('R5a.1-2: a figure approved, marked Decorative or typed into during Draft all keeps the person\'s choice; one left alone gets its draft', async () => {
-    const s = mount({ signedIn: true, files: sixFiles(), answer: async () => (await wait(10), reply('A model draft.')) });
+    let open: () => void = () => {};
+    const gate = new Promise<void>((r) => (open = r));
+    const s = mount({ signedIn: true, files: sixFiles(), answer: async () => (await gate, reply('A model draft.')) });
     (s.panel.querySelector('[data-role="draft-all"]') as HTMLButtonElement).click();
     await flush();
     // Figure 1 is out: type and approve on it, approve figure 5, mark figure 6 Decorative.
@@ -295,7 +297,8 @@ describe('review round 1 on the page', () => {
     t5.dispatchEvent(new Event('input'));
     button(items(s.panel)[4], 'approve').click();
     button(items(s.panel)[5], 'decorative').click();
-    await wait(80);
+    open();
+    await wait(20);
     expect(s.panel.querySelector('[data-role="draft-all"]')).not.toBeNull();
     const v = (i: number) => (items(s.panel)[i].querySelector('textarea') as HTMLTextAreaElement).value;
     expect(v(0)).toBe('Typed while out');
@@ -458,14 +461,17 @@ describe('milestone 5b: the minors carried from 5a round 2, on the page', () => 
   });
 
   it('R5a.2-4: figures passed over are not counted as left; untouched ones beyond the 40 still are', async () => {
-    const s = mount({ signedIn: true, files: sixFiles(), answer: async () => (await wait(10), reply('A model draft.')) });
+    let open: () => void = () => {};
+    const gate = new Promise<void>((r) => (open = r));
+    const s = mount({ signedIn: true, files: sixFiles(), answer: async () => (await gate, reply('A model draft.')) });
     (s.panel.querySelector('[data-role="draft-all"]') as HTMLButtonElement).click();
     await flush();
     button(items(s.panel)[5], 'decorative').click();
     const t = items(s.panel)[4].querySelector('textarea') as HTMLTextAreaElement;
     t.value = 'Mine';
     t.dispatchEvent(new Event('input'));
-    await wait(80);
+    open();
+    await wait(20);
     expect(s.panel.querySelector('.figures-status')?.textContent).toBe('Asked for 4 drafts. Check each one, then approve it.');
     const many = ['\\documentclass{article}', '\\usepackage{graphicx}', '\\begin{document}', ...Array.from({ length: 45 }, (_, i) => `\\includegraphics{f${i}.pdf}`), '\\end{document}', ''].join('\n');
     const m = mount({ signedIn: true, files: { 'main.tex': many }, answer: async () => reply('x') });

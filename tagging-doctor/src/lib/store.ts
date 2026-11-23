@@ -262,6 +262,18 @@ export class CourseStore {
     return sortByCreated(await this.db.select<ScanSummaryRow>('scans', { project_id: projectIds }, SCAN_SUMMARY_COLUMNS));
   }
 
+  /** The checks of these projects (AC-52), oldest first. */
+  async jobsOf(projectIds: string[]): Promise<JobRow[]> {
+    if (!projectIds.length) return [];
+    return sortByCreated(await this.db.select<JobRow>('jobs', { project_id: projectIds }));
+  }
+
+  /** The saved alt texts of these projects (AC-51, AC-52). */
+  async altTextsOf(projectIds: string[]): Promise<AltTextRow[]> {
+    if (!projectIds.length) return [];
+    return this.db.select<AltTextRow>('alt_texts', { project_id: projectIds });
+  }
+
   /** These scans, with their findings. */
   async scansById(ids: string[]): Promise<ScanRow[]> {
     if (!ids.length) return [];

@@ -10,6 +10,7 @@ import {
   courseReportBody,
   courseReportHtml,
   courseRows,
+  latestCheck,
   deltaLine,
   exportJson,
   latestByProject,
@@ -211,11 +212,15 @@ export async function courseReport(store: CourseStore, id: string, now: Date, da
   const projects = await store.projects(id);
   // Summaries first; then the findings of the latest scan of each project only (R2.1-6).
   const latestSummaries = latestByProject(await store.scanSummaries(projects.map((p) => p.id)));
-  const latest = latestByProject(await store.scansById([...latestSummaries.values()].map((x) => x.id)));
+  const ids = projects.map((p) => p.id);
+  const [latest, jobs, alts] = await Promise.all([store.scansById([...latestSummaries.values()].map((x) => x.id)).then(latestByProject), store.jobsOf(ids), store.altTextsOf(ids)]);
+  // AC-52: each project's latest check, and how many alt texts it has approved here.
+  const approved = new Map<string, number>();
+  for (const a of alts) approved.set(a.project_id, (approved.get(a.project_id) ?? 0) + 1);
   return {
     course: { name: course.name, term: course.term },
     generatedAt: now.toISOString(),
-    rows: courseRows(projects, latest),
+    rows: courseRows(projects, latest, latestCheck(jobs), approved),
     blockers: blockerTable(projects, latest),
     data: reportData(latest.values(), data),
   };

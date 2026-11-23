@@ -122,7 +122,8 @@ describe('saved scans: names, deltas and the course report', () => {
     const latest = latestByProject(scans);
     expect(latest.get('p1')?.created_at).toBe('2026-11-19T00:00:00Z');
     const rows = courseRows(projects, latest);
-    expect(rows).toEqual([
+    // From 5b each row also has its check and alt text coverage (AC-52; test/m5b.test.ts).
+    expect(rows.map(({ check: _c, alt: _a, ...r }) => r)).toEqual([
       { project: 'hw1', mainFile: 'hw1.tex', verdict: '2 blockers found', blockers: 2, warnings: 1, scannedAt: '2026-11-19T00:00:00Z' },
       { project: 'hw2', mainFile: 'hw2.tex', verdict: '1 blockers found', blockers: 1, warnings: 1, scannedAt: '2026-11-19T00:00:00Z' },
       { project: 'notes', mainFile: 'notes.tex', verdict: null, blockers: 0, warnings: 0, scannedAt: null },
