@@ -36,7 +36,7 @@ import { analyticsOrigin, injectAnalyticsIntoDir } from '../../scripts/site-anal
 import { ensureDomainDns, keepOldAlias, resolves } from './cloudflare-dns.mjs';
 import { appDomainFor, oldDomainFor } from '../../scripts/domains.mjs';
 import { waitForRenderDeploy } from './render-wait.mjs';
-import { renderBuildFilter, renderRootDir, renderRuntime, renderServicePatch } from './render-service.mjs';
+import { describeService, renderBuildFilter, renderRootDir, renderRuntime, renderServicePatch } from './render-service.mjs';
 
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
@@ -265,9 +265,22 @@ async function deployRender(cfg) {
       } catch (e) {
         fail(`Render refused the update of ${cfg.projectName} (${sync.changes.join('; ')}): ${String(e.message || e).slice(0, 300)}. Nothing was deployed.`);
       }
-      const after = await renderFetch(token, `/services/${found.id}`);
-      const left = renderServicePatch(after?.service ?? after, cfg);
-      if (left) fail(`Render did not apply the update of ${cfg.projectName}: still ${left.changes.join('; ')}. Nothing was deployed.`);
+      // The update went through: from here the service's settings may have changed, so a stop says so (R4b.1-3).
+      const changed =
+        `The service's settings may now differ from before the run; its env vars were not set and this run deployed nothing, ` +
+        `but Render may build and deploy it by itself on the next push its build filter lets through. ` +
+        `To go back, deploy the previous target.yml (for backend-hub: runtime node, rootDir backend-hub), or fix the runner and run again.`;
+      let after;
+      try {
+        after = await renderFetch(token, `/services/${found.id}`);
+      } catch (e) {
+        fail(`The update of ${cfg.projectName} was sent, but reading the service back failed: ${String(e.message || e).slice(0, 300)}. ${changed}`);
+      }
+      const svc = after?.service ?? after;
+      const left = renderServicePatch(svc, cfg);
+      if (left) {
+        fail(`Render did not apply all of the update of ${cfg.projectName}: still ${left.changes.join('; ')}. Render now reports: ${describeService(svc)}. ${changed}`);
+      }
       log(`Render now has: ${sync.changes.join('; ')}.`);
     }
     await ensureRenderEnv(token, found.id, desiredEnv, generateKeys);

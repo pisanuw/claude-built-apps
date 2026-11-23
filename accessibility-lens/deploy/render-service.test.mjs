@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
-import { renderBuildFilter, renderRootDir, renderRuntime, renderServicePatch } from './render-service.mjs';
+import { describeService, normalPath, renderBuildFilter, renderRootDir, renderRuntime, renderServicePatch } from './render-service.mjs';
 
 /** One `key: value` line of a target.yml (this job installs no YAML parser). */
 const field = (text, key) => new RegExp(`^\\s*${key}:\\s*(.+?)\\s*$`, 'm').exec(text)?.[1];
@@ -153,4 +153,30 @@ test('backward compatible: a service that matches, or whose target.yml names no 
   assert.deepEqual(renderBuildFilter({ render: { buildFilter: { paths: ['a/**'] } } }), { paths: ['a/**'], ignoredPaths: [] });
   // A runtime Render does not report yet: the change says so.
   assert.match(renderServicePatch({}, { render: { runtime: 'docker' } }).changes[0], /not reported/);
+});
+
+test('Docker paths and the root that Render reports in another spelling are the same setting (R4b.1-3)', () => {
+  const cfg = hubYml();
+  const filter = renderBuildFilter(cfg);
+  for (const [dockerfilePath, dockerContext, rootDir] of [
+    ['backend-hub/Dockerfile', './', ''],
+    ['./backend-hub/Dockerfile', '', '.'],
+    ['backend-hub/Dockerfile', '.', './'],
+  ]) {
+    const switched = { rootDir, buildFilter: filter, serviceDetails: { runtime: 'docker', envSpecificDetails: { dockerfilePath, dockerContext } } };
+    assert.equal(renderServicePatch(switched, cfg), null, `${dockerfilePath} in ${dockerContext}, root ${rootDir}`);
+  }
+  // A Dockerfile that really moved still gets its update.
+  const moved = { rootDir: '', buildFilter: filter, serviceDetails: { runtime: 'docker', envSpecificDetails: { dockerfilePath: './Dockerfile', dockerContext: 'backend-hub' } } };
+  assert.ok(renderServicePatch(moved, cfg));
+  assert.equal(normalPath('./a/./b/'), 'a/./b');
+  assert.equal(normalPath(undefined), '');
+});
+
+test('a stopped run says what Render now reports', () => {
+  assert.equal(
+    describeService({ rootDir: '', buildFilter: { paths: ['a'], ignoredPaths: [] }, serviceDetails: { runtime: 'docker', envSpecificDetails: { dockerfilePath: 'x', dockerContext: '.' } } }),
+    'runtime docker, dockerfilePath "x", dockerContext ".", rootDir "", buildFilter 1 paths, 0 ignored',
+  );
+  assert.equal(describeService({}), 'runtime (not reported), dockerfilePath null, dockerContext null, rootDir null, buildFilter (none)');
 });

@@ -105,12 +105,21 @@ integration. The runner resolves your workspace automatically; set
 `render.ownerId` to pin it. Render runs the build itself, server-side.
 
 A Docker service sets `render.runtime: docker` and, when its Dockerfile is not
-`./Dockerfile` in `directory`, `render.dockerfilePath` and
-`render.dockerContext` (both relative to `directory`, Render's root directory
-for the service; defaults `./Dockerfile` and `.`). The runner then sends those
-two in `envSpecificDetails` in place of the build and start commands, and the
-image's `CMD` starts the service (`render-service.mjs`; first used by
-`tagging-doctor-worker`). They are applied when the service is created.
+`./Dockerfile` in its root directory, `render.dockerfilePath` and
+`render.dockerContext` (both relative to the service's root directory, which
+is `render.rootDir` when set, else `directory`; defaults `./Dockerfile` and
+`.`). The runner then sends those two in `envSpecificDetails` in place of the
+build and start commands, and the image's `CMD` starts the service
+(`render-service.mjs`; first used by `tagging-doctor-worker`).
+
+`render.rootDir` (`''` is the repository's root) and `render.buildFilter`
+(`paths`, `ignoredPaths`, from the repository's root) are optional. For a
+service that exists, the runner compares what target.yml states (the runtime
+when `render.runtime` is set, the Docker paths, `rootDir`, `buildFilter`) with
+what Render reports, sends one update when they differ, reads the service
+back, and stops before the env vars and the deploy if anything is left; the
+stop says what Render now reports. Paths compare without a leading `./`.
+backend-hub's move to Docker (Tagging Doctor D-123, D-133) is its first use.
 
 **Netlify.** Uses the Netlify CLI. Because this app is not static (it has a
 server-side API), the deploy publishes `client/dist` to the CDN and ships the API

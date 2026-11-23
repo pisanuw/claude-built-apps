@@ -7,8 +7,9 @@
  * built from its Dockerfile and started by the image's CMD, so it gets
  * `dockerfilePath` and `dockerContext` instead (tagging-doctor-worker, Tagging
  * Doctor spec question 1). Both paths are relative to the service's root
- * directory (`directory` in target.yml); Render's defaults are `./Dockerfile`
- * and `.`.
+ * directory (`render.rootDir` when set, else `directory`); Render's defaults
+ * are `./Dockerfile` and `.`. They are sent on create, and on an update of a
+ * service that exists when they differ (renderServicePatch below).
  */
 export function renderRuntime(cfg) {
   const r = cfg.render ?? {};
@@ -51,6 +52,32 @@ export function renderBuildFilter(cfg) {
   return { paths: list(f.paths), ignoredPaths: list(f.ignoredPaths) };
 }
 
+/**
+ * A path as Render may spell it: `./backend-hub/Dockerfile` and
+ * `backend-hub/Dockerfile` are one path, and `.`, `./` and `` one folder
+ * (R4b.1-3: an exact comparison turned a respelling into an update on every run).
+ */
+export function normalPath(p) {
+  let s = String(p ?? '').trim();
+  while (s.startsWith('./')) s = s.slice(2);
+  s = s.replace(/\/+$/, '');
+  return s === '.' ? '' : s;
+}
+
+/** What Render reports for the settings the runner compares, in one line (for a stopped run). */
+export function describeService(svc) {
+  const d = svc?.serviceDetails ?? {};
+  const e = d.envSpecificDetails ?? {};
+  const f = svc?.buildFilter;
+  return [
+    `runtime ${d.runtime ?? d.env ?? '(not reported)'}`,
+    `dockerfilePath ${JSON.stringify(e.dockerfilePath ?? null)}`,
+    `dockerContext ${JSON.stringify(e.dockerContext ?? null)}`,
+    `rootDir ${JSON.stringify(svc?.rootDir ?? null)}`,
+    `buildFilter ${f ? `${(f.paths ?? []).length} paths, ${(f.ignoredPaths ?? []).length} ignored` : '(none)'}`,
+  ].join(', ');
+}
+
 const sameList = (a = [], b = []) => a.length === b.length && [...a].sort().every((x, i) => x === [...b].sort()[i]);
 
 /**
@@ -82,7 +109,7 @@ export function renderServicePatch(found, cfg) {
     } else if (want.env === 'docker') {
       const cur = details.envSpecificDetails ?? {};
       const w = want.envSpecificDetails;
-      if (cur.dockerfilePath !== w.dockerfilePath || cur.dockerContext !== w.dockerContext) {
+      if (normalPath(cur.dockerfilePath) !== normalPath(w.dockerfilePath) || normalPath(cur.dockerContext) !== normalPath(w.dockerContext)) {
         patch.serviceDetails = { envSpecificDetails: w };
         changes.push(`docker ${cur.dockerfilePath ?? '?'} in ${cur.dockerContext ?? '?'} -> ${w.dockerfilePath} in ${w.dockerContext}`);
       }
@@ -90,8 +117,8 @@ export function renderServicePatch(found, cfg) {
   }
   if (typeof r.rootDir === 'string') {
     const want = renderRootDir(cfg);
-    const have = (found?.rootDir ?? '').replace(/^\.\/?$/, '');
-    if (have !== want) {
+    const have = found?.rootDir ?? '';
+    if (normalPath(have) !== normalPath(want)) {
       patch.rootDir = want;
       changes.push(`rootDir "${have}" -> "${want}"`);
     }
