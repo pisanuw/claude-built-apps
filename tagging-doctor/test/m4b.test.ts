@@ -347,3 +347,17 @@ describe('R4b.1-6: what R4a.3-2\'s fix left', () => {
     expect(brace.scan.metadataFile).toBeNull();
   });
 });
+
+describe('R4b.1-7 (b): a removed command that starts on an earlier line and ends on the \\begin{document} line', () => {
+  it('leaves no empty line above the unicode-math line; one after other text keeps its line break', () => {
+    const main = '\\documentclass{article}\n\\usepackage{amsmath}\n\\usepackage[\nT1]{fontenc}\\begin{document}\nHi\n\\end{document}\n';
+    const files = { 'main.tex': main };
+    const { p, scan } = setup(files);
+    const r = applyFixes(p, scan, new Set(['engine', 'unicode-math']));
+    expect(r.files.get('main.tex')).toBe('\\documentclass{article}\n\\usepackage{amsmath}\n\\usepackage{unicode-math}\n\\begin{document}\nHi\n\\end{document}\n');
+    patchApplies(files, r);
+    const kept = setup({ 'main.tex': main.replace('\\usepackage[\n', 'x \\usepackage[\n') });
+    const out = applyFixes(kept.p, kept.scan, new Set(['engine', 'unicode-math'])).files.get('main.tex') as string;
+    expect(out).toContain('x \n\\usepackage{unicode-math}\n\\begin{document}');
+  });
+});

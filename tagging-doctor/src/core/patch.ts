@@ -859,7 +859,10 @@ function joinLines(text: string, edits: Edit[]): Edit[] {
     // What is left on the line before the insertion once the removals there are made: one or several
     // (inputenc and fontenc both on the \begin{document} line, R4a.3-4 c).
     const lineStart = text.lastIndexOf('\n', e.from - 1) + 1;
-    const removals = edits.filter((r) => r.to > r.from && !r.text && r.from >= lineStart && r.to <= e.from).sort((x, y) => x.from - y.from);
+    // A removal that starts on an earlier line counts too, when only blanks stand before it on its own line
+    // (`\usepackage[` then `T1]{fontenc}\begin{document}`, R4b.1-7 b): its lines go, so the insertion takes the line.
+    const startsClean = (r: Edit) => r.from >= lineStart || !text.slice(text.lastIndexOf('\n', r.from - 1) + 1, r.from).trim();
+    const removals = edits.filter((r) => r.to > r.from && !r.text && r.to > lineStart && r.to <= e.from && startsClean(r)).sort((x, y) => x.from - y.from);
     if (!removals.length) return e;
     let left = '';
     let k = lineStart;
