@@ -22,6 +22,7 @@ import { mountCompile, KEPT, type CompileDeps } from './compile';
 import { forgetRestored, mountFixes, newFixesState, type FixesState } from './fixes';
 import { newChoice, type FiguresOpts } from './figures';
 import { listFigures, type FigureItem } from '../core/figures';
+import { dirOf } from '../core/latex';
 import { altCopyOf, altSync, figureKeys, restoreAlts, restoredWords, type FigureKey } from '../lib/alts';
 import type { CompareDeps, compareSlot as CompareSlot } from './compare';
 import { KEEP_HASH, renderCourse, renderCourseReport, renderCourses, renderKeep, renderNotFound, renderProject, renderSaveDialog, type PageCtx } from './pages';
@@ -81,6 +82,8 @@ export const PENDING_KEY = 'tagging-doctor.pending-save';
 interface PendingSave {
   mode: 'one' | 'all';
   items: SaveItem[];
+  /** The drop the items are of, while the page is the same (R5b.1-3); null for another drop. */
+  drop?: string | null;
 }
 
 /** What the page needs from a dropped or chosen file. */
@@ -96,6 +99,7 @@ export const LOAD_FAILED = 'The package list could not be loaded. Check your con
 
 /** The figure panel’s line when a saved project's alt texts could not be read or written (AC-51). */
 export const ALTS_NOT_READ = 'The saved alt texts could not be loaded, so none was filled in. The figures are as in this drop.';
+export const ALTS_PROJECT_GONE = 'The saved project of this scan was deleted, so the approved alt texts are no longer saved. They are still on this page and go into the patched copy; choose Save to keep them in a project again.';
 export const ALTS_NOT_SAVED = 'The approved alt texts could not be saved with the project. They are still on this page and go into the patched copy; approve one again to try saving once more.';
 
 export const NO_MAIN_TEXT = 'No .tex file with \\documentclass was found';
@@ -205,7 +209,9 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   let userId: string | null = null;
   /** Unmounts the sign-in controls drawn in the signed-out save panel (R2.1-9). */
   let unmountPanelSignIn: (() => void) | null = null;
-  let saveItems: { mode: 'one' | 'all'; items: SaveItem[] } | null = null;
+  let saveItems: { mode: 'one' | 'all'; items: SaveItem[]; drop: string | null } | null = null;
+  /** This page load, so a drop's name differs from one before a reload (R5b.1-3). */
+  const pageLoad = Math.random().toString(36).slice(2);
 
   let project: Project | null = null;
   let index: StatusIndex | null = null;
@@ -656,7 +662,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     let s = figureSlots.get(main);
     if (!s) {
       const figures = listFigures(project as Project, scans.get(main) as DocumentScan);
-      s = figureKeys(project as Project, figures).then((keys) => ({ figures, keys }));
+      s = figureKeys(project as Project, figures, undefined, dirOf(main)).then((keys) => ({ figures, keys }));
       figureSlots.set(main, s);
     }
     return s;
@@ -730,14 +736,20 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       })
       .catch((e) => {
         console.warn('tagging-doctor: the alt texts could not be saved', e);
-        if (fixesFor === main && project === p) fixesRun?.say(ALTS_NOT_SAVED);
+        // The project was deleted (another tab, its page): the document is no longer saved, so Save can be chosen again (R5b.1-8 e).
+        const gone = /foreign key/i.test(e instanceof Error ? e.message : String(e));
+        if (gone && savedScans.get(wellFormed(main))?.projectId === saved.projectId) savedScans.delete(wellFormed(main));
+        if (fixesFor === main && project === p) fixesRun?.say(gone ? ALTS_PROJECT_GONE : ALTS_NOT_SAVED);
       });
     altChains.set(saved.projectId, next);
     return next;
   }
 
   /** After a save: remember the saved scans, and write the rows of results shown before it (AC-27, AC-35). */
-  function onSaved(items: SaveItem[], mode: 'one' | 'all', results: SavedResult[]) {
+  function onSaved(items: SaveItem[], mode: 'one' | 'all', results: SavedResult[], drop: string | null) {
+    // Items of another drop (the banner's, kept before a sign-in that reloaded the page) are saved, but not tied
+    // to the documents on the page: their checks and alt texts are not this drop's (R5b.1-3).
+    if (drop === null || drop !== currentDrop()) return;
     for (const r of results) {
       const item = mode === 'one' ? items[0] : items.find((i) => i.name.trim() === r.project.name);
       if (item) savedScans.set(item.mainFile, { projectId: r.project.id, scanId: r.scan.id });
@@ -761,6 +773,11 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     }
   }
 
+  /** The drop on the page, as a save's items name it (R5b.1-3); null with none. */
+  function currentDrop(): string | null {
+    return project ? `${pageLoad}:${generation}` : null;
+  }
+
   /** What a save of the scan on screen holds (AC-17, AC-23). */
   function currentItems(mode: 'one' | 'all'): SaveItem[] {
     const p = project as Project;
@@ -772,8 +789,8 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   }
 
   /** "Save": the save dialog when signed in; signed out, sign-in, keeping the save for after it (AC-16). */
-  function openSave(after: HTMLElement, mode: 'one' | 'all', items: SaveItem[] = currentItems(mode)) {
-    saveItems = { mode, items };
+  function openSave(after: HTMLElement, mode: 'one' | 'all', items: SaveItem[] = currentItems(mode), drop: string | null = currentDrop()) {
+    saveItems = { mode, items, drop };
     after.after(savePanel);
     savePanel.hidden = false;
     drawSave();
@@ -782,7 +799,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
 
   function drawSave() {
     if (!saveItems || !account) return;
-    const { mode, items } = saveItems;
+    const { mode, items, drop } = saveItems;
     if (signedIn) {
       unmountPanelSignIn?.();
       unmountPanelSignIn = null;
@@ -790,11 +807,11 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       // Signing in from the panel redraws it: keep the focus in it (acceptance m2, focus note).
       const active = document.activeElement;
       const hadFocus = !active || active === document.body || savePanel.contains(active);
-      renderSaveDialog(savePanel, { store: account.store(), items, mode, onClose: closeSave, onSaved: (results) => onSaved(items, mode, results) });
+      renderSaveDialog(savePanel, { store: account.store(), items, mode, onClose: closeSave, onSaved: (results) => onSaved(items, mode, results, drop) });
       if (hadFocus) (savePanel.querySelector('#save-h') as HTMLElement | null)?.focus();
       return;
     }
-    writePending({ mode, items });
+    writePending({ mode, items, drop });
     const h = el('h3', { id: 'save-h', tabindex: '-1' }, 'Sign in to save');
     const why = el('p', {}, 'Saving keeps this scan’s report under a course, so you can see the whole course at once. Sign in with Google or with a link by email:');
     const box = el('div', { class: 'save-signin' });
@@ -865,7 +882,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       pendingEl.hidden = true;
       pendingEl.replaceChildren();
       // After the banner, not inside it: the banner is hidden now (R2.1-1).
-      openSave(pendingEl, p.mode, p.items);
+      openSave(pendingEl, p.mode, p.items, p.drop ?? null);
     });
     const drop = el('button', { type: 'button' }, 'Discard');
     drop.addEventListener('click', () => {

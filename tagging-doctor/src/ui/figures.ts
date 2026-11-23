@@ -12,6 +12,7 @@
  */
 import { LONG_ALT, normalizeAlt, NOT_CARRIED, notCarried, type AltDecision, type FigureItem } from '../core/figures';
 import { browserImageDeps, type ImageDeps } from '../core/image';
+import { isRestoreNote } from '../lib/alts';
 import { allowanceWords, draftAll, draftErrorWords, draftFigure, draftMode, DRAFT_ALL_LIMIT, NO_MODE, stopsRun, type DraftDeps } from '../lib/draft';
 import { checkAllowance, getByokKey, setByokKey, type AskDeps, type GatewayAllowance } from '../lib/llm';
 import type { Project } from '../core/project';
@@ -23,7 +24,7 @@ export const DRAFT_SENDS =
   'A draft sends the figure’s image file as it is (PNG, JPEG, GIF or WebP; one over 680 KB or 1568 pixels is redrawn smaller first), the file’s name without its folders, its caption and label, and the text around it to Anthropic, only when you choose Draft or Draft all. Nothing else is uploaded.';
 /** What a saved project keeps of the figure panel (AC-51; What we keep). */
 export const ALTS_KEPT =
-  'Signed in, once the scan is saved, the approved texts and decorative marks are kept with the project, with each file’s path and a fingerprint of its contents, never the file; a new version of the project gets them back for the files that have not changed.';
+  'Signed in, once the scan is saved, the approved texts and decorative marks are kept with the project, with each file’s path and a fingerprint of its contents, never the file; a new version of the project gets them back for the files that have not changed. A drop under another name gets them once it is saved to the project.';
 export const EMPTY = 'No figures found in this project.';
 
 /**
@@ -47,6 +48,8 @@ export interface FigureChoice {
   textOnly: boolean;
   error: string | null;
   note: string | null;
+  /** The text the model gave, so a saved text is credited to the model only while it is that text (D-153). */
+  drafted?: string;
 }
 
 /** The drafts out for one document: their figure ids, and the panel on the page that draws an arriving answer. */
@@ -133,10 +136,10 @@ function defaultStorage(): Storage | undefined {
   }
 }
 
-/** Draws the panel into `section`; `cancel` stops a Draft all in progress (calls already sent finish). */
-/** Draft all's stop for the same refusal twice in a row (R5a.2-7 a). */
+/** Draft all's stop for the same account-wide refusal twice in a row (R5a.2-7 a, R5b.1-6). */
 class RepeatedRefusal extends Error {}
 
+/** Draws the panel into `section`; `cancel` stops a Draft all in progress (calls already sent finish). */
 export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel: () => void; say: (text: string) => void } {
   const { figures, choices } = opts;
   const storage = opts.storage ?? defaultStorage();
@@ -293,7 +296,7 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
         return;
       }
       const wasIn = c.status === 'approved' || c.status === 'decorative';
-      Object.assign(c, { text: r.text, source: r.source, status: 'draft', textOnly: r.textOnly, note: r.imageNote, error: null });
+      Object.assign(c, { text: r.text, drafted: r.text, source: r.source, status: 'draft', textOnly: r.textOnly, note: r.imageNote, error: null });
       if (wasIn) opts.onChange();
       if (single && drafting.draw === drawById) live.textContent = `Figure ${figures.indexOf(f) + 1}: draft ready. Check it, then approve it.`;
     } catch (e) {
@@ -328,12 +331,13 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
     drawAll();
     live.textContent = `Drafting up to ${Math.min(todo.length, DRAFT_ALL_LIMIT)} figures…`;
     // A figure the person starts on during the run is passed over when its turn comes (R5a.1-2).
-    // The same refusal twice in a row (a key with no credit, a 400 every call meets) stops the run too (R5a.2-7 a).
+    // The same refusal twice in a row stops the run too, when it is one every call meets: the key's credit or
+    // billing (R5a.2-7 a). One figure's own refusal (an image Anthropic cannot read) does not, even twice (R5b.1-6).
     let lastRefusal: string | null = null;
     const one = async (f: FigureItem) => {
       await draftOne(f, d, false);
       const err = choices.get(f.id)?.error ?? null;
-      if (!err || !/^Anthropic refused the request/.test(err)) {
+      if (!err || !/^Anthropic refused the request/.test(err) || !/credit|billing/i.test(err)) {
         lastRefusal = null;
         return;
       }
@@ -437,6 +441,11 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
     fill();
     ta.addEventListener('input', () => {
       c.text = ta.value;
+      // The restore's note speaks of the saved text, which this is no longer (R5b.1-8 a).
+      if (isRestoreNote(c.note)) {
+        c.note = null;
+        li.querySelector('.note')?.remove();
+      }
       if (c.status === 'none' || c.status === 'skipped') c.status = 'draft';
       if (c.source !== 'typed' && !c.text.trim()) c.source = 'typed';
       fill();
@@ -467,7 +476,12 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
         live.textContent = NO_MODE;
         return;
       }
-      void draftOne(f, d, true).catch(() => {});
+      // What is left of HintWise's allowance after it, also after a cap (R5b.1-8 b).
+      void draftOne(f, d, true)
+        .catch(() => {})
+        .finally(() => {
+          if (d.mode === 'gateway') void refreshAllowance();
+        });
     });
     const approve = el('button', { type: 'button', 'data-role': 'approve', 'aria-pressed': String(c.status === 'approved') }, 'Approve');
     approve.disabled = !c.text.trim();
@@ -477,7 +491,7 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
       const before = c.status;
       c.status = status;
       // The note about a kept text has done its work once the person chooses (R5a.2-7 c).
-      if (c.note?.startsWith('A draft arrived after')) c.note = null;
+      if (c.note?.startsWith('A draft arrived after') || isRestoreNote(c.note)) c.note = null;
       if (before !== status) opts.onChange();
       live.textContent = `Figure ${n}: ${words}`;
       drawFigure(f);

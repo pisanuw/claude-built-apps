@@ -204,3 +204,261 @@ describe('R5b.1-2 (AC-52): the report counts what the latest version’s copy ca
     expect((await reportAlt(p)).sort()).toEqual(['hw1: 0 of 2 figures', 'hw2: no figures', 'old: 1 of 2 figures']);
   });
 });
+
+describe('the minors of round 1', () => {
+  it('R5b.1-3: the banner’s Save of an earlier drop does not tie the drop on the page to that project; a save of this drop does', async () => {
+    const session = new Map<string, string>();
+    const sess = { getItem: (k: string) => session.get(k) ?? null, setItem: (k: string, v: string) => void session.set(k, v), removeItem: (k: string) => void session.delete(k) };
+    const db = new MemoryDb('u1', () => NOW);
+    const store = new CourseStore(db);
+    let cb: ((u: { id: string } | null) => void) | null = null;
+    let who: string | null = null;
+    const account: Account = { mountSignIn: () => () => {}, onUser: (f) => ((cb = f), f(who ? { id: who } : null)), store: () => store };
+    const mount = () => {
+      document.body.innerHTML = '<div id="app"></div>';
+      const root = document.getElementById('app') as HTMLElement;
+      return { root, app: mountApp(root, { loadStatus: async () => idx, now: () => NOW, session: sess, download: () => {}, pause: async () => {}, account }) };
+    };
+    const btn = (root: HTMLElement, label: string) => [...root.querySelectorAll('button')].find((b) => b.textContent === label) as HTMLButtonElement;
+    // Signed out: scan A and choose Save; the page keeps the save for after the sign-in.
+    let { root, app } = mount();
+    await app.handleFile(file('A.zip', zip({ 'main.tex': doc('\\includegraphics{a.pdf}'), 'a.pdf': '%PDF-A' })));
+    btn(root, 'Save').click();
+    await settle();
+    // The sign-in reloads the page.
+    who = 'u1';
+    ({ root, app } = mount());
+    await settle();
+    expect(root.querySelector('#pending')?.textContent).toContain('You scanned A before signing in');
+    await app.handleFile(file('B.zip', zip({ 'main.tex': doc('\\includegraphics{a.pdf}'), 'a.pdf': '%PDF-B' })));
+    btn(root, 'Alt text for figures').click();
+    const li = root.querySelector('li.figure-item') as HTMLElement;
+    const ta = li.querySelector('textarea') as HTMLTextAreaElement;
+    ta.value = 'Text for B';
+    ta.dispatchEvent(new Event('input'));
+    (li.querySelector('[data-role="approve"]') as HTMLButtonElement).click();
+    btn(root, 'Save to a course').click();
+    await settle();
+    (root.querySelector('#save-course-name') as HTMLInputElement).value = 'C';
+    root.querySelector('#save form')?.dispatchEvent(new Event('submit'));
+    await settle(30);
+    expect((await db.select<{ name: string }>('projects')).map((p) => p.name)).toEqual(['A']);
+    expect(await db.select('alt_texts')).toEqual([]);
+    // Kept: a save asked for signed out and finished after a sign-in on the same page keeps this drop's texts.
+    who = null;
+    ({ root, app } = mount());
+    await app.handleFile(file('D.zip', zip({ 'main.tex': doc('\\includegraphics{a.pdf}'), 'a.pdf': '%PDF-D' })));
+    btn(root, 'Alt text for figures').click();
+    const li2 = root.querySelector('li.figure-item') as HTMLElement;
+    const ta2 = li2.querySelector('textarea') as HTMLTextAreaElement;
+    ta2.value = 'Text for D';
+    ta2.dispatchEvent(new Event('input'));
+    (li2.querySelector('[data-role="approve"]') as HTMLButtonElement).click();
+    btn(root, 'Save').click();
+    await settle();
+    who = 'u1';
+    (cb as ((u: { id: string } | null) => void) | null)?.({ id: 'u1' });
+    await settle();
+    const pick = root.querySelector('#save-course') as HTMLSelectElement;
+    pick.value = [...pick.options].find((o) => o.textContent?.startsWith('C'))?.value ?? '';
+    pick.dispatchEvent(new Event('change'));
+    await settle();
+    root.querySelector('#save form')?.dispatchEvent(new Event('submit'));
+    await settle(30);
+    expect((await db.select<AltTextRow>('alt_texts')).map((r) => r.text)).toEqual(['Text for D']);
+  });
+
+  it('R5b.1-4: a picture added above two others does not shift their texts; unchanged pictures come back', async () => {
+    const { listFigures } = await import('../src/core/figures');
+    const { figureKeys, restoreAlts } = await import('../src/lib/alts');
+    const { newChoice } = await import('../src/ui/figures');
+    const { openProject } = await import('../src/core/project');
+    const { scanDocument } = await import('../src/core/scan');
+    const pic = (n: number) => `\\begin{tikzpicture}\\draw (0,0) -- (${n},${n});\\end{tikzpicture}`;
+    const keysOf = async (body: string) => {
+      const p = openProject('t.zip', zip({ 'main.tex': doc(body) }));
+      const figures = listFigures(p, scanDocument(p, 'main.tex', idx));
+      return { figures, keys: await figureKeys(p, figures) };
+    };
+    const v1 = await keysOf(`${pic(1)}\n${pic(2)}`);
+    const rows = v1.figures.map((f, i) => ({ id: `r${i}`, figure_path: v1.keys.get(f.id)?.path ?? '', figure_hash: v1.keys.get(f.id)?.hash ?? '', text: `Picture ${i + 1}`, decision: 'approved', source: 'typed' }));
+    const v2 = await keysOf(`${pic(9)}\n${pic(1)}\n${pic(2)}`);
+    const choices = new Map();
+    const r = restoreAlts(v2.figures, v2.keys, rows, choices, newChoice);
+    expect(v2.figures.map((f) => choices.get(f.id)?.text ?? '')).toEqual(['', 'Picture 1', 'Picture 2']);
+    expect(r.restored).toHaveLength(2);
+    // The new picture is not told another picture's text was its own.
+    expect(choices.get(v2.figures[0].id)?.note ?? null).toBeNull();
+    // Kept: a picture whose source changed still shows its earlier text; two identical pictures keep two slots.
+    const v3 = await keysOf(`${pic(1)}\n${pic(3)}`);
+    const c3 = new Map();
+    restoreAlts(v3.figures, v3.keys, rows, c3, newChoice);
+    expect(c3.get(v3.figures[1].id)?.note).toContain('Picture 2');
+    const same = await keysOf(`${pic(1)}\n${pic(1)}`);
+    expect(new Set([...same.keys.values()].map((k) => k.path)).size).toBe(2);
+  });
+
+  it('R5b.1-5: a nested picture, an end with a space, and a data file the picture reads change its fingerprint; a picture with no end has no slot', async () => {
+    const { listFigures } = await import('../src/core/figures');
+    const { figureKeys } = await import('../src/lib/alts');
+    const { openProject } = await import('../src/core/project');
+    const { scanDocument } = await import('../src/core/scan');
+    const hash = async (body: string, extra: Record<string, string> = {}) => {
+      const p = openProject('t.zip', zip({ 'main.tex': doc(body), ...extra }));
+      const figures = listFigures(p, scanDocument(p, 'main.tex', idx));
+      const keys = await figureKeys(p, figures);
+      return keys.get(figures[0].id)?.hash ?? null;
+    };
+    const nested = (n: number) => `\\begin{tikzpicture}\\node {\\begin{tikzpicture}\\draw (0,0);\\end{tikzpicture}};\n\\draw (0,0) -- (${n},${n});\\end{tikzpicture}`;
+    expect(await hash(nested(1))).not.toBe(await hash(nested(9)));
+    const spaced = (n: number) => `\\begin{tikzpicture}\\draw (0,0) -- (${n},${n});\\end {tikzpicture}`;
+    expect(await hash(spaced(1))).not.toBe(await hash(spaced(9)));
+    const input = '\\begin{tikzpicture}\\input{plot.tikz}\\end{tikzpicture}';
+    expect(await hash(input, { 'plot.tikz': '\\draw (0,0) -- (1,1);' })).not.toBe(await hash(input, { 'plot.tikz': '\\draw (0,0) -- (9,9);' }));
+    expect(await hash('\\begin{tikzpicture}\\addplot table {data.csv};\\end{tikzpicture}', { 'data.csv': '1 2' })).not.toBe(await hash('\\begin{tikzpicture}\\addplot table {data.csv};\\end{tikzpicture}', { 'data.csv': '1 3' }));
+    expect(await hash('\\begin{tikzpicture}\\draw (0,0);')).toBeNull();
+    // Kept: the plain picture's fingerprint is that of its lines.
+    const plain = '\\begin{tikzpicture}\\draw (0,0) -- (1,1);\\end{tikzpicture}';
+    const { createHash } = await import('node:crypto');
+    expect(await hash(plain)).toBe(createHash('sha256').update(plain).digest('hex'));
+  });
+
+  it('R5b.1-7: a caption in the minipage beside the image is found; a section label in a body minipage is not the figure’s', async () => {
+    const { listFigures } = await import('../src/core/figures');
+    const { openProject } = await import('../src/core/project');
+    const { scanDocument } = await import('../src/core/scan');
+    const figs = (body: string) => {
+      const p = openProject('t.zip', zip({ 'main.tex': doc(body) }));
+      return listFigures(p, scanDocument(p, 'main.tex', idx)).map((f) => [f.caption, f.label]);
+    };
+    expect(figs('\\begin{figure}\\begin{minipage}{.5\\textwidth}\\includegraphics{a}\\end{minipage}\\begin{minipage}{.5\\textwidth}\\caption{Side caption}\\label{fig:side}\\end{minipage}\\end{figure}')).toEqual([['Side caption', 'fig:side']]);
+    expect(figs('\\begin{minipage}{\\textwidth}\\section{S}\\label{sec:s}\\includegraphics{a}\\end{minipage}')).toEqual([['', '']]);
+    // Kept: two minipages with a caption each; two subfigures and a main image.
+    expect(figs('\\begin{figure}\\begin{minipage}{.5\\textwidth}\\includegraphics{a}\\caption{Left one}\\end{minipage}\\begin{minipage}{.5\\textwidth}\\includegraphics{b}\\caption{Right one}\\end{minipage}\\end{figure}')).toEqual([
+      ['Left one', ''],
+      ['Right one', ''],
+    ]);
+    expect(figs('\\begin{figure}\\begin{subfigure}{.4\\textwidth}\\includegraphics{a}\\caption{Sub A}\\end{subfigure}\\begin{subfigure}{.4\\textwidth}\\includegraphics{b}\\caption{Sub B}\\end{subfigure}\\includegraphics{c}\\caption{Main}\\end{figure}')).toEqual([
+      ['Sub A', ''],
+      ['Sub B', ''],
+      ['Main', ''],
+    ]);
+  });
+
+  it('R5b.1-8 (c): a neighbour’s folders go from options with brackets and from \\input and \\includepdf', async () => {
+    const { listFigures } = await import('../src/core/figures');
+    const { openProject } = await import('../src/core/project');
+    const { scanDocument } = await import('../src/core/scan');
+    const p = openProject('t.zip', zip({ 'main.tex': doc('\\includegraphics[width=\\linewidth,alt={x [y] z}]{/Users/me/secret/one.png}\nText \\input{/Users/me/secret/part} and \\includepdf{/Users/me/secret/doc.pdf}.\n\\includegraphics{b.pdf}') }));
+    const f = listFigures(p, scanDocument(p, 'main.tex', idx)).find((x) => x.file === 'b.pdf');
+    expect(f?.before).not.toContain('/Users/');
+    expect(f?.before).toContain('{one.png}');
+    expect(f?.before).toContain('\\input{part}');
+    expect(f?.before).toContain('\\includepdf{doc.pdf}');
+  });
+
+  it('R5b.1-8 (a), (e): the restore note goes on typing; a deleted project says so, and lets Save be chosen again', async () => {
+    const p = page();
+    await p.open('lab.zip', zip({ 'main.tex': TWO, 'p.pdf': '%PDF-p', 'q.pdf': '%PDF-q' }));
+    await p.save('Course');
+    p.approve('p.pdf', 'Old chart');
+    await settle();
+    await p.open('lab (1).zip', zip({ 'main.tex': TWO, 'p.pdf': '%PDF-p', 'q.pdf': '%PDF-q' }));
+    expect(p.item('p.pdf').querySelector('.note')?.textContent).toBe(RESTORED_NOTE);
+    p.approve('p.pdf', 'New chart with 2026 data');
+    expect(p.item('p.pdf').querySelector('.note')).toBeNull();
+    // Saved to the project, which is then deleted elsewhere: the next approval says so.
+    await p.save('Course');
+    const store = p.storeOf('u1');
+    const [proj] = await store.projects((await store.courses())[0].id);
+    await store.deleteProject(proj.id);
+    p.approve('q.pdf', 'After the delete');
+    await settle();
+    expect(p.root.querySelector('.figures-status')?.textContent).toBe((await import('../src/ui/app')).ALTS_PROJECT_GONE);
+  });
+});
+
+describe('the minors of round 1, in the figure panel', () => {
+  async function panel(answer: (n: number) => Promise<unknown>, opts: { gateway?: boolean; figures?: number; check?: () => Promise<unknown> } = {}) {
+    const { mountFixes, newFixesState } = await import('../src/ui/fixes');
+    const { memoryStorage, setByokKey } = await import('../src/lib/llm');
+    const { openProject } = await import('../src/core/project');
+    const { scanDocument } = await import('../src/core/scan');
+    const n = opts.figures ?? 12;
+    const pr = openProject('t.zip', zip({ 'main.tex': doc(Array.from({ length: n }, (_, i) => `\\includegraphics{f${i}.pdf}`).join('\n')) }));
+    const storage = memoryStorage();
+    if (!opts.gateway) setByokKey('k', storage);
+    document.body.innerHTML = '<div id="p"></div>';
+    const el = document.getElementById('p') as HTMLElement;
+    let calls = 0;
+    let checks = 0;
+    const state = newFixesState();
+    mountFixes(el, {
+      project: pr,
+      scan: scanDocument(pr, 'main.tex', idx),
+      state,
+      downloadBlob: () => {},
+      onClose: () => {},
+      figures: {
+        signedIn: () => true,
+        storage,
+        draft: {
+          ask: (async () => answer(calls++)) as never,
+          check: (async () => {
+            checks++;
+            return opts.check ? opts.check() : { allowed: true, scope: null, resets_at: null, limits: [{ scope: 'user-day', unit: 'usd', used: 0.0012 * checks, cap: 0.0024, resets_at: '' }], calls_left: null };
+          }) as never,
+        },
+      },
+    });
+    return { el, state, calls: () => calls, checks: () => checks };
+  }
+  const reply = (t: string) => ({ id: 'm', type: 'message', role: 'assistant', model: 'claude-haiku-5-5', content: [{ type: 'text', text: t }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } });
+  const refusal = (msg: string) => Object.assign(new Error('400'), { status: 400, error: { error: { message: msg } } });
+
+  it('R5b.1-6: two neighbouring figures with their own 400 do not stop Draft all; a key with no credit still does', async () => {
+    const s = await panel(async (n) => (n < 2 ? Promise.reject(refusal('Could not process image')) : reply(`Draft ${n}`)));
+    (s.el.querySelector('[data-role="draft-all"]') as HTMLButtonElement).click();
+    await settle(30);
+    expect(s.calls()).toBe(12);
+    expect(s.el.querySelector('.figures-status')?.textContent).toMatch(/^Asked for 12 drafts/);
+    const c = await panel(async () => Promise.reject(refusal('Your credit balance is too low to access the Anthropic API.')));
+    (c.el.querySelector('[data-role="draft-all"]') as HTMLButtonElement).click();
+    await settle(30);
+    expect(c.calls()).toBeLessThanOrEqual(4);
+    expect(c.el.querySelector('.figures-status')?.textContent).toMatch(/Anthropic refused two in a row/);
+  });
+
+  it('R5b.1-8 (b): the allowance line is asked for again after a single gateway draft', async () => {
+    const s = await panel(async () => reply('One'), { gateway: true, figures: 2 });
+    await settle();
+    expect(s.checks()).toBe(1);
+    expect(s.el.querySelector('.draft-mode')?.textContent).toContain('About 2 drafts are left');
+    (s.el.querySelector('li.figure-item [data-role="draft"]') as HTMLButtonElement).click();
+    await settle();
+    expect(s.checks()).toBe(2);
+    expect(s.el.querySelector('.draft-mode')?.textContent).toContain('about no drafts left for you today');
+  });
+
+  it('the saved source: a draft approved as it came is the model’s; edited, or marked decorative, it is the person’s', async () => {
+    const { altSync } = await import('../src/lib/alts');
+    const s = await panel(async () => reply('A model text'), { figures: 3 });
+    for (const li of [...s.el.querySelectorAll('li.figure-item')] as HTMLElement[]) (li.querySelector('[data-role="draft"]') as HTMLButtonElement).click();
+    await settle();
+    const lis = () => [...s.el.querySelectorAll('li.figure-item')] as HTMLElement[];
+    (lis()[0].querySelector('[data-role="approve"]') as HTMLButtonElement).click();
+    const ta = lis()[1].querySelector('textarea') as HTMLTextAreaElement;
+    ta.value = 'My own words over the draft';
+    ta.dispatchEvent(new Event('input'));
+    (lis()[1].querySelector('[data-role="approve"]') as HTMLButtonElement).click();
+    (lis()[2].querySelector('[data-role="decorative"]') as HTMLButtonElement).click();
+    const ids = [...s.state.alts.keys()];
+    const keys = new Map(ids.map((id, i) => [id, { path: `f${i}.pdf`, hash: 'h', base: `f${i}.pdf` }]));
+    const { want } = altSync(ids.map((id) => ({ id, existing: null }) as never), keys, s.state.alts);
+    expect(want.map((w) => [w.figure_path, w.source])).toEqual([
+      ['f0.pdf', 'byok'],
+      ['f1.pdf', 'typed'],
+      ['f2.pdf', 'typed'],
+    ]);
+  });
+});

@@ -8,6 +8,9 @@
  * reading the request's claim, as Supabase's does.
  */
 import { jobRecord } from '../src/core/compile';
+import type { FigureItem } from '../src/core/figures';
+import { altSync } from '../src/lib/alts';
+import { newChoice, type FigureChoice } from '../src/ui/figures';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -283,6 +286,40 @@ describe('AC-35 (M3b): the row the page writes for a finished check fits the job
       expect(j.status).toBe(row.status);
       expect(JSON.stringify(j.result ?? '')).not.toContain('secret source line');
     }
+  });
+});
+
+describe('AC-51, AC-52 (M5b): the rows the page writes for saved alt texts fit the tables (R5b.1-8 d)', () => {
+  it('takes altSync\'s rows and the scan summary\'s altCopy, as their owner; another person reaches neither', async () => {
+    const keys = new Map([
+      ['f1', { path: 'figs/a.png', hash: 'a'.repeat(64), base: 'figs/a.png' }],
+      ['f2', { path: 'figs/a.png#2', hash: 'a'.repeat(64), base: 'figs/a.png' }],
+      ['f3', { path: 'main.tex#tikz-1', hash: 'b'.repeat(64), base: 'main.tex#tikz' }],
+    ]);
+    const fig = (id: string) => ({ id, existing: null }) as unknown as FigureItem;
+    const choices = new Map<string, FigureChoice>([
+      ['f1', { ...newChoice(), text: 'A chart, 50% & more', drafted: 'A chart, 50% & more', source: 'model', status: 'approved' }],
+      ['f2', { ...newChoice(), status: 'decorative' }],
+      ['f3', { ...newChoice(), text: 'x'.repeat(4000), status: 'approved', source: 'byok' }],
+    ]);
+    const { want } = altSync([fig('f1'), fig('f2'), fig('f3')], keys, choices);
+    for (const w of want) {
+      await as(A, `insert into ${S}.alt_texts (project_id, figure_path, figure_hash, text, decision, source) values ($1, $2, $3, $4, $5, $6)`, [a.project, w.figure_path, w.figure_hash, w.text, w.decision, w.source]);
+    }
+    const rows = await as<{ figure_path: string; decision: string; source: string; user_id: string }>(A, `select figure_path, decision, source, user_id from ${S}.alt_texts where project_id = $1 and figure_path = any($2) order by figure_path`, [a.project, want.map((w) => w.figure_path)]);
+    expect(rows.map((r) => [r.figure_path, r.decision, r.source])).toEqual([
+      ['figs/a.png', 'approved', 'model'],
+      ['figs/a.png#2', 'decorative', 'typed'],
+      ['main.tex#tikz-1', 'approved', 'typed'],
+    ]);
+    expect(rows.every((r) => r.user_id === A)).toBe(true);
+    expect(await as(B, `select id from ${S}.alt_texts where project_id = $1`, [a.project])).toEqual([]);
+    // setAltCopy's update of the scan's summary.
+    await as(A, `update ${S}.scans set summary = summary || $2::jsonb where id = $1`, [a.scan, JSON.stringify({ altCopy: { approved: 1, decorative: 1 } })]);
+    const [s] = await as<{ summary: { altCopy: unknown } }>(A, `select summary from ${S}.scans where id = $1`, [a.scan]);
+    expect(s.summary.altCopy).toEqual({ approved: 1, decorative: 1 });
+    expect(await as(B, `update ${S}.scans set summary = '{}' where id = $1 returning id`, [a.scan])).toEqual([]);
+    await as(A, `delete from ${S}.alt_texts where project_id = $1 and figure_path = any($2)`, [a.project, want.map((w) => w.figure_path)]);
   });
 });
 

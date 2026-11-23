@@ -69,10 +69,10 @@ describe('AC-51: the slots and fingerprints', () => {
     // The \newcommand's #1 is listed first, with no slot.
     expect(figures.map((f) => f.file ?? f.kind)).toEqual(['#1', 'a.pdf', 'b.pdf', 'a.pdf', 'tikz', 'missing.pdf']);
     expect(byFile(0)).toBeUndefined();
-    expect(byFile(1)).toEqual({ path: 'a.pdf', hash: sha('%PDF-a') });
-    expect(byFile(2)).toEqual({ path: 'b.pdf', hash: sha('%PDF-b') });
-    expect(byFile(3)).toEqual({ path: 'a.pdf#2', hash: sha('%PDF-a') });
-    expect(byFile(4)).toEqual({ path: 'main.tex#tikz-1', hash: sha(TIKZ) });
+    expect(byFile(1)).toEqual({ path: 'a.pdf', hash: sha('%PDF-a'), base: 'a.pdf' });
+    expect(byFile(2)).toEqual({ path: 'b.pdf', hash: sha('%PDF-b'), base: 'b.pdf' });
+    expect(byFile(3)).toEqual({ path: 'a.pdf#2', hash: sha('%PDF-a'), base: 'a.pdf' });
+    expect(byFile(4)).toEqual({ path: 'main.tex#tikz-1', hash: sha(TIKZ), base: 'main.tex#tikz' });
     expect(byFile(5)).toBeUndefined();
     expect(keys.size).toBe(4);
   });
@@ -113,11 +113,11 @@ describe('AC-51: restore and sync, as functions', () => {
   const fig = (id: string, extra: Partial<FigureItem> = {}) => ({ id, existing: null, ...extra }) as FigureItem;
   const row = (path: string, hash: string, text: string, decision = 'approved', source = 'model'): SavedAlt => ({ id: path, figure_path: path, figure_hash: hash, text, decision, source });
   const keys = new Map([
-    ['f1', { path: 'a.pdf', hash: 'h1' }],
-    ['f2', { path: 'b.pdf', hash: 'h2' }],
-    ['f3', { path: 'c.pdf', hash: 'h3' }],
-    ['f4', { path: 'd.pdf', hash: 'h4' }],
-    ['f5', { path: 'e.pdf', hash: 'h5' }],
+    ['f1', { path: 'a.pdf', hash: 'h1', base: 'a.pdf' }],
+    ['f2', { path: 'b.pdf', hash: 'h2', base: 'b.pdf' }],
+    ['f3', { path: 'c.pdf', hash: 'h3', base: 'c.pdf' }],
+    ['f4', { path: 'd.pdf', hash: 'h4', base: 'd.pdf' }],
+    ['f5', { path: 'e.pdf', hash: 'h5', base: 'e.pdf' }],
   ]);
 
   it('fills an unchanged file, notes a changed one, and leaves a figure the person started on', () => {
@@ -150,7 +150,7 @@ describe('AC-51: restore and sync, as functions', () => {
 
   it('sync writes approved and decorative figures, removes drafts and skips, and keeps figures with no choice', () => {
     const choices = new Map<string, FigureChoice>([
-      ['f1', { ...newChoice(), text: '  A chart  ', status: 'approved', source: 'byok' }],
+      ['f1', { ...newChoice(), text: '  A chart  ', drafted: 'A chart', status: 'approved', source: 'byok' }],
       ['f2', { ...newChoice(), status: 'decorative' }],
       ['f3', { ...newChoice(), text: 'half', status: 'draft' }],
       ['f4', { ...newChoice(), status: 'skipped' }],

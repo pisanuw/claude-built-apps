@@ -220,11 +220,13 @@ describe('R4a.3-4 (a) to (c): the patch at size, a marked file emptied, two remo
     return { ms: performance.now() - t0, r };
   };
 
-  it('(a) linear: 32,000 pairs take less than 16 times what 2,000 do (a square would be 256), and 64,000 pairs do not overflow the stack', () => {
+  it('(a) linear: 32,000 pairs take less than 8 times what 8,000 do (a square would be 16), and 64,000 pairs do not overflow the stack', () => {
     timed(500); // warm up
-    const small = timed(2_000).ms;
-    const big = timed(32_000);
-    expect(big.ms).toBeLessThan(16 * 2 * small + 500);
+    // The fastest of a few runs of two larger sizes, so a loaded runner does not decide it (Manager's note, m5b).
+    const small = Math.min(...[0, 1, 2].map(() => timed(8_000).ms));
+    const runs = [timed(32_000), timed(32_000)];
+    const big = runs.reduce((x, y) => (y.ms < x.ms ? y : x));
+    expect(big.ms).toBeLessThan(8 * small + 200);
     expect(big.r.files.get('main.tex')).toBe('\\documentclass{article}\n\\begin{document}\nHi\n\\end{document}\n');
     expect(() => timed(64_000)).not.toThrow();
   }, 120_000);

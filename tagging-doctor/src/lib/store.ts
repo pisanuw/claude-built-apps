@@ -119,6 +119,10 @@ export class MemoryDb implements Db {
     if (table === 'projects' && this.rows.projects.some((p) => p.course_id === row.course_id && p.name === row.name)) {
       throw new Error('projects: duplicate key value violates unique constraint');
     }
+    // A row of a project that is gone is refused, as the database's composite key does (R5b.1-8 d).
+    if ((table === 'scans' || table === 'jobs' || table === 'alt_texts') && !this.rows.projects.some((p) => p.id === row.project_id)) {
+      throw new Error(`${table}: insert or update on table violates foreign key constraint`);
+    }
     if (table === 'alt_texts' && this.rows.alt_texts.some((a) => a.project_id === row.project_id && a.figure_path === row.figure_path)) {
       throw new Error('alt_texts: duplicate key value violates unique constraint');
     }
@@ -276,7 +280,6 @@ export class CourseStore {
     return sortByCreated(await this.db.select<JobRow>('jobs', { project_id: projectIds }));
   }
 
-  /** The saved alt texts of these projects (AC-51, AC-52). */
   /** The saved projects of a name and main file, in any course: where a new drop's alt texts may come from (AC-51). */
   async projectsMatching(name: string, mainFile: string): Promise<ProjectRow[]> {
     return this.db.select<ProjectRow>('projects', { name, main_file: mainFile });
@@ -329,6 +332,7 @@ export class CourseStore {
     await this.db.update('scans', scanId, { summary: { ...row.summary, altCopy } });
   }
 
+  /** The saved alt texts of these projects (AC-51). */
   async altTextsOf(projectIds: string[]): Promise<AltTextRow[]> {
     if (!projectIds.length) return [];
     return this.db.select<AltTextRow>('alt_texts', { project_id: projectIds });

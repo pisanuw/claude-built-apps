@@ -175,12 +175,21 @@ function collapse(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
 }
 
-/** Up to CONTEXT_CHARS characters of text before and after [from, to), comments out, whitespace collapsed. */
-/** A neighbour's `\\includegraphics{/Users/…/one.png}` as `{one.png}`: no folder of a file name leaves in the text around (R5a.2-7 f). */
+/**
+ * A neighbour's file name without its folders (R5a.2-7 f, R5b.1-8 c): the
+ * file argument of `\includegraphics`, `\input`, `\include`, `\includepdf`,
+ * `\subfile`, `\import` and `\lstinputlisting`, after options that may hold
+ * one level of brackets (`alt={x [y] z}`), so no folder of a path leaves in
+ * the text around a figure.
+ */
 function withoutFolders(s: string): string {
-  return s.replace(/(\\includegraphics\*?\s*(?:\[[^\]]*\]\s*)*\{)([^{}]*)\}/g, (_m, head: string, name: string) => `${head}${name.split(/[\\/]/).pop() ?? ''}}`);
+  return s.replace(
+    /(\\(?:includegraphics|input|include|includepdf|subfile|import|subimport|lstinputlisting|verbatiminput)\*?\s*(?:\[(?:[^[\]]|\[[^[\]]*\])*\]\s*)*\{)([^{}]*)\}/g,
+    (_m, head: string, name: string) => `${head}${name.split(/[\\/]/).pop() ?? ''}}`,
+  );
 }
 
+/** Up to CONTEXT_CHARS characters of text before and after [from, to), comments out, whitespace collapsed. */
 function contextOf(src: string, from: number, to: number): { before: string; after: string } {
   const before = withoutFolders(collapse(src.slice(Math.max(0, from - CONTEXT_CHARS * 3), from)));
   const after = withoutFolders(collapse(src.slice(to, to + CONTEXT_CHARS * 3)));
@@ -209,17 +218,32 @@ function environments(src: string): { name: string; from: number; to: number }[]
   return out;
 }
 
-function captionAndLabel(src: string, around: { from: number; to: number }[], envs: { from: number; to: number }[], offset: number): { caption: string; label: string } {
+function captionAndLabel(src: string, around: { name: string; from: number; to: number }[], envs: { name: string; from: number; to: number }[], offset: number): { caption: string; label: string } {
+  const CAPTIONS = { caption: { args: 1 }, captionof: { args: 2 }, label: { args: 1 } };
+  const words = (cap: { name: string; args: string[] }, label: { args: string[] } | undefined) => ({
+    caption: collapse(cap.name === 'captionof' ? cap.args[1] : cap.args[0]),
+    label: label ? collapse(label.args[0]) : '',
+  });
   // From the innermost environment around the figure outwards, the first with a caption of its own (a minipage
   // beside another one in the same figure, R5a.2-7 d); in it, not the caption of a subfigure beside it (R5a.1-9 f).
+  // A label only with a caption: a section's label in a body minipage is not the figure's (R5b.1-7).
   for (const env of around) {
     const others = envs.filter((e) => e !== env && e.from > env.from && e.to <= env.to && !(e.from <= offset && offset < e.to));
     const own = (at: number) => !others.some((e) => e.from <= at && at < e.to);
-    const cmds = findCommands(src.slice(env.from, env.to), { caption: { args: 1 }, captionof: { args: 2 }, label: { args: 1 } }).filter((c) => own(env.from + c.offset));
+    const cmds = findCommands(src.slice(env.from, env.to), CAPTIONS).filter((c) => own(env.from + c.offset));
     const cap = cmds.find((c) => c.name === 'caption' || c.name === 'captionof');
-    if (!cap && env !== around[around.length - 1]) continue;
-    const label = cmds.find((c) => c.name === 'label');
-    return { caption: cap ? collapse(cap.name === 'captionof' ? cap.args[1] : cap.args[0]) : '', label: label ? collapse(label.args[0]) : '' };
+    if (cap) return words(cap, cmds.find((c) => c.name === 'label'));
+  }
+  // None has one: a caption beside the image, in a minipage next to it in the outermost environment, when it is
+  // the only caption there (R5b.1-7). Subfigures beside it keep their own captions out.
+  const outer = around[around.length - 1];
+  if (outer) {
+    const others = envs.filter((e) => e.name !== 'minipage' && e.from > outer.from && e.to <= outer.to && !(e.from <= offset && offset < e.to));
+    const own = (at: number) => !others.some((e) => e.from <= at && at < e.to);
+    const cmds = findCommands(src.slice(outer.from, outer.to), CAPTIONS).filter((c) => own(outer.from + c.offset));
+    const caps = cmds.filter((c) => c.name === 'caption' || c.name === 'captionof');
+    const labels = cmds.filter((c) => c.name === 'label');
+    if (caps.length === 1) return words(caps[0], labels.length === 1 ? labels[0] : undefined);
   }
   return { caption: '', label: '' };
 }
@@ -230,12 +254,6 @@ function definitionTest(src: string, ends: Int32Array): (offset: number) => bool
   return (offset) => bodies.some(([from, to]) => from <= offset && offset < to);
 }
 
-/**
- * Whether an offset stands in the argument of a command whose argument LaTeX
- * writes to the .aux and reads again (a moving argument: a sectioning title,
- * a caption, a running head): there `\`, `~` and `^` in an alt text do not
- * survive the write (R5a.1-5).
- */
 /**
  * The commands whose arguments LaTeX writes to the .aux and reads again, and
  * which of their brace arguments move (1-based, after any `[…]`), R5a.2-3.
@@ -262,6 +280,12 @@ const MOVING: Record<string, number[]> = {
   addcontentsline: [3],
 };
 
+/**
+ * Whether an offset stands in the argument of a command whose argument LaTeX
+ * writes to the .aux and reads again (a moving argument: a sectioning title,
+ * a caption, a running head): there `\`, `~` and `^` in an alt text do not
+ * survive the write (R5a.1-5).
+ */
 function movingTest(src: string, ends: Int32Array): (offset: number) => boolean {
   const args: [number, number][] = [];
   const names = Object.keys(MOVING).sort((a, b) => b.length - a.length).join('|');
@@ -286,6 +310,21 @@ function movingTest(src: string, ends: Int32Array): (offset: number) => boolean 
     }
   }
   return (offset) => args.some(([from, to]) => from <= offset && offset < to);
+}
+
+/** The offset just after the `\end{tikzpicture}` that closes a picture whose body starts at `at`, or null (R5b.1-5). */
+export function tikzEnd(src: string, at: number): number | null {
+  const re = /\\(begin|end)\s*\{tikzpicture\}/g;
+  re.lastIndex = at;
+  let depth = 1;
+  for (let m = re.exec(src); m; m = re.exec(src)) {
+    let bs = 0;
+    for (let k = m.index - 1; k >= 0 && src[k] === '\\'; k--) bs++;
+    if (bs % 2) continue;
+    depth += m[1] === 'begin' ? 1 : -1;
+    if (depth === 0) return m.index + m[0].length;
+  }
+  return null;
 }
 
 /** The folders `\graphicspath` names, in the files the scan read. */
@@ -384,11 +423,12 @@ export function listFigures(project: Project, scan: Pick<DocumentScan, 'filesRea
         let j = at;
         while (/\s/.test(src[j] ?? '')) j++;
         const optsText = src[j] === '[' && ends[j] >= 0 ? src.slice(j + 1, ends[j]) : '';
-        const endAt = src.indexOf('\\end{tikzpicture}', at);
-        const to = endAt < 0 ? at : endAt + '\\end{tikzpicture}'.length;
+        // Its own end: nested pictures counted, `\\end {tikzpicture}` with a space too; with none, no source and so no saved slot (R5b.1-5).
+        const end = tikzEnd(src, at);
+        const to = end ?? at;
         out.push({
           ...base,
-          source: src.slice(offset, to),
+          source: end === null ? undefined : src.slice(offset, to),
           ...contextOf(src, offset, to),
           file: null,
           resolved: null,
