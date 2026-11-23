@@ -751,4 +751,4 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-22 [code] platform: auth-email-hook never emails Auth's own code (email type as a link, reauthentication refused); configure-auth --otp-length=N sets mailer_otp_length (owner: 10)
 
 2026-11-23 [code] platform: inspect reports Auth's email templates (set, prints code); configure-auth --templates-no-code rewrites only those that print Auth's code (owner: take code out)
-2026-11-23 [code] tagging-doctor days 5-6: milestone 4a (fix cards with a patched zip and a diff, engine and language lines, package swaps, the running check's count and polite progress, CR-12, CR-14); review r3 APPROVE, accepted; release requested [skip netlify]
+2026-11-23 [code] tagging-doctor days 5-6: milestone 4a (fix cards with a patched zip and a diff, engine and language lines, package swaps, the running check's count and polite progress, CR-12, CR-14); review r3 APPROVE, accepted; release requested
