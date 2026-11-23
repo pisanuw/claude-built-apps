@@ -749,3 +749,5 @@ Format: `YYYY-MM-DD [type] description` (max 200 chars). Types: decision, plan, 
 2026-11-22 [doc] Added the session-relay skill at .claude/skills/session-relay/ (from the owner's zip), so every session on this repo, relay successors included, can load the skill HANDOFF.md names.
 
 2026-11-22 [code] platform: auth-email-hook never emails Auth's own code (email type as a link, reauthentication refused); configure-auth --otp-length=N sets mailer_otp_length (owner: 10)
+
+2026-11-23 [code] platform: inspect reports Auth's email templates (set, prints code); configure-auth --templates-no-code rewrites only those that print Auth's code (owner: take code out)
