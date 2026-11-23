@@ -180,12 +180,18 @@ function notSent(name: string): string | null {
 export const PGF_TABLE_CUT =
   'pgfplots could not read a table file; the log cuts its name. The checker does not take .csv or .dat files, so a table in one was not sent; a table of another type must be in the zip, under the name the document gives.';
 
+/** TeX ran out of the memory the checker gives one job (R4b.2-3). */
+export const MEMORY_WORDS =
+  'The document needs more memory than the checker gives one job. It is not an error in your source: a long tagged document can need this much (about 50 pages of dense mathematics). Check a part of it, or the untagged original. It can also mean that a command calls itself without end.';
+
 /**
  * The first error in plain words (AC-29; S2-9's map of common TeX errors), or
  * null when the message is not one of them (TeX's own words are then shown).
  * Outside programs get the scan's own words (S2-8, AC-8).
  */
 export const TEX_ERRORS: [RegExp, (m: RegExpExecArray) => string][] = [
+  // The checker caps TeX's memory in the hub (D-134): a long tagged document can reach the cap (R4b.2-3, D-139).
+  [/TeX capacity exceeded|not enough memory/i, () => MEMORY_WORDS],
   [/Undefined control sequence/i, () => 'A command is not defined. Check its spelling, or load the package that defines it.'],
   // pgfplots' own words. TeX wraps the log at 79 columns, so the name is read only up to its closing quote on the
   // same line; a name the wrap cut is not named at all (R3b.2-4, R4a.1-3). The closing quote is the one before

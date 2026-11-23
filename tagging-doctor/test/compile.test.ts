@@ -252,6 +252,8 @@ describe('AC-29: the compile in plain words', () => {
 
   it('has a sample for each entry of the error map, each read by its own entry', () => {
     const samples = [
+      // From a real log: the hub's image, a 56-page tagged copy at the 352 MiB cap (review-m4b-r2.md, R4b.2-3).
+      './main.tex:1943: TeX capacity exceeded, sorry [token memory size=5906145]',
       'Undefined control sequence.',
       // Copied from a real log: LuaLaTeX on the worker's image, --file-line-error, as firstError keeps it (R3b.2-4).
       "Package pgfplots Error: Could not read table file 'data/marks.csv",

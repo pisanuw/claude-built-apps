@@ -359,8 +359,13 @@ function savedAsUtf8(project: Project, path: string): boolean {
   }
 }
 
-/** Commands after which a \DocumentMetadata is named, defined or tested, not called (R4a.3-2). */
-const NOT_A_CALL = /\\(?:providecommand|newcommand|renewcommand|DeclareRobustCommand|[gex]?def|let|ifdefined|ifx|show|meaning|string|(?:New|Renew|Provide|Declare)DocumentCommand|(?:New|Renew)CommandCopy|let\s*\\[A-Za-z@]+\s*=?)\s*\*?\s*\{?\s*$/;
+/**
+ * Commands after which a \DocumentMetadata is named, defined or tested, not
+ * called (R4a.3-2), the expl3 ones and \@ifdefinable included (R4b.2-1 c): any
+ * `\cs_…:N…` function (`\cs_if_exist:NTF`, `\cs_if_free_p:N`, `\cs_new:Npn`,
+ * `\cs_set_eq:NN \x`), whose first argument is the command itself.
+ */
+const NOT_A_CALL = /\\(?:providecommand|newcommand|renewcommand|DeclareRobustCommand|[gex]?def|let|ifdefined|ifx|show|meaning|string|@ifdefinable|(?:New|Renew|Provide|Declare)DocumentCommand|(?:New|Renew)CommandCopy|let\s*\\[A-Za-z@]+\s*=?|cs_[a-z_]+:[A-Za-z]+(?:\s*\\[A-Za-z@_:]+)?)\s*\*?\s*\{?\s*$/;
 
 /**
  * The body's \begin{document} in a (blanked) main file: the first one whose
@@ -396,17 +401,22 @@ export function bodyBeginOf(src: string): { at: number; depth: number; brace: nu
 }
 
 /**
- * The keys \DocumentMetadata takes in the checker's TeX Live 2026, as LaTeX on
- * the image answers `\keys_if_exist:nnTF {document/metadata}` (R4b.2-1 a): an
- * argument of only these is a call's (R4b.1-6 a).
+ * True when the argument is empty or a key list, not code: no key's name holds
+ * a command (`{ \def\x{1} }`, a macro `{\mykeys}`). A key LaTeX does not know
+ * (a newer one, a misspelt one) still makes it a call, which LaTeX then
+ * refuses in its own words (R4b.F-2; D-138's list of keys is no longer the
+ * guard, now that NOT_A_CALL knows the tests, R4b.2-1 c).
  */
-const METADATA_KEYS = new Set(['lang', 'language', 'other-languages', 'pdfversion', 'pdfstandard', 'tagging', 'tagging-setup', 'testphase', 'xmp', 'uncompress', 'debug', 'backend', 'colorprofiles', 'check-tagging-status']);
-
-/** True when the argument is empty or a key list of \DocumentMetadata's keys, not code (`{ \def\x{1} }` after a test of the command). */
 function metadataArgument(arg: string): boolean {
   if (!arg.trim()) return true;
-  const keys = [...keyValues(arg).keys()].map((k) => k.trim().toLowerCase()).filter(Boolean);
-  return keys.length > 0 && keys.every((k) => METADATA_KEYS.has(k));
+  const keys = [...keyValues(arg).keys()].map((k) => k.trim()).filter(Boolean);
+  return keys.length > 0 && keys.every((k) => !/[\\{}]/.test(k));
+}
+
+/** True when the key list sets the document's language: `lang` or `language`, as LaTeX spells them (R4b.F-1). */
+function metadataLanguage(arg: string | undefined): boolean {
+  const kv = keyValues(arg ?? '', true);
+  return Boolean(kv.get('lang') || kv.get('language'));
 }
 
 /**
@@ -427,6 +437,19 @@ function callAt(src: string): (offset: number) => boolean {
     if (depth > 0) return false;
     return !NOT_A_CALL.test(src.slice(Math.max(0, offset - 60), offset));
   };
+}
+
+/**
+ * The offset of the first \begin{document} after the first \documentclass,
+ * or -1 (R4b.2-2's fallback). What it still gets wrong, as the code before
+ * R4b.1-6 did: a definition holding \begin{document} that stands after
+ * \documentclass, with a file read between the definition and its use; that
+ * file is read as body.
+ */
+function firstBeginAfterClass(cmds: { name: string; offset: number; args: string[] }[]): number {
+  const dc = cmds.find((c) => c.name === 'documentclass');
+  if (!dc) return -1;
+  return cmds.find((c) => c.name === 'begin' && c.offset > dc.offset && c.args[0]?.trim() === 'document')?.offset ?? -1;
 }
 
 function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' | 'style'): void {
@@ -462,7 +485,9 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
   let docclassOffset = -1;
   let metadataOffset = -1;
   const call = callAt(src);
-  const bodyAt = role === 'main' ? (bodyBeginOf(src)?.at ?? -1) : -1;
+  // The body's \begin{document}; when none stays open (a body opened by the document's own environment or
+  // macro, or a group closed in the body), the first one after \documentclass, as before R4b.1-6 (R4b.2-2).
+  const bodyAt = role === 'main' ? (bodyBeginOf(src)?.at ?? firstBeginAfterClass(cmds)) : -1;
   if (role === 'main') ctx.beforeClass = true;
   for (const c of cmds) {
     switch (c.name) {
@@ -535,7 +560,7 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
           }
         }
         ctx.metadataFile ??= path;
-        if (keyValues(c.args[0]).get('lang')) ctx.languageSet = true;
+        if (metadataLanguage(c.args[0])) ctx.languageSet = true;
         break;
       }
       case 'title':
