@@ -96,6 +96,30 @@ export interface DocumentScan {
   figures: FigureSummary;
   /** Every project file the scan read, in the order it read them. */
   filesRead: string[];
+  /**
+   * The file whose \DocumentMetadata turns tagging on: the main file, or a
+   * .tex file it reads before its \documentclass (R4a.2-3); null when none.
+   */
+  metadataFile: string | null;
+}
+
+/** babel's options that are not languages (babel's manual, "Package options"). */
+export const BABEL_FLAGS = new Set(['activeacute', 'activegrave', 'keepshorthandsactive', 'noconfigs', 'showlanguages', 'silent', 'base', 'nocase', 'strings', 'debug', 'import', 'provide', 'provide+', 'provide*', 'nil']);
+
+/**
+ * The language a babel option names, or null for an option that is not one:
+ * a key=value, one of babel's flags, or one of babel-spanish's own options
+ * (es-tabla, es-nodecimaldot and the other es-… names, mexico, mexico-com;
+ * spanish.ldf). A modifier after a dot is dropped: spanish.mexico is spanish
+ * (R4a.2-1).
+ */
+export function babelLanguage(option: string): string | null {
+  const o = option.trim();
+  if (!o || o.includes('=')) return null;
+  const name = o.split('.')[0].trim();
+  const lower = name.toLowerCase();
+  if (!name || BABEL_FLAGS.has(lower) || lower.startsWith('es-') || lower === 'mexico' || lower === 'mexico-com') return null;
+  return name;
 }
 
 export const BEAMER_NOTE = 'Beamer migration is not covered by this version.';
@@ -168,6 +192,9 @@ interface Ctx {
   languageSet: boolean;
   titleSet: boolean;
   beamer: boolean;
+  /** True while the main file is read up to its \documentclass. */
+  beforeClass: boolean;
+  metadataFile: string | null;
 }
 
 /**
@@ -347,10 +374,12 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
 
   let docclassOffset = -1;
   let metadataOffset = -1;
+  if (role === 'main') ctx.beforeClass = true;
   for (const c of cmds) {
     switch (c.name) {
       case 'documentclass':
         if (role !== 'main') break;
+        ctx.beforeClass = false;
         if (docclassOffset < 0) docclassOffset = c.offset;
         ctx.classOptions.push(...c.opts.flatMap(splitList));
         loadClass(ctx, c, base, at(c.offset));
@@ -401,10 +430,16 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
           detail: 'Remove the \\tikzexternalize line; the pictures are then drawn inside the document, where the tagging code can reach them.',
         });
         break;
-      case 'DocumentMetadata':
+      case 'DocumentMetadata': {
+        // The main file's line, or one in a .tex file the main file reads before \documentclass (an \input
+        // above it); not a style or class file's, which only defines or names the command (R4a.2-3).
+        const counts = role === 'main' || (role === 'input' && ctx.beforeClass);
+        if (!counts) break;
         if (role === 'main' && metadataOffset < 0) metadataOffset = c.offset;
+        ctx.metadataFile ??= path;
         if (keyValues(c.args[0]).get('lang')) ctx.languageSet = true;
         break;
+      }
       case 'title':
         ctx.titleSet = true;
         break;
@@ -429,7 +464,7 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
   }
 
   if (role === 'main') {
-    if (docclassOffset >= 0 && metadataOffset < 0) {
+    if (docclassOffset >= 0 && metadataOffset < 0 && ctx.metadataFile === null) {
       warn(ctx, 'no-document-metadata', at(docclassOffset), 'There is no \\DocumentMetadata line, which switches tagging on. Added by the patch.', {
         name: 'Add \\DocumentMetadata (added by the patch)',
         detail: 'The patch puts a \\DocumentMetadata line before \\documentclass, with the document language and PDF/UA settings.',
@@ -570,7 +605,9 @@ function loadPackages(ctx: Ctx, c: Command, base: string, where: Where): void {
           if (m) lookupAndReport(ctx, `babel-${m[1].trim()}`, 'library', where);
           continue;
         }
-        lookupAndReport(ctx, `babel-${o}`, 'library', where);
+        // A language, its modifier dropped; babel's flags and babel-spanish's options are not (R4a.2-1).
+        const lang = babelLanguage(o);
+        if (lang) lookupAndReport(ctx, `babel-${lang}`, 'library', where);
       }
     }
     if (pkg === 'polyglossia' && opts.length) ctx.languageSet = true;
@@ -671,6 +708,8 @@ export function scanDocument(project: Project, mainFile: string, index: StatusIn
     languageSet: false,
     titleSet: false,
     beamer: false,
+    beforeClass: false,
+    metadataFile: null,
   };
   visitFile(ctx, mainFile, ctx.mainDir, 'main');
 
@@ -682,7 +721,7 @@ export function scanDocument(project: Project, mainFile: string, index: StatusIn
   // Babel takes its languages from the class options too.
   if (ctx.babelOptions) {
     const fromClass = ctx.classOptions.filter((o) => !o.includes('=') && index.lookup(`babel-${o}`, 'library'));
-    if (ctx.babelOptions.some((o) => !o.includes('=') || o.startsWith('main')) || fromClass.length) ctx.languageSet = true;
+    if (ctx.babelOptions.some((o) => babelLanguage(o) !== null || /^main\s*=/.test(o)) || fromClass.length) ctx.languageSet = true;
     for (const o of fromClass) lookupAndReport(ctx, `babel-${o}`, 'library', docWhere);
   }
   if (!ctx.languageSet) {
@@ -731,6 +770,7 @@ export function scanDocument(project: Project, mainFile: string, index: StatusIn
       list: ctx.figures,
     },
     filesRead: ctx.filesRead,
+    metadataFile: ctx.metadataFile,
   };
 }
 

@@ -108,7 +108,7 @@ function stub(answer: (patched: boolean, main: string, n: number) => CheckerJob,
   return { deps, posts, deletes, gets };
 }
 
-function page(opts: { signedIn?: boolean; account?: boolean; compare?: boolean; compile?: boolean; checker?: ReturnType<typeof stub> } = {}) {
+function page(opts: { signedIn?: boolean; account?: boolean; compare?: boolean; compile?: boolean; checker?: ReturnType<typeof stub>; index?: typeof idx } = {}) {
   document.body.innerHTML = '<div id="app"></div>';
   const root = document.getElementById('app') as HTMLElement;
   const session = new Map<string, string>([[NOTICE_KEY, '1']]);
@@ -131,7 +131,7 @@ function page(opts: { signedIn?: boolean; account?: boolean; compare?: boolean; 
   const blobs: { name: string; blob: Blob }[] = [];
   const checker = opts.checker ?? stub(() => job());
   const deps: AppDeps = {
-    loadStatus: async () => idx,
+    loadStatus: async () => opts.index ?? idx,
     now: () => NOW,
     session: { getItem: (k) => session.get(k) ?? null, setItem: (k, v) => void session.set(k, v), removeItem: (k) => void session.delete(k) },
     download: () => {},
@@ -305,6 +305,55 @@ describe('R4a.1-7: a panel goes with its cancel when its document goes, and stay
     t.button('Cancel').click();
     await settle();
     expect(c.deletes).toHaveLength(1);
+  });
+});
+
+describe('R4a.2-4 (f), (g): the panels’ order, and a scan that fails', () => {
+  const TWO = zipSync({ 'a/main.tex': strToU8(DOC), 'b/main.tex': strToU8(DOC.replace('\\usepackage{tabu}', '\\usepackage{boomzz}')) });
+  const scanButton = (t: ReturnType<typeof page>, name: string) => t.root.querySelector(`button[data-doc="${name}"]`) as HTMLButtonElement;
+  const order = (t: ReturnType<typeof page>) => [...t.root.querySelectorAll('#compile, #fixes')].map((e) => e.id);
+
+  it('(f) "Scan all" keeps the panels in the order they stood, either way round', async () => {
+    for (const first of ['Compile and check', 'Suggest fixes']) {
+      const c = stub(() => job({ status: 'running', result: null }), { realSleep: true });
+      const t = page({ checker: c });
+      await t.app.handleFile(file('two.zip', TWO));
+      scanButton(t, 'a/main.tex').click();
+      t.button(first).click();
+      t.button(first === 'Suggest fixes' ? 'Compile and check' : 'Suggest fixes').click();
+      await settle(10);
+      const before = order(t);
+      expect(before).toEqual(first === 'Suggest fixes' ? ['compile', 'fixes'] : ['fixes', 'compile']);
+      t.button('Scan all').click();
+      expect(order(t)).toEqual(before);
+      t.button('Cancel').click();
+      await settle();
+    }
+  });
+
+  it('(g) a scan that fails cancels a running check of the document shown before', async () => {
+    const bad = Object.create(idx) as typeof idx;
+    bad.lookup = ((name: string, kind: never) => {
+      if (name === 'boomzz') throw new Error('the scan broke');
+      return idx.lookup(name, kind);
+    }) as typeof idx.lookup;
+    const c = stub(() => job({ status: 'running', result: null }), { realSleep: true });
+    const t = page({ checker: c, index: bad });
+    await t.app.handleFile(file('two.zip', TWO));
+    scanButton(t, 'a/main.tex').click();
+    t.button('Compile and check').click();
+    t.button('Suggest fixes').click();
+    await settle(20);
+    expect(c.posts).toHaveLength(1);
+    scanButton(t, 'b/main.tex').click();
+    await settle();
+    expect(t.root.textContent).toContain('Something went wrong while reading this file');
+    expect(t.q('#compile')).toBeNull();
+    expect(t.q('#fixes')).toBeNull();
+    expect(c.deletes).toHaveLength(1);
+    const polled = c.gets.length;
+    await settle(40);
+    expect(c.gets.length).toBe(polled);
   });
 });
 

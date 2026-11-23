@@ -170,6 +170,8 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   let compileRun: { cancel: () => void } | null = null;
   /** The document the compile panel is for (R4a.1-7). */
   let compileFor: string | null = null;
+  /** The panel opened last, which stands first after the buttons (R4a.2-4 f). */
+  let newestPanel: 'compile' | 'fixes' = 'compile';
   const fixesPanel = el('section', { id: 'fixes', class: 'fixes-panel', 'aria-labelledby': 'fixes-h' });
   fixesPanel.hidden = true;
   let fixesRun: { cancel: () => void } | null = null;
@@ -326,6 +328,9 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   /** Any error from reading or scanning: a plain message, and the page stays usable. */
   function failed(e: unknown) {
     status.textContent = '';
+    // The panels' document is gone with the page's: their checks are cancelled (R4a.2-4 g).
+    hideCompile();
+    hideFixes();
     project = null;
     docsEl.hidden = true;
     allEl.hidden = true;
@@ -469,8 +474,13 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   function keepPanels(container: HTMLElement) {
     const dl = container.querySelector('.downloads');
     if (!dl) return;
-    if (fixesFor !== null && fixesFor === shown && !fixesPanel.isConnected) dl.after(fixesPanel);
-    if (compileFor !== null && compileFor === shown && !compilePanel.isConnected) dl.after(compilePanel);
+    // Each goes right after the buttons, the older first, so the newer ends up first, as it was (R4a.2-4 f).
+    const panels: [HTMLElement, string | null][] = [
+      [compilePanel, compileFor],
+      [fixesPanel, fixesFor],
+    ];
+    if (newestPanel === 'compile') panels.reverse();
+    for (const [panel, doc] of panels) if (doc !== null && doc === shown && !panel.isConnected) dl.after(panel);
   }
 
   function downloads(): HTMLElement {
@@ -508,6 +518,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     after.after(compilePanel);
     compilePanel.hidden = false;
     compileFor = main;
+    newestPanel = 'compile';
     compileRun = mountCompile(
       compilePanel,
       { ...deps.compile, token: async () => (account.token ? account.token() : null), session: deps.session },
@@ -559,6 +570,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     after.after(fixesPanel);
     fixesPanel.hidden = false;
     fixesFor = shown;
+    newestPanel = 'fixes';
     drawFixes();
     (fixesPanel.querySelector('#fixes-h') as HTMLElement | null)?.focus();
   }

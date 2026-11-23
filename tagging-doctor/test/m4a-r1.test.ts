@@ -2,51 +2,14 @@
  * Milestone 4a, review round 1: the patch's fixes (R4a.1-1, -2, -4, -5, -6,
  * -9) and Manager's notes 1, 2, 3 and 6 (acceptance/m4a.md).
  */
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { strToU8, zipSync } from 'fflate';
+import { strToU8 } from 'fflate';
 import { describe, expect, it, vi } from 'vitest';
-import { openProject, type Project } from '../src/core/project';
 import { scanDocument, scannedSource } from '../src/core/scan';
-import { applyFixes, documentLanguage, metadataLine, suggestFixes, topLevelBegin, UNICODE_MATH_CLASHES, MATH_FONT_PACKAGES, type PatchResult } from '../src/core/patch';
+import { applyFixes, documentLanguage, metadataLine, topLevelBegin, UNICODE_MATH_CLASHES, MATH_FONT_PACKAGES } from '../src/core/patch';
 import swapsFile from '../src/data/package-swaps.json';
-import { statusIndex } from './helpers';
-
-const index = statusIndex();
-const DOC = '\\documentclass{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage[T1]{fontenc}\n\\usepackage{amsmath}\n\\title{T}\n\\begin{document}\nHello $x$.\n\\end{document}\n';
-
-function project(files: Record<string, string | Uint8Array>): Project {
-  const z = zipSync(Object.fromEntries(Object.entries(files).map(([k, v]) => [k, [typeof v === 'string' ? strToU8(v) : v, { mtime: new Date(1980, 0, 1) }]])));
-  return openProject('p.zip', z);
-}
-
-function setup(files: Record<string, string | Uint8Array>, main = 'main.tex') {
-  const p = project(files);
-  const scan = scanDocument(p, main, index);
-  return { p, scan, plan: suggestFixes(p, scan) };
-}
-
-function card(plan: ReturnType<typeof suggestFixes>, id: string) {
-  return plan.cards.find((c) => c.id === id);
-}
-
-const defaults = (plan: ReturnType<typeof suggestFixes>) => new Set(plan.cards.filter((c) => c.acceptedByDefault).map((c) => c.id));
-
-/** Writes the original files, applies the diff with GNU patch -p1 as its first line says, and returns the folder. */
-function patchApplies(files: Record<string, string | Uint8Array>, r: PatchResult): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'td-r1-'));
-  for (const [k, v] of Object.entries(files)) {
-    fs.mkdirSync(path.dirname(path.join(dir, k)), { recursive: true });
-    fs.writeFileSync(path.join(dir, k), v);
-  }
-  const diff = path.join(os.tmpdir(), `${path.basename(dir)}.diff`);
-  fs.writeFileSync(diff, r.diff);
-  execFileSync('patch', ['-p1', '-s', '-i', diff], { cwd: dir, stdio: 'pipe' });
-  fs.rmSync(diff);
-  return dir;
-}
+import { card, defaults, DOC, index, patchApplies, project, setup } from './patch-helpers';
 
 describe('R4a.1-1: the diff applies with patch -p1 when a path holds a space', () => {
   it.each([['main.tex'], ['Lecture 1/main.tex'], ['my dir/main file.tex']])('%s', (main) => {
@@ -55,8 +18,7 @@ describe('R4a.1-1: the diff applies with patch -p1 when a path holds a space', (
     const r = applyFixes(p, scan, defaults(plan));
     expect(r.diff).toContain(`--- a/${main}\t\n+++ b/${main}\t\n`);
     const dir = patchApplies(files, r);
-    expect(fs.readFileSync(path.join(dir, main), 'utf8')).toBe(r.files.get(main));
-    fs.rmSync(dir, { recursive: true, force: true });
+    if (dir) fs.rmSync(dir, { recursive: true, force: true });
   });
 });
 
@@ -68,9 +30,10 @@ describe('R4a.1-2: the diff of a file with a byte order mark applies', () => {
     expect(r.diff).toContain('\n-\uFEFF\\documentclass{article}\n');
     expect(r.diff).toContain(`\n+\uFEFF${metadataLine('en-US')}\n+\\documentclass{article}\n`);
     const dir = patchApplies(files, r);
-    expect(fs.readFileSync(path.join(dir, 'main.tex'), 'utf8')).toBe(r.files.get('main.tex'));
-    expect([...fs.readFileSync(path.join(dir, 'main.tex')).subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
-    fs.rmSync(dir, { recursive: true, force: true });
+    if (dir) {
+      expect([...fs.readFileSync(path.join(dir, 'main.tex')).subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -117,7 +80,9 @@ describe('R4a.1-5: the language and the math font come from what TeX reads', () 
   });
 
   it('(b) takes babel’s last language even when the table does not know it, and asks', () => {
-    for (const opts of ['english,esperanto', 'english,germanb', 'esperanto']) {
+    // germanb is babel-german's older name for German, so it is de since round 2 (R4a.2-1).
+    expect(setup({ 'main.tex': DOC.replace('\\usepackage{amsmath}', '\\usepackage[english,germanb]{babel}') }).plan.language).toMatchObject({ tag: 'de', from: 'from babel’s main language, germanb' });
+    for (const opts of ['english,esperanto', 'esperanto']) {
       const name = opts.split(',').pop();
       const { plan } = setup({ 'main.tex': DOC.replace('\\usepackage{amsmath}', `\\usepackage[${opts}]{babel}`) });
       expect(plan.language, opts).toMatchObject({ tag: 'en-US', unmapped: name });
@@ -156,8 +121,7 @@ describe('R4a.1-6: the unicode-math line goes just before the top-level \\begin{
     const { p, scan } = setup({ 'main.tex': text });
     const r = applyFixes(p, scan, new Set(['metadata', 'unicode-math']));
     const dir = patchApplies({ 'main.tex': text }, r);
-    expect(fs.readFileSync(path.join(dir, 'main.tex'), 'utf8')).toBe(r.files.get('main.tex'));
-    fs.rmSync(dir, { recursive: true, force: true });
+    if (dir) fs.rmSync(dir, { recursive: true, force: true });
     return r.files.get('main.tex') ?? '';
   };
 

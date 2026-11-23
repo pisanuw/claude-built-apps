@@ -14,7 +14,7 @@
 import { groupEnds, keyValues, lineIndex, splitList } from './latex';
 import { projectZip } from './outzip';
 import type { Project } from './project';
-import { BEAMER_NOTE, scannedSource, type DocumentScan, type Finding } from './scan';
+import { babelLanguage, BEAMER_NOTE, scannedSource, type DocumentScan, type Finding } from './scan';
 import swapsData from '../data/package-swaps.json';
 
 // ---- AC-38: the \DocumentMetadata line --------------------------------------------
@@ -44,7 +44,7 @@ export function validLanguage(tag: string): boolean {
 const LANGUAGE_TAGS: Record<string, string> = {
   english: 'en', american: 'en-US', usenglish: 'en-US', british: 'en-GB', ukenglish: 'en-GB', canadian: 'en-CA',
   australian: 'en-AU', newzealand: 'en-NZ', french: 'fr', francais: 'fr', frenchb: 'fr', acadian: 'fr-CA', canadien: 'fr-CA',
-  german: 'de', ngerman: 'de', austrian: 'de-AT', naustrian: 'de-AT', swissgerman: 'de-CH', nswissgerman: 'de-CH',
+  german: 'de', ngerman: 'de', germanb: 'de', ngermanb: 'de', austrian: 'de-AT', naustrian: 'de-AT', swissgerman: 'de-CH', nswissgerman: 'de-CH',
   spanish: 'es', mexican: 'es-MX', italian: 'it', portuguese: 'pt', portuges: 'pt', brazil: 'pt-BR', brazilian: 'pt-BR',
   dutch: 'nl', polish: 'pl', russian: 'ru', ukrainian: 'uk', greek: 'el', turkish: 'tr', czech: 'cs', slovak: 'sk',
   slovene: 'sl', slovenian: 'sl', croatian: 'hr', serbian: 'sr', bulgarian: 'bg', romanian: 'ro', hungarian: 'hu', magyar: 'hu',
@@ -55,8 +55,6 @@ const LANGUAGE_TAGS: Record<string, string> = {
 };
 const ENGLISH_VARIANTS: Record<string, string> = { american: 'en-US', us: 'en-US', usmax: 'en-US', british: 'en-GB', uk: 'en-GB', australian: 'en-AU', newzealand: 'en-NZ', canadian: 'en-CA' };
 
-/** babel's options that are not languages. */
-const BABEL_FLAGS = new Set(['activeacute', 'activegrave', 'keepshorthandsactive', 'noconfigs', 'showlanguages', 'silent', 'base', 'nocase', 'strings', 'debug', 'import', 'provide', 'nil']);
 
 /**
  * Each file the patch reads, decoded and blanked once per plan (R4a.1-9 a):
@@ -144,7 +142,7 @@ export function documentLanguage(project: Project, scan: Pick<DocumentScan, 'fil
     // (a class option is mostly 11pt or a4paper). An unknown last name gives the default and the prompt (R4a.1-5).
     const named = [
       ...classOpts.filter((o) => !o.includes('=') && Object.hasOwn(LANGUAGE_TAGS, o.toLowerCase())),
-      ...babel.filter((o) => !o.includes('=') && !BABEL_FLAGS.has(o.toLowerCase())),
+      ...babel.map(babelLanguage).filter((n): n is string => n !== null),
     ];
     const last = named[named.length - 1];
     if (last) return resolve(last, `from babel’s main language, ${last}`);
@@ -363,6 +361,25 @@ export function topLevelBegin(src: string): number {
   return -1;
 }
 
+/**
+ * Where the unicode-math line goes before: the top-level \begin{document}.
+ * When the preamble leaves a brace open, none is at the top level; the scan
+ * then takes the first \begin{document} as the body's start (R2.2-1), and so
+ * does this, at the start of its line, outside the open group (R4a.2-4 c).
+ */
+function bodyBegin(src: string): number {
+  const top = topLevelBegin(src);
+  if (top >= 0) return top;
+  let depth = 0;
+  for (let k = 0; k < src.length; k++) {
+    if (src[k] === '\\') k++;
+    else if (src[k] === '{') depth++;
+    else if (src[k] === '}' && depth > 0) depth--;
+  }
+  const first = depth > 0 ? src.search(/\\begin\s*\{document\}/) : -1;
+  return first < 0 ? -1 : src.lastIndexOf('\n', first - 1) + 1;
+}
+
 const utf8Strict = new TextDecoder('utf-8', { fatal: true });
 
 /** The file's text if it is UTF-8, BOM kept apart; null when it is not (the patch then leaves it alone). */
@@ -412,11 +429,10 @@ function listEdit(text: string, blanked: string, ops: ListOp[]): Edit {
     return { path, from: cmd.argFrom, to: cmd.argTo, text: kept.join(','), rank: 0 };
   }
   // Every name goes: the command goes, and its line with it when nothing else is on it.
-  const starts = lineStarts(text);
-  const lineOf = lineIndex(text);
-  const first = starts[lineOf(cmd.offset) - 1];
-  const lastLine = lineOf(Math.max(cmd.offset, cmd.end - 1));
-  const after = starts[lastLine] ?? text.length;
+  // The command's lines, found from the command itself: no line table per command (R4a.2-4 a).
+  const first = text.lastIndexOf('\n', cmd.offset - 1) + 1;
+  const nl = text.indexOf('\n', Math.max(cmd.offset, cmd.end - 1));
+  const after = nl < 0 ? text.length : nl + 1;
   const alone = !blanked.slice(first, cmd.offset).trim() && !blanked.slice(cmd.end, after).trim();
   return alone ? { path, from: first, to: after, text: '', rank: 0 } : { path, from: cmd.offset, to: cmd.end, text: '', rank: 0 };
 }
@@ -460,12 +476,31 @@ function regions(text: string, edits: Edit[], insertTakesLine = true): Region[] 
       last.edits.push(...s.edits);
     } else merged.push({ ...s, edits: [...s.edits] });
   }
-  return merged.map((m) => {
-    const from = starts[m.a] ?? text.length;
-    const to = starts[m.b] ?? text.length;
-    const oldSeg = text.slice(from, to);
-    return { a: m.a, b: m.b, oldSeg, newSeg: applyEdits(oldSeg, m.edits.map((e) => ({ ...e, from: e.from - from, to: e.to - from }))) };
-  });
+  const out: Region[] = [];
+  for (let i = 0; i < merged.length; i++) {
+    const m = merged[i];
+    for (;;) {
+      const from = starts[m.a] ?? text.length;
+      const to = starts[m.b] ?? text.length;
+      const oldSeg = text.slice(from, to);
+      const newSeg = applyEdits(oldSeg, m.edits.map((e) => ({ ...e, from: e.from - from, to: e.to - from })));
+      // New text ends with a line end unless it reaches the file's end. A removal that starts inside a line and
+      // takes its end (the first line of a file with a byte order mark) joins the next line to what is left, so
+      // the region takes that line too (R4a.2-2).
+      if (newSeg && !newSeg.endsWith('\n') && m.b < nLines) {
+        m.b++;
+        while (i + 1 < merged.length && merged[i + 1].a <= m.b) {
+          const n = merged[++i];
+          m.b = Math.max(m.b, n.b);
+          m.edits.push(...n.edits);
+        }
+        continue;
+      }
+      out.push({ a: m.a, b: m.b, oldSeg, newSeg });
+      break;
+    }
+  }
+  return out;
 }
 
 function sortEdits(edits: Edit[]): Edit[] {
@@ -552,13 +587,16 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
     const text = f?.text ?? project.text(main) ?? '';
     const blanked = sources.get(main).src ?? '';
     // In any file the document reads, as the scan reads it: a second line stops LaTeX (R4a.1-4).
-    const has = scan.filesRead.find((path) => commands(sources.get(path).src ?? '', { DocumentMetadata: { args: 1 } }).length);
+    // Where the scan found the line that turns tagging on: the main file, or a .tex file read above its
+    // \documentclass; a second line would stop LaTeX (R4a.1-4, R4a.2-3).
+    const has = scan.metadataFile;
     if (has) {
       card.state = 'already-done';
       card.what = 'Nothing: the document has its own \\DocumentMetadata line.';
       card.note = `Already done: ${has} has a \\DocumentMetadata line, which the patch leaves alone.`;
     } else if (!f) {
       card.state = 'not-needed';
+      card.what = `Nothing: ${main} is not saved as UTF-8.`;
       card.note = `${main} is not saved as UTF-8, so the patch does not change it. Save it as UTF-8 and drop the project again.`;
     } else {
       // Before the first line with any code on it: \documentclass, or a \RequirePackage above it.
@@ -648,25 +686,31 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
     const clashing = [...loaded].filter((n) => UNICODE_MATH_CLASHES.has(n));
     const f = readable(main);
     const text = f?.text ?? '';
-    const begin = f ? topLevelBegin(sources.get(main).src ?? '') : -1;
+    const begin = f ? bodyBegin(sources.get(main).src ?? '') : -1;
     if (loaded.has('unicode-math')) {
       card.state = 'already-done';
       card.what = 'Nothing: the document loads unicode-math.';
       card.note = 'Already done: the document loads unicode-math.';
     } else if (fonts.length) {
       card.state = 'not-needed';
+      card.what = 'Nothing: the document sets its own math font.';
       card.note = `Not added: the document sets its math font with ${fonts.join(', ')}, which unicode-math would replace.`;
     } else if (clashing.length) {
       card.state = 'not-needed';
+      card.what = `Nothing: unicode-math does not go with ${clashing.join(', ')}.`;
       card.note = `Not added: the document loads ${clashing.join(', ')}, which the LaTeX Project’s status list marks “Incompatible with unicode-math”.`;
     } else if (!f || begin < 0) {
       card.state = 'not-needed';
+      card.what = !f ? `Nothing: ${main} is not saved as UTF-8.` : `Nothing: \\begin{document} is not in ${main}.`;
       card.note = !f ? `${main} is not saved as UTF-8, so the patch does not change it.` : `Not added: \\begin{document} is not in ${main}.`;
     } else {
       // Just before \begin{document}, on a line of its own, wherever that \begin stands (R4a.1-6).
       const eol = eolOf(text);
-      const lineStart = begin === 0 || text[begin - 1] === '\n';
-      const ins: Edit = { path: main, from: begin, to: begin, text: `${lineStart ? '' : eol}\\usepackage{unicode-math}${eol}`, rank: 1 };
+      // Only blanks before it on its line: at the line's start, so its indent stays (R4a.2-4 b).
+      const start = text.lastIndexOf('\n', begin - 1) + 1;
+      const lineStart = !text.slice(start, begin).trim();
+      const at = lineStart ? start : begin;
+      const ins: Edit = { path: main, from: at, to: at, text: `${lineStart ? '' : eol}\\usepackage{unicode-math}${eol}`, rank: 1 };
       w.inserts.push(ins);
       card.changes = shown(main, text, [ins]);
     }
@@ -689,8 +733,15 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
     if (f.package && swapped.has(f.package) && (f.rule === 'package-status')) continue;
     const item = attentionItem(f, swaps);
     // What a card would have done, but the file is not UTF-8 (or the options are shared): to do by hand (Manager's note 1).
-    if (f.rule === 'no-document-metadata') item.advice = `Add this line by hand above \\documentclass: ${metadataLine(language.tag)}`;
-    else if (f.rule === 'no-language') item.advice = `Set the language by hand, with lang=${language.tag} (or yours) in \\DocumentMetadata.`;
+    // Its title and message then do not say the patch adds it (Manager's minor 2 at 758efdb).
+    if (f.rule === 'no-document-metadata') {
+      item.title = 'Add \\DocumentMetadata';
+      item.message = 'There is no \\DocumentMetadata line, which switches tagging on.';
+      item.advice = `Add this line by hand above \\documentclass: ${metadataLine(language.tag)}`;
+    } else if (f.rule === 'no-language') {
+      item.title = 'Set the language';
+      item.advice = `Set the language by hand, with lang=${language.tag} (or yours) in \\DocumentMetadata.`;
+    }
     else if (f.rule === 'pdftex-only') item.advice = `Remove ${f.package} by hand: LuaLaTeX does not need it.`;
     attention.push(item);
   }
@@ -760,7 +811,7 @@ export function applyFixes(project: Project, scan: DocumentScan, accepted: Reado
   const diffs: string[] = [];
   for (const path of [...byPath.keys()].sort()) {
     const f = sources.get(path).utf8 as { text: string; bom: boolean };
-    const list = byPath.get(path) as Edit[];
+    const list = joinLines(f.text, byPath.get(path) as Edit[]);
     const next = applyEdits(f.text, list);
     files.set(path, f.bom ? `\uFEFF${next}` : next);
     // The diff is of the file as it is, byte order mark included on its first line, so patch finds it (R4a.1-2).
@@ -768,6 +819,23 @@ export function applyFixes(project: Project, scan: DocumentScan, accepted: Reado
   }
   const header = '# Tagging Doctor: the changes in this copy. To make them in your own copy: patch -p1 < tagging-doctor.diff\n';
   return { files, diff: header + (diffs.length ? diffs.join('') : '# No changes: no fix was accepted.\n'), applied: chosen.filter((w) => w.inserts.length || w.ops.length).map((w) => w.card.id) };
+}
+
+/**
+ * An insertion that starts a line of its own (unicode-math before a
+ * \begin{document} that shares its line) right after a removal that leaves
+ * only blanks before it on that line (the engine fix's \usepackage{fontenc}):
+ * the line is the insertion's, so no empty line is left (R4a.2-4 b).
+ */
+function joinLines(text: string, edits: Edit[]): Edit[] {
+  return edits.map((e) => {
+    const eol = /^\r?\n/.exec(e.text)?.[0];
+    if (e.to !== e.from || !eol) return e;
+    const emptied = edits.some(
+      (r) => r.to > r.from && !r.text && r.to <= e.from && !text.slice(r.to, e.from).trim() && !text.slice(text.lastIndexOf('\n', r.from - 1) + 1, r.from).trim(),
+    );
+    return emptied ? { ...e, text: e.text.slice(eol.length) } : e;
+  });
 }
 
 /** The patched zip: the whole project (never a student record, AC-15) with the changes and the diff (AC-41). */
