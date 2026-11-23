@@ -14,7 +14,12 @@ export interface Validation {
   compliant: boolean;
   failedRules: number;
   failedChecks: number;
-  /** The 20 rules with the most failed checks (AC-30). */
+  /**
+   * Every rule that failed, the most failed checks first, up to MAX_RULES
+   * (R4a.1-8 a: the compare needs whole lists to say "fixed" or "new"; the
+   * page shows the 20 most frequent, AC-30). `failedRules` above tells a
+   * list that was cut.
+   */
   clauses: Clause[];
 }
 
@@ -35,7 +40,10 @@ interface Report {
   };
 }
 
-export function parseReport(json: string, top = 20): Validation | null {
+/** A bound on the rules sent, far above what one PDF/UA-2 report holds, so a job's answer stays small (each description is cut at 500 characters). */
+export const MAX_RULES = 200;
+
+export function parseReport(json: string, top = MAX_RULES): Validation | null {
   let data: Report;
   try {
     data = JSON.parse(json) as Report;

@@ -6,7 +6,7 @@
 import { request } from 'node:http';
 import { connect } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
-import { docker, freshToken, projectZip, Worker } from './harness.ts';
+import { docker, freshToken, PREFIX, projectZip, Worker } from './harness.ts';
 
 let w: Worker | null = null;
 afterEach(async () => {
@@ -53,7 +53,7 @@ describe('R3a.2-1: clients that leave during the token check', () => {
     const leave = (token: string) =>
       new Promise<void>((done) => {
         const sock = connect(port, '127.0.0.1', () => {
-          sock.write(`POST /api/jobs?mainFile=main.tex HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer ${token}\r\nContent-Length: 1048576\r\n\r\n`);
+          sock.write(`POST ${PREFIX}/api/jobs?mainFile=main.tex HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer ${token}\r\nContent-Length: 1048576\r\n\r\n`);
           sock.write(Buffer.alloc(1024));
           setTimeout(() => {
             sock.destroy();

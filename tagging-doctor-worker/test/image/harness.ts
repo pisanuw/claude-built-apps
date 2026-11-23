@@ -1,7 +1,13 @@
 /**
  * Runs the built image with a stand-in for Supabase's auth/v1/user, for the
  * tests that need TeX, veraPDF and the real users and permissions.
- * Needs a Docker daemon; the image name is WORKER_IMAGE (default tagging-doctor-worker:dev).
+ * Needs a Docker daemon; the image name is WORKER_IMAGE (default
+ * backend-hub:dev, the hub's image with the checker mounted, CR-13 and
+ * AC-82; `tagging-doctor-worker:dev` runs the worker's own image).
+ *
+ * In the hub's image the checker sits under CHECKER_PREFIX (/tagging-doctor),
+ * its settings are the hub's TAGGING_DOCTOR_* variables, and mult-streak runs
+ * beside it; `base` is the checker's address and `root` the hub's.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -12,7 +18,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeZip, type RawEntry } from '../zipmaker.ts';
 
-export const IMAGE = process.env.WORKER_IMAGE ?? 'tagging-doctor-worker:dev';
+export const IMAGE = process.env.WORKER_IMAGE ?? 'backend-hub:dev';
+/** True for the hub's image (any tag of backend-hub, or HUB=1). */
+export const IN_HUB = process.env.HUB === '1' || (process.env.HUB !== '0' && /(^|\/)backend-hub(:|$)/.test(IMAGE));
+export const PREFIX = IN_HUB ? '/tagging-doctor' : '';
+/** The checker's settings as the image reads them: in the hub, with its prefix (backend-hub/src/checker.ts). */
+export function checkerEnv(env: Record<string, string>): Record<string, string> {
+  if (!IN_HUB) return env;
+  return Object.fromEntries(Object.entries(env).map(([k, v]) => [k === 'PORT' ? k : `TAGGING_DOCTOR_${k}`, v]));
+}
 export const TOKEN_A = 'image-test-token-user-a-0000000000';
 export const TOKEN_B = 'image-test-token-user-b-0000000000';
 export const USER_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -70,11 +84,14 @@ export function folderZip(dir: string): Uint8Array {
 }
 
 export class Worker {
+  /** The checker's address (with the hub's prefix in the hub). */
   base = '';
+  /** The server's own address: the hub's root, or the worker's. */
+  root = '';
   name = '';
   private auth: Server | null = null;
 
-  static async start(opts: { cpus?: string; jobLimitMs?: number; extraEnv?: Record<string, string>; authDelayMs?: number } = {}): Promise<Worker> {
+  static async start(opts: { cpus?: string; jobLimitMs?: number; extraEnv?: Record<string, string>; authDelayMs?: number; hubEnv?: Record<string, string> } = {}): Promise<Worker> {
     const w = new Worker();
     w.auth = createServer(async (req, res) => {
       if (opts.authDelayMs) await new Promise((r) => setTimeout(r, opts.authDelayMs));
@@ -86,9 +103,14 @@ export class Worker {
     await new Promise<void>((r) => (w.auth as Server).listen(0, '127.0.0.1', r));
     const authPort = ((w.auth as Server).address() as AddressInfo).port;
     const port = await freePort();
-    w.base = `http://127.0.0.1:${port}`;
+    w.root = `http://127.0.0.1:${port}`;
+    w.base = `${w.root}${PREFIX}`;
     w.name = `tdw-test-${port}`;
-    const env = { PORT: String(port), SUPABASE_URL: `http://127.0.0.1:${authPort}`, SUPABASE_ANON_KEY: 'anon-test', ...(opts.jobLimitMs ? { JOB_LIMIT_MS: String(opts.jobLimitMs) } : {}), ...(opts.extraEnv ?? {}) };
+    const env = {
+      ...checkerEnv({ PORT: String(port), SUPABASE_URL: `http://127.0.0.1:${authPort}`, SUPABASE_ANON_KEY: 'anon-test', ...(opts.jobLimitMs ? { JOB_LIMIT_MS: String(opts.jobLimitMs) } : {}), ...(opts.extraEnv ?? {}) }),
+      // The hub's own settings: mult-streak needs a cookie secret (as on Render, where the runner generates it).
+      ...(IN_HUB ? { COOKIE_SECRET: 'image-test-cookie-secret', ...(opts.hubEnv ?? {}) } : {}),
+    };
     docker([
       'run', '-d', '--name', w.name, '--network', 'host', '--memory', '512m', '--memory-swap', '512m',
       ...(opts.cpus ? ['--cpus', opts.cpus] : []),
