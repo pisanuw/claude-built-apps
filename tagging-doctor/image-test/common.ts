@@ -1,7 +1,7 @@
 /**
  * Shared by milestone 4's image tests: a project read from a folder, as a
- * drop would give it, and a job on the real worker (the worker's own image
- * harness), with the container's peak memory sampled as AC-65's spike does.
+ * drop would give it, and a job on the real checker (the worker's image
+ * harness: by default the hub's image, backend-hub:dev, CR-13), with the container's peak memory sampled as AC-65's spike does.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -13,9 +13,9 @@ import { openProject, type Project } from '../src/core/project';
 import { scanDocument, type DocumentScan } from '../src/core/scan';
 import { StatusIndex, type StatusData } from '../src/core/status';
 import data from '../src/data/tagging-status.json';
-import { freshToken, Worker } from '../../tagging-doctor-worker/test/image/harness.ts';
+import { freshToken, IMAGE, Worker } from '../../tagging-doctor-worker/test/image/harness.ts';
 
-export { freshToken, Worker };
+export { freshToken, IMAGE, Worker };
 
 export const APP = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const REPO = path.join(APP, '..');
