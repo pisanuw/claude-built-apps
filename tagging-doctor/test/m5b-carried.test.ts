@@ -2,11 +2,24 @@
  * Milestone 5b: the minors carried from 5a's round 2 (review-m5a-r2.md,
  * R5a.2-2 to R5a.2-7) in the core, each beside the input that was right.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { plainTexError } from '../src/core/compile';
 import { altEdits, listFigures, notCarried, STYLE_FIGURE, styleFigureAttention, type AltDecision } from '../src/core/figures';
 import { applyFixes } from '../src/core/patch';
 import { card, setup } from './patch-helpers';
+
+/** How often the comments of a file are blanked (R5a.2-6): counted, not timed, so a loaded runner cannot decide it. */
+const blanks = vi.hoisted(() => ({ n: 0 }));
+vi.mock('../src/core/latex', async (orig) => {
+  const m = await orig<typeof import('../src/core/latex')>();
+  return {
+    ...m,
+    blankComments: (s: string) => {
+      blanks.n++;
+      return m.blankComments(s);
+    },
+  };
+});
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
 const DOC = (body: string, preamble = '') => `\\documentclass{article}\n\\usepackage{graphicx}\n${preamble}\\begin{document}\n${body}\n\\end{document}\n`;
@@ -66,22 +79,22 @@ describe('R5a.2-5: LuaTeX\'s memory sizes get the memory words', () => {
 });
 
 describe('R5a.2-6: the copy blanks each file once, not once per figure', () => {
-  it('200 approved figures with options: compare 100 and 200 (not a time limit, knowledge 2026-11-20)', () => {
-    const run = (n: number) => {
-      const body = Array.from({ length: n }, (_, i) => `Some text ${'x'.repeat(1500)}\n\\includegraphics[width=3cm]{a.png} % ${i}`).join('\n');
-      const { p, figures } = figs({ 'main.tex': DOC(body), 'a.png': PNG });
+  it('200 approved figures with options in one file, and 2 in another: as many blankings as for 1 figure in each', () => {
+    const count = (n: number) => {
+      const body = Array.from({ length: n }, (_, i) => `Some text\n\\includegraphics[width=3cm]{a.png} % ${i}`).join('\n');
+      const { p, figures } = figs({ 'main.tex': DOC(`${body}\n\\input{ch}`), 'ch.tex': '\\includegraphics[width=1cm]{a.png}\n\\includegraphics[height=1cm]{a.png}\n', 'a.png': PNG });
+      expect(figures).toHaveLength(n + 2);
       const d = new Map<string, AltDecision>(figures.map((f) => [f.id, { decision: 'approved', text: 'A' }]));
-      const t = performance.now();
+      blanks.n = 0;
       const edits = altEdits(p, figures, d);
-      const ms = performance.now() - t;
-      expect(edits).toHaveLength(n);
-      return ms;
+      expect(edits).toHaveLength(n + 2);
+      // Each key still lands before its comment.
+      expect(edits.every((e) => e.text === ', alt={A}')).toBe(true);
+      return blanks.n;
     };
-    run(20);
-    const a = run(100);
-    const b = run(200);
-    // Linear: twice the figures and twice the file is about twice the time; the old code was about four times.
-    expect(b / Math.max(a, 0.5)).toBeLessThan(3.2);
+    const one = count(1);
+    expect(one).toBeLessThanOrEqual(4);
+    expect(count(200)).toBe(one);
   });
 });
 

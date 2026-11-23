@@ -11,7 +11,7 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import type { FigureItem } from '../core/figures';
 import { ImageError, prepareImage, type ImageDeps, type PreparedImage } from '../core/image';
-import { ask as realAsk, CapReached, GATEWAY_APP, GatewayError, isRefusal, LlmUnavailable, requestBody, textOf, type AskDeps, type AskRequest, type Message } from './llm';
+import { ask as realAsk, CapReached, GATEWAY_APP, GatewayError, isRefusal, LlmUnavailable, requestBody, textOf, type AskDeps, type AskRequest, type GatewayAllowance, type Message } from './llm';
 
 export const DRAFT_MODEL = 'claude-haiku-5-5';
 export const DRAFT_MAX_TOKENS = 400;
@@ -146,6 +146,39 @@ export function localTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return 'later';
   return d.toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+}
+
+/**
+ * An upper bound on one draft's cost on HintWise's key, in US dollars, until
+ * the first live draft measures it (S2-12's first part, D-149): about 1,600
+ * input tokens for an image Anthropic has scaled to 1.15 megapixels, about
+ * 1,400 more for the instructions, the caption, the label and 1,200
+ * characters of text, and DRAFT_MAX_TOKENS out, at the draft model's 0.10
+ * and 0.50 dollars per million tokens (the gateway's rate table):
+ * (3,000 x 0.10 + 400 x 0.50) / 1,000,000 = 0.0005 dollars, rounded up.
+ */
+export const DRAFT_COST_ESTIMATE_USD = 0.0006;
+
+/** The drafts the person's limits leave, at the estimate above; null when the app sets no limit for one person. */
+export function draftsLeft(a: GatewayAllowance): number | null {
+  if (!a.allowed) return 0;
+  let n: number | null = null;
+  for (const l of a.limits) {
+    const left = Math.max(0, l.cap - l.used);
+    const k = l.unit === 'calls' ? Math.floor(left) : Math.floor(left / DRAFT_COST_ESTIMATE_USD + 1e-9);
+    n = n === null ? k : Math.min(n, k);
+  }
+  return n;
+}
+
+/** What the figure panel says of HintWise's allowance (S2-12, AC-50), or null when there is nothing to say. */
+export function allowanceWords(a: GatewayAllowance, time: (iso: string) => string = localTime): string | null {
+  if (!a.allowed) return `HintWise’s key has no drafts left for you now; it opens again ${a.resets_at ? time(a.resets_at) : 'later'}.`;
+  if (a.uses_credit) return 'Your free drafts on HintWise’s key are used up for now; each draft now uses one of your credits.';
+  const n = draftsLeft(a);
+  if (n === null) return null;
+  if (n === 0) return 'HintWise’s key has about no drafts left for you today.';
+  return `About ${n.toLocaleString('en-US')} ${n === 1 ? 'draft is' : 'drafts are'} left for you today (an estimate from your daily allowance).`;
 }
 
 export const NOT_REGISTERED = 'Drafting with HintWise’s key is not available yet; use your own key.';

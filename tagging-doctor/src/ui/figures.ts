@@ -12,8 +12,8 @@
  */
 import { LONG_ALT, normalizeAlt, NOT_CARRIED, notCarried, type AltDecision, type FigureItem } from '../core/figures';
 import { browserImageDeps, type ImageDeps } from '../core/image';
-import { draftAll, draftErrorWords, draftFigure, draftMode, DRAFT_ALL_LIMIT, NO_MODE, stopsRun, type DraftDeps } from '../lib/draft';
-import { getByokKey, setByokKey } from '../lib/llm';
+import { allowanceWords, draftAll, draftErrorWords, draftFigure, draftMode, DRAFT_ALL_LIMIT, NO_MODE, stopsRun, type DraftDeps } from '../lib/draft';
+import { checkAllowance, getByokKey, setByokKey, type AskDeps, type GatewayAllowance } from '../lib/llm';
 import type { Project } from '../core/project';
 
 export const FIGURES_INTRO =
@@ -72,8 +72,8 @@ export interface FiguresOpts {
   signedIn: () => boolean;
   /** Where the own key is kept; localStorage by default. */
   storage?: Storage;
-  /** Stand-ins for tests: the model call, the image codec. */
-  draft?: Pick<DraftDeps, 'ask' | 'askDeps'>;
+  /** Stand-ins for tests: the model call, the gateway's check mode, the image codec. */
+  draft?: Pick<DraftDeps, 'ask' | 'askDeps'> & { check?: (deps: AskDeps) => Promise<GatewayAllowance> };
   imageDeps?: ImageDeps;
   /** A URL for a thumbnail; the browser's object URL by default. */
   objectUrl?: (bytes: Uint8Array, type: string) => string | null;
@@ -193,9 +193,44 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
     keyEl.replaceChildren(p, help);
   }
 
-  function drawMode() {
+  /** What the gateway's check mode said last (S2-12), for the mode line; null until it answers, or when it fails. */
+  let allowance: string | null = null;
+  let checks = 0;
+
+  /** Asks the gateway what is left (no model call, no cost) and redraws the mode line. */
+  async function refreshAllowance() {
+    if (mode() !== 'gateway' || closed) return;
+    const n = ++checks;
+    try {
+      const a = await (opts.draft?.check ?? checkAllowance)({ storage, ...opts.draft?.askDeps });
+      if (n !== checks || closed) return;
+      allowance = allowanceWords(a);
+    } catch (e) {
+      if (n !== checks || closed) return;
+      // The line is a help; drafting works without it.
+      console.warn('tagging-doctor: the gateway allowance could not be read', e);
+      allowance = null;
+    }
+    drawModeLine();
+  }
+
+  function drawModeLine() {
     const m = mode();
-    modeEl.textContent = m === 'byok' ? 'Drafts use your own key.' : m === 'gateway' ? 'Drafts use HintWise’s key, within its daily allowance. Your own key, above, has no such limit.' : NO_MODE;
+    modeEl.textContent =
+      m === 'byok'
+        ? 'Drafts use your own key.'
+        : m === 'gateway'
+          ? `Drafts use HintWise’s key, within its daily allowance.${allowance ? ` ${allowance}` : ''} Your own key, above, has no such limit.`
+          : NO_MODE;
+  }
+
+  function drawMode() {
+    const was = modeEl.dataset.mode ?? '';
+    const m = mode();
+    modeEl.dataset.mode = m ?? '';
+    if (m !== 'gateway') allowance = null;
+    drawModeLine();
+    if (m === 'gateway' && was !== 'gateway') void refreshAllowance();
     drawAll();
     // Each figure's Draft button follows the mode.
     for (const f of figures) drawFigure(f);
@@ -295,6 +330,8 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
     };
     const r = await draftAll(todo, one, { stopped: () => stopRun || closed, skip: (f) => !waiting(f) });
     running = false;
+    // What is left after the run (S2-12).
+    if (d.mode === 'gateway') void refreshAllowance();
     const stopped = stopRun;
     stopRun = false;
     if (closed) return;

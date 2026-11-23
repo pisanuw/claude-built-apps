@@ -205,6 +205,38 @@ export async function ask(req: AskRequest, deps: AskDeps = {}): Promise<Message>
   return data as Message;
 }
 
+/** The fields of the gateway's check-mode answer this app reads (platform/src/gateway/caps.ts, `allowance`). */
+export interface GatewayAllowance {
+  allowed: boolean;
+  uses_credit?: boolean;
+  scope: string | null;
+  resets_at: string | null;
+  app_open?: boolean;
+  /** The person's own limits in this app and across apps: spent and cap, in calls (unit "calls") or else in dollars. */
+  limits: { scope: string; unit: string; used: number; cap: number; resets_at: string }[];
+  calls_left: number | null;
+}
+
+/**
+ * The gateway's check mode (`{ app, check: true }`): what the next call
+ * would get, with no model call and no cost (S2-12). Throws LlmUnavailable
+ * signed out, GatewayError on an error answer.
+ */
+export async function checkAllowance(deps: AskDeps = {}): Promise<GatewayAllowance> {
+  const token = await (deps.getToken ?? currentToken)();
+  if (!token) throw new LlmUnavailable('Sign in to use the HintWise key.');
+  const res = await (deps.fetch ?? fetch)(deps.gatewayUrl ?? gatewayUrl(), {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ app: GATEWAY_APP, check: true }),
+  });
+  const data: unknown = await res.json().catch(() => ({}));
+  if (!res.ok) throw new GatewayError(res.status, data);
+  const a = data as Partial<GatewayAllowance>;
+  if (typeof a.allowed !== 'boolean' || !Array.isArray(a.limits)) throw new GatewayError(res.status, { message: 'The HintWise gateway gave an allowance this page cannot read.' });
+  return { ...a, allowed: a.allowed, limits: a.limits, scope: a.scope ?? null, resets_at: a.resets_at ?? null, calls_left: a.calls_left ?? null };
+}
+
 function isCap(data: unknown): data is { error: 'cap'; scope: string; resets_at: string; message?: string } {
   return typeof data === 'object' && data !== null && (data as { error?: unknown }).error === 'cap';
 }
