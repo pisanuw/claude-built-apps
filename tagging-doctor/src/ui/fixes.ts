@@ -132,7 +132,7 @@ export function mountFixes(panel: HTMLElement, opts: FixesOpts): { cancel: () =>
       const box = el('div', { class: 'change' });
       box.append(el('p', { class: 'where' }, `In ${changeWhere(ch)}:`));
       box.append(el('p', { class: 'label' }, 'Before'), el('pre', { class: 'before' }, ch.before.join('\n') || '(nothing)'));
-      box.append(el('p', { class: 'label' }, 'After'), el('pre', { class: 'after' }, ch.after.join('\n') || '(the line is removed)'));
+      box.append(el('p', { class: 'label' }, 'After'), el('pre', { class: 'after' }, ch.after.join('\n') || (ch.before.length > 1 ? '(the lines are removed)' : '(the line is removed)')));
       li.append(box);
     }
     const choose = el('p', { class: 'choose', role: 'group', 'aria-label': `${c.title}: accept or skip` });

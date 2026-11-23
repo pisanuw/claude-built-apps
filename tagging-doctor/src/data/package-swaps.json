@@ -1,5 +1,5 @@
 {
-  "about": "Package swaps the patch may make (AC-40). Each swap replaces one package name in \\usepackage or \\RequirePackage with another that the pinned status data lists as compatible, keeping the options. A swap is offered only when its record passed: its fixture project, with tagging on, compiles with LuaLaTeX on the checker's image after the swap, and veraPDF's count of failed checks does not rise. Entries with \"to\": null have no tested replacement; the page shows their advice. The records are written by tagging-doctor-worker/test/image/swaps.test.ts, which checks each one again.",
+  "about": "Package swaps the patch may make (AC-40). Each swap replaces one package name in \\usepackage or \\RequirePackage with another that the pinned status data lists as compatible, keeping the options. A swap is offered only when its record passed: its fixture project, with tagging on, compiles with LuaLaTeX on the checker's image after the swap, and veraPDF's count of failed checks does not rise. Entries with \"to\": null have no tested replacement; the page shows their advice. The records are written by tagging-doctor/image-test/swaps.test.ts, which checks each one again.",
   "testedOn": {
     "image": "tagging-doctor-worker (Dockerfile at the commit that wrote the record)",
     "texlive": "This is LuaHBTeX, Version 1.24.0 (TeX Live 2026)",

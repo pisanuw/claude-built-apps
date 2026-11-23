@@ -6,7 +6,7 @@
  */
 import { strToU8, zipSync } from 'fflate';
 import { afterEach, describe, expect, it } from 'vitest';
-import { plainTexError, type CheckerJob } from '../src/core/compile';
+import { PGF_TABLE_CUT, plainTexError, type CheckerJob } from '../src/core/compile';
 import { follow, pdf, runJob, SIGN_IN_AGAIN, UNREACHABLE, type CheckerDeps } from '../src/lib/checker';
 import { CourseStore, MemoryDb } from '../src/lib/store';
 import { mountApp, type AppDeps, type DroppedFile } from '../src/ui/app';
@@ -125,7 +125,8 @@ describe('R3b.2-4: pgfplots\' real "could not read table file" error, wrapped as
   it('gets plain words, with the closing quote cut off by the wrap', () => {
     // Copied from a real log: LuaLaTeX 2026 on the worker's image, as the worker's firstError keeps the line.
     const real = "Package pgfplots Error: Could not read table file 'data/marks.csv";
-    expect(plainTexError(real)).toBe('The checker does not take .csv files, so data/marks.csv was not sent; the compile needs it.');
+    // The wrap can cut the name, so a name with no closing quote is not used (R4a.1-3).
+    expect(plainTexError(real)).toBe(PGF_TABLE_CUT);
     expect(plainTexError("Package pgfplots Error: Could not read table file 'data/marks.txt' in 'search path=.'")).toBe('The table file data/marks.txt could not be read. Add it to the zip, or check its name.');
   });
 });

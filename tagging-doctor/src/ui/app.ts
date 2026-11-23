@@ -168,6 +168,8 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   const compilePanel = el('section', { id: 'compile', class: 'compile-panel', 'aria-labelledby': 'compile-h' });
   compilePanel.hidden = true;
   let compileRun: { cancel: () => void } | null = null;
+  /** The document the compile panel is for (R4a.1-7). */
+  let compileFor: string | null = null;
   const fixesPanel = el('section', { id: 'fixes', class: 'fixes-panel', 'aria-labelledby': 'fixes-h' });
   fixesPanel.hidden = true;
   let fixesRun: { cancel: () => void } | null = null;
@@ -456,6 +458,19 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       downloads(),
     );
     if (keepDialog) allEl.querySelector('.downloads')?.after(savePanel);
+    keepPanels(allEl);
+  }
+
+  /**
+   * Puts the compile and fix panels back after the new buttons when their
+   * container was drawn again for the same document ("Scan all"), so a running
+   * check keeps its panel and its Cancel (R4a.1-7).
+   */
+  function keepPanels(container: HTMLElement) {
+    const dl = container.querySelector('.downloads');
+    if (!dl) return;
+    if (fixesFor !== null && fixesFor === shown && !fixesPanel.isConnected) dl.after(fixesPanel);
+    if (compileFor !== null && compileFor === shown && !compilePanel.isConnected) dl.after(compilePanel);
   }
 
   function downloads(): HTMLElement {
@@ -492,6 +507,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     hideCompile();
     after.after(compilePanel);
     compilePanel.hidden = false;
+    compileFor = main;
     compileRun = mountCompile(
       compilePanel,
       { ...deps.compile, token: async () => (account.token ? account.token() : null), session: deps.session },
@@ -512,6 +528,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   function hideCompile() {
     compileRun?.cancel();
     compileRun = null;
+    compileFor = null;
     compilePanel.hidden = true;
     compilePanel.replaceChildren();
     compilePanel.remove();
@@ -728,9 +745,10 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   }
 
   function renderResult(main: string) {
-    // A compile, or fixes, of the document shown before no longer apply.
-    if (compilePanel.isConnected && main !== shown) hideCompile();
-    if (fixesPanel.isConnected && main !== shown) hideFixes();
+    // A compile, or fixes, of the document shown before no longer apply: cancelled, whether or not the
+    // panel is still on the page, since drawing the summary again takes it off (R4a.1-7).
+    if (compileFor !== null && compileFor !== main) hideCompile();
+    if (fixesFor !== null && fixesFor !== main) hideFixes();
     shown = main;
     if (scannedAll) {
       for (const b of allEl.querySelectorAll<HTMLButtonElement>('button[data-show]')) {
@@ -762,6 +780,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       ),
     );
     resultEl.replaceChildren(...out);
+    keepPanels(scannedAll ? allEl : resultEl);
   }
 
   function groupSection(s: DocumentScan, g: Group): HTMLElement {
@@ -881,12 +900,12 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       for (const b of root.querySelectorAll<HTMLButtonElement>('button.compile-open')) b.hidden = !signedIn;
       // Another person, or none: a compile panel of the one before goes (its token is theirs),
       // and so do that person's saved scans and unsaved checks, which are not the new person's (R3b.1-1).
-      if (compilePanel.isConnected) hideCompile();
+      if (compileFor !== null) hideCompile();
       savedScans = new Map();
       unsavedJobs = new Map();
       // That person's checks are not the new person's; the fix panel is drawn again, with or without the compare.
       originals = new Map();
-      if (fixesPanel.isConnected) drawFixes();
+      if (fixesFor !== null) drawFixes();
       if (saveItems) drawSave();
       showPending();
       // A page that depends on who is signed in is drawn again, also for another person (R2.1-9).

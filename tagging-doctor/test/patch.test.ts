@@ -210,7 +210,7 @@ describe('AC-66: unicode-math', () => {
   });
 
   it('adds nothing where the document sets a math font package, and says which', () => {
-    for (const pkg of ['mathptmx', 'newtxmath', 'fourier', 'bm']) {
+    for (const pkg of ['mathptmx', 'newtxmath', 'fourier', 'mathpazo']) {
       expect(MATH_FONT_PACKAGES.has(pkg)).toBe(true);
       const { p, scan, plan } = setup({ 'main.tex': DOC.replace('\\usepackage{amsmath}', `\\usepackage{amsmath,${pkg}}`) });
       const card = plan.cards.find((c) => c.id === 'unicode-math');
@@ -293,8 +293,8 @@ describe('AC-41: the patched zip and the diff', () => {
     const crlf = setup(cases[1]);
     expect(applyFixes(crlf.p, crlf.scan, new Set(['metadata', 'engine'])).diff).toBe(
       '# Tagging Doctor: the changes in this copy. To make them in your own copy: patch -p1 < tagging-doctor.diff\n' +
-        '--- a/main.tex\n+++ b/main.tex\n@@ -1,6 +1,6 @@\n % top\r\n+' + metadataLine('en-US') + '\r\n \\documentclass{article}\r\n-\\usepackage[utf8]{inputenc}\r\n \\input{sub/x}\r\n \\begin{document}\r\n x\r\n' +
-        '--- a/sub/x.tex\n+++ b/sub/x.tex\n@@ -1,1 +0,0 @@\n-\\usepackage[T1]{fontenc}\n\\ No newline at end of file\n',
+        '--- a/main.tex\t\n+++ b/main.tex\t\n@@ -1,6 +1,6 @@\n % top\r\n+' + metadataLine('en-US') + '\r\n \\documentclass{article}\r\n-\\usepackage[utf8]{inputenc}\r\n \\input{sub/x}\r\n \\begin{document}\r\n x\r\n' +
+        '--- a/sub/x.tex\t\n+++ b/sub/x.tex\t\n@@ -1,1 +0,0 @@\n-\\usepackage[T1]{fontenc}\n\\ No newline at end of file\n',
     );
   });
 

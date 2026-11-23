@@ -11,10 +11,10 @@
  * Pure and deterministic. The original upload is never changed: the result
  * is new text for some paths, written into a new zip by projectZip.
  */
-import { blankComments, groupEnds, keyValues, lineIndex, splitList } from './latex';
+import { groupEnds, keyValues, lineIndex, splitList } from './latex';
 import { projectZip } from './outzip';
 import type { Project } from './project';
-import { BEAMER_NOTE, type DocumentScan, type Finding } from './scan';
+import { BEAMER_NOTE, scannedSource, type DocumentScan, type Finding } from './scan';
 import swapsData from '../data/package-swaps.json';
 
 // ---- AC-38: the \DocumentMetadata line --------------------------------------------
@@ -55,6 +55,33 @@ const LANGUAGE_TAGS: Record<string, string> = {
 };
 const ENGLISH_VARIANTS: Record<string, string> = { american: 'en-US', us: 'en-US', usmax: 'en-US', british: 'en-GB', uk: 'en-GB', australian: 'en-AU', newzealand: 'en-NZ', canadian: 'en-CA' };
 
+/** babel's options that are not languages. */
+const BABEL_FLAGS = new Set(['activeacute', 'activegrave', 'keepshorthandsactive', 'noconfigs', 'showlanguages', 'silent', 'base', 'nocase', 'strings', 'debug', 'import', 'provide', 'nil']);
+
+/**
+ * Each file the patch reads, decoded and blanked once per plan (R4a.1-9 a):
+ * its UTF-8 text (null when it is not UTF-8, so it is never changed), the
+ * text the scan read, and that text with comments blanked and outside the
+ * ranges the scan reads blanked too (scannedSource, R4a.1-5).
+ */
+export class Sources {
+  private readonly cache = new Map<string, { utf8: { text: string; bom: boolean } | null; text: string | null; src: string | null }>();
+  constructor(
+    private readonly project: Project,
+    private readonly mainFile: string,
+  ) {}
+  get(path: string) {
+    let e = this.cache.get(path);
+    if (!e) {
+      const u = utf8(this.project, path);
+      const text = u?.text ?? this.project.text(path);
+      e = { utf8: u, text, src: text === null ? null : scannedSource(text, path === this.mainFile) };
+      this.cache.set(path, e);
+    }
+    return e;
+  }
+}
+
 export interface DocumentLanguage {
   /** The tag for \DocumentMetadata. */
   tag: string;
@@ -81,15 +108,15 @@ const LANGUAGE_SPECS = {
  * \setdefaultlanguage or \setmainlanguage (with its variant), or
  * \babelprovide[main]; otherwise en-US.
  */
-export function documentLanguage(project: Project, scan: Pick<DocumentScan, 'filesRead' | 'mainFile'>): DocumentLanguage {
+export function documentLanguage(project: Project, scan: Pick<DocumentScan, 'filesRead' | 'mainFile'>, sources = new Sources(project, scan.mainFile)): DocumentLanguage {
   const classOpts: string[] = [];
   let babel: string[] | null = null;
   let poly: { name: string; variant: string | null } | null = null;
   let provided: string | null = null;
   for (const path of scan.filesRead) {
-    const text = project.text(path);
-    if (text === null) continue;
-    for (const c of commands(blankComments(text), LANGUAGE_SPECS)) {
+    const src = sources.get(path).src;
+    if (src === null) continue;
+    for (const c of commands(src, LANGUAGE_SPECS)) {
       const opts = c.opts.flatMap(splitList);
       if (c.name === 'documentclass' && path === scan.mainFile) classOpts.push(...opts);
       else if ((c.name === 'usepackage' || c.name === 'RequirePackage') && splitList(c.args[0]).includes('babel')) babel = [...(babel ?? []), ...opts];
@@ -112,9 +139,14 @@ export function documentLanguage(project: Project, scan: Pick<DocumentScan, 'fil
   if (babel) {
     const main = babel.map((o) => /^main\s*=\s*(.+)$/.exec(o)?.[1]?.trim()).find(Boolean);
     if (main) return resolve(main, `from babel’s main language, ${main}`);
-    // Babel reads the class's options and its own; the last language named is the main one.
-    const named = [...classOpts, ...babel].filter((o) => !o.includes('=') && Object.hasOwn(LANGUAGE_TAGS, o.toLowerCase()));
-    const last = named[named.length - 1] ?? babel.filter((o) => !o.includes('='))[babel.filter((o) => !o.includes('=')).length - 1];
+    // Babel reads the class's options and its own; the last language named is the main one. Babel's own
+    // options name languages, except a few flags; the class's are counted only when the table knows them
+    // (a class option is mostly 11pt or a4paper). An unknown last name gives the default and the prompt (R4a.1-5).
+    const named = [
+      ...classOpts.filter((o) => !o.includes('=') && Object.hasOwn(LANGUAGE_TAGS, o.toLowerCase())),
+      ...babel.filter((o) => !o.includes('=') && !BABEL_FLAGS.has(o.toLowerCase())),
+    ];
+    const last = named[named.length - 1];
     if (last) return resolve(last, `from babel’s main language, ${last}`);
   }
   return { tag: DEFAULT_LANGUAGE, from: 'the default, because the document sets no language' };
@@ -300,14 +332,36 @@ const PDFTEX_ONLY = ['inputenc', 'fontenc'];
 /**
  * Packages that set the math font: with one of them, unicode-math is not
  * added (AC-66). Also the packages the status data marks "Incompatible with
- * unicode-math", which set math symbols of their own (D-100).
+ * unicode-math", which set math symbols of their own (D-102).
  */
 export const MATH_FONT_PACKAGES = new Set([
   'unicode-math', 'mathptmx', 'mathpazo', 'newtxmath', 'newpxmath', 'fourier', 'eulervm', 'euler', 'kpfonts', 'mathdesign',
   'libertinust1math', 'stix', 'stix2', 'txfonts', 'pxfonts', 'mathastext', 'arev', 'cmbright', 'concmath', 'ccfonts',
   'MnSymbol', 'fdsymbol', 'boisik', 'beton', 'notomath', 'lxfonts', 'mathabx', 'fouriernc', 'baskervaldx', 'newtx', 'mlmodern',
-  'bm', 'stmaryrd', 'mathpple', 'mathtime', 'mtpro2', 'lucimatx', 'lucidabr', 'eucal', 'euscript',
+  'mathpple', 'mathtime', 'mtpro2', 'lucimatx', 'lucidabr', 'eucal', 'euscript',
 ]);
+
+/** Not math font packages, but marked "Incompatible with unicode-math" in the status data (D-102; Manager's note 3). */
+export const UNICODE_MATH_CLASHES = new Set(['bm', 'stmaryrd']);
+
+/**
+ * Where the document's body starts: the first \begin{document} outside every
+ * brace group (one inside a \newcommand is not it), or -1 (R4a.1-6).
+ */
+export function topLevelBegin(src: string): number {
+  const re = /\\begin\s*\{document\}/y;
+  let depth = 0;
+  for (let k = 0; k < src.length; k++) {
+    const c = src[k];
+    if (c === '\\') {
+      re.lastIndex = k;
+      if (depth === 0 && re.test(src)) return k;
+      k++;
+    } else if (c === '{') depth++;
+    else if (c === '}' && depth > 0) depth--;
+  }
+  return -1;
+}
 
 const utf8Strict = new TextDecoder('utf-8', { fatal: true });
 
@@ -391,8 +445,10 @@ function regions(text: string, edits: Edit[], insertTakesLine = true): Region[] 
   const nLines = text.endsWith('\n') || !text ? starts.length - 1 : starts.length;
   const spans = sortEdits(edits).map((e) => {
     const a = lineAt(e.from) - 1;
-    // An insertion at a line's start shows that line on the card; the diff shows it as context.
-    const b = e.to > e.from ? lineAt(e.to - 1) : insertTakesLine ? Math.min(a + 1, nLines) : a;
+    // An insertion at a line's start shows that line on the card; the diff shows it as context. One inside a
+    // line (after a byte order mark, R4a.1-2, or before a \begin{document} on the \documentclass line, R4a.1-6)
+    // changes that line, so the diff takes it out and puts it back.
+    const b = e.to > e.from ? lineAt(e.to - 1) : insertTakesLine || e.from !== starts[a] ? Math.min(a + 1, nLines) : a;
     return { a, b, edits: [e] };
   });
   const merged: { a: number; b: number; edits: Edit[] }[] = [];
@@ -429,7 +485,7 @@ function applyEdits(text: string, edits: Edit[]): string {
 }
 
 /** Groups list operations by command and turns them into edits. */
-function opsToEdits(project: Project, ops: ListOp[]): Edit[] {
+function opsToEdits(sources: Sources, ops: ListOp[]): Edit[] {
   const byCmd = new Map<string, ListOp[]>();
   for (const o of ops) {
     const k = `${o.path}\u0000${o.cmd.offset}`;
@@ -437,8 +493,8 @@ function opsToEdits(project: Project, ops: ListOp[]): Edit[] {
   }
   const out: Edit[] = [];
   for (const list of byCmd.values()) {
-    const f = utf8(project, list[0].path) as { text: string };
-    out.push(listEdit(f.text, blankComments(f.text), list));
+    const f = sources.get(list[0].path);
+    out.push(listEdit((f.utf8 as { text: string }).text, f.src as string, list));
   }
   return out;
 }
@@ -453,27 +509,29 @@ export function suggestFixes(project: Project, scan: DocumentScan, opts: PatchOp
   return plan(project, scan, opts, swaps).plan;
 }
 
-function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: SwapEntry[]): { plan: FixPlan; work: CardWork[] } {
+function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: SwapEntry[]): { plan: FixPlan; work: CardWork[]; sources: Sources } {
   const main = scan.mainFile;
   const work: CardWork[] = [];
   const attention: AttentionItem[] = [];
   /** Files the patch may not change, because they are not UTF-8. */
   const notUtf8 = new Set<string>();
+  const sources = new Sources(project, main);
   const readable = (path: string) => {
-    const f = utf8(project, path);
+    const f = sources.get(path).utf8;
     if (!f) notUtf8.add(path);
     return f;
   };
-  const detected = documentLanguage(project, scan);
+  const detected = documentLanguage(project, scan, sources);
   const language: DocumentLanguage = opts.language && validLanguage(opts.language) && opts.language !== detected.tag ? { tag: opts.language, from: 'as you chose' } : detected;
 
+  /** \usepackage lines that load inputenc or fontenc with options shared by a package that stays. */
+  const sharedOptions: { path: string; cmd: SpannedCommand; names: string[] }[] = [];
   // Every \usepackage the scan read, with its file's text.
   const uses: { path: string; cmd: SpannedCommand; names: string[] }[] = [];
   for (const path of scan.filesRead) {
-    const f = utf8(project, path);
-    const text = f?.text ?? project.text(path);
-    if (text === null) continue;
-    for (const cmd of commands(blankComments(text), PACKAGE_SPECS)) uses.push({ path, cmd, names: splitList(cmd.args[0]) });
+    const src = sources.get(path).src;
+    if (src === null) continue;
+    for (const cmd of commands(src, PACKAGE_SPECS)) uses.push({ path, cmd, names: splitList(cmd.args[0]) });
   }
   const loads = (name: string) => uses.filter((u) => u.names.includes(name));
 
@@ -492,11 +550,13 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
     const w: CardWork = { card, inserts: [], ops: [] };
     const f = readable(main);
     const text = f?.text ?? project.text(main) ?? '';
-    const blanked = blankComments(text);
-    const has = commands(blanked, { DocumentMetadata: { args: 1 } });
-    if (has.length) {
+    const blanked = sources.get(main).src ?? '';
+    // In any file the document reads, as the scan reads it: a second line stops LaTeX (R4a.1-4).
+    const has = scan.filesRead.find((path) => commands(sources.get(path).src ?? '', { DocumentMetadata: { args: 1 } }).length);
+    if (has) {
       card.state = 'already-done';
-      card.note = `Already done: ${main} has a \\DocumentMetadata line, which the patch leaves alone.`;
+      card.what = 'Nothing: the document has its own \\DocumentMetadata line.';
+      card.note = `Already done: ${has} has a \\DocumentMetadata line, which the patch leaves alone.`;
     } else if (!f) {
       card.state = 'not-needed';
       card.note = `${main} is not saved as UTF-8, so the patch does not change it. Save it as UTF-8 and drop the project again.`;
@@ -518,7 +578,7 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
       id: 'engine',
       kind: 'engine',
       title: 'Remove inputenc and fontenc',
-      what: 'Removes the inputenc and fontenc packages, which only pdfLaTeX uses. The checker compiles with LuaLaTeX.',
+      what: 'Removes the inputenc and fontenc packages, which only pdfLaTeX uses. Compile the copy with LuaLaTeX, as the checker does.',
       why: 'Tagging works best with LuaLaTeX, which reads UTF-8 and uses Unicode fonts on its own; these two packages are not needed there.',
       acceptedByDefault: true,
       state: 'ready',
@@ -526,14 +586,23 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
     };
     const w: CardWork = { card, inserts: [], ops: [] };
     for (const u of uses) {
-      for (const n of u.names) {
-        if (!PDFTEX_ONLY.includes(n)) continue;
-        if (!readable(u.path)) continue;
-        w.ops.push({ path: u.path, cmd: u.cmd, name: n, to: null });
+      const pdftex = u.names.filter((n) => PDFTEX_ONLY.includes(n));
+      if (!pdftex.length || !readable(u.path)) continue;
+      // Options shared with a package that stays would be passed to it alone ([T1]{fontenc,amsmath}): left by hand (R4a.1-9 b).
+      if (u.cmd.opts.length && pdftex.length < u.names.length) {
+        sharedOptions.push(u);
+        continue;
       }
+      for (const n of pdftex) w.ops.push({ path: u.path, cmd: u.cmd, name: n, to: null });
+    }
+    // An editor told to use pdfLaTeX would undo the fix; the card says where (Manager's note 6).
+    const magic = /^%\s*!\s*TEX\s+(?:TS-)?program\s*=\s*(\S+)/im.exec(sources.get(main).text ?? '');
+    if (magic && !/lua/i.test(magic[1])) {
+      const line = lineIndex(sources.get(main).text ?? '')(magic.index);
+      card.what += ` Line ${line} of ${main}, “${magic[0].trim()}”, tells your editor to use ${magic[1]}; change it to lualatex.`;
     }
     if (w.ops.length) {
-      card.changes = changesOf(project, w.ops);
+      card.changes = changesOf(sources, w.ops);
       work.push(w);
     }
   }
@@ -556,7 +625,7 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
       changes: [],
     };
     const w: CardWork = { card, inserts: [], ops: at.map((u) => ({ path: u.path, cmd: u.cmd, name: e.from, to: ok.to })) };
-    card.changes = changesOf(project, w.ops);
+    card.changes = changesOf(sources, w.ops);
     work.push(w);
     swapped.add(e.from);
   }
@@ -574,22 +643,30 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
       changes: [],
     };
     const w: CardWork = { card, inserts: [], ops: [] };
-    const fonts = uses.flatMap((u) => u.names.filter((n) => MATH_FONT_PACKAGES.has(n)));
+    const loaded = new Set(uses.flatMap((u) => u.names));
+    const fonts = [...loaded].filter((n) => MATH_FONT_PACKAGES.has(n));
+    const clashing = [...loaded].filter((n) => UNICODE_MATH_CLASHES.has(n));
     const f = readable(main);
     const text = f?.text ?? '';
-    const begin = f ? /\\begin\s*\{document\}/.exec(blankComments(text)) : null;
-    if (fonts.includes('unicode-math')) {
+    const begin = f ? topLevelBegin(sources.get(main).src ?? '') : -1;
+    if (loaded.has('unicode-math')) {
       card.state = 'already-done';
+      card.what = 'Nothing: the document loads unicode-math.';
       card.note = 'Already done: the document loads unicode-math.';
     } else if (fonts.length) {
       card.state = 'not-needed';
-      card.note = `Not added: the document sets its math font with ${[...new Set(fonts)].join(', ')}, which unicode-math would replace.`;
-    } else if (!f || !begin) {
+      card.note = `Not added: the document sets its math font with ${fonts.join(', ')}, which unicode-math would replace.`;
+    } else if (clashing.length) {
+      card.state = 'not-needed';
+      card.note = `Not added: the document loads ${clashing.join(', ')}, which the LaTeX Project’s status list marks “Incompatible with unicode-math”.`;
+    } else if (!f || begin < 0) {
       card.state = 'not-needed';
       card.note = !f ? `${main} is not saved as UTF-8, so the patch does not change it.` : `Not added: \\begin{document} is not in ${main}.`;
     } else {
-      const at = lineStarts(text)[lineIndex(text)(begin.index) - 1];
-      const ins: Edit = { path: main, from: at, to: at, text: `\\usepackage{unicode-math}${eolOf(text)}`, rank: 1 };
+      // Just before \begin{document}, on a line of its own, wherever that \begin stands (R4a.1-6).
+      const eol = eolOf(text);
+      const lineStart = begin === 0 || text[begin - 1] === '\n';
+      const ins: Edit = { path: main, from: begin, to: begin, text: `${lineStart ? '' : eol}\\usepackage{unicode-math}${eol}`, rank: 1 };
       w.inserts.push(ins);
       card.changes = shown(main, text, [ins]);
     }
@@ -604,12 +681,28 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
     fixedRules.add('no-language');
   }
   const engine = work.find((w) => w.card.kind === 'engine');
+  const removed = new Set((engine?.ops ?? []).map((o) => `${o.path}\u0000${o.name}`));
   for (const f of scan.findings) {
     if (f.severity === 'ok') continue;
     if (fixedRules.has(f.rule)) continue;
-    if (f.rule === 'pdftex-only' && engine && !notUtf8.has(f.path)) continue;
+    if (f.rule === 'pdftex-only' && removed.has(`${f.path}\u0000${f.package}`)) continue;
     if (f.package && swapped.has(f.package) && (f.rule === 'package-status')) continue;
-    attention.push(attentionItem(f, swaps));
+    const item = attentionItem(f, swaps);
+    // What a card would have done, but the file is not UTF-8 (or the options are shared): to do by hand (Manager's note 1).
+    if (f.rule === 'no-document-metadata') item.advice = `Add this line by hand above \\documentclass: ${metadataLine(language.tag)}`;
+    else if (f.rule === 'no-language') item.advice = `Set the language by hand, with lang=${language.tag} (or yours) in \\DocumentMetadata.`;
+    else if (f.rule === 'pdftex-only') item.advice = `Remove ${f.package} by hand: LuaLaTeX does not need it.`;
+    attention.push(item);
+  }
+  for (const u of sharedOptions) {
+    const line = lineIndex(sources.get(u.path).text ?? '')(u.cmd.offset);
+    attention.push({
+      severity: 'warning',
+      title: 'inputenc or fontenc with shared options',
+      where: `${u.path}, line ${line}`,
+      message: `This line loads ${u.names.join(', ')} with options that would pass to the packages that stay if the patch removed only ${u.names.filter((n) => PDFTEX_ONLY.includes(n)).join(' and ')}.`,
+      advice: `Remove ${u.names.filter((n) => PDFTEX_ONLY.includes(n)).join(' and ')} from this line by hand, and keep the options only for the packages that take them.`,
+    });
   }
   for (const path of [...notUtf8].sort()) {
     attention.push({
@@ -620,17 +713,14 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
       advice: 'Save the file as UTF-8 in your editor, then drop the project again.',
     });
   }
-  return { plan: { mainFile: main, language, cards: work.map((w) => w.card), attention }, work };
+  return { plan: { mainFile: main, language, cards: work.map((w) => w.card), attention }, work, sources };
 }
 
-function changesOf(project: Project, ops: ListOp[]): ShownChange[] {
+function changesOf(sources: Sources, ops: ListOp[]): ShownChange[] {
   const out: ShownChange[] = [];
   const byPath = new Map<string, ListOp[]>();
   for (const o of ops) byPath.set(o.path, [...(byPath.get(o.path) ?? []), o]);
-  for (const [path, list] of byPath) {
-    const f = utf8(project, path) as { text: string };
-    out.push(...shown(path, f.text, opsToEdits(project, list)));
-  }
+  for (const [path, list] of byPath) out.push(...shown(path, (sources.get(path).utf8 as { text: string }).text, opsToEdits(sources, list)));
   return out;
 }
 
@@ -661,19 +751,20 @@ export const DIFF_NAME = 'tagging-doctor.diff';
 
 /** Applies the accepted cards (by id) to a copy. Cards not accepted change nothing (AC-41). */
 export function applyFixes(project: Project, scan: DocumentScan, accepted: ReadonlySet<string>, opts: PatchOptions = {}, swaps: SwapEntry[] = SWAPS): PatchResult {
-  const { work } = plan(project, scan, opts, swaps);
+  const { work, sources } = plan(project, scan, opts, swaps);
   const chosen = work.filter((w) => w.card.state === 'ready' && accepted.has(w.card.id));
-  const edits = [...chosen.flatMap((w) => w.inserts), ...opsToEdits(project, chosen.flatMap((w) => w.ops))];
+  const edits = [...chosen.flatMap((w) => w.inserts), ...opsToEdits(sources, chosen.flatMap((w) => w.ops))];
   const byPath = new Map<string, Edit[]>();
   for (const e of edits) byPath.set(e.path, [...(byPath.get(e.path) ?? []), e]);
   const files = new Map<string, string>();
   const diffs: string[] = [];
   for (const path of [...byPath.keys()].sort()) {
-    const f = utf8(project, path) as { text: string; bom: boolean };
+    const f = sources.get(path).utf8 as { text: string; bom: boolean };
     const list = byPath.get(path) as Edit[];
     const next = applyEdits(f.text, list);
     files.set(path, f.bom ? `\uFEFF${next}` : next);
-    diffs.push(unifiedDiff(path, f.text, list));
+    // The diff is of the file as it is, byte order mark included on its first line, so patch finds it (R4a.1-2).
+    diffs.push(f.bom ? unifiedDiff(path, `\uFEFF${f.text}`, list.map((e) => ({ ...e, from: e.from + 1, to: e.to + 1 }))) : unifiedDiff(path, f.text, list));
   }
   const header = '# Tagging Doctor: the changes in this copy. To make them in your own copy: patch -p1 < tagging-doctor.diff\n';
   return { files, diff: header + (diffs.length ? diffs.join('') : '# No changes: no fix was accepted.\n'), applied: chosen.filter((w) => w.inserts.length || w.ops.length).map((w) => w.card.id) };
@@ -697,7 +788,8 @@ export function unifiedDiff(path: string, text: string, edits: Edit[]): string {
   const rs = regions(text, edits, false);
   const oldLines = linesOf(text, true);
   const endsWithNl = text.endsWith('\n') || text === '';
-  const out: string[] = [`--- a/${path}`, `+++ b/${path}`];
+  // A tab after the name, as GNU diff and git write it: GNU patch otherwise ends a name at its first space (R4a.1-1).
+  const out: string[] = [`--- a/${path}\t`, `+++ b/${path}\t`];
   // Hunks: regions whose context touches are one hunk.
   let i = 0;
   let delta = 0;

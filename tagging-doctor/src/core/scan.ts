@@ -496,6 +496,29 @@ function endOfDocument(src: string, from: number): { start: number; end: number 
   return body !== null ? first : null;
 }
 
+/**
+ * A file's source as the scan reads it, comments blanked and the same length
+ * as the text, so offsets match: the main file up to its \end{document};
+ * a part with its own \documentclass and \begin{document} (subfiles,
+ * standalone) only its body; any other file whole. What lies outside is
+ * blanked (spaces, newlines kept). The patch reads files through it, so it
+ * sees what TeX uses (R4a.1-5).
+ */
+export function scannedSource(text: string, isMain: boolean): string {
+  const src = blankComments(text);
+  const blank = (from: number, to: number) => src.slice(from, to).replace(/[^\n]/g, ' ');
+  if (isMain) {
+    const stop = endOfDocument(src, 0);
+    return stop ? src.slice(0, stop.end) + blank(stop.end, src.length) : src;
+  }
+  if (!findCommands(src, { documentclass: { args: 1 } }).length) return src;
+  const begin = src.search(/\\begin\s*\{document\}/);
+  if (begin < 0) return src;
+  const end = endOfDocument(src, begin);
+  const stop = end ? end.start : src.length;
+  return blank(0, begin) + src.slice(begin, stop) + blank(stop, src.length);
+}
+
 /** An `alt` or `actualtext` with some text, or `artifact` (decorative). */
 function hasAltKey(kv: Map<string, string>): boolean {
   const filled = (k: string) => (kv.get(k) ?? '').replace(/^\{([\s\S]*)\}$/, '$1').trim() !== '';

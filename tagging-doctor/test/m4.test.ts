@@ -73,6 +73,7 @@ const failedRun = (kind = 'compile-error'): CheckerJob =>
 function stub(answer: (patched: boolean, main: string, n: number) => CheckerJob, opts: { realSleep?: boolean } = {}) {
   const posts: { patched: boolean; main: string }[] = [];
   const deletes: string[] = [];
+  const gets: string[] = [];
   const jobs = new Map<string, { final: CheckerJob; gets: number }>();
   let clock = 0;
   const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -82,7 +83,7 @@ function stub(answer: (patched: boolean, main: string, n: number) => CheckerJob,
     if (url === `${BASE}/api/health`) return json(200, { status: 'ok', compile: true, texlive: 'TeX Live 2026', verapdf: 'veraPDF 1.30.4' });
     if (url.startsWith(`${BASE}/api/jobs?`) && method === 'POST') {
       const z = unzipSync(init.body as Uint8Array);
-      const main = strFromU8(z['main.tex']);
+      const main = strFromU8(z['main.tex'] ?? z[Object.keys(z).find((k) => k.endsWith('main.tex')) as string]);
       const patched = main.includes('\\DocumentMetadata');
       posts.push({ patched, main });
       const id = (posts.length.toString(16) + (patched ? 'b' : 'a').repeat(32)).slice(0, 32);
@@ -95,6 +96,7 @@ function stub(answer: (patched: boolean, main: string, n: number) => CheckerJob,
       return new Response(null, { status: 204 });
     }
     if (m) {
+      gets.push(m[1]);
       const j = jobs.get(m[1]);
       if (!j) return json(404, { error: 'gone' });
       return json(200, j.gets++ ? j.final : { ...j.final, status: 'running', result: null, failure: null });
@@ -103,7 +105,7 @@ function stub(answer: (patched: boolean, main: string, n: number) => CheckerJob,
   };
   const sleep = opts.realSleep ? (ms: number) => new Promise<void>((r) => setTimeout(() => r(void (clock += ms)), 0)) : async (ms: number) => void (clock += ms);
   const deps: CheckerDeps = { base: BASE, fetch: fetchStub as typeof fetch, sleep, now: () => clock, healthTimeoutMs: 20 };
-  return { deps, posts, deletes };
+  return { deps, posts, deletes, gets };
 }
 
 function page(opts: { signedIn?: boolean; account?: boolean; compare?: boolean; compile?: boolean; checker?: ReturnType<typeof stub> } = {}) {
@@ -172,7 +174,9 @@ describe('AC-37, AC-38, AC-41, AC-44: Suggest fixes on the page', () => {
       expect(meta.querySelector('.why')?.textContent).toMatch(/^Why: This line switches tagging on/);
       expect(meta.querySelector('pre.before')?.textContent).toBe('\\documentclass{article}');
       expect(meta.querySelector('pre.after')?.textContent).toBe(`${metadataLine('en-US')}\n\\documentclass{article}`);
-      expect(t.q('[data-fix="engine"] pre.after').textContent).toBe('(the line is removed)');
+      // Two lines go (R4a.1-9 f).
+      expect(t.q('[data-fix="engine"] pre.before').textContent).toBe('\\usepackage[utf8]{inputenc}\n\\usepackage[T1]{fontenc}');
+      expect(t.q('[data-fix="engine"] pre.after').textContent).toBe('(the lines are removed)');
       // No compare without the build flag (AC-80), and nothing was sent anywhere.
       expect(t.button('Compile patched and compare')).toBeUndefined();
       expect(t.checker.posts).toEqual([]);
@@ -243,6 +247,73 @@ describe('AC-37, AC-38, AC-41, AC-44: Suggest fixes on the page', () => {
     expect(t.q('#fixes')).not.toBeNull();
     await t.app.handleFile(file('week1.zip', PROJECT));
     expect(t.q('#fixes')).toBeNull();
+  });
+});
+
+describe('R4a.1-7: a panel goes with its cancel when its document goes, and stays when the same one is drawn again', () => {
+  const TWO = zipSync({ 'a/main.tex': strToU8(DOC), 'b/main.tex': strToU8(DOC.replace('Week 1', 'Week 2')) });
+  /** "Show details" in the summary once all are scanned, else "Scan <name>" in the document list. */
+  const docButton = (t: ReturnType<typeof page>, name: string) => (t.root.querySelector(`button[data-show="${name}"]`) ?? t.root.querySelector(`button[data-doc="${name}"]`)) as HTMLButtonElement;
+
+  it('"Show details" of another document cancels a running check: one DELETE, and no more polls', async () => {
+    const c = stub(() => job({ status: 'running', result: null }), { realSleep: true });
+    const t = page({ checker: c });
+    await t.app.handleFile(file('two.zip', TWO));
+    t.button('Scan all').click();
+    t.button('Compile and check').click();
+    await settle(20);
+    expect(c.posts).toHaveLength(1);
+    expect(c.gets.length).toBeGreaterThan(0);
+    docButton(t, 'b/main.tex').click();
+    await settle();
+    expect(t.q('#compile')).toBeNull();
+    expect(c.deletes).toHaveLength(1);
+    const polled = c.gets.length;
+    await settle(40);
+    expect(c.gets.length).toBe(polled);
+  });
+
+  it('"Show details" of another document removes the fix panel; "Scan all" with the same document keeps it, choices and all', async () => {
+    const t = page({ signedIn: false });
+    await t.app.handleFile(file('two.zip', TWO));
+    docButton(t, 'a/main.tex').click();
+    t.button('Suggest fixes').click();
+    t.q<HTMLButtonElement>('[data-fix="engine"] [data-role="skip"]').click();
+    t.button('Scan all').click();
+    expect(t.q('#fixes')).not.toBeNull();
+    expect(t.q('#all .downloads + #fixes')).not.toBeNull();
+    expect(t.q('[data-fix="engine"] .state').textContent).toBe('Skipped');
+    docButton(t, 'b/main.tex').click();
+    expect(t.q('#fixes')).toBeNull();
+    // Back to a: the panel opens again with a's choices.
+    docButton(t, 'a/main.tex').click();
+    t.button('Suggest fixes').click();
+    expect(t.q('[data-fix="engine"] .state').textContent).toBe('Skipped');
+  });
+
+  it('"Scan all" keeps a running check of the same document, with its Cancel', async () => {
+    const c = stub(() => job({ status: 'running', result: null }), { realSleep: true });
+    const t = page({ checker: c });
+    await t.app.handleFile(file('two.zip', TWO));
+    docButton(t, 'a/main.tex').click();
+    t.button('Compile and check').click();
+    await settle(20);
+    t.button('Scan all').click();
+    await settle(20);
+    expect(t.q('#all .downloads + #compile')).not.toBeNull();
+    expect(c.deletes).toEqual([]);
+    t.button('Cancel').click();
+    await settle();
+    expect(c.deletes).toHaveLength(1);
+  });
+});
+
+describe('R4a.1-9 f: the card says "line" for one removed line', () => {
+  it('one line', async () => {
+    const t = page({ signedIn: false });
+    await t.app.handleFile(file('one.zip', zipSync({ 'main.tex': strToU8(DOC.replace('\\usepackage[T1]{fontenc}\n', '')) })));
+    t.button('Suggest fixes').click();
+    expect(t.q('[data-fix="engine"] pre.after').textContent).toBe('(the line is removed)');
   });
 });
 
