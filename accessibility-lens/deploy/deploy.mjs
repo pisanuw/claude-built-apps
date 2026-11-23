@@ -36,7 +36,7 @@ import { analyticsOrigin, injectAnalyticsIntoDir } from '../../scripts/site-anal
 import { ensureDomainDns, keepOldAlias, resolves } from './cloudflare-dns.mjs';
 import { appDomainFor, oldDomainFor } from '../../scripts/domains.mjs';
 import { waitForRenderDeploy } from './render-wait.mjs';
-import { renderRuntime } from './render-service.mjs';
+import { renderBuildFilter, renderRootDir, renderRuntime, renderServicePatch } from './render-service.mjs';
 
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes('--dry-run');
@@ -187,6 +187,8 @@ async function deployRender(cfg) {
   // once instead of shipping a service that crash-loops on startup.
   const generateKeys = (r.generateEnv ?? []).filter((k) => !(k in desiredEnv));
   const runtime = renderRuntime(cfg);
+  const rootDir = renderRootDir(cfg);
+  const buildFilter = renderBuildFilter(cfg);
 
   const plan = {
     action: 'create-if-missing then deploy',
@@ -194,7 +196,8 @@ async function deployRender(cfg) {
     type: 'web_service',
     repo,
     branch: r.branch ?? 'main',
-    rootDir: cfg.directory,
+    rootDir,
+    ...(buildFilter ? { buildFilter } : {}),
     region: r.region ?? 'oregon',
     servicePlan: r.plan ?? 'free',
     runtime: runtime.env,
@@ -250,6 +253,23 @@ async function deployRender(cfg) {
     } else {
       log(`Render plan: ${havePlan ?? '(not reported)'}${havePlan ? ' (as wanted)' : ''}`);
     }
+    // The runtime, root directory and build filter that target.yml states
+    // (D-108: native to Docker for backend-hub, CR-13). Render applies such a
+    // change only on the next deploy, so it goes before the env and the
+    // trigger; a refused or unapplied change stops the run before any deploy.
+    const sync = renderServicePatch(found, cfg);
+    if (sync) {
+      log(`Updating "${cfg.projectName}": ${sync.changes.join('; ')}.`);
+      try {
+        await renderFetch(token, `/services/${found.id}`, { method: 'PATCH', body: JSON.stringify(sync.patch) });
+      } catch (e) {
+        fail(`Render refused the update of ${cfg.projectName} (${sync.changes.join('; ')}): ${String(e.message || e).slice(0, 300)}. Nothing was deployed.`);
+      }
+      const after = await renderFetch(token, `/services/${found.id}`);
+      const left = renderServicePatch(after?.service ?? after, cfg);
+      if (left) fail(`Render did not apply the update of ${cfg.projectName}: still ${left.changes.join('; ')}. Nothing was deployed.`);
+      log(`Render now has: ${sync.changes.join('; ')}.`);
+    }
     await ensureRenderEnv(token, found.id, desiredEnv, generateKeys);
     const deploy = await renderFetch(token, `/services/${found.id}/deploys`, {
       method: 'POST',
@@ -279,7 +299,8 @@ async function deployRender(cfg) {
       repo,
       branch: r.branch ?? 'main',
       autoDeploy: 'yes',
-      rootDir: cfg.directory,
+      rootDir,
+      ...(buildFilter ? { buildFilter } : {}),
       envVars,
       serviceDetails: {
         env: runtime.env,

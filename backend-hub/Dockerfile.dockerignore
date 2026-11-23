@@ -1,0 +1,15 @@
+# The build context is the repository's root (backend-hub/Dockerfile); only
+# what the image takes goes in.
+*
+!scripts/site-footer.mjs
+!backend-hub/package.json
+!backend-hub/package-lock.json
+!backend-hub/tsconfig.json
+!backend-hub/src
+!mult-streak/package.json
+!mult-streak/package-lock.json
+!mult-streak/tsconfig.json
+!mult-streak/src
+!tagging-doctor-worker/package.json
+!tagging-doctor-worker/src
+!tagging-doctor-worker/docker
