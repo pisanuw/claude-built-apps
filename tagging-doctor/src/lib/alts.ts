@@ -48,11 +48,19 @@ export interface AltWant {
 }
 
 export const RESTORED_NOTE = 'Restored from the saved project: the file is unchanged since this text was approved.';
+/** A TikZ picture's: what was compared, and what was not (R5b.2-4). */
+export const RESTORED_TIKZ_NOTE =
+  'Restored from the saved project: the picture’s own lines, and the project files they read, are unchanged since this text was approved. Styles and data the document sets elsewhere are not compared: check the text.';
 export const RESTORED_DECORATIVE_NOTE = 'Restored from the saved project: marked decorative, and the file is unchanged since.';
 
 /** A note a restore put on a figure: it goes once the person types or chooses (R5b.1-8 a). */
 export function isRestoreNote(note: string | null): boolean {
-  return note === RESTORED_NOTE || note === RESTORED_DECORATIVE_NOTE || (note?.startsWith('In the saved project this figure') ?? false);
+  return note === RESTORED_NOTE || note === RESTORED_TIKZ_NOTE || note === RESTORED_DECORATIVE_NOTE || isStaleNote(note);
+}
+
+/** The note that shows an earlier version's text: it stays until the person chooses, as it is where that text is shown (R5b.2-5 f). */
+export function isStaleNote(note: string | null): boolean {
+  return note?.startsWith('In the saved project this figure') ?? false;
 }
 
 /** The note on a figure whose file changed since its text was saved: the text is shown, not filled in. */
@@ -123,7 +131,7 @@ export async function figureKeys(project: Project, figures: FigureItem[], digest
       base = `${f.path}#tikz`;
       // Its own lines, and the bytes of each file they read, so a changed data file is a changed picture (R5b.1-5).
       const parts: Uint8Array[] = [new TextEncoder().encode(f.source)];
-      for (const input of tikzInputs(project, f.source, mainDir, dirOf(f.path))) {
+      for (const input of f.reads ?? tikzInputs(project, f.source, mainDir, dirOf(f.path))) {
         parts.push(new TextEncoder().encode(`\u0000${input}\u0000`));
         if (!input.startsWith('missing:')) {
           try {
@@ -245,7 +253,7 @@ export function restoreAlts(
       drafted: row.source === 'model' || row.source === 'byok' ? row.text : undefined,
       textOnly: false,
       error: null,
-      note: decorative ? RESTORED_DECORATIVE_NOTE : RESTORED_NOTE,
+      note: decorative ? RESTORED_DECORATIVE_NOTE : f.kind === 'tikz' ? RESTORED_TIKZ_NOTE : RESTORED_NOTE,
     } satisfies Partial<FigureChoice>);
     restored.push(f.id);
   }

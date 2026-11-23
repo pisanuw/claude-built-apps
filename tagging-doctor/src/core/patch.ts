@@ -109,6 +109,7 @@ const LANGUAGE_SPECS = {
   setmainlanguage: { args: 1 },
   babelprovide: { args: 1 },
   DocumentMetadata: { args: 1 },
+  hypersetup: { args: 1 },
 };
 
 /**
@@ -123,6 +124,7 @@ export function documentLanguage(project: Project, scan: Pick<DocumentScan, 'fil
   let babel: string[] | null = null;
   let poly: { name: string; variant: string | null } | null = null;
   let provided: string | null = null;
+  let pdflang: string | null = null;
   for (const path of scan.filesRead) {
     const src = sources.get(path).src;
     if (src === null) continue;
@@ -133,6 +135,15 @@ export function documentLanguage(project: Project, scan: Pick<DocumentScan, 'fil
       else if (c.name === 'setdefaultlanguage' || c.name === 'setmainlanguage') {
         poly = { name: c.args[0].trim(), variant: keyValues(c.opts.join(',')).get('variant') ?? null };
       } else if (c.name === 'babelprovide' && opts.some((o) => o === 'main')) provided = c.args[0].trim();
+      // hyperref's pdflang, in \hypersetup or in its options: the tag as the document gives it (R5b.2-5 a).
+      const fromHyperref =
+        c.name === 'hypersetup'
+          ? keyValues(c.args[0]).get('pdflang')
+          : (c.name === 'usepackage' || c.name === 'RequirePackage') && splitList(c.args[0]).includes('hyperref')
+            ? keyValues(c.opts.join(',')).get('pdflang')
+            : undefined;
+      const tag = fromHyperref?.replace(/[{}]/g, '').trim();
+      if (tag) pdflang = tag;
     }
   }
   const resolve = (name: string, from: string): DocumentLanguage => {
@@ -160,6 +171,10 @@ export function documentLanguage(project: Project, scan: Pick<DocumentScan, 'fil
     ];
     const last = named[named.length - 1];
     if (last) return resolve(last, `from babel’s main language, ${last}`);
+  }
+  if (pdflang) {
+    if (validLanguage(pdflang)) return { tag: pdflang, from: 'from hyperref’s pdflang' };
+    return { tag: DEFAULT_LANGUAGE, from: `the default, because “${pdflang}” in hyperref’s pdflang is not a language tag; choose it below`, unmapped: pdflang };
   }
   return { tag: DEFAULT_LANGUAGE, from: 'the default, because the document sets no language' };
 }

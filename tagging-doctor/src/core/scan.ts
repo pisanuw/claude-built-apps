@@ -608,7 +608,7 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
         name: 'No \\DocumentMetadata for this class',
         detail:
           refused === 'beamer'
-            ? 'Keep the slides untagged and give readers a separate text version, or move them by hand to the ltx-talk class (see the Beamer finding).'
+            ? `Keep the slides untagged and give readers a separate text version, or move them by hand to the ltx-talk class${ctx.beamer ? ' (see the Beamer finding)' : ''}.`
             : 'Move the content by hand to a class that can be tagged (article, book or report), then add the line.',
       });
     } else if (docclassOffset >= 0 && metadataOffset < 0 && ctx.metadataFile === null) {
@@ -942,7 +942,9 @@ export function scanDocument(project: Project, mainFile: string, index: StatusIn
 
 /** The main file's class when the line stops it: by its name and options, or a class the scan found it loads (R5a.F-3). */
 function refusedOf(ctx: Ctx): string | null {
-  const own = ctx.mainClass ? stoppedClass(ctx.mainClass.name, ctx.mainClass.options) : null;
+  const name = ctx.mainClass?.name ?? '';
+  const local = ctx.filesRead.some((p) => p === `${name}.cls` || p.endsWith(`/${name}.cls`));
+  const own = ctx.mainClass ? stoppedClass(name, ctx.mainClass.options, local) : null;
   if (own) return own;
   const found = ctx.findings.find((f) => f.kind === 'class' && f.package && Object.hasOwn(METADATA_STOPS, f.package));
   return found?.package ?? null;

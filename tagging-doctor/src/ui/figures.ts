@@ -12,7 +12,7 @@
  */
 import { LONG_ALT, normalizeAlt, NOT_CARRIED, notCarried, type AltDecision, type FigureItem } from '../core/figures';
 import { browserImageDeps, type ImageDeps } from '../core/image';
-import { isRestoreNote } from '../lib/alts';
+import { isRestoreNote, isStaleNote } from '../lib/alts';
 import { allowanceWords, draftAll, draftErrorWords, draftFigure, draftMode, DRAFT_ALL_LIMIT, NO_MODE, stopsRun, type DraftDeps } from '../lib/draft';
 import { checkAllowance, getByokKey, setByokKey, type AskDeps, type GatewayAllowance } from '../lib/llm';
 import type { Project } from '../core/project';
@@ -340,13 +340,15 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
     drawAll();
     live.textContent = `Drafting up to ${Math.min(todo.length, DRAFT_ALL_LIMIT)} figures…`;
     // A figure the person starts on during the run is passed over when its turn comes (R5a.1-2).
-    // The same refusal twice in a row stops the run too, when it is one every call meets: the key's credit or
-    // billing (R5a.2-7 a). One figure's own refusal (an image Anthropic cannot read) does not, even twice (R5b.1-6).
+    // The same refusal twice in a row stops the run too, when every call would meet it: the key's credit or
+    // billing (R5a.2-7 a), a retired model or a request shape refused (R5b.2-5 g). One figure's own refusal, about
+    // its image ("Could not process image"), does not, even twice (R5b.1-6).
     let lastRefusal: string | null = null;
+    const everyCall = (err: string) => /credit|billing/i.test(err) || !/image/i.test(err);
     const one = async (f: FigureItem) => {
       await draftOne(f, d, false);
       const err = choices.get(f.id)?.error ?? null;
-      if (!err || !/^Anthropic refused the request/.test(err) || !/credit|billing/i.test(err)) {
+      if (!err || !/^Anthropic refused the request/.test(err) || !everyCall(err)) {
         lastRefusal = null;
         return;
       }
@@ -451,7 +453,8 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
     ta.addEventListener('input', () => {
       c.text = ta.value;
       // The restore's note speaks of the saved text, which this is no longer (R5b.1-8 a).
-      if (isRestoreNote(c.note)) {
+      // The stale note, which shows the earlier text, stays until the person chooses (R5b.2-5 f).
+      if (isRestoreNote(c.note) && !isStaleNote(c.note)) {
         c.note = null;
         li.querySelector('.note')?.remove();
       }

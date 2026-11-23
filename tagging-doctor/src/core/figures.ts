@@ -60,6 +60,8 @@ export interface FigureItem {
   notPatched: string | null;
   /** A TikZ picture's own source, from `\begin{tikzpicture}` to its `\end`: what a saved alt text's fingerprint is of (AC-51). */
   source?: string;
+  /** The project files a TikZ picture reads, followed through the files it inputs; `missing:<name>` for one not found (R5b.2-4). */
+  reads?: string[];
 }
 
 /** What the person chose for a figure, as the patch takes it (AC-49). */
@@ -183,9 +185,18 @@ function collapse(s: string): string {
  * the text around a figure.
  */
 function withoutFolders(s: string): string {
-  return s.replace(
-    /(\\(?:includegraphics|input|include|includepdf|subfile|import|subimport|lstinputlisting|verbatiminput)\*?\s*(?:\[(?:[^[\]]|\[[^[\]]*\])*\]\s*)*\{)([^{}]*)\}/g,
-    (_m, head: string, name: string) => `${head}${name.split(/[\\/]/).pop() ?? ''}}`,
+  const base = (name: string) => name.split(/[\\/]/).pop() ?? '';
+  return (
+    s
+      // A file argument, after an overlay and options holding up to two levels of brackets (R5b.2-5 c).
+      .replace(
+        /(\\(?:includegraphics|includesvg|input|include|includepdf|subfile|import|subimport|lstinputlisting|verbatiminput|bibliography|addbibresource)\*?\s*(?:<[^<>{}\n]{1,40}>)?\s*(?:\[(?:[^[\]]|\[(?:[^[\]]|\[[^[\]]*\])*\])*\]\s*)*\{)([^{}]*)\}/g,
+        (_m, head: string, name: string) => `${head}${name.split(',').map((n) => base(n.trim())).join(',')}}`,
+      )
+      // \graphicspath{{/Users/me/figs/}{…}}: each folder by its last name.
+      .replace(/(\\graphicspath\s*\{)((?:\s*\{[^{}]*\})*)(\s*\})/g, (_m, head: string, dirs: string, tail: string) => `${head}${dirs.replace(/\{([^{}]*)\}/g, (_d, d: string) => `{${base(d.replace(/[\\/]+$/, ''))}/}`)}${tail}`)
+      // \input file, with no braces.
+      .replace(/(\\input\s+)([^\s{}%]+)/g, (_m, head: string, name: string) => `${head}${base(name)}`)
   );
 }
 
@@ -238,7 +249,9 @@ function captionAndLabel(src: string, around: { name: string; from: number; to: 
   // the only caption there (R5b.1-7). Subfigures beside it keep their own captions out.
   const outer = around[around.length - 1];
   if (outer) {
-    const others = envs.filter((e) => e.name !== 'minipage' && e.from > outer.from && e.to <= outer.to && !(e.from <= offset && offset < e.to));
+    // Not a minipage that holds an image or a picture of its own: its caption is that one's (R5b.2-3).
+    const holdsFigure = (e: { from: number; to: number }) => /\\includegraphics(?![A-Za-z@])|\\begin\s*\{tikzpicture\}/.test(src.slice(e.from, e.to));
+    const others = envs.filter((e) => (e.name !== 'minipage' || holdsFigure(e)) && e.from > outer.from && e.to <= outer.to && !(e.from <= offset && offset < e.to));
     const own = (at: number) => !others.some((e) => e.from <= at && at < e.to);
     const cmds = findCommands(src.slice(outer.from, outer.to), CAPTIONS).filter((c) => own(outer.from + c.offset));
     const caps = cmds.filter((c) => c.name === 'caption' || c.name === 'captionof');
@@ -312,19 +325,27 @@ function movingTest(src: string, ends: Int32Array): (offset: number) => boolean 
   return (offset) => args.some(([from, to]) => from <= offset && offset < to);
 }
 
-/** The offset just after the `\end{tikzpicture}` that closes a picture whose body starts at `at`, or null (R5b.1-5). */
-export function tikzEnd(src: string, at: number): number | null {
-  const re = /\\(begin|end)\s*\{tikzpicture\}/g;
-  re.lastIndex = at;
-  let depth = 1;
-  for (let m = re.exec(src); m; m = re.exec(src)) {
+/**
+ * Where each `\begin{tikzpicture}` of a file ends: its offset, to the offset
+ * just after the `\end{tikzpicture}` that closes it (nested pictures counted,
+ * `\end {tikzpicture}` with a space found). One pass over the file, so many
+ * unclosed pictures stay linear (R5b.1-5, R5b.2-5 i); an unclosed one is not
+ * in the map.
+ */
+export function tikzEnds(src: string): Map<number, number> {
+  const out = new Map<number, number>();
+  const open: number[] = [];
+  for (const m of src.matchAll(/\\(begin|end)\s*\{tikzpicture\}/g)) {
     let bs = 0;
-    for (let k = m.index - 1; k >= 0 && src[k] === '\\'; k--) bs++;
+    for (let k = (m.index as number) - 1; k >= 0 && src[k] === '\\'; k--) bs++;
     if (bs % 2) continue;
-    depth += m[1] === 'begin' ? 1 : -1;
-    if (depth === 0) return m.index + m[0].length;
+    if (m[1] === 'begin') open.push(m.index as number);
+    else {
+      const from = open.pop();
+      if (from !== undefined) out.set(from, (m.index as number) + m[0].length);
+    }
   }
-  return null;
+  return out;
 }
 
 /** The folders `\graphicspath` names, in the files the scan read. */
@@ -355,6 +376,48 @@ function locateImage(project: Project, mainDir: string, fileDir: string, extra: 
     }
   }
   return null;
+}
+
+/**
+ * The project files a TikZ picture's source reads (R5b.1-5, R5b.2-4): images
+ * of `\includegraphics` and `\pgfimage` found as the figures' own are
+ * (extensions, `\graphicspath`); `\input` (with or without braces),
+ * `\include`, a pgfplots `table {…}` or `file {…}`, as written or with
+ * `.tex`, and what each of those inputs reads in turn (four levels). A name
+ * not found is `missing:<name>`, so it still counts in the fingerprint.
+ */
+export function tikzReads(project: Project, source: string, mainDir: string, ownDir: string, extra: string[] = []): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const IMAGE = /\\(?:includegraphics|pgfimage)\*?\s*(?:<[^<>{}\n]{1,40}>)?\s*(?:\[(?:[^[\]]|\[[^[\]]*\])*\]\s*)*\{([^{}]+)\}/g;
+  const TEXT = /\\(?:input|include)\s*\{([^{}]+)\}|\\input\s+([^\s{}\\%]+)|\btable\s*(?:\[[^\]]*\]\s*)?\{([^{}]+)\}|\bfile\s*\{([^{}]+)\}/g;
+  const visit = (text: string, dir: string, depth: number) => {
+    for (const m of text.matchAll(IMAGE)) {
+      const name = m[1].trim();
+      if (!name || name.includes('\\') || name.includes('#')) continue;
+      const found = locateImage(project, mainDir, dir, extra, name);
+      out.push(found ?? `missing:${name}`);
+    }
+    for (const m of text.matchAll(TEXT)) {
+      const name = (m[1] ?? m[2] ?? m[3] ?? m[4]).trim();
+      if (!name || name.includes('\\') || name.includes('#')) continue;
+      let found: string | null = null;
+      for (const base of [mainDir, dir]) {
+        for (const cand of [name, `${name}.tex`]) {
+          const r = resolvePath(base, cand);
+          if (!found && r.kind === 'inside' && project.has(r.path)) found = r.path;
+        }
+      }
+      out.push(found ?? `missing:${name}`);
+      if (found && !seen.has(found) && depth < 4) {
+        seen.add(found);
+        const t = project.text(found);
+        if (t !== null) visit(t, dirOf(found), depth + 1);
+      }
+    }
+  };
+  visit(source, ownDir, 0);
+  return out;
 }
 
 /** `\includegraphics`, a star, then its option groups and the file: where the key goes. */
@@ -400,6 +463,7 @@ export function listFigures(project: Project, scan: Pick<DocumentScan, 'filesRea
     const envs = environments(src);
     const inDef = definitionTest(src, ends);
     const inMoving = movingTest(src, ends);
+    const pictureEnds = tikzEnds(src);
     const found: { offset: number; kind: 'image' | 'tikz' }[] = [];
     for (const m of src.matchAll(/\\includegraphics(?![A-Za-z@])|\\begin\s*\{tikzpicture\}/g)) {
       let bs = 0;
@@ -427,11 +491,12 @@ export function listFigures(project: Project, scan: Pick<DocumentScan, 'filesRea
         while (/\s/.test(src[j] ?? '')) j++;
         const optsText = src[j] === '[' && ends[j] >= 0 ? src.slice(j + 1, ends[j]) : '';
         // Its own end: nested pictures counted, `\\end {tikzpicture}` with a space too; with none, no source and so no saved slot (R5b.1-5).
-        const end = tikzEnd(src, at);
+        const end = pictureEnds.get(offset) ?? null;
         const to = end ?? at;
         out.push({
           ...base,
           source: end === null ? undefined : src.slice(offset, to),
+          reads: end === null ? undefined : tikzReads(project, src.slice(offset, to), mainDir, dirOf(path), extra),
           ...contextOf(src, offset, to),
           file: null,
           resolved: null,

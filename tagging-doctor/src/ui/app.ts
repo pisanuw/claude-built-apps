@@ -725,8 +725,11 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     const p = project;
     const store = account.store();
     const slots = slotsOf(main);
+    const who = userId;
     const next = (altChains.get(saved.projectId) ?? Promise.resolve())
       .then(async () => {
+        // Queued by a person who has since signed out or changed: not sent as the next one (R5b.2-5 e).
+        if (userId !== who) return;
         // The choices as they are when this sync's turn comes, so a quick run of changes ends in the last one.
         const { figures, keys } = await slots;
         const { want, drop } = altSync(figures, keys, state.alts);
@@ -736,6 +739,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       })
       .catch((e) => {
         console.warn('tagging-doctor: the alt texts could not be saved', e);
+        if (userId !== who) return;
         // The project was deleted (another tab, its page): the document is no longer saved, so Save can be chosen again (R5b.1-8 e).
         const gone = /foreign key/i.test(e instanceof Error ? e.message : String(e));
         if (gone && savedScans.get(wellFormed(main))?.projectId === saved.projectId) savedScans.delete(wellFormed(main));
@@ -749,7 +753,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   function onSaved(items: SaveItem[], mode: 'one' | 'all', results: SavedResult[], drop: string | null) {
     // Items of another drop (the banner's, kept before a sign-in that reloaded the page) are saved, but not tied
     // to the documents on the page: their checks and alt texts are not this drop's (R5b.1-3).
-    if (drop === null || drop !== currentDrop()) return;
+    if (!sameDrop(items, mode, drop)) return;
     for (const r of results) {
       const item = mode === 'one' ? items[0] : items.find((i) => i.name.trim() === r.project.name);
       if (item) savedScans.set(item.mainFile, { projectId: r.project.id, scanId: r.scan.id });
@@ -771,6 +775,23 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
         },
       );
     }
+  }
+
+  /**
+   * Whether a save's items are the drop on the page: made from it, or (the
+   * banner's, after a sign-in that reloaded the page) the same project
+   * dropped again, with each item's name, main file and scan as the page's
+   * now (R5b.1-3, R5b.2-5 d). A drop of another zip has another name.
+   */
+  function sameDrop(items: SaveItem[], mode: 'one' | 'all', drop: string | null): boolean {
+    const now = currentDrop();
+    if (now === null) return false;
+    if (drop === now) return true;
+    if (mode === 'one' && (!shown || !scans.has(shown))) return false;
+    if (mode === 'all' && mains.some((m) => !scans.has(m))) return false;
+    const here = currentItems(mode);
+    const key = (i: SaveItem) => JSON.stringify([i.name.trim(), i.mainFile, i.scan]);
+    return items.length === here.length && items.every((it, k) => key(it) === key(here[k]));
   }
 
   /** The drop on the page, as a save's items name it (R5b.1-3); null with none. */

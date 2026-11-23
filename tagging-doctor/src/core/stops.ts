@@ -33,9 +33,11 @@ export const LOADS_HYPERREF: ReadonlySet<string> = new Set(['beamer', 'tufte-boo
  * whose name ends in `beamer` (ctexbeamer), or `standalone` with its
  * `beamer` option.
  */
-export function stoppedClass(name: string, options: readonly string[]): string | null {
+export function stoppedClass(name: string, options: readonly string[], local = false): string | null {
   const n = name.trim();
   if (Object.hasOwn(METADATA_STOPS, n)) return n;
+  // A project's own class is read, and counts by what it loads (the scan's class findings), not by its name (R5b.2-5 b).
+  if (local) return null;
   if (/beamer$/i.test(n)) return 'beamer';
   if (n === 'standalone' && options.some((o) => /^beamer(\s*=\s*true)?$/i.test(o.trim()))) return 'beamer';
   return null;
