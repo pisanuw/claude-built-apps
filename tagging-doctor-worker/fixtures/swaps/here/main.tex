@@ -1,0 +1,21 @@
+% Swap fixture for package-swaps.json (AC-40): here -> float. The swap test
+% compiles this file with tagging on, then again with the package swapped.
+\DocumentMetadata{lang=en-US, pdfstandard=ua-2, tagging=on, tagging-setup={math/setup=mathml-SE}}
+\documentclass{article}
+\usepackage{here}
+\title{A float placed here}
+\begin{document}
+\maketitle
+\section{Results}
+The table below stays where it is written.
+\begin{table}[H]
+  \centering
+  \begin{tabular}{lr}
+    Week & Score \\
+    1 & 4 \\
+    2 & 7
+  \end{tabular}
+  \caption{Scores by week.}
+\end{table}
+Text after the table.
+\end{document}

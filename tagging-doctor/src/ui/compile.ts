@@ -22,7 +22,8 @@ import {
 } from '../core/compile';
 import { projectZip } from '../core/outzip';
 import type { Project } from '../core/project';
-import { CheckerError, forget, pdf, runJob, type CheckerDeps } from '../lib/checker';
+import { CheckerError, forget, pdf, runJob, SENDING, WAKING, type CheckerDeps } from '../lib/checker';
+import { CHECK_TAKES, progress, realClock, type Clock, type Progress } from './progress';
 
 export const UPLOAD_NOTICE =
   'Compile sends this project’s files to the HintWise checker, which deletes them within 30 minutes. Upload only materials you wrote or may change.';
@@ -37,6 +38,8 @@ export interface CompileDeps {
   token: () => Promise<string | null>;
   session: Pick<Storage, 'getItem' | 'setItem'> | null;
   downloadBlob: (name: string, blob: Blob) => void;
+  /** The clock of the running check's count (AC-81); the browser's by default. */
+  clock?: Clock;
 }
 
 export interface CompileOpts {
@@ -149,7 +152,10 @@ export function mountCompile(panel: HTMLElement, deps: CompileDeps, opts: Compil
   const result = el('div', { class: 'compile-result' });
   const actions = el('p', { class: 'actions' });
 
-  const base = (): HTMLElement[] => [h, notice, ...(left ? [el('p', { class: 'help' }, left)] : []), status, alert, result, actions];
+  const takes = el('p', { class: 'help check-takes' }, CHECK_TAKES);
+  takes.hidden = true;
+  const prog = progress(status, deps.clock ?? realClock, (on) => (takes.hidden = !on));
+  const base = (): HTMLElement[] => [h, notice, ...(left ? [el('p', { class: 'help' }, left)] : []), status, takes, alert, result, actions];
 
   /** The job the checker holds for the current run, until it is forgotten (R3b.1-7). */
   let sent: string | null = null;
@@ -158,6 +164,7 @@ export function mountCompile(panel: HTMLElement, deps: CompileDeps, opts: Compil
   /** Stops following the run and deletes its job on the checker, which then runs the next one and keeps nothing (R3b.1-7). */
   function stop() {
     gen++;
+    prog.stop();
     running = false;
     if (sent) void forget(deps.checker, sent, deps.token);
     sent = null;
@@ -177,7 +184,7 @@ export function mountCompile(panel: HTMLElement, deps: CompileDeps, opts: Compil
   }
 
   function fail(message: string) {
-    status.textContent = '';
+    prog.plain('');
     alert.replaceChildren(el('p', {}, message));
     actions.replaceChildren(button('Try again', () => void start(), { id: 'compile-retry' }), ' ', button('Close', close));
   }
@@ -205,7 +212,7 @@ export function mountCompile(panel: HTMLElement, deps: CompileDeps, opts: Compil
       }
       const done = await runJob(deps.checker, zip, opts.mainFile, deps.token, {
         onStatus: (text) => {
-          if (!stale()) status.textContent = text;
+          if (!stale()) showStep(prog, text);
         },
         onSent: ({ id }) => {
           sent = id;
@@ -219,7 +226,7 @@ export function mountCompile(panel: HTMLElement, deps: CompileDeps, opts: Compil
       });
       if (stale()) return;
       running = false;
-      status.textContent = done.status === 'done' ? 'The check is finished.' : 'The check is finished: the project did not compile.';
+      prog.plain(done.status === 'done' ? 'The check is finished.' : 'The check is finished: the project did not compile.');
       result.replaceChildren(...jobResult(done));
       actions.replaceChildren();
       if (done.pdf) {
@@ -269,6 +276,19 @@ export function mountCompile(panel: HTMLElement, deps: CompileDeps, opts: Compil
   } else if (noticeSeen(deps.session)) void start();
   else ask();
   return { cancel: stop, start };
+}
+
+/**
+ * A step of runJob on the status line (AC-81): the wake line keeps its own
+ * count (AC-27); "Sending the project…" starts the seconds since the check
+ * was sent, which the next steps carry; an empty step (the end) is left to
+ * the caller's last words.
+ */
+export function showStep(p: Progress, text: string): void {
+  if (!text) return;
+  if (text.startsWith(WAKING)) return p.plain(text);
+  if (text === SENDING) p.sent();
+  p.step(text);
 }
 
 /** For a main file that is not .tex (R3b.1-4). */

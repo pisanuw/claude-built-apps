@@ -14,10 +14,11 @@
     "preview": "vite preview",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src test e2e",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p image-test/tsconfig.json --noEmit",
+    "lint": "eslint src test e2e image-test",
     "e2e": "playwright test",
-    "status-data": "node scripts/convert-tagging-status.mjs"
+    "status-data": "node scripts/convert-tagging-status.mjs",
+    "test:image": "vitest run --config vitest.image.config.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.6.0",

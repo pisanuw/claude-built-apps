@@ -57,6 +57,7 @@ export const DID_NOT_WAKE = 'The checker did not wake up in time. Try again in a
 export const LOST = 'The checker lost this check, perhaps because it restarted. Compile again.';
 export const SIGN_IN_AGAIN = 'Sign in again to go on: your sign-in has ended.';
 export const PDF_GONE = 'The PDF is gone: the checker deletes it 30 minutes after the check, or when it restarts. Compile again.';
+export const SENDING = 'Sending the project…';
 export const PDF_SIGN_IN = 'Sign in again to download the PDF. It is kept for 30 minutes after the check.';
 
 /**
@@ -314,7 +315,7 @@ export async function runJob(d: CheckerDeps, zip: Uint8Array, mainFile: string, 
   if (hooks.stale()) throw new CheckerError('stale');
   await wake(d, (s) => hooks.onStatus(`${WAKING} (${s} s)`), undefined, hooks.stale);
   if (hooks.stale()) throw new CheckerError('stale');
-  hooks.onStatus('Sending the project…');
+  hooks.onStatus(SENDING);
   const first = await submit(d, zip, mainFile, t);
   hooks.onSent(first);
   if (hooks.stale()) throw new CheckerError('stale');

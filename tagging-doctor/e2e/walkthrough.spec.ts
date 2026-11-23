@@ -464,3 +464,75 @@ test('AC-27, AC-29, AC-30, AC-35: compile and check against a stubbed checker', 
   await expect(page.locator('#compile .upload-notice')).toBeVisible();
   await expect(page.locator('#compile .compiled')).toBeVisible({ timeout: 20_000 });
 });
+
+test('AC-37, AC-41, AC-44, AC-80: fix cards and the patched zip, signed out, with no compare in this build', async ({ page }) => {
+  const seen = record(page);
+  const project = zipSync({
+    'main.tex': strToU8('\\documentclass{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage{tabu}\n\\title{Problem set 3}\n\\begin{document}\nSolve $x$.\n\\end{document}\n'),
+    'grades.csv': strToU8('alice,A'),
+  });
+  await page.goto('/');
+  await page.locator('#file').setInputFiles({ name: 'hw1.zip', mimeType: 'application/zip', buffer: Buffer.from(project) });
+  await expect(page.locator('#result-h')).toHaveText('1 blocker found');
+  const sent = seen.length;
+  await page.getByRole('button', { name: 'Suggest fixes' }).click();
+  await expect(page.locator('#fixes-h')).toBeFocused();
+  const cards = page.locator('#fixes li.fix-card');
+  await expect(cards.first()).toContainText('Add \\DocumentMetadata');
+  const meta = page.locator('[data-fix="metadata"]');
+  await expect(meta.getByRole('button', { name: 'Accept' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-fix="unicode-math"]').getByRole('button', { name: 'Skip' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(meta.locator('pre.after')).toContainText('\\DocumentMetadata{lang=en-US, pdfstandard=ua-2, tagging=on, tagging-setup={math/setup=mathml-SE}}');
+  await expect(page.locator('#attention-h')).toContainText('Needs your attention');
+  // AC-80: the build has the flag off, so there is no compare, signed in or not.
+  await expect(page.getByRole('button', { name: 'Compile patched and compare' })).toHaveCount(0);
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download patched zip' }).click()]);
+  expect(dl.suggestedFilename()).toBe('hw1-patched.zip');
+  const file = test.info().outputPath('hw1-patched.zip');
+  await dl.saveAs(file);
+  const { unzipSync, strFromU8 } = await import('fflate');
+  const z = unzipSync(new Uint8Array(fs.readFileSync(file)));
+  expect(Object.keys(z).sort()).toEqual(['main.tex', 'tagging-doctor.diff']);
+  await expect(page.locator('#fixes .left-out')).toContainText('left out');
+  expect(strFromU8(z['main.tex']).startsWith('\\DocumentMetadata{')).toBe(true);
+  // The patch ran in the browser: nothing left the page.
+  expect(seen.slice(sent).filter((r) => !r.url().startsWith(BASE))).toEqual([]);
+  await page.locator('#signin').getByRole('button', { name: 'Sign in with Google' }).click();
+  await expect(page.getByRole('button', { name: 'Compile patched and compare' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Compile and check' })).toBeVisible();
+});
+
+test('AC-81: a running check counts its seconds and says how long a check may take', async ({ page }) => {
+  test.setTimeout(60_000);
+  let polls = 0;
+  const job = (status: string) => ({
+    id: 'd'.repeat(32), status, mainFile: 'main.tex', createdAt: '2026-11-23T12:00:00.000Z', startedAt: null, finishedAt: null,
+    result: status === 'done' ? { pages: 1, seconds: 9, warnings: 0, runs: 1, bibliography: null, validation: null, validationError: 'not checked' } : null,
+    failure: null, logTail: [], pdf: false, expiresAt: null, note: null,
+  });
+  await page.route(`${CHECKER_STUB}/**`, async (route) => {
+    const r = route.request();
+    const url = new URL(r.url());
+    const cors = { 'access-control-allow-origin': BASE, 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'GET, POST, DELETE' };
+    if (r.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    if (url.pathname === '/api/health') return route.fulfill({ status: 200, headers: cors, json: { status: 'ok', compile: true, texlive: '', verapdf: '' } });
+    if (url.pathname === '/api/jobs' && r.method() === 'POST') return route.fulfill({ status: 202, headers: cors, json: job('queued') });
+    // Running for about 8 s of polls (every 2 s), then done.
+    return route.fulfill({ status: 200, headers: cors, json: job(++polls < 5 ? 'running' : 'done') });
+  });
+  await page.goto('/');
+  await page.locator('#file').setInputFiles({ name: 'hw1.zip', mimeType: 'application/zip', buffer: Buffer.from(zipFixture('blockers')) });
+  await page.locator('#signin').getByRole('button', { name: 'Sign in with Google' }).click();
+  await page.getByRole('button', { name: 'Compile and check' }).click();
+  await page.getByRole('button', { name: 'Upload and check' }).click();
+  const line = page.locator('#compile .compile-status');
+  await expect(line).toHaveAttribute('aria-live', 'polite');
+  await expect(line).toContainText(/Compiling and checking… \(\d+ s\)/);
+  const first = Number(/\((\d+) s\)/.exec((await line.textContent()) ?? '')?.[1]);
+  await expect(page.locator('#compile .check-takes')).toHaveText(/The checker stops a check at 2 minutes\./);
+  await expect.poll(async () => Number(/\((\d+) s\)/.exec((await line.textContent()) ?? '')?.[1] ?? -1), { timeout: 5_000 }).toBeGreaterThan(first);
+  // The count the eye sees is hidden from screen readers; the step is not.
+  await expect(line.locator('[aria-hidden="true"]')).toHaveText(/^ \(\d+ s\)$/);
+  await expect(line).toHaveText('The check is finished.', { timeout: 20_000 });
+  await expect(page.locator('#compile .check-takes')).toBeHidden();
+});

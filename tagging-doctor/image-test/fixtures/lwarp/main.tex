@@ -1,0 +1,15 @@
+% AC-43's fixture: lwarp stops a compile that has \DocumentMetadata (the
+% LaTeX Project's status list: "Package errors if \DocumentMetadata
+% detected"), so the patched copy fails until the metadata fix is turned off.
+% inputenc and fontenc give the copy a second fix, the engine fix, which is
+% not the one that stops it.
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lwarp}
+\title{Week 3 handout}
+\begin{document}
+\maketitle
+\section{Reading}
+Read chapter three before class.
+\end{document}

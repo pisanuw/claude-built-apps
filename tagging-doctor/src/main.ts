@@ -15,6 +15,10 @@ import { checkerUrl } from './lib/checker';
 
 const checker = checkerUrl();
 
+// "Compile patched and compare" (AC-42, AC-80): Vite writes the flag's value into the build, so with it
+// off this branch is dead and src/ui/compare.ts is neither bundled nor called.
+const compare = checker && import.meta.env.VITE_COMPARE_PATCHED === 'on' ? await import('./ui/compare') : null;
+
 const root = document.getElementById('app');
 if (!root) throw new Error('index.html needs <div id="app">');
 
@@ -50,6 +54,8 @@ mountApp(root, {
         downloadBlob: browserDownloadBlob,
       }
     : undefined,
+  compare: compare ?? undefined,
+  downloadBlob: browserDownloadBlob,
 });
 
 // The page must not open a file dropped outside the drop area.
