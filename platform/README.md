@@ -23,12 +23,12 @@ Dispatch "Supabase admin" with `command`, optional `arg` and `flags`:
 
 | Command | Arg / flags | What it does |
 |---|---|---|
-| `inspect` | | project, exposed schemas, auth settings, schemas, tables, buckets, functions, secret names, recorded migrations |
+| `inspect` | | project, exposed schemas, auth settings, each Auth email template (set or empty, and whether it prints Auth's code; never the text), schemas, tables, buckets, functions, secret names, recorded migrations |
 | `sql` | arg: `.sql` path | run one file through the Management API |
 | `apply-shared` | | run `platform/supabase/shared/*.sql` in order, skipping files already recorded with the same sha256 in `platform.migrations`; a changed shared file is re-run (they are idempotent) |
 | `migrate` | arg: app slug | run `<slug>/supabase/migrations/*.sql` the same way; refuses when an applied file changed (add a new file instead) |
 | `expose-schema` | arg: schema | append the schema to PostgREST's `db_schema` (`platform`, then `app_<slug_>` per app) |
-| `configure-auth` | flags `--dry-run`, `--google`, `--email-rate=N`, `--otp-length=N` | additive auth settings: `https://*.hintwise.org/**` in the redirect allow-list, Resend SMTP from `RESEND_API`, email limit raised to 30/hour (or N); `--google` switches the Google client to `HINTWISE_AUTH_GOOGLE_ID/SECRET`; `--otp-length=N` (6 to 10) sets `mailer_otp_length`, the digits of Auth's own email code, and prints it and `mailer_otp_exp` (never changed) as numbers; alone (without `--google` or `--email-rate`) it sends that key and nothing else |
+| `configure-auth` | flags `--dry-run`, `--google`, `--email-rate=N`, `--otp-length=N` | additive auth settings: `https://*.hintwise.org/**` in the redirect allow-list, Resend SMTP from `RESEND_API`, email limit raised to 30/hour (or N); `--google` switches the Google client to `HINTWISE_AUTH_GOOGLE_ID/SECRET`; `--otp-length=N` (6 to 10) sets `mailer_otp_length`, the digits of Auth's own email code, and prints it and `mailer_otp_exp` (never changed) as numbers; alone (without `--google` or `--email-rate`) it sends that key and nothing else. `--templates-no-code` (with `--dry-run` at most; refused with any other flag, before any API call) rewrites every Auth email template that prints Auth's code, an empty one whose built-in default does included (reauthentication's subject and body on Auth v2.190.0 and later), and PATCHes only those keys, nothing when none does; the dry run lists `key: prints code -> no code`, never the text |
 | `keys` | flag `--write` | print `{url, anonKey}` as `platform/supabase.json` (the anon key is public by design; the service-role key is never printed) |
 | `usage` | arg: days | print `platform.llm_usage_report(days)` as the same tables as the email |
 | `check-google` | arg: return URL; flag `--base=URL` | start a Google sign-in like a browser and report the client, callback URL, Google's answer and the return address; no login; exits 1 when broken |
@@ -63,6 +63,12 @@ No Auth code in any email (owner, 22 Nov 2026; `src/signin/README.md`,
 `security_update_password_require_reauthentication` before anything
 changes), then `configure-auth --otp-length=10 --dry-run`, then
 `configure-auth --otp-length=10`.
+Auth's code out of Auth's own templates too, the backstop for
+`email-hook off` (owner, 23 Nov 2026: "take code out"; `src/signin/README.md`,
+"Auth's own code"): `inspect` (which templates print a code), then
+`configure-auth --templates-no-code --dry-run` (the keys it would change),
+then `configure-auth --templates-no-code`, then `inspect` again (no template
+prints a code).
 
 ## Deploy integration
 
