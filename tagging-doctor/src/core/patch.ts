@@ -35,6 +35,35 @@ export const METADATA_SOURCE =
 
 export const DEFAULT_LANGUAGE = 'en-US';
 
+/** AC-3's reason, as AC-38 quotes it (CR-15). */
+export const BEAMER_STOPS = 'Beamer stops with a \\DocumentMetadata line: the LaTeX Project does not expect Beamer to work with tagging';
+
+/**
+ * The classes the line stops, each with why (CR-15, D-151): every class the
+ * pinned status data marks `no-support`, as each of them, compiled on the
+ * checker's image with the line, ends in an error (image-test/classes.test.ts):
+ * beamer, seminar and the two tufte classes compile without it; novel stops
+ * on the line's own error; powerdot and prosper do not compile with LuaLaTeX
+ * at all. The patch does not insert the line for them.
+ */
+export const METADATA_STOPS: Readonly<Record<string, string>> = {
+  beamer: BEAMER_STOPS,
+  novel: 'novel stops with a \\DocumentMetadata line: it sets the PDF version itself, which tagging does not allow, and the LaTeX Project does not support it with tagging',
+  powerdot: 'powerdot does not compile with LuaLaTeX, with a \\DocumentMetadata line or without one: it needs the latex, dvips and ps2pdf route, which tagging does not support',
+  prosper: 'prosper does not compile with LuaLaTeX, with a \\DocumentMetadata line or without one: it needs the latex, dvips and ps2pdf route, which tagging does not support',
+  seminar: 'seminar stops with a \\DocumentMetadata line: the LaTeX Project does not support it with tagging, as it needs the latex, dvips and ps2pdf route',
+  'tufte-book': 'tufte-book stops with a \\DocumentMetadata line: the LaTeX Project does not support it with tagging',
+  'tufte-handout': 'tufte-handout stops with a \\DocumentMetadata line: the LaTeX Project does not support it with tagging',
+};
+
+/** The document's class that the line stops, and why; null for any other class (CR-15). */
+export function metadataRefusal(scan: Pick<DocumentScan, 'findings'>): { cls: string; reason: string } | null {
+  for (const f of scan.findings) {
+    if (f.kind === 'class' && f.package && Object.hasOwn(METADATA_STOPS, f.package)) return { cls: f.package, reason: METADATA_STOPS[f.package] };
+  }
+  return null;
+}
+
 /** A language tag the line may hold: letters, digits and hyphens in BCP 47's shape (en, en-US, de-CH, zh-Hant). */
 export function validLanguage(tag: string): boolean {
   return /^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})*$/.test(tag);
@@ -245,7 +274,7 @@ export interface FixCard {
   /** Metadata and engine: true; package swaps and unicode-math: false (AC-37, AC-66). */
   acceptedByDefault: boolean;
   /** 'ready' when it changes something; otherwise nothing to accept, and `note` says why ("already done", AC-38). */
-  state: 'ready' | 'already-done' | 'not-needed';
+  state: 'ready' | 'already-done' | 'not-needed' | 'not-done';
   note?: string;
   changes: ShownChange[];
 }
@@ -596,10 +625,17 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
     // Where the scan found the line that turns tagging on: the main file, or a .tex file read above its
     // \documentclass; a second line would stop LaTeX (R4a.1-4, R4a.2-3).
     const has = scan.metadataFile;
+    const refused = metadataRefusal(scan);
     if (has) {
       card.state = 'already-done';
       card.what = 'Nothing: the document has its own \\DocumentMetadata line.';
       card.note = `Already done: ${has} has a \\DocumentMetadata line, which the patch leaves alone.`;
+    } else if (refused) {
+      // Not offered (CR-15): the copy keeps the preamble as it is, so it compiles as the original does.
+      card.state = 'not-done';
+      card.acceptedByDefault = false;
+      card.what = 'Nothing: the patched copy leaves the preamble as it is, so the PDF stays untagged.';
+      card.note = `Not done: ${refused.reason}.`;
     } else if (!f) {
       card.state = 'not-needed';
       card.what = `Nothing: ${main} is not saved as UTF-8.`;
@@ -752,7 +788,12 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
     const item = attentionItem(f, swaps);
     // What a card would have done, but the file is not UTF-8 (or the options are shared): to do by hand (Manager's note 1).
     // Its title and message then do not say the patch adds it (Manager's minor 2 at 758efdb).
-    if (f.rule === 'no-document-metadata') {
+    if (f.rule === 'no-document-metadata' && metadata.card.state === 'not-done') continue;
+    if (f.rule === 'no-language' && metadata.card.state === 'not-done') {
+      // No \DocumentMetadata for this class (CR-15): the PDF's language comes from hyperref instead.
+      item.title = 'Set the language';
+      item.advice = `Set the language by hand with \\hypersetup{pdflang=${language.tag}} (hyperref), since this class cannot take \\DocumentMetadata.`;
+    } else if (f.rule === 'no-document-metadata') {
       item.title = 'Add \\DocumentMetadata';
       item.message = 'There is no \\DocumentMetadata line, which switches tagging on.';
       item.advice = `Add this line by hand above \\documentclass: ${metadataLine(language.tag)}`;
