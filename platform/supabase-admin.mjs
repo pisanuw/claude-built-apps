@@ -5,9 +5,11 @@
  * secrets; nothing here ever prints a secret value.
  *
  *   inspect                 project, region, exposed schemas, auth settings
- *                           (booleans and hosts only), schemas, tables with
- *                           row estimates, extensions, edge functions, the
- *                           names of function secrets
+ *                           (booleans and hosts only), each Auth email
+ *                           template (set or empty, prints a code or not;
+ *                           never the text), schemas, tables with row
+ *                           estimates, extensions, edge functions, the names
+ *                           of function secrets
  *   sql <file.sql>          run one SQL file through the Management API
  *   apply-shared            run platform/supabase/shared/*.sql in name order,
  *                           skipping files already recorded with the same
@@ -32,6 +34,14 @@
  *                           Auth's own email code, mailer_otp_length (owner,
  *                           22 Nov 2026: 10), and leaves mailer_otp_exp as it
  *                           is; alone, it sends that key and nothing else
+ *   configure-auth --templates-no-code [--dry-run]
+ *                           (owner, 23 Nov 2026: "take code out") rewrites
+ *                           every Auth email template that prints Auth's
+ *                           code, an empty one whose built-in default does
+ *                           included, and sends only those keys, nothing when
+ *                           none does; it runs alone (refused with
+ *                           --otp-length, --google or --email-rate) and
+ *                           lists the keys, never the text
  *   keys [--write]          print the project URL and anon (publishable) key
  *                           as the JSON for platform/supabase.json
  *   usage [days]            print platform.llm_usage_report(days) as tables
@@ -209,8 +219,10 @@ async function inspect() {
   } catch (e) { console.log('  cannot read:', String(e).slice(0, 200)); }
 
   console.log('\nAuth settings (values hidden for secret-like keys):');
+  let authConfig = null;
   try {
     const a = await api(`/v1/projects/${ref}/config/auth`);
+    authConfig = a;
     const keep = /^(site_url|uri_allow_list|disable_signup|external_email_enabled|external_anonymous_users_enabled|mailer_autoconfirm|mailer_otp_exp|mailer_otp_length|smtp_host|smtp_port|smtp_user|smtp_sender_name|smtp_admin_email|smtp_max_frequency|rate_limit_email_sent|external_google_enabled|external_google_client_id|external_google_skip_nonce_check|password_min_length|jwt_exp|refresh_token_rotation_enabled|security_captcha_enabled|mfa_totp_enroll_enabled|external_github_enabled|external_apple_enabled|external_azure_enabled|hook_send_email_enabled|hook_send_email_uri)$/;
     const shown = Object.fromEntries(Object.entries(safe(a)).filter(([k]) => keep.test(k)));
     for (const [k, v] of Object.entries(shown)) console.log(`  ${k}: ${JSON.stringify(v)}`);
@@ -219,6 +231,15 @@ async function inspect() {
     const providers = Object.entries(a).filter(([k, v]) => /^external_.*_enabled$/.test(k) && v === true).map(([k]) => k.replace(/^external_|_enabled$/g, ''));
     console.log(`  enabled providers: ${providers.join(', ') || '(none)'}`);
   } catch (e) { console.log('  cannot read:', String(e).slice(0, 200)); }
+
+  // Set or empty, and whether each prints Auth's code (configure-auth
+  // --templates-no-code takes it out); the text itself is never printed.
+  if (authConfig) {
+    console.log("\nAuth email templates (set or empty, and whether each prints Auth's code; never the text):");
+    const version = await authVersion();
+    console.log(`  ${authVersionLine(version)}`);
+    for (const line of templateLines(templateStates(authConfig, version))) console.log(line);
+  }
 
   console.log('\nSchemas (non-system):');
   table(await sql(`select nspname as schema, pg_get_userbyid(nspowner) as owner
@@ -606,6 +627,9 @@ export function authPatch(current, env, { google = false, emailRate, otpLength }
 async function configureAuth() {
   const google = flags.has('--google');
   const dryRun = flags.has('--dry-run');
+  const combination = configureAuthFlagProblem([...flags]);
+  if (combination) fail(combination);
+  if (flags.has(TEMPLATES_FLAG)) return configureTemplates(dryRun);
   if (google && !(process.env.HINTWISE_AUTH_GOOGLE_ID && process.env.HINTWISE_AUTH_GOOGLE_SECRET)) {
     fail('--google needs HINTWISE_AUTH_GOOGLE_ID and HINTWISE_AUTH_GOOGLE_SECRET');
   }
@@ -633,6 +657,315 @@ async function configureAuth() {
   const shown = Object.fromEntries(Object.entries(safe(after)).filter(([k]) => keys.includes(k)));
   console.log('After:', JSON.stringify(shown));
   if (otp.value !== undefined) console.log(`After: mailer_otp_length ${JSON.stringify(after?.mailer_otp_length ?? null)}; mailer_otp_exp ${JSON.stringify(after?.mailer_otp_exp ?? null)}`);
+}
+
+// ---- Auth's email templates without the code ------------------------------
+//
+// Owner, 23 Nov 2026: "take code out". The Send Email hook sends every Auth
+// email and never shows Auth's code (src/signin/README.md, "Auth's own
+// code"); these templates are used only while the hook is off. inspect
+// reports each one (set or empty, prints a code or not) and
+// configure-auth --templates-no-code rewrites the ones that print the code.
+// The template text is never printed.
+
+export const TEMPLATES_FLAG = '--templates-no-code';
+/** config/auth keys of Auth's email templates: a subject, or a body. */
+export const TEMPLATE_KEY = /^mailer_(?:subjects_([a-z_]+)|templates_([a-z_]+)_content)$/;
+
+/**
+ * Auth's built-in subjects since v2.190.0 (supabase/auth
+ * internal/mailer/templatemailer/templatemailer.go, defaultTemplateSubjects;
+ * read 23 Nov 2026 at 10ef107): an empty mailer_subjects_<type> sends these.
+ * Only reauthentication's prints the code.
+ */
+export const AUTH_DEFAULT_SUBJECTS = {
+  invite: "You've been invited",
+  confirmation: 'Confirm your email address',
+  recovery: 'Reset your password',
+  magic_link: 'Your sign-in link',
+  email_change: 'Confirm your new email address',
+  reauthentication: '{{ .Token }} is your verification code',
+  password_changed_notification: 'Your password was changed',
+  email_changed_notification: 'Your email address was changed',
+  phone_changed_notification: 'Your phone number was changed',
+  identity_linked_notification: 'A new sign-in method was linked to your account',
+  identity_unlinked_notification: 'A sign-in method was removed from your account',
+  mfa_factor_enrolled_notification: 'A new verification method was added to your account',
+  mfa_factor_unenrolled_notification: 'A verification method was removed from your account',
+};
+/** The first Auth whose built-in bodies print the code in reauthentication only (305c1bf, #2517). */
+export const AUTH_CODE_FREE_DEFAULTS = [2, 190, 0];
+/** Built-in bodies that print the code since v2.190.0 ("<p>{{ .Token }}</p>"). */
+export const DEFAULT_BODY_CODE_TYPES = ['reauthentication'];
+/** Built-in bodies that print the code before v2.190.0 ("Alternatively, enter the code: {{ .Token }}"; reauthentication "Enter the code: {{ .Token }}"). */
+export const OLD_DEFAULT_BODY_CODE_TYPES = ['invite', 'confirmation', 'recovery', 'magic_link', 'email_change', 'reauthentication'];
+/**
+ * Code-free bodies for the five link emails: Auth's own built-in bodies
+ * since v2.190.0, written only where an empty body would print the code
+ * (an Auth before v2.190.0, or one whose version cannot be read).
+ */
+export const AUTH_LINK_BODIES = {
+  invite: `<h2>You've been invited</h2>\n\n<p>You've been invited to create an account. Follow the link below to accept.</p>\n<p><a href="{{ .ConfirmationURL }}">Accept invitation</a></p>`,
+  confirmation: '<h2>Confirm your email address</h2>\n\n<p>Follow the link below to confirm this email address and finish signing up.</p>\n<p><a href="{{ .ConfirmationURL }}">Confirm email address</a></p>\n',
+  recovery: `<h2>Reset your password</h2>\n\n<p>We received a request to reset your password. Follow the link below to choose a new one.</p>\n<p><a href="{{ .ConfirmationURL }}">Reset password</a></p>\n<p>If you didn't request this, you can safely ignore this email.</p>`,
+  magic_link: '<h2>Your sign-in link</h2>\n\n<p>Follow the link below to sign in. This link expires shortly and can only be used once.</p>\n<p><a href="{{ .ConfirmationURL }}">Sign in</a></p>',
+  email_change: `<h2>Confirm your new email address</h2>\n\n<p>Follow the link below to confirm {{ .NewEmail }} as your new email address.</p>\n<p><a href="{{ .ConfirmationURL }}">Confirm new email address</a></p>\n<p>If you didn't request this change, you can safely ignore this email.</p>`,
+};
+/** Reauthentication is nothing but the code: these replace it, in the words of the hook's refusal (src/signin/hook.ts CODE_ONLY_REFUSAL_MESSAGE). */
+export const CODE_OFF_SENTENCE = 'Email confirmation codes are off. Sign out and back in, then make the change.';
+export const CODE_OFF_SUBJECT = 'Email confirmation codes are off';
+export const CODE_OFF_BODY = `<p>${CODE_OFF_SENTENCE}</p>\n`;
+
+/** Pure: the kind (subject or content) and type of a template key, or null. */
+export function templateKeyInfo(key) {
+  const m = TEMPLATE_KEY.exec(key);
+  if (!m) return null;
+  return m[1] ? { kind: 'subject', type: m[1] } : { kind: 'content', type: m[2] };
+}
+
+/**
+ * Pure: true when one Go template action (the text between {{ and }}) can
+ * print Auth's code: the field .Token or .TokenNew of the data (spacing,
+ * trim markers and $.Token too; not .TokenHash, not .Data.Token), index with
+ * "Token", or the whole data (a bare . or $, which prints every field).
+ * Comments print nothing.
+ */
+export function actionPrintsCode(inner) {
+  const a = String(inner).replace(/^-(?=\s)/, '').replace(/(?<=\s)-$/, '').trim();
+  if (a.startsWith('/*')) return false;
+  if (/\bindex\b/.test(a) && /(["`])Token(?:New)?\1/.test(a)) return true;
+  const code = a.replace(/"(?:[^"\\]|\\.)*"|`[^`]*`|'(?:[^'\\]|\\.)*'/g, '""');
+  if (/(?<![\w)\]])\.Token(?:New)?(?!\w)/.test(code)) return true;
+  return /(?<![\w)\]$])\.(?![\w.])/.test(code) || /(?<!\w)\$(?![\w.])/.test(code);
+}
+
+/** Pure: where each action that can print the code sits in a template, as [start, end) offsets. */
+export function codeActions(text) {
+  return [...String(text ?? '').matchAll(/\{\{([\s\S]*?)\}\}/g)]
+    .filter((m) => actionPrintsCode(m[1]))
+    .map((m) => ({ start: m.index, end: m.index + m[0].length }));
+}
+
+/** Pure: true when a template's text can print Auth's code. */
+export const printsCode = (text) => codeActions(text).length > 0;
+
+/**
+ * Pure: whose built-in templates an Auth version has: 'new' (v2.190.0 or
+ * later: only reauthentication prints the code), 'old' (before: the five
+ * link emails' bodies too), or 'unknown' (counted as both).
+ */
+export function authDefaultsEra(version) {
+  const m = /(\d+)\.(\d+)\.(\d+)/.exec(String(version ?? ''));
+  if (!m) return 'unknown';
+  const v = m.slice(1).map(Number);
+  const i = v.findIndex((n, k) => n !== AUTH_CODE_FREE_DEFAULTS[k]);
+  return i === -1 || v[i] > AUTH_CODE_FREE_DEFAULTS[i] ? 'new' : 'old';
+}
+
+/** Pure: Auth's version from the Management API's health answer for auth, or undefined. */
+export function pickAuthVersion(rows) {
+  const auth = Array.isArray(rows) ? rows.find((r) => r?.name === 'auth') : undefined;
+  const m = /(\d+)\.(\d+)\.(\d+)/.exec(String(auth?.info?.version ?? ''));
+  return m ? `v${m[1]}.${m[2]}.${m[3]}` : undefined;
+}
+
+/** Pure: the line that says which built-in templates were counted. */
+export function authVersionLine(version) {
+  const era = authDefaultsEra(version);
+  if (era === 'new') return `Auth ${version}: of Auth's built-in templates, only reauthentication's subject and body print the code.`;
+  if (era === 'old') return `Auth ${version} is older than v2.190.0: the built-in bodies of invite, confirmation, recovery, magic_link, email_change and reauthentication print the code.`;
+  return "Auth's version cannot be read: counting every built-in template that prints the code in any version (reauthentication's subject and body; before v2.190.0 also the five link emails' bodies).";
+}
+
+/** Pure: true when an empty template of this kind and type sends a built-in default that prints the code. */
+export function defaultPrintsCode(kind, type, era) {
+  const newer = kind === 'subject' ? printsCode(AUTH_DEFAULT_SUBJECTS[type]) : DEFAULT_BODY_CODE_TYPES.includes(type);
+  const older = kind === 'content' && OLD_DEFAULT_BODY_CODE_TYPES.includes(type);
+  if (era === 'new') return newer;
+  if (era === 'old') return older;
+  return newer || older;
+}
+
+/**
+ * Pure: every Auth email template key the config holds, in its order: set
+ * or empty (Auth's built-in default), and whether it prints the code.
+ * @returns {{ key: string, kind: string, type: string, set: boolean, printsCode: boolean }[]}
+ */
+export function templateStates(config, version) {
+  const era = authDefaultsEra(version);
+  return Object.keys(config ?? {}).filter((k) => TEMPLATE_KEY.test(k)).map((key) => {
+    const { kind, type } = templateKeyInfo(key);
+    const text = config[key];
+    const set = typeof text === 'string' && text !== '';
+    return { key, kind, type, set, printsCode: set ? printsCode(text) : defaultPrintsCode(kind, type, era) };
+  });
+}
+
+/** Pure: inspect's lines for the templates: names and booleans only, never the text. */
+export function templateLines(states) {
+  if (!states.length) return ['  (no mailer_subjects_* or mailer_templates_*_content key in the answer)'];
+  const lines = states.map((s) => `  ${s.key}: ${s.set ? 'set' : "empty (Auth's default)"}; prints code: ${s.printsCode}`);
+  const n = states.filter((s) => s.printsCode).length;
+  lines.push(n ? `  ${n} template(s) print a code: configure-auth ${TEMPLATES_FLAG} --dry-run, then without --dry-run` : '  No template prints a code.');
+  return lines;
+}
+
+// Elements one code is taken out with: the innermost of these around it.
+const BLOCK_TAG = /<(\/?)(p|li|h[1-6]|pre|blockquote|td|th|div)\b[^>]*>/gi;
+const LINE_BREAK = /\n|<br\s*\/?>/gi;
+const LINK_VARS = ['ConfirmationURL', 'TokenHash', 'SiteURL', 'RedirectTo'];
+
+/** Pure: the matched open and close tags of the block elements, as [start, end) offsets. */
+function blockPairs(text) {
+  const open = [];
+  const pairs = [];
+  for (const m of text.matchAll(BLOCK_TAG)) {
+    const name = m[2].toLowerCase();
+    if (!m[1]) { open.push({ name, start: m.index }); continue; }
+    let i = open.length - 1;
+    while (i >= 0 && open[i].name !== name) i--;
+    if (i < 0) continue;
+    pairs.push({ start: open[i].start, end: m.index + m[0].length });
+    open.length = i;
+  }
+  return pairs;
+}
+
+/** Pure: what to cut for one code action: its innermost block element, else its line; a lone element's whole line. */
+function cutRange(text, { start, end }) {
+  const around = blockPairs(text).filter((p) => p.start <= start && p.end >= end).sort((x, y) => (x.end - x.start) - (y.end - y.start))[0];
+  let from;
+  let to;
+  if (around) ({ start: from, end: to } = around);
+  else {
+    from = 0;
+    for (const m of text.slice(0, start).matchAll(LINE_BREAK)) from = m.index + m[0].length;
+    const breaks = new RegExp(LINE_BREAK.source, 'gi');
+    breaks.lastIndex = end;
+    const next = breaks.exec(text);
+    to = next ? next.index + next[0].length : text.length;
+  }
+  const lineStart = from === 0 ? 0 : text.lastIndexOf('\n', from - 1) + 1;
+  const nl = text.indexOf('\n', to);
+  const lineEnd = nl === -1 ? text.length : nl + 1;
+  if (!text.slice(lineStart, from).trim() && !text.slice(to, lineEnd).trim()) return { from: lineStart, to: lineEnd };
+  return { from, to };
+}
+
+/** Pure: actions that open a block ({{ if }}, {{ range }}, ...) minus those that close one ({{ end }}). */
+function controlBalance(text) {
+  let n = 0;
+  for (const m of text.matchAll(/\{\{-?\s*(if|range|with|define|block|end)\b/g)) n += m[1] === 'end' ? -1 : 1;
+  return n;
+}
+
+const countOf = (list, x) => list.filter((y) => y === x).length;
+const hrefs = (text) => [...text.matchAll(/\bhref\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi)].map((m) => m[1]);
+const linkVars = (text) => [...text.matchAll(/\{\{([\s\S]*?)\}\}/g)].flatMap((m) => LINK_VARS.filter((v) => new RegExp(`\\.${v}(?!\\w)`).test(m[1])));
+
+/**
+ * Pure: a template body without the code: each block element (or line)
+ * that holds the code is taken out, and nothing else. Refused, with a
+ * reason and never the text, when that would also take out a link (an href,
+ * or ConfirmationURL, TokenHash, SiteURL or RedirectTo), split an
+ * {{ if }}/{{ range }}/{{ with }} from its {{ end }}, or leave nothing.
+ * @returns {{ text?: string, error?: string }}
+ */
+export function withoutCode(text) {
+  let out = String(text);
+  for (let spans = codeActions(out); spans.length; spans = codeActions(out)) {
+    const { from, to } = cutRange(out, spans[0]);
+    if (controlBalance(out.slice(from, to)) !== 0) return { error: 'the code sits in an {{ if }}, {{ range }} or {{ with }} that its block cuts in two' };
+    out = out.slice(0, from) + out.slice(to);
+  }
+  out = out.replace(/\n{3,}/g, '\n\n');
+  if (!/\s$/.test(text)) out = out.replace(/\s+$/, '');
+  const before = { h: hrefs(text), v: linkVars(text) };
+  const after = { h: hrefs(out), v: linkVars(out) };
+  if (before.h.some((h) => countOf(after.h, h) < countOf(before.h, h)) || before.v.some((v) => countOf(after.v, v) < countOf(before.v, v))) {
+    return { error: 'taking the code out would take a link out too' };
+  }
+  if (!after.h.length && !after.v.length && !out.replace(/<[^>]*>|\{\{[\s\S]*?\}\}/g, '').trim()) return { error: 'nothing but the code would be left' };
+  return { text: out };
+}
+
+/**
+ * Pure: the code-free text for one template that prints the code.
+ * Reauthentication, nothing but the code, gets CODE_OFF_SUBJECT and
+ * CODE_OFF_BODY; another subject gets Auth's built-in subject for its type;
+ * an empty link-email body gets Auth's own code-free body (AUTH_LINK_BODIES);
+ * a set body loses the elements that hold the code (withoutCode).
+ */
+export function codeFreeTemplate({ kind, type, set }, text) {
+  if (type === 'reauthentication') return { text: kind === 'subject' ? CODE_OFF_SUBJECT : CODE_OFF_BODY };
+  if (kind === 'subject') return AUTH_DEFAULT_SUBJECTS[type] ? { text: AUTH_DEFAULT_SUBJECTS[type] } : { error: 'no code-free subject is known for this type' };
+  if (!set) return { text: AUTH_LINK_BODIES[type] };
+  return withoutCode(text);
+}
+
+/**
+ * Pure: the PATCH for --templates-no-code: only the template keys that print
+ * the code, each with its code-free text, and the keys that cannot be
+ * rewritten safely (key and reason, never the text). Nothing else, ever.
+ * @returns {{ patch: Record<string, string>, problems: { key: string, reason: string }[] }}
+ */
+export function templatesPatch(config, version) {
+  /** @type {Record<string, string>} */
+  const patch = {};
+  const problems = [];
+  for (const s of templateStates(config, version)) {
+    if (!s.printsCode) continue;
+    const r = codeFreeTemplate(s, config[s.key]);
+    if (r.error) problems.push({ key: s.key, reason: r.error });
+    else patch[s.key] = r.text;
+  }
+  return { patch, problems };
+}
+
+/**
+ * Pure: why configure-auth cannot run with these flags, or undefined.
+ * --templates-no-code runs alone, with --dry-run at most: never in one PATCH
+ * with --otp-length, --google or --email-rate (the last two widen it to
+ * smtp_pass and the rest).
+ */
+export function configureAuthFlagProblem(flagList) {
+  const own = flagList.filter((f) => f === TEMPLATES_FLAG || f.startsWith(`${TEMPLATES_FLAG}=`));
+  if (!own.length) return undefined;
+  if (own.some((f) => f !== TEMPLATES_FLAG)) return `${TEMPLATES_FLAG} takes no value`;
+  const others = flagList.filter((f) => f !== TEMPLATES_FLAG && f !== '--dry-run').map((f) => f.split('=')[0]);
+  if (others.length) return `${TEMPLATES_FLAG} runs alone (with --dry-run at most), not with ${others.join(', ')}: run --otp-length, --google or --email-rate in a run of its own`;
+  return undefined;
+}
+
+/** Auth's version as the Management API's health check reports it, or undefined. */
+async function authVersion() {
+  try { return pickAuthVersion(await api(`/v1/projects/${ref}/health?services=auth`)); }
+  catch { return undefined; }
+}
+
+async function configureTemplates(dryRun) {
+  console.log(`${TEMPLATES_FLAG}: only the Auth email templates that print a code are sent; every other auth setting is left as it is.`);
+  const version = await authVersion();
+  console.log(authVersionLine(version));
+  const current = await api(`/v1/projects/${ref}/config/auth`);
+  const { patch, problems } = templatesPatch(current, version);
+  const keys = Object.keys(patch);
+  if (!keys.length && !problems.length) { console.log('No Auth email template prints a code; nothing to change.'); return; }
+  if (keys.length) {
+    console.log(`${dryRun || problems.length ? 'Would change' : 'Changing'} ${keys.length} key(s):`);
+    for (const k of keys) console.log(`  ${k}: prints code -> no code`);
+  }
+  if (problems.length) {
+    console.log(`Cannot take the code out of ${problems.length} key(s) safely (edit them by hand in the dashboard, then run this again):`);
+    for (const p of problems) console.log(`  ${p.key}: prints code -> ${p.reason}`);
+    fail(`${TEMPLATES_FLAG}: nothing sent; ${problems.map((p) => p.key).join(', ')} cannot be rewritten safely`);
+  }
+  if (dryRun) { console.log('Dry run: nothing sent.'); return; }
+  await api(`/v1/projects/${ref}/config/auth`, { method: 'PATCH', body: JSON.stringify(patch) });
+  const after = templateStates(await api(`/v1/projects/${ref}/config/auth`), version).filter((s) => keys.includes(s.key));
+  console.log(`After: ${after.map((s) => `${s.key} ${s.set ? 'set' : 'empty'}, prints code: ${s.printsCode}`).join('; ')}`);
+  const still = keys.filter((k) => !after.some((s) => s.key === k && s.set && !s.printsCode));
+  if (still.length) fail(`${TEMPLATES_FLAG}: after the PATCH, ${still.join(', ')} still print a code or did not change`);
 }
 
 // ---- Keys -----------------------------------------------------------------

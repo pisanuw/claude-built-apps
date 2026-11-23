@@ -1,0 +1,67 @@
+{
+  "_source": "supabase/auth internal/mailer/templatemailer/templatemailer.go: defaultTemplateSubjects and defaultTemplateBodies. since_v2_190_0 is main at 10ef10789d1e (read 23 Nov 2026; the copy changed in 305c1bf, #2517, released in v2.190.0); before_v2_190_0 is cda62a9c215e, the commit before it. An empty mailer_subjects_<type> or mailer_templates_<type>_content sends these.",
+  "since_v2_190_0": {
+    "subjects": {
+      "invite": "You've been invited",
+      "confirmation": "Confirm your email address",
+      "recovery": "Reset your password",
+      "magic_link": "Your sign-in link",
+      "email_change": "Confirm your new email address",
+      "reauthentication": "{{ .Token }} is your verification code",
+      "password_changed_notification": "Your password was changed",
+      "email_changed_notification": "Your email address was changed",
+      "phone_changed_notification": "Your phone number was changed",
+      "identity_linked_notification": "A new sign-in method was linked to your account",
+      "identity_unlinked_notification": "A sign-in method was removed from your account",
+      "mfa_factor_enrolled_notification": "A new verification method was added to your account",
+      "mfa_factor_unenrolled_notification": "A verification method was removed from your account"
+    },
+    "bodies": {
+      "invite": "<h2>You've been invited</h2>\n\n<p>You've been invited to create an account. Follow the link below to accept.</p>\n<p><a href=\"{{ .ConfirmationURL }}\">Accept invitation</a></p>",
+      "confirmation": "<h2>Confirm your email address</h2>\n\n<p>Follow the link below to confirm this email address and finish signing up.</p>\n<p><a href=\"{{ .ConfirmationURL }}\">Confirm email address</a></p>\n",
+      "recovery": "<h2>Reset your password</h2>\n\n<p>We received a request to reset your password. Follow the link below to choose a new one.</p>\n<p><a href=\"{{ .ConfirmationURL }}\">Reset password</a></p>\n<p>If you didn't request this, you can safely ignore this email.</p>",
+      "magic_link": "<h2>Your sign-in link</h2>\n\n<p>Follow the link below to sign in. This link expires shortly and can only be used once.</p>\n<p><a href=\"{{ .ConfirmationURL }}\">Sign in</a></p>",
+      "email_change": "<h2>Confirm your new email address</h2>\n\n<p>Follow the link below to confirm {{ .NewEmail }} as your new email address.</p>\n<p><a href=\"{{ .ConfirmationURL }}\">Confirm new email address</a></p>\n<p>If you didn't request this change, you can safely ignore this email.</p>",
+      "reauthentication": "<h2>Your verification code</h2>\n\n<p>Use the code below to verify your identity. It expires shortly.</p>\n<p>{{ .Token }}</p>",
+      "password_changed_notification": "<h2>Your password was changed</h2>\n\n<p>The password for your account was recently changed.</p>\n<p>If you didn't make this change, reset your password and contact support immediately.</p>\n",
+      "email_changed_notification": "<h2>Your email address was changed</h2>\n\n<p>The email address for your account was changed from {{ .OldEmail }} to {{ .Email }}.</p>\n<p>If you didn't make this change, contact support immediately.</p>\n",
+      "phone_changed_notification": "<h2>Your phone number was changed</h2>\n\n<p>The phone number for your account was changed from {{ .OldPhone }} to {{ .Phone }}.</p>\n<p>If you didn't make this change, contact support immediately.</p>\n",
+      "identity_linked_notification": "<h2>A new sign-in method was linked</h2>\n\n<p>Your {{ .Provider }} account was linked as a new sign-in method for {{ .Email }}.</p>\n<p>If you didn't make this change, contact support immediately.</p>\n",
+      "identity_unlinked_notification": "<h2>A sign-in method was removed</h2>\n\n<p>Your {{ .Provider }} account was removed as a sign-in method for {{ .Email }}.</p>\n<p>If you didn't make this change, contact support immediately.</p>\n",
+      "mfa_factor_enrolled_notification": "<h2>A new verification method was added</h2>\n\n<p>Sign-in verification method {{ .FactorType }} was added to your account.</p>\n<p>If you didn't make this change, contact support immediately.</p>\n",
+      "mfa_factor_unenrolled_notification": "<h2>A verification method was removed</h2>\n\n<p>Sign-in verification method {{ .FactorType }} was removed from your account.</p>\n<p>If you didn't make this change, contact support immediately.</p>\n"
+    }
+  },
+  "before_v2_190_0": {
+    "subjects": {
+      "invite": "You have been invited",
+      "confirmation": "Confirm Your Email",
+      "recovery": "Reset Your Password",
+      "magic_link": "Your Magic Link",
+      "email_change": "Confirm Email Change",
+      "reauthentication": "Confirm reauthentication",
+      "password_changed_notification": "Your password has been changed",
+      "email_changed_notification": "Your email address has been changed",
+      "phone_changed_notification": "Your phone number has been changed",
+      "identity_linked_notification": "A new identity has been linked",
+      "identity_unlinked_notification": "An identity has been unlinked",
+      "mfa_factor_enrolled_notification": "A new MFA factor has been enrolled",
+      "mfa_factor_unenrolled_notification": "An MFA factor has been unenrolled"
+    },
+    "bodies": {
+      "invite": "<h2>You have been invited</h2>\n\n<p>You have been invited to create a user on {{ .SiteURL }}. Follow this link to accept the invite:</p>\n<p><a href=\"{{ .ConfirmationURL }}\">Accept the invite</a></p>\n<p>Alternatively, enter the code: {{ .Token }}</p>",
+      "confirmation": "<h2>Confirm Your Email</h2>\n\n<p>Follow this link to confirm your email:</p>\n<p><a href=\"{{ .ConfirmationURL }}\">Confirm your email address</a></p>\n<p>Alternatively, enter the code: {{ .Token }}</p>\n",
+      "recovery": "<h2>Reset password</h2>\n\n<p>Follow this link to reset the password for your user:</p>\n<p><a href=\"{{ .ConfirmationURL }}\">Reset password</a></p>\n<p>Alternatively, enter the code: {{ .Token }}</p>",
+      "magic_link": "<h2>Magic Link</h2>\n\n<p>Follow this link to login:</p>\n<p><a href=\"{{ .ConfirmationURL }}\">Log In</a></p>\n<p>Alternatively, enter the code: {{ .Token }}</p>",
+      "email_change": "<h2>Confirm email address change</h2>\n\n<p>Follow this link to confirm the update of your email address from {{ .Email }} to {{ .NewEmail }}:</p>\n<p><a href=\"{{ .ConfirmationURL }}\">Change email address</a></p>\n<p>Alternatively, enter the code: {{ .Token }}</p>",
+      "reauthentication": "<h2>Confirm reauthentication</h2>\n\n<p>Enter the code: {{ .Token }}</p>",
+      "password_changed_notification": "<h2>Your password has been changed</h2>\n\n<p>This is a confirmation that the password for your account {{ .Email }} has just been changed.</p>\n<p>If you did not make this change, please contact support.</p>\n",
+      "email_changed_notification": "<h2>Your email address has been changed</h2>\n\n<p>The email address for your account has been changed from {{ .OldEmail }} to {{ .Email }}.</p>\n<p>If you did not make this change, please contact support.</p>\n",
+      "phone_changed_notification": "<h2>Your phone number has been changed</h2>\n\n<p>The phone number for your account {{ .Email }} has been changed from {{ .OldPhone }} to {{ .Phone }}.</p>\n<p>If you did not make this change, please contact support immediately.</p>\n",
+      "identity_linked_notification": "<h2>A new identity has been linked</h2>\n\n<p>A new identity ({{ .Provider }}) has been linked to your account {{ .Email }}.</p>\n<p>If you did not make this change, please contact support immediately.</p>\n",
+      "identity_unlinked_notification": "<h2>An identity has been unlinked</h2>\n\n<p>An identity ({{ .Provider }}) has been unlinked from your account {{ .Email }}.</p>\n<p>If you did not make this change, please contact support immediately.</p>\n",
+      "mfa_factor_enrolled_notification": "<h2>A new MFA factor has been enrolled</h2>\n\n<p>A new factor ({{ .FactorType }}) has been enrolled for your account {{ .Email }}.</p>\n<p>If you did not make this change, please contact support immediately.</p>\n",
+      "mfa_factor_unenrolled_notification": "<h2>An MFA factor has been unenrolled</h2>\n\n<p>A factor ({{ .FactorType }}) has been unenrolled for your account {{ .Email }}.</p>\n<p>If you did not make this change, please contact support immediately.</p>\n"
+    }
+  }
+}
