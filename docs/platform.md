@@ -118,7 +118,9 @@ Google stays.
   code (owner, 22 Nov 2026: 10; "Auth's own code" below); without
   `--google` or `--email-rate` it sends that key and nothing else.
   `--templates-no-code` runs alone (with `--dry-run` at most) and sends only
-  the email template keys that print Auth's code, rewritten without it. The Google
+  the email template keys that print Auth's code, rewritten without it. Any
+  other flag is refused before any API call, so a typo never runs the full
+  patch. The Google
   client is **not** switched by default: the project signs in through client
   `989071206831-`; moving to the HintWise client (`985338662899-`) keeps the
   same Google identities (Google's `sub` is the same for every client) but is

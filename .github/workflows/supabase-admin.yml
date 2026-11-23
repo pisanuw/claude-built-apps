@@ -19,7 +19,11 @@
 #                            every Auth email template that prints Auth's code, an empty one whose built-in
 #                            default does included, and PATCHes only those keys, nothing when none does; it
 #                            runs alone (with --dry-run at most: refused with --otp-length, --google or
-#                            --email-rate before any API call) and lists "key: prints code -> no code"
+#                            --email-rate before any API call) and lists "key: prints code -> no code" with
+#                            the characters removed, kept and written. With Auth's version unknown the dry run
+#                            counts every default that ever printed the code and the real run sends nothing;
+#                            compare the real run's version line and keys with the dry run's. Any flag
+#                            configure-auth does not know (e.g. "--template-no-code") is refused before any call
 #   keys                     print the URL and anon key as platform/supabase.json
 #   usage [arg: days]        print the LLM usage report
 #   domain-setup <arg: host> custom domain add-on: start it, create its Cloudflare records, verify
