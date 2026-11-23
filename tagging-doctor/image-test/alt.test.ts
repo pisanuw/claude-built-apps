@@ -71,4 +71,37 @@ describe(`AC-49 on the image ${IMAGE}`, () => {
     // The decorative one is an artifact, not a figure with alt text.
     expect(raw).toMatch(/\/Artifact/);
   });
+
+  it('R5a.1-3: option lists that end in a comment get the key before the comment, and the PDF reads them back', async () => {
+    const tex = [
+      '\\DocumentMetadata{lang=en-US, pdfstandard=ua-2, tagging=on, uncompress}',
+      '\\documentclass{article}',
+      '\\usepackage{graphicx}',
+      '\\begin{document}',
+      '\\includegraphics[width=3cm, % the width',
+      '  height=2cm % h',
+      ']{plot.png}',
+      '\\includegraphics[',
+      '  width=0.5\\linewidth, % half',
+      ']{plot}',
+      '\\end{document}',
+      '',
+    ].join('\n');
+    const z = zipSync({ 'main.tex': [new TextEncoder().encode(tex), { mtime: new Date(1980, 0, 1) }], 'plot.png': [new Uint8Array(PNG), { mtime: new Date(1980, 0, 1) }] });
+    const project = openProject('c.zip', z);
+    const scan = scanDocument(project, 'main.tex', index);
+    const figures = listFigures(project, scan);
+    const d = new Map<string, AltDecision>([
+      [figures[0].id, { decision: 'approved', text: 'Comment layout 1' }],
+      [figures[1].id, { decision: 'approved', text: 'Comment layout 2' }],
+    ]);
+    const out = applyFixes(project, scan, new Set(), { alts: altEdits(project, figures, d) }).files.get('main.tex') as string;
+    const zip = zipSync({ 'main.tex': [new TextEncoder().encode(out), { mtime: new Date(1980, 0, 1) }], 'plot.png': [new Uint8Array(PNG), { mtime: new Date(1980, 0, 1) }] });
+    const token = freshToken();
+    const job = await w.run(zip, 'main.tex', token);
+    expect(job.status, JSON.stringify(job)).toBe('done');
+    const read = alts(await w.pdfText(job.id, token));
+    console.log(`R5a.1-3 /Alt read back: ${JSON.stringify(read)}`);
+    expect(read).toEqual(['Comment layout 1', 'Comment layout 2']);
+  });
 });
