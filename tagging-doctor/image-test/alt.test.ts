@@ -104,4 +104,54 @@ describe(`AC-49 on the image ${IMAGE}`, () => {
     console.log(`R5a.1-3 /Alt read back: ${JSON.stringify(read)}`);
     expect(read).toEqual(['Comment layout 1', 'Comment layout 2']);
   });
+  it('R5a.2-3: a figure in \\captionof or \\subcaptionbox: a text with a backslash is left out and the copy compiles; a plain one reads back', async () => {
+    const tex = [
+      '\\DocumentMetadata{lang=en-US, pdfstandard=ua-2, tagging=on, uncompress}',
+      '\\documentclass{article}',
+      '\\usepackage{graphicx}',
+      '\\usepackage{caption}',
+      '\\usepackage{subcaption}',
+      '\\begin{document}',
+      '\\listoffigures',
+      '\\begin{minipage}{0.5\\linewidth}',
+      'Body.',
+      '\\captionof{figure}{C \\includegraphics[height=1ex]{plot}}',
+      '\\end{minipage}',
+      '\\begin{minipage}{0.5\\linewidth}',
+      'Body.',
+      '\\captionof{figure}{D \\includegraphics[height=1ex]{plot}}',
+      '\\end{minipage}',
+      '\\begin{figure}',
+      '\\subcaptionbox{E \\includegraphics[height=1ex]{plot}}{\\includegraphics[width=1cm]{plot}}',
+      '\\caption{F}',
+      '\\end{figure}',
+      '\\end{document}',
+      '',
+    ].join('\n');
+    const z = zipSync({ 'main.tex': [new TextEncoder().encode(tex), { mtime: new Date(1980, 0, 1) }], 'plot.png': [new Uint8Array(PNG), { mtime: new Date(1980, 0, 1) }] });
+    const project = openProject('m.zip', z);
+    const scan = scanDocument(project, 'main.tex', index);
+    const figures = listFigures(project, scan);
+    expect(figures.map((f) => f.moving)).toEqual([true, true, true, false]);
+    const PLAIN = 'A plain icon, 50% & more';
+    const SUB = 'A sub icon #1';
+    const d = new Map<string, AltDecision>([
+      [figures[0].id, { decision: 'approved', text: 'a \\ b' }],
+      [figures[1].id, { decision: 'approved', text: PLAIN }],
+      [figures[2].id, { decision: 'approved', text: SUB }],
+      [figures[3].id, { decision: 'approved', text: 'The box' }],
+    ]);
+    const out = applyFixes(project, scan, new Set(), { alts: altEdits(project, figures, d) }).files.get('main.tex') as string;
+    expect(out).toContain('\\captionof{figure}{C \\includegraphics[height=1ex]{plot}}');
+    const zip = zipSync({ 'main.tex': [new TextEncoder().encode(out), { mtime: new Date(1980, 0, 1) }], 'plot.png': [new Uint8Array(PNG), { mtime: new Date(1980, 0, 1) }] });
+    const token = freshToken();
+    const job = await w.run(zip, 'main.tex', token);
+    expect(job.status, JSON.stringify(job)).toBe('done');
+    const read = alts(await w.pdfText(job.id, token));
+    console.log(`R5a.2-3 /Alt read back: ${JSON.stringify(read)}`);
+    for (const t of [PLAIN, SUB, 'The box']) expect(read).toContain(t);
+    // The figure left out gets LuaLaTeX's own stand-in, the file's name, in the figure and in the list of figures.
+    for (const r of read) expect([PLAIN, SUB, 'The box', 'plot.png']).toContain(r);
+    expect(read.filter((r) => r === 'plot.png')).toHaveLength(2);
+  });
 });
