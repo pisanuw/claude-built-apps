@@ -11,7 +11,7 @@
  * removal made it compile is highlighted when both runs finished.
  */
 import { CHECKER_MAX_BYTES, checkerTakes, type CheckerJob } from '../core/compile';
-import { CHANGE_WORDS, compareJobs, compiledWords, failuresWords, finished, madeItFail, trendLine, type PatchedRun } from '../core/compare';
+import { compareJobs, compiledWords, failuresWords, finished, madeItFail, trendLine, type PatchedRun } from '../core/compare';
 import { projectZip } from '../core/outzip';
 import { CheckerError, forget, keptToken, runJob, SENDING, WAKING, type CheckerDeps, type TokenSource } from '../lib/checker';
 import { CHECK_TAKES, progress, realClock, type Clock } from './progress';
@@ -91,7 +91,7 @@ export function comparisonView(original: CheckerJob, patched: CheckerJob): HTMLE
         el('td', {}, r.words),
         el('td', {}, r.original === null ? '—' : r.original.toLocaleString('en-US')),
         el('td', {}, r.patched === null ? '—' : r.patched.toLocaleString('en-US')),
-        el('td', {}, CHANGE_WORDS[r.change]),
+        el('td', {}, r.changeText),
       );
       tb.append(tr);
     }

@@ -12,9 +12,11 @@ import { CLAUSE_WORDS, MAPPED_SPECIFICATION, type CheckerJob } from './compile';
  * clause that fails in both results is "unchanged" only with the same number
  * of failed checks, else "fewer" or "more". "unknown" when a side's list of
  * rules is not complete (R4a.1-8 a), so a clause missing from it may still
- * fail there, and a count on it may be short.
+ * fail there, and a count on it may be short. "not-checked" when a side has
+ * no check at all (it did not compile, or veraPDF gave no result): its
+ * clauses are not known, and the words say why (AC-42; acceptance/m4b.md).
  */
-export type ClauseChange = 'fixed' | 'new' | 'unchanged' | 'fewer' | 'more' | 'unknown';
+export type ClauseChange = 'fixed' | 'new' | 'unchanged' | 'fewer' | 'more' | 'unknown' | 'not-checked';
 
 export interface RunSide {
   /** True when the checker made a PDF. */
@@ -34,6 +36,8 @@ export interface CompareRow {
   original: number | null;
   patched: number | null;
   change: ClauseChange;
+  /** The words of the Change column. */
+  changeText: string;
 }
 
 export interface Comparison {
@@ -85,7 +89,12 @@ export function compareJobs(original: CheckerJob, patched: CheckerJob): Comparis
   const a = byClause(original);
   const b = byClause(patched);
   const known = { a: complete(original), b: complete(patched) };
+  const o = side(original);
+  const p = side(patched);
+  // A side with no check says nothing about any clause, whatever the other side's list holds.
+  const unchecked = o.failedChecks === null ? 'original' : p.failedChecks === null ? 'patched' : null;
   const change = (x: number | undefined, y: number | undefined): ClauseChange => {
+    if (unchecked) return 'not-checked';
     if (x !== undefined && y !== undefined) {
       if (!known.a || !known.b) return 'unknown';
       return y === x ? 'unchanged' : y < x ? 'fewer' : 'more';
@@ -107,11 +116,12 @@ export function compareJobs(original: CheckerJob, patched: CheckerJob): Comparis
       original: x?.count ?? null,
       patched: y?.count ?? null,
       change: change(x?.count, y?.count),
+      changeText: '',
     });
   }
   rows.sort((p, q) => Math.max(q.original ?? 0, q.patched ?? 0) - Math.max(p.original ?? 0, p.patched ?? 0) || p.clause.localeCompare(q.clause, 'en', { numeric: true }));
-  const o = side(original);
-  const p = side(patched);
+  const notChecked = unchecked ? notCheckedWords(unchecked === 'original' ? o : p, unchecked) : '';
+  for (const r of rows) r.changeText = r.change === 'not-checked' ? notChecked : CHANGE_WORDS[r.change as Exclude<ClauseChange, 'not-checked'>];
   const trend = o.failedChecks === null || p.failedChecks === null ? null : p.failedChecks < o.failedChecks ? 'fewer' : p.failedChecks > o.failedChecks ? 'more' : 'same';
   return { original: o, patched: p, rows, trend };
 }
@@ -175,7 +185,13 @@ export function trendLine(c: Comparison): string {
   }
 }
 
-export const CHANGE_WORDS: Record<ClauseChange, string> = {
+/** "Not checked: the patched copy did not compile", or "… was not checked" when it compiled and veraPDF gave no result. */
+export function notCheckedWords(s: RunSide, which: 'original' | 'patched'): string {
+  const name = which === 'original' ? 'the original' : 'the patched copy';
+  return s.compiled ? `Not checked: ${name}’s PDF could not be checked` : `Not checked: ${name} did not compile`;
+}
+
+export const CHANGE_WORDS: Record<Exclude<ClauseChange, 'not-checked'>, string> = {
   fixed: 'Fixed',
   new: 'New',
   unchanged: 'Unchanged',

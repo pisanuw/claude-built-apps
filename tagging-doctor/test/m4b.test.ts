@@ -286,3 +286,27 @@ describe('Manager’s minors at af12111', () => {
     expect(card(setup({ 'main.tex': '% !TEX program = lualatex\n\\documentclass{article}\n\\begin{document}\nHi\n\\end{document}\n' }).plan, 'metadata')?.what).not.toContain('lualatex');
   });
 });
+
+describe('AC-42 at m4b\'s acceptance: a side with no check names why, and the right cases keep their words', () => {
+  const orig = done([clause('8.2.2', 4668), clause('6.1', 1)]);
+  const noPdf: CheckerJob = { ...done([]), status: 'failed', result: null, pdf: false, failure: { kind: 'compile-error', message: 'LuaLaTeX stopped with an error.' } };
+  const noCheck: CheckerJob = { ...done([]), result: { ...(done([]).result as NonNullable<CheckerJob['result']>), validation: null } };
+  const words = (a: CheckerJob, b: CheckerJob) => compareJobs(a, b).rows.map((r) => [r.clause, r.change, r.changeText]);
+  it('the patched copy did not compile, or the original did not, or a PDF was not checked', () => {
+    expect(words(orig, noPdf)).toEqual([
+      ['8.2.2', 'not-checked', 'Not checked: the patched copy did not compile'],
+      ['6.1', 'not-checked', 'Not checked: the patched copy did not compile'],
+    ]);
+    expect(words(noPdf, done([clause('8.2.2', 3)]))).toEqual([['8.2.2', 'not-checked', 'Not checked: the original did not compile']]);
+    expect(words(orig, noCheck)[0]).toEqual(['8.2.2', 'not-checked', 'Not checked: the patched copy’s PDF could not be checked']);
+  });
+
+  it('beside them, as before: two whole lists give Fewer and Fixed; a really cut list gives "Not known"', () => {
+    expect(words(orig, done([clause('8.2.2', 181)]))).toEqual([
+      ['8.2.2', 'fewer', 'Fewer'],
+      ['6.1', 'fixed', 'Fixed'],
+    ]);
+    const cut = done(Array.from({ length: 20 }, (_, i) => clause(`9.${i}`, 100 - i)), 25);
+    expect(words(cut, done([clause('1.1', 2)]))).toContainEqual(['1.1', 'unknown', 'Not known: not in the list of the most frequent']);
+  });
+});

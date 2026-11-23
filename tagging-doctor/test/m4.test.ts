@@ -427,6 +427,22 @@ describe('AC-42: compile patched and compare (stubbed checker)', () => {
     expect(t.q('.compare-status').textContent).toBe('The comparison is finished (the original’s check from this session was used again). 2 checks left this hour.');
   });
 
+  it('AC-42 (acceptance/m4b.md): when the patched copy does not compile, each clause says it was not checked, not "not known"', async () => {
+    const c = stub((patched) => (patched ? failedRun() : job()));
+    const t = page({ compare: true, checker: c });
+    await t.app.handleFile(file('week1.zip', PROJECT));
+    t.button('Suggest fixes').click();
+    t.button('Compile patched and compare').click();
+    await settle();
+    const rows = [...t.root.querySelectorAll<HTMLElement>('table.compare-clauses tbody tr')].map((r) => [r.dataset.clause, r.dataset.change, r.lastElementChild?.textContent]);
+    expect(rows).toEqual([
+      ['8.2.2', 'not-checked', 'Not checked: the patched copy did not compile'],
+      ['8.8', 'not-checked', 'Not checked: the patched copy did not compile'],
+      ['5', 'not-checked', 'Not checked: the patched copy did not compile'],
+    ]);
+    expect(t.root.textContent).not.toMatch(/Not known/);
+  });
+
   it('S2-13: uses this scan\'s check from "Compile and check" again, so only the patched copy is sent', async () => {
     const c = stub((patched) => (patched ? patchedDone() : job()));
     const t = page({ compare: true, checker: c });
