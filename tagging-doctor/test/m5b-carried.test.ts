@@ -69,7 +69,7 @@ describe('R5a.2-6: the copy blanks each file once, not once per figure', () => {
   it('200 approved figures with options: compare 100 and 200 (not a time limit, knowledge 2026-11-20)', () => {
     const run = (n: number) => {
       const body = Array.from({ length: n }, (_, i) => `Some text ${'x'.repeat(1500)}\n\\includegraphics[width=3cm]{a.png} % ${i}`).join('\n');
-      const { p, scan, figures } = figs({ 'main.tex': DOC(body), 'a.png': PNG });
+      const { p, figures } = figs({ 'main.tex': DOC(body), 'a.png': PNG });
       const d = new Map<string, AltDecision>(figures.map((f) => [f.id, { decision: 'approved', text: 'A' }]));
       const t = performance.now();
       const edits = altEdits(p, figures, d);
