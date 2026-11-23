@@ -12,6 +12,7 @@ import { createWriteStream, readFileSync, rmSync } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { Writable } from 'node:stream';
 import { AuthUnavailable, bearer, type Verify } from './auth.ts';
 import type { Config } from './config.ts';
 import type { Job, Jobs } from './jobs.ts';
@@ -37,7 +38,12 @@ export interface ServerDeps {
   versions: { texlive: string; verapdf: string };
   selfTest: SelfTest;
   now?: () => number;
+  /** Opens the slot's file for an upload's body (a test gives a stream whose writes fail, as on a full disk: R3b.2-1). */
+  openUpload?: (file: string) => Writable;
 }
+
+const openUploadFile = (file: string): Writable => createWriteStream(file, { flags: 'wx', mode: 0o600 });
+const STORE_FAILED = 'The checker could not store the upload.';
 
 const JOB_ROUTE = /^\/api\/jobs\/([0-9a-f]{32})(\/pdf)?$/;
 export const UNAVAILABLE_MESSAGE = 'The checker is not available. The scan still works.';
@@ -92,11 +98,11 @@ export function gone(req: IncomingMessage): boolean {
  * disk, so bodies in flight do not hold memory (R3a.1-1). On failure the
  * promise settles only after the file is closed and removed (R3a.2-1).
  */
-function receiveBody(req: IncomingMessage, file: string, limit: number, limitMs: number): Promise<void> {
+function receiveBody(req: IncomingMessage, file: string, limit: number, limitMs: number, openUpload: (file: string) => Writable = openUploadFile): Promise<void> {
   return new Promise((resolve, reject) => {
     // The client may have left while the token was checked: its events have fired already.
     if (gone(req)) return reject(new HttpError(400, CUT_SHORT, 'bad-upload'));
-    const out = createWriteStream(file, { flags: 'wx', mode: 0o600 });
+    const out = openUpload(file);
     let size = 0;
     let settled = false;
     let ended = false;
@@ -117,7 +123,7 @@ function receiveBody(req: IncomingMessage, file: string, limit: number, limitMs:
         out.destroy();
       }
     };
-    out.on('error', () => fail(new HttpError(500, 'The checker could not store the upload.', 'internal')));
+    out.on('error', () => fail(new HttpError(500, STORE_FAILED, 'internal')));
     req.on('data', (c: Buffer) => {
       size += c.length;
       if (size > limit) return fail(new HttpError(413, 'The upload is larger than 25 MB.', 'too-large', { connection: 'close' }));
@@ -128,7 +134,10 @@ function receiveBody(req: IncomingMessage, file: string, limit: number, limitMs:
     });
     req.on('end', () => {
       ended = true;
-      out.end(() => {
+      // Node gives a write error that comes after the request's end (a full disk) to this callback
+      // before the 'error' event, so it is read here: the upload is the server's failure, not a short zip (R3b.2-1).
+      out.end((err?: Error | null) => {
+        if (err) return fail(new HttpError(500, STORE_FAILED, 'internal'));
         if (settled) return;
         settled = true;
         clearTimeout(timer);
@@ -242,7 +251,7 @@ export function createHandler(d: ServerDeps) {
       }
       try {
         try {
-          await receiveBody(req, slot.file, d.cfg.maxBodyBytes, d.cfg.bodyLimitMs ?? bodyLimitMs(declared));
+          await receiveBody(req, slot.file, d.cfg.maxBodyBytes, d.cfg.bodyLimitMs ?? bodyLimitMs(declared), d.openUpload);
         } catch (e) {
           // R3a.2-2: a body that did not arrive (cut short 400, too slow 408, too large 413) held a slot for
           // nothing; it costs its user. The server's own failure (500, a write error) does not (R3b.1-9, D-86).
@@ -263,7 +272,8 @@ export function createHandler(d: ServerDeps) {
           throw e;
         }
         const job = d.jobs.submit(userId, slot.file, mainFile, entries);
-        send(res, 202, publicJob(job, d.jobs), { ...cors, location: `/api/jobs/${job.id}` });
+        // The checks left this hour go with the new job, so the page can say so (S2-13).
+        send(res, 202, { ...publicJob(job, d.jobs), checksLeft: d.jobs.checksLeft(userId) }, { ...cors, location: `/api/jobs/${job.id}` });
         return 'jobs';
       } finally {
         slot.release();

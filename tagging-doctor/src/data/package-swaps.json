@@ -1,0 +1,107 @@
+{
+  "about": "Package swaps the patch may make (AC-40). Each swap replaces one package name in \\usepackage or \\RequirePackage with another that the pinned status data lists as compatible, keeping the options. A swap is offered only when its record passed: its fixture project, with tagging on, compiles with LuaLaTeX on the checker's image after the swap, and veraPDF's count of failed checks does not rise. Entries with \"to\": null have no tested replacement; the page shows their advice. The records are written by tagging-doctor/image-test/swaps.test.ts, which checks each one again.",
+  "testedOn": {
+    "image": "tagging-doctor-worker (Dockerfile at the commit that wrote the record)",
+    "texlive": "This is LuaHBTeX, Version 1.24.0 (TeX Live 2026)",
+    "latex": "LaTeX2e 2026-11-01",
+    "verapdf": "veraPDF 1.30.4",
+    "profile": "PDF/UA-2",
+    "metadataLine": "\\DocumentMetadata{lang=en-US, pdfstandard=ua-2, tagging=on, tagging-setup={math/setup=mathml-SE}}"
+  },
+  "entries": [
+    {
+      "from": "here",
+      "to": "float",
+      "why": "here is obsolete and only loads float; float gives the same [H] placement and is listed as compatible.",
+      "fixture": "tagging-doctor-worker/fixtures/swaps/here",
+      "record": {
+        "date": "2026-11-23",
+        "before": {
+          "compiled": true,
+          "failedChecks": 0
+        },
+        "after": {
+          "compiled": true,
+          "failedChecks": 0
+        },
+        "passed": true
+      }
+    },
+    {
+      "from": "footnote",
+      "to": "footnotehyper",
+      "why": "footnotehyper is the LaTeX Project's named replacement for footnote, with the same commands (\\savenotes, \\makesavenoteenv), and is listed as compatible.",
+      "fixture": "tagging-doctor-worker/fixtures/swaps/footnote",
+      "record": {
+        "date": "2026-11-23",
+        "before": {
+          "compiled": true,
+          "failedChecks": 0
+        },
+        "after": {
+          "compiled": true,
+          "failedChecks": 0
+        },
+        "passed": true
+      }
+    },
+    {
+      "from": "arrayjob",
+      "to": "arrayjobx",
+      "why": "arrayjob is obsolete; arrayjobx is the LaTeX Project's named replacement, with the same commands, and is listed as compatible.",
+      "fixture": "tagging-doctor-worker/fixtures/swaps/arrayjob",
+      "record": {
+        "date": "2026-11-23",
+        "before": {
+          "compiled": false,
+          "failedChecks": null
+        },
+        "after": {
+          "compiled": true,
+          "failedChecks": 0
+        },
+        "passed": true
+      }
+    },
+    {
+      "from": "tabu",
+      "to": null,
+      "advice": "Rewrite the tables that use tabu with tabularx (tables of a fixed width) or with tabular and the array package. Both are listed as compatible, but the commands differ, so the patch cannot do it for you."
+    },
+    {
+      "from": "theorem",
+      "to": null,
+      "advice": "The LaTeX Project suggests amsthm. Its commands differ from theorem's (\\theoremstyle in place of \\theorembodyfont), so change the theorem definitions by hand."
+    },
+    {
+      "from": "mdframed",
+      "to": null,
+      "advice": "The LaTeX Project recommends tcolorbox. Its boxes are written differently, so rewrite each mdframed box by hand."
+    },
+    {
+      "from": "lineno",
+      "to": null,
+      "advice": "The LaTeX Project points to lualineno, which works differently; drop the line numbers from the tagged copy, or move to lualineno by hand."
+    },
+    {
+      "from": "titleref",
+      "to": null,
+      "advice": "Use \\nameref from the nameref package (loaded by hyperref) in place of \\titleref, by hand."
+    },
+    {
+      "from": "soulutf8",
+      "to": null,
+      "advice": "The LaTeX Project says to load soul directly, but soul itself does not work with tagging yet, so there is no tested replacement."
+    },
+    {
+      "from": "caption2",
+      "to": null,
+      "advice": "The LaTeX Project names caption as the replacement, but caption does not work with tagging yet either. Remove caption2 if the default captions will do."
+    },
+    {
+      "from": "extarticle",
+      "to": null,
+      "advice": "For now the LaTeX Project suggests the article class with the extsizes package. That changes the class line and its options, so make the change by hand and compare the layout."
+    }
+  ]
+}

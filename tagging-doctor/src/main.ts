@@ -10,10 +10,16 @@
 import { loadStatus } from './core/status';
 import { hasSupabase } from './lib/supabase';
 import { browserDownload, browserDownloadBlob, mountApp } from './ui/app';
-import { chooseAccount } from './ui/choose-account';
+import { chooseAccount, optionalChunk } from './ui/choose-account';
 import { checkerUrl } from './lib/checker';
 
 const checker = checkerUrl();
+
+// "Compile patched and compare" (AC-42, AC-80): Vite writes the flag's value into the build, so with it
+// off this branch is dead and src/ui/compare.ts is neither bundled nor called. A chunk that does not load
+// leaves the compare out, not the page (R4a.1-8 c).
+const compare =
+  checker && import.meta.env.VITE_COMPARE_PATCHED === 'on' ? await optionalChunk(() => import('./ui/compare'), (m) => console.warn(m)) : null;
 
 const root = document.getElementById('app');
 if (!root) throw new Error('index.html needs <div id="app">');
@@ -50,6 +56,8 @@ mountApp(root, {
         downloadBlob: browserDownloadBlob,
       }
     : undefined,
+  compare: compare ?? undefined,
+  downloadBlob: browserDownloadBlob,
 });
 
 // The page must not open a file dropped outside the drop area.

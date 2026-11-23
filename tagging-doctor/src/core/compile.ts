@@ -91,6 +91,8 @@ export interface CheckerJob {
   pdf: boolean;
   expiresAt: string | null;
   note: string | null;
+  /** In the answer to a new job only: how many more checks the person may start this hour (S2-13). */
+  checksLeft?: number;
 }
 
 // ---- AC-30: veraPDF's failures by clause ----------------------------------------
@@ -163,11 +165,6 @@ export function compiledLine(r: Pick<CheckerResult, 'pages' | 'seconds' | 'warni
 }
 
 /**
- * The first error in plain words (AC-29; S2-9's map of common TeX errors), or
- * null when the message is not one of them (TeX's own words are then shown).
- * Outside programs get the scan's own words (S2-8, AC-8).
- */
-/**
  * A missing file of a type the page does not send (R3b.1-5): it may be in the
  * person's zip, so "add it" would be wrong. Null for a type the checker takes,
  * or a name with no type.
@@ -179,8 +176,21 @@ function notSent(name: string): string | null {
   return `The checker does not take ${base.slice(dot).toLowerCase()} files, so ${name} was not sent; the compile needs it.`;
 }
 
+/** pgfplots' table error when the log line ends before the file's name does (R4a.1-3). */
+export const PGF_TABLE_CUT =
+  'pgfplots could not read a table file; the log cuts its name. The checker does not take .csv or .dat files, so a table in one was not sent; a table of another type must be in the zip, under the name the document gives.';
+
+/**
+ * The first error in plain words (AC-29; S2-9's map of common TeX errors), or
+ * null when the message is not one of them (TeX's own words are then shown).
+ * Outside programs get the scan's own words (S2-8, AC-8).
+ */
 export const TEX_ERRORS: [RegExp, (m: RegExpExecArray) => string][] = [
   [/Undefined control sequence/i, () => 'A command is not defined. Check its spelling, or load the package that defines it.'],
+  // pgfplots' own words. TeX wraps the log at 79 columns, so the name is read only up to its closing quote on the
+  // same line; a name the wrap cut is not named at all (R3b.2-4, R4a.1-3). The closing quote is the one before
+  // " in '…'" or the line's end, so a name may hold an apostrophe (R4a.2-4 e).
+  [/Could not read table file(?: [`'‘](.+?)['’](?= in [`'‘]|[.,;:]?(?:\s|$)))?/i, (m) => (m[1] ? (notSent(m[1]) ?? `The table file ${m[1]} could not be read. Add it to the zip, or check its name.`) : PGF_TABLE_CUT)],
   [/LaTeX Error: File [`'‘]([^'’`]+)['’] not found/i, (m) => notSent(m[1]) ?? `The file ${m[1]} was not found. Add it to the zip, or check its name; packages outside TeX Live are not installed on the checker.`],
   [/File [`'‘]([^'’`]+)['’] not found/i, (m) => notSent(m[1]) ?? `The file ${m[1]} was not found. Add it to the zip, or check its name.`],
   [/Missing \$ inserted/i, () => 'A math symbol is outside math mode: a $ is missing, or a _ or ^ is in plain text.'],

@@ -16,8 +16,11 @@ import { LIMITS, ZipError } from '../core/zip';
 import { defaultProjectName, toStoredScan, type SaveItem } from '../core/saved';
 import type { SavedResult } from '../lib/store';
 import type { CourseStore } from '../lib/store';
-import { jobRecord, type CheckerJob } from '../core/compile';
+import { jobRecord, type CheckerJob, type JobRecord } from '../core/compile';
+import { finished } from '../core/compare';
 import { mountCompile, KEPT, type CompileDeps } from './compile';
+import { mountFixes, newFixesState, type FixesState } from './fixes';
+import type { CompareDeps, compareSlot as CompareSlot } from './compare';
 import { KEEP_HASH, renderCourse, renderCourseReport, renderCourses, renderKeep, renderNotFound, renderProject, renderSaveDialog, type PageCtx } from './pages';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -58,6 +61,13 @@ export interface AppDeps {
   print?: () => void;
   /** Compile and check (milestone 3b): present when the build turns it on and names the checker (src/lib/checker.ts). */
   compile?: Omit<CompileDeps, 'token' | 'session'>;
+  /**
+   * "Compile patched and compare" (AC-42): src/ui/compare.ts, present only when the build turns it on
+   * (VITE_COMPARE_PATCHED, AC-80); offered with Compile and check, to a signed-in person.
+   */
+  compare?: { compareSlot: typeof CompareSlot };
+  /** The browser's download of a file it made (the patched zip, AC-41); else the patched zip goes through `download`'s Blob path. */
+  downloadBlob?: (name: string, blob: Blob) => void;
 }
 
 /** sessionStorage key of a save asked for before signing in (it holds what a saved scan holds, no more). */
@@ -158,10 +168,22 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   const compilePanel = el('section', { id: 'compile', class: 'compile-panel', 'aria-labelledby': 'compile-h' });
   compilePanel.hidden = true;
   let compileRun: { cancel: () => void } | null = null;
+  /** The document the compile panel is for (R4a.1-7). */
+  let compileFor: string | null = null;
+  /** The panel opened last, which stands first after the buttons (R4a.2-4 f). */
+  let newestPanel: 'compile' | 'fixes' = 'compile';
+  const fixesPanel = el('section', { id: 'fixes', class: 'fixes-panel', 'aria-labelledby': 'fixes-h' });
+  fixesPanel.hidden = true;
+  let fixesRun: { cancel: () => void } | null = null;
+  /** The document the fix panel is for, and each document's fix choices in this drop (milestone 4). */
+  let fixesFor: string | null = null;
+  let fixStates = new Map<string, FixesState>();
+  /** Each document's finished check of its original in this drop, used again by the compare (S2-13). */
+  let originals = new Map<string, CheckerJob>();
   /** The saved scan of each main file of this drop, so a job row can name it (AC-35). */
   let savedScans = new Map<string, { projectId: string; scanId: string }>();
   /** Finished jobs of this drop whose scan is not saved yet: saving keeps them (AC-27, "Save to keep this result"). */
-  let unsavedJobs = new Map<string, CheckerJob>();
+  let unsavedJobs = new Map<string, { job: CheckerJob; kind: JobRecord['kind'] }[]>();
   const account = deps.account;
   let signedIn = false;
   /** The signed-in person's id; the dialog and the pages are redrawn only when it changes (R2.1-2). */
@@ -231,8 +253,11 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     scannedAll = false;
     hideSave();
     hideCompile();
+    hideFixes();
     savedScans = new Map();
     unsavedJobs = new Map();
+    fixStates = new Map();
+    originals = new Map();
   }
 
   function showError(message: string) {
@@ -303,6 +328,9 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   /** Any error from reading or scanning: a plain message, and the page stays usable. */
   function failed(e: unknown) {
     status.textContent = '';
+    // The panels' document is gone with the page's: their checks are cancelled (R4a.2-4 g).
+    hideCompile();
+    hideFixes();
     project = null;
     docsEl.hidden = true;
     allEl.hidden = true;
@@ -435,6 +463,24 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       downloads(),
     );
     if (keepDialog) allEl.querySelector('.downloads')?.after(savePanel);
+    keepPanels(allEl);
+  }
+
+  /**
+   * Puts the compile and fix panels back after the new buttons when their
+   * container was drawn again for the same document ("Scan all"), so a running
+   * check keeps its panel and its Cancel (R4a.1-7).
+   */
+  function keepPanels(container: HTMLElement) {
+    const dl = container.querySelector('.downloads');
+    if (!dl) return;
+    // Each goes right after the buttons, the older first, so the newer ends up first, as it was (R4a.2-4 f).
+    const panels: [HTMLElement, string | null][] = [
+      [compilePanel, compileFor],
+      [fixesPanel, fixesFor],
+    ];
+    if (newestPanel === 'compile') panels.reverse();
+    for (const [panel, doc] of panels) if (doc !== null && doc === shown && !panel.isConnected) dl.after(panel);
   }
 
   function downloads(): HTMLElement {
@@ -444,6 +490,10 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     html.addEventListener('click', () => deps.download(downloadName((project as Project).name, 'html'), 'text/html', reportHtml(currentReport())));
     json.addEventListener('click', () => deps.download(downloadName((project as Project).name, 'json'), 'application/json', reportJson(currentReport())));
     wrap.append(html, ' ', json);
+    // Signed in or not (AC-37): the patch runs in the browser.
+    const fixes = el('button', { type: 'button', class: 'fixes-open' }, 'Suggest fixes');
+    fixes.addEventListener('click', () => openFixes(wrap));
+    wrap.append(' ', fixes);
     if (account) {
       const save = el('button', { type: 'button', class: 'save' }, scannedAll ? 'Save all to a course' : 'Save');
       save.addEventListener('click', () => openSave(wrap, scannedAll ? 'all' : 'one'));
@@ -467,13 +517,18 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     hideCompile();
     after.after(compilePanel);
     compilePanel.hidden = false;
+    compileFor = main;
+    newestPanel = 'compile';
     compileRun = mountCompile(
       compilePanel,
       { ...deps.compile, token: async () => (account.token ? account.token() : null), session: deps.session },
       {
         project,
         mainFile: main,
-        keep: (job) => keepJob(main, job),
+        keep: (job) => {
+          if (finished(job)) originals.set(main, job);
+          return keepJob(main, job);
+        },
         save: () => openSave(compilePanel, 'one', currentItems('one')),
         onClose: hideCompile,
       },
@@ -484,25 +539,78 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   function hideCompile() {
     compileRun?.cancel();
     compileRun = null;
+    compileFor = null;
     compilePanel.hidden = true;
     compilePanel.replaceChildren();
     compilePanel.remove();
   }
 
   /** Writes the job row when the scan of `main` is saved (AC-35); else keeps the job for a later save. */
-  async function keepJob(main: string, job: CheckerJob): Promise<boolean> {
+  async function keepJob(main: string, job: CheckerJob, kind: JobRecord['kind'] = 'check'): Promise<boolean> {
     // Keyed as the save items name it (wellFormed).
     main = wellFormed(main);
     const saved = savedScans.get(main);
-    const record = jobRecord(job);
+    const record = jobRecord(job, kind);
     if (!record) return false;
     if (!saved || !account || !signedIn) {
-      unsavedJobs.set(main, job);
+      // The last check of each kind waits for the save.
+      unsavedJobs.set(main, [...(unsavedJobs.get(main) ?? []).filter((j) => j.kind !== kind), { job, kind }]);
       return false;
     }
-    unsavedJobs.delete(main);
+    unsavedJobs.set(main, (unsavedJobs.get(main) ?? []).filter((j) => j.kind !== kind));
     await account.store().saveJob(saved.projectId, saved.scanId, record);
     return true;
+  }
+
+  // ---- Suggest fixes and compare (milestone 4) ------------------------------------
+
+  function openFixes(after: HTMLElement) {
+    if (!project || !shown) return;
+    hideFixes();
+    after.after(fixesPanel);
+    fixesPanel.hidden = false;
+    fixesFor = shown;
+    newestPanel = 'fixes';
+    drawFixes();
+    (fixesPanel.querySelector('#fixes-h') as HTMLElement | null)?.focus();
+  }
+
+  /** (Re)draws the fix panel for `fixesFor`, keeping the person's choices; the compare part only for a signed-in person. */
+  function drawFixes() {
+    if (!project || !fixesFor) return;
+    const main = fixesFor;
+    fixesRun?.cancel();
+    let state = fixStates.get(main);
+    if (!state) fixStates.set(main, (state = newFixesState()));
+    const compare = deps.compare && deps.compile && account && signedIn ? deps.compare : null;
+    const compile = deps.compile;
+    fixesRun = mountFixes(fixesPanel, {
+      project,
+      scan: scans.get(main) as DocumentScan,
+      state,
+      downloadBlob: deps.downloadBlob ?? deps.compile?.downloadBlob ?? (() => {}),
+      onClose: hideFixes,
+      compareSlot:
+        compare && compile && account
+          ? compare.compareSlot({
+              checker: compile.checker,
+              token: async () => (account.token ? account.token() : null),
+              session: deps.session,
+              original: () => originals.get(main) ?? null,
+              rememberOriginal: (job) => void originals.set(main, job),
+              keep: (job, kind) => keepJob(main, job, kind),
+            } satisfies CompareDeps)
+          : undefined,
+    });
+  }
+
+  function hideFixes() {
+    fixesRun?.cancel();
+    fixesRun = null;
+    fixesFor = null;
+    fixesPanel.hidden = true;
+    fixesPanel.replaceChildren();
+    fixesPanel.remove();
   }
 
   /** After a save: remember the saved scans, and write the rows of results shown before it (AC-27, AC-35). */
@@ -511,9 +619,9 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       const item = mode === 'one' ? items[0] : items.find((i) => i.name.trim() === r.project.name);
       if (item) savedScans.set(item.mainFile, { projectId: r.project.id, scanId: r.scan.id });
     }
-    for (const [main, job] of [...unsavedJobs]) {
+    for (const [main, jobs] of [...unsavedJobs]) {
       if (!savedScans.has(main)) continue;
-      void keepJob(main, job).then(
+      for (const { job, kind } of jobs) void keepJob(main, job, kind).then(
         (kept) => {
           if (!kept) return;
           const line = compilePanel.querySelector('.save-to-keep');
@@ -649,8 +757,10 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   }
 
   function renderResult(main: string) {
-    // A compile of the document shown before no longer applies.
-    if (compilePanel.isConnected && main !== shown) hideCompile();
+    // A compile, or fixes, of the document shown before no longer apply: cancelled, whether or not the
+    // panel is still on the page, since drawing the summary again takes it off (R4a.1-7).
+    if (compileFor !== null && compileFor !== main) hideCompile();
+    if (fixesFor !== null && fixesFor !== main) hideFixes();
     shown = main;
     if (scannedAll) {
       for (const b of allEl.querySelectorAll<HTMLButtonElement>('button[data-show]')) {
@@ -682,6 +792,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       ),
     );
     resultEl.replaceChildren(...out);
+    keepPanels(scannedAll ? allEl : resultEl);
   }
 
   function groupSection(s: DocumentScan, g: Group): HTMLElement {
@@ -801,9 +912,12 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       for (const b of root.querySelectorAll<HTMLButtonElement>('button.compile-open')) b.hidden = !signedIn;
       // Another person, or none: a compile panel of the one before goes (its token is theirs),
       // and so do that person's saved scans and unsaved checks, which are not the new person's (R3b.1-1).
-      if (compilePanel.isConnected) hideCompile();
+      if (compileFor !== null) hideCompile();
       savedScans = new Map();
       unsavedJobs = new Map();
+      // That person's checks are not the new person's; the fix panel is drawn again, with or without the compare.
+      originals = new Map();
+      if (fixesFor !== null) drawFixes();
       if (saveItems) drawSave();
       showPending();
       // A page that depends on who is signed in is drawn again, also for another person (R2.1-9).

@@ -30,3 +30,18 @@ export async function chooseAccount(c: AccountChoice): Promise<Account | undefin
     return undefined;
   }
 }
+
+/**
+ * A part of the page in a chunk of its own that the page can do without
+ * ("Compile patched and compare"): null when the chunk fails to load, as after
+ * a deploy that a page left open still points at, so the scan is still mounted
+ * (R4a.1-8 c).
+ */
+export async function optionalChunk<T>(load: () => Promise<T>, warn?: (message: string) => void): Promise<T | null> {
+  try {
+    return await load();
+  } catch (e) {
+    warn?.(`A part of the page did not load: ${e instanceof Error ? e.message : String(e)}`);
+    return null;
+  }
+}

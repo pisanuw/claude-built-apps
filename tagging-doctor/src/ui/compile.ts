@@ -22,7 +22,8 @@ import {
 } from '../core/compile';
 import { projectZip } from '../core/outzip';
 import type { Project } from '../core/project';
-import { CheckerError, follow, forget, pdf, submit, wake, WAKING, type CheckerDeps } from '../lib/checker';
+import { CheckerError, forget, pdf, runJob, SENDING, WAKING, type CheckerDeps } from '../lib/checker';
+import { CHECK_TAKES, progress, realClock, type Clock, type Progress } from './progress';
 
 export const UPLOAD_NOTICE =
   'Compile sends this project’s files to the HintWise checker, which deletes them within 30 minutes. Upload only materials you wrote or may change.';
@@ -37,6 +38,8 @@ export interface CompileDeps {
   token: () => Promise<string | null>;
   session: Pick<Storage, 'getItem' | 'setItem'> | null;
   downloadBlob: (name: string, blob: Blob) => void;
+  /** The clock of the running check's count (AC-81); the browser's by default. */
+  clock?: Clock;
 }
 
 export interface CompileOpts {
@@ -149,7 +152,10 @@ export function mountCompile(panel: HTMLElement, deps: CompileDeps, opts: Compil
   const result = el('div', { class: 'compile-result' });
   const actions = el('p', { class: 'actions' });
 
-  const base = (): HTMLElement[] => [h, notice, ...(left ? [el('p', { class: 'help' }, left)] : []), status, alert, result, actions];
+  const takes = el('p', { class: 'help check-takes' }, CHECK_TAKES);
+  takes.hidden = true;
+  const prog = progress(status, deps.clock ?? realClock, (on) => (takes.hidden = !on));
+  const base = (): HTMLElement[] => [h, notice, ...(left ? [el('p', { class: 'help' }, left)] : []), status, takes, alert, result, actions];
 
   /** The job the checker holds for the current run, until it is forgotten (R3b.1-7). */
   let sent: string | null = null;
@@ -158,6 +164,7 @@ export function mountCompile(panel: HTMLElement, deps: CompileDeps, opts: Compil
   /** Stops following the run and deletes its job on the checker, which then runs the next one and keeps nothing (R3b.1-7). */
   function stop() {
     gen++;
+    prog.stop();
     running = false;
     if (sent) void forget(deps.checker, sent, deps.token);
     sent = null;
@@ -177,7 +184,7 @@ export function mountCompile(panel: HTMLElement, deps: CompileDeps, opts: Compil
   }
 
   function fail(message: string) {
-    status.textContent = '';
+    prog.plain('');
     alert.replaceChildren(el('p', {}, message));
     actions.replaceChildren(button('Try again', () => void start(), { id: 'compile-retry' }), ' ', button('Close', close));
   }
@@ -198,54 +205,44 @@ export function mountCompile(panel: HTMLElement, deps: CompileDeps, opts: Compil
     panel.replaceChildren(...base());
     status.textContent = 'Asking the checker…';
     try {
-      const token = await deps.token();
-      if (stale()) return;
-      if (!token) {
-        running = false;
-        return fail('Sign in again to compile: your sign-in has ended.');
-      }
       const zip = projectZip(opts.project, { include: checkerTakes });
       if (zip.length > CHECKER_MAX_BYTES) {
         running = false;
         return fail(TOO_LARGE);
       }
-      await wake(deps.checker, (s) => {
-        if (!stale()) status.textContent = `${WAKING} (${s} s)`;
-      }, undefined, stale);
-      if (stale()) return;
-      status.textContent = 'Sending the project…';
-      const first = await submit(deps.checker, zip, opts.mainFile, token);
-      sent = first.id;
-      if (stale()) {
-        // Cancelled while the upload was on its way: the job is deleted now that its id is known.
-        void forget(deps.checker, first.id, deps.token);
-        sent = null;
-        return;
-      }
-      const done = await follow(
-        deps.checker,
-        first,
-        deps.token,
-        (j) => {
-          if (!stale()) status.textContent = j.status === 'queued' ? 'Waiting for its turn on the checker…' : j.status === 'running' ? 'Compiling and checking…' : '';
+      const done = await runJob(deps.checker, zip, opts.mainFile, deps.token, {
+        onStatus: (text) => {
+          if (!stale()) showStep(prog, text);
+        },
+        onSent: ({ id }) => {
+          sent = id;
+          // Cancelled while the upload was on its way: the job is deleted now that its id is known.
+          if (stale()) {
+            void forget(deps.checker, id, deps.token);
+            sent = null;
+          }
         },
         stale,
-      );
+      });
       if (stale()) return;
       running = false;
-      status.textContent = done.status === 'done' ? 'The check is finished.' : 'The check is finished: the project did not compile.';
+      prog.plain(done.status === 'done' ? 'The check is finished.' : 'The check is finished: the project did not compile.');
       result.replaceChildren(...jobResult(done));
       actions.replaceChildren();
       if (done.pdf) {
         actions.append(
           button('Download the PDF', () => {
             // The token of the moment: the PDF is offered for 30 minutes (R3b.1-2).
-            void pdf(deps.checker, done.id, deps.token).then((r) => {
-              if ('blob' in r) {
-                alert.replaceChildren();
-                deps.downloadBlob(`${opts.mainFile.replace(/^.*\//, '').replace(/\.tex$/i, '') || 'output'}.pdf`, r.blob);
-              } else alert.replaceChildren(el('p', {}, r.error));
-            });
+            void pdf(deps.checker, done.id, deps.token).then(
+              (r) => {
+                if ('blob' in r) {
+                  alert.replaceChildren();
+                  deps.downloadBlob(`${opts.mainFile.replace(/^.*\//, '').replace(/\.tex$/i, '') || 'output'}.pdf`, r.blob);
+                } else alert.replaceChildren(el('p', {}, r.error));
+              },
+              // pdf() says every failure in words; a download that still throws is said too (R3b.2-3).
+              () => alert.replaceChildren(el('p', {}, 'The PDF could not be downloaded. Try again.')),
+            );
           }),
           ' ',
         );
@@ -269,10 +266,11 @@ export function mountCompile(panel: HTMLElement, deps: CompileDeps, opts: Compil
     }
   }
 
-  // The checker compiles a .tex main file only (AC-32): say so at once, send nothing (R3b.1-4).
-  if (!/\.tex$/i.test(opts.mainFile)) {
-    const name = opts.mainFile.replace(/^.*\//, '');
-    alert.replaceChildren(el('p', {}, notTexMessage(name)));
+  // The checker compiles a .tex main file only, and none whose path starts with -, & or \ (AC-32):
+  // say so at once, send nothing (R3b.1-4, R3b.2-2).
+  const refused = mainFileRefusal(opts.mainFile);
+  if (refused) {
+    alert.replaceChildren(el('p', {}, refused));
     actions.replaceChildren(button('Close', close));
     panel.replaceChildren(...base());
   } else if (noticeSeen(deps.session)) void start();
@@ -280,7 +278,35 @@ export function mountCompile(panel: HTMLElement, deps: CompileDeps, opts: Compil
   return { cancel: stop, start };
 }
 
+/**
+ * A step of runJob on the status line (AC-81): the wake line keeps its own
+ * count (AC-27); "Sending the project…" starts the seconds since the check
+ * was sent, which the next steps carry; an empty step (the end) is left to
+ * the caller's last words.
+ */
+export function showStep(p: Progress, text: string): void {
+  if (!text) return;
+  if (text.startsWith(WAKING)) return p.plain(text);
+  if (text === SENDING) p.sent();
+  p.step(text);
+}
+
 /** For a main file that is not .tex (R3b.1-4). */
 export function notTexMessage(name: string): string {
   return `The checker compiles .tex main files only; rename ${name} to ${name.replace(/\.[^.]*$/, '')}.tex to check it.`;
+}
+
+/**
+ * Why the checker would refuse this main file (its own rule, AC-32), in words
+ * the person can act on, or null. The worker refuses a path that starts with
+ * -, & or \ (R3b.2-2), and any main file that is not .tex (R3b.1-4).
+ */
+export function mainFileRefusal(mainFile: string): string | null {
+  const name = mainFile.replace(/^.*\//, '');
+  if (/^[-&\\]/.test(mainFile)) {
+    const first = mainFile.includes('/') ? `the folder ${mainFile.split('/')[0]}` : name;
+    return `The checker cannot compile a main file whose path starts with -, & or \\; rename ${first} to check it.`;
+  }
+  if (!/\.tex$/i.test(mainFile)) return notTexMessage(name);
+  return null;
 }

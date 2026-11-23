@@ -22,6 +22,7 @@ import {
   leftOutOfUpload,
   leftOutOfUploadLine,
   MAPPED_SPECIFICATION,
+  PGF_TABLE_CUT,
   plainTexError,
   profileName,
   TEX_ERRORS,
@@ -231,9 +232,29 @@ describe('AC-29: the compile in plain words', () => {
     expect(font).not.toMatch(/zip/);
   });
 
+  it('R4a.1-3: names a pgfplots table only when the log line holds its closing quote', () => {
+    // Copied from real logs: LuaLaTeX on the worker's image, the worker's flags, \addplot table {data/marks.csv}
+    // with no such file. At line 12 the 79-column wrap cuts the name; at line 9 it ends just before the quote.
+    const line12 = "Package pgfplots Error: Could not read table file 'data/marks.cs";
+    const line9 = "Package pgfplots Error: Could not read table file 'data/marks.csv";
+    expect(plainTexError(line12)).toBe(PGF_TABLE_CUT);
+    expect(plainTexError(line9)).toBe(PGF_TABLE_CUT);
+    expect(plainTexError("Package pgfplots Error: Could not read table file 'data/my")).toBe(PGF_TABLE_CUT);
+    expect(PGF_TABLE_CUT).not.toMatch(/marks|Add it to the zip/);
+    // With its closing quote, the name is read whole, a space included.
+    expect(plainTexError("Package pgfplots Error: Could not read table file 'data/week 1/marks.csv' in 'search path=.'.")).toBe(
+      'The checker does not take .csv files, so data/week 1/marks.csv was not sent; the compile needs it.',
+    );
+    expect(plainTexError("Package pgfplots Error: Could not read table file 'plot.tex' in 'search path=.'.")).toBe(
+      'The table file plot.tex could not be read. Add it to the zip, or check its name.',
+    );
+  });
+
   it('has a sample for each entry of the error map, each read by its own entry', () => {
     const samples = [
       'Undefined control sequence.',
+      // Copied from a real log: LuaLaTeX on the worker's image, --file-line-error, as firstError keeps it (R3b.2-4).
+      "Package pgfplots Error: Could not read table file 'data/marks.csv",
       "LaTeX Error: File `tabu.sty' not found.",
       "! I can't find file `x.tex'. File `x.tex' not found.",
       'Missing $ inserted.',

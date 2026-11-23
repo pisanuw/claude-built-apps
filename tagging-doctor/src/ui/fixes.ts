@@ -1,0 +1,226 @@
+/**
+ * "Suggest fixes" (milestone 4): the fix cards of AC-37 with Accept and Skip,
+ * the language of the \DocumentMetadata line (AC-38), "Needs your attention"
+ * (AC-44), and "Download patched zip" with its diff (AC-41). Signed in or
+ * not: the patch runs in the browser and sends nothing. "Compile patched and
+ * compare" (AC-42, AC-43) is not in this file: when the build turns it on
+ * (AC-80), src/ui/compare.ts draws it into the slot this panel leaves.
+ */
+import { leftOutLine } from '../core/report';
+import { applyFixes, patchedZip, patchedZipName, suggestFixes, validLanguage, type FixCard, type FixPlan, type PatchResult } from '../core/patch';
+import type { Project } from '../core/project';
+import type { DocumentScan } from '../core/scan';
+
+export const FIXES_INTRO = 'Each fix is made on a copy of your files, which stay as they are. Accept or skip each one, then download the copy.';
+export const NOTHING_UPLOADED = 'The fixes are made in your browser; nothing is uploaded.';
+
+/** What the compare slot can ask of the panel (src/ui/compare.ts). */
+export interface FixesCtx {
+  project: Project;
+  scan: DocumentScan;
+  /** The ids of the accepted cards that change something now. */
+  accepted(): Set<string>;
+  /** The patch for a set of accepted ids (the current ones by default). */
+  patch(accepted?: ReadonlySet<string>): PatchResult;
+  /** The cards as they stand, for the retry list (AC-43). */
+  cards(): FixCard[];
+  /** Turns a card off or on, as its Skip and Accept buttons do. */
+  setAccepted(id: string, on: boolean): void;
+  /** Marks the card whose removal made the patched compile pass, or clears the mark (null). */
+  highlight(id: string | null): void;
+}
+
+export interface FixesOpts {
+  project: Project;
+  scan: DocumentScan;
+  /** The fix choices kept by the page for this document, so a redraw keeps them. */
+  state: FixesState;
+  downloadBlob: (name: string, blob: Blob) => void;
+  onClose: () => void;
+  /** Draws "Compile patched and compare" into `slot`; present only when the build turns it on and the person may compile. */
+  compareSlot?: (slot: HTMLElement, ctx: FixesCtx) => { cancel: () => void };
+}
+
+/** The person's choices for one document: the cards they turned on or off, and the language. */
+export interface FixesState {
+  choices: Map<string, boolean>;
+  language?: string;
+  highlighted: string | null;
+}
+
+export function newFixesState(): FixesState {
+  return { choices: new Map(), highlighted: null };
+}
+
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, text?: string): HTMLElementTagNameMap[K] {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+/** The ids the patch applies: accepted cards (by default or by choice) that change something. */
+export function acceptedIds(plan: FixPlan, state: FixesState): Set<string> {
+  return new Set(plan.cards.filter((c) => c.state === 'ready' && (state.choices.get(c.id) ?? c.acceptedByDefault)).map((c) => c.id));
+}
+
+/** One change as text: "main.tex, line 3". */
+function changeWhere(c: { path: string; line: number }): string {
+  return `${c.path}, line ${c.line}`;
+}
+
+/** Draws the panel; returns `cancel`, which stops a compare in progress. */
+export function mountFixes(panel: HTMLElement, opts: FixesOpts): { cancel: () => void; redraw: () => void } {
+  const { project, scan, state } = opts;
+  let plan = suggestFixes(project, scan, { language: state.language });
+  let compare: { cancel: () => void } | null = null;
+  const slot = el('div', { class: 'compare-slot' });
+
+  const ctx: FixesCtx = {
+    project,
+    scan,
+    accepted: () => acceptedIds(plan, state),
+    patch: (ids = acceptedIds(plan, state)) => applyFixes(project, scan, ids, { language: state.language }),
+    cards: () => plan.cards,
+    setAccepted: (id, on) => {
+      state.choices.set(id, on);
+      drawCards();
+    },
+    highlight: (id) => {
+      state.highlighted = id;
+      drawCards();
+    },
+  };
+
+  const h = el('h3', { id: 'fixes-h', tabindex: '-1' }, 'Suggested fixes');
+  const intro = el('p', {}, `${FIXES_INTRO} ${NOTHING_UPLOADED}`);
+  const live = el('p', { class: 'fixes-status', role: 'status', 'aria-live': 'polite' });
+  const cardsEl = el('ol', { class: 'fix-cards' });
+  const attentionEl = el('section', { class: 'attention', 'aria-labelledby': 'attention-h' });
+  const actions = el('div', { class: 'fix-actions' });
+
+  function drawCards() {
+    const focused = document.activeElement instanceof HTMLElement && cardsEl.contains(document.activeElement) ? document.activeElement : null;
+    const focusKey = focused ? `${focused.closest('[data-fix]')?.getAttribute('data-fix')}\u0000${focused.dataset.role ?? ''}` : null;
+    cardsEl.replaceChildren(...plan.cards.map(card));
+    if (focusKey) {
+      const [id, role] = focusKey.split('\u0000');
+      (cardsEl.querySelector(`[data-fix="${CSS.escape(id)}"] [data-role="${role}"]`) as HTMLElement | null)?.focus();
+    }
+  }
+
+  function card(c: FixCard): HTMLElement {
+    const on = c.state === 'ready' && (state.choices.get(c.id) ?? c.acceptedByDefault);
+    const li = el('li', { class: `fix-card ${c.state}${on ? ' accepted' : ''}${state.highlighted === c.id ? ' made-it-fail' : ''}`, 'data-fix': c.id });
+    const hid = `fix-${c.id.replace(/[^a-z0-9-]/gi, '-')}-h`;
+    li.setAttribute('aria-labelledby', hid);
+    li.append(el('h4', { id: hid }, c.title));
+    if (state.highlighted === c.id) {
+      li.append(el('p', { class: 'highlight', role: 'note' }, 'Turning this fix off made the patched copy compile. Keep it off, or change the document so the fix can stay.'));
+    }
+    const what = el('p', { class: 'what' });
+    what.append(el('strong', {}, 'What changes: '), c.what);
+    const why = el('p', { class: 'why' });
+    why.append(el('strong', {}, 'Why: '), c.why);
+    li.append(what, why);
+    if (c.kind === 'metadata' && c.state === 'ready') li.append(languageField());
+    if (c.state !== 'ready') {
+      li.append(el('p', { class: 'note' }, c.note ?? ''));
+      return li;
+    }
+    for (const ch of c.changes) {
+      const box = el('div', { class: 'change' });
+      box.append(el('p', { class: 'where' }, `In ${changeWhere(ch)}:`));
+      box.append(el('p', { class: 'label' }, 'Before'), el('pre', { class: 'before' }, ch.before.join('\n') || '(nothing)'));
+      box.append(el('p', { class: 'label' }, 'After'), el('pre', { class: 'after' }, ch.after.join('\n') || (ch.before.length > 1 ? '(the lines are removed)' : '(the line is removed)')));
+      li.append(box);
+    }
+    const choose = el('p', { class: 'choose', role: 'group', 'aria-label': `${c.title}: accept or skip` });
+    const accept = el('button', { type: 'button', 'aria-pressed': String(on), 'data-role': 'accept' }, 'Accept');
+    const skip = el('button', { type: 'button', 'aria-pressed': String(!on), 'data-role': 'skip' }, 'Skip');
+    accept.addEventListener('click', () => {
+      state.choices.set(c.id, true);
+      live.textContent = `${c.title}: accepted.`;
+      drawCards();
+    });
+    skip.addEventListener('click', () => {
+      state.choices.set(c.id, false);
+      live.textContent = `${c.title}: skipped.`;
+      drawCards();
+    });
+    choose.append(accept, ' ', skip, ' ', el('span', { class: 'state' }, on ? 'Accepted' : 'Skipped'));
+    li.append(choose);
+    return li;
+  }
+
+  function languageField(): HTMLElement {
+    const wrap = el('p', { class: 'language' });
+    const id = 'fix-language';
+    const label = el('label', { for: id }, 'Language of the document ');
+    const input = el('input', { id, type: 'text', value: plan.language.tag, spellcheck: 'false', autocomplete: 'off', 'aria-describedby': `${id}-help`, 'data-role': 'language', size: '8' });
+    const help = el('span', { id: `${id}-help`, class: 'help' }, ` A language tag such as en-US, en-GB, de or fr (now ${plan.language.tag}, ${plan.language.from}).`);
+    const err = el('span', { class: 'error', role: 'alert' });
+    input.addEventListener('change', () => {
+      const v = input.value.trim();
+      if (!validLanguage(v)) {
+        err.textContent = ` “${v}” is not a language tag; the line keeps ${plan.language.tag}.`;
+        return;
+      }
+      state.language = v;
+      plan = suggestFixes(project, scan, { language: v });
+      live.textContent = `The language is now ${v}.`;
+      drawCards();
+    });
+    wrap.append(label, input, help, err);
+    return wrap;
+  }
+
+  function drawAttention() {
+    const list = plan.attention;
+    const head = el('h4', { id: 'attention-h' }, `Needs your attention (${list.length})`);
+    if (!list.length) {
+      attentionEl.replaceChildren(head, el('p', {}, 'Nothing: every finding of the scan is fixed by a card above.'));
+      return;
+    }
+    const ul = el('ul', { class: 'attention-list' });
+    for (const a of list) {
+      const li = el('li', { class: `attention-item ${a.severity}` });
+      const t = el('p', { class: 'f-title' });
+      t.append(el('strong', {}, a.title), ' ', el('span', { class: 'where' }, a.where));
+      li.append(t, el('p', {}, a.message));
+      if (a.advice) li.append(el('p', { class: 'fix' }, a.advice));
+      ul.append(li);
+    }
+    attentionEl.replaceChildren(head, el('p', { class: 'help' }, 'The patch cannot fix these. They stay in the copy as they are; each says what to do by hand.'), ul);
+  }
+
+  function drawActions() {
+    const dl = el('button', { type: 'button', class: 'primary', id: 'download-patched' }, 'Download patched zip');
+    dl.addEventListener('click', () => {
+      const result = ctx.patch();
+      const zip = patchedZip(project, result);
+      opts.downloadBlob(patchedZipName(project.name), new Blob([zip as BlobPart], { type: 'application/zip' }));
+      live.textContent = result.applied.length ? `Downloaded the copy with ${result.applied.length === 1 ? '1 fix' : `${result.applied.length} fixes`}.` : 'Downloaded the copy with no fix: none is accepted.';
+    });
+    const close = el('button', { type: 'button' }, 'Close');
+    close.addEventListener('click', () => {
+      compare?.cancel();
+      opts.onClose();
+    });
+    const notes = el('p', { class: 'help' }, 'The zip holds your whole project with the accepted fixes, and tagging-doctor.diff, which lists every change.');
+    const lo = leftOutLine(project.leftOut.length);
+    const p = el('p');
+    p.append(dl, ' ', close);
+    actions.replaceChildren(p, notes, ...(lo ? [el('p', { class: 'left-out' }, lo)] : []));
+  }
+
+  panel.replaceChildren(h, intro, live, cardsEl, attentionEl, slot, actions);
+  drawCards();
+  drawAttention();
+  drawActions();
+  if (opts.compareSlot) compare = opts.compareSlot(slot, ctx);
+  return {
+    cancel: () => compare?.cancel(),
+    redraw: drawCards,
+  };
+}

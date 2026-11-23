@@ -57,6 +57,7 @@ export const DID_NOT_WAKE = 'The checker did not wake up in time. Try again in a
 export const LOST = 'The checker lost this check, perhaps because it restarted. Compile again.';
 export const SIGN_IN_AGAIN = 'Sign in again to go on: your sign-in has ended.';
 export const PDF_GONE = 'The PDF is gone: the checker deletes it 30 minutes after the check, or when it restarts. Compile again.';
+export const SENDING = 'Sending the project…';
 export const PDF_SIGN_IN = 'Sign in again to download the PDF. It is kept for 30 minutes after the check.';
 
 /**
@@ -197,9 +198,18 @@ export async function submit(d: CheckerDeps, zip: Uint8Array, mainFile: string, 
 /** The signed-in person's token now; the sign-in library refreshes it, so it is asked before each request (R3b.1-2). */
 export type TokenSource = () => Promise<string | null>;
 
+/** Thrown for a token the sign-in library could not give: no answer, or none while offline (R3b.2-3). */
+class NoToken extends CheckerError {}
+
 async function tokenNow(token: TokenSource): Promise<string> {
-  const t = await token();
-  if (!t) throw new CheckerError(SIGN_IN_AGAIN, 401);
+  let t: string | null;
+  try {
+    t = await token();
+  } catch {
+    // The library could not refresh it, as when the connection is lost: ridden out like one (R3b.2-3).
+    throw new NoToken(UNREACHABLE);
+  }
+  if (!t) throw new NoToken(SIGN_IN_AGAIN, 401);
   return t;
 }
 
@@ -235,7 +245,9 @@ export async function follow(d: CheckerDeps, first: CheckerJob, token: TokenSour
       if (next.status !== current.status) onStatus(next);
       current = next;
     } catch (e) {
-      const passing = e instanceof CheckerError && (e.message === UNREACHABLE || (e.status !== null && ASLEEP_STATUSES.includes(e.status)));
+      // A lost connection, the edge's 502 to 504, and a token the library cannot give now (it returns
+      // none when a refresh fails offline) are ridden out for a minute (R3b.1-8, R3b.2-3).
+      const passing = e instanceof NoToken || (e instanceof CheckerError && (e.message === UNREACHABLE || (e.status !== null && ASLEEP_STATUSES.includes(e.status))));
       if (!passing) throw e;
       lostSince ??= d.now();
       if (d.now() - lostSince > 60_000) throw e;
@@ -261,16 +273,51 @@ export async function forget(d: CheckerDeps, id: string, token: TokenSource): Pr
 
 /** The job's PDF, for "Download the PDF", with the token of the moment; or why there is none (R3b.1-2). */
 export async function pdf(d: CheckerDeps, id: string, token: TokenSource): Promise<{ blob: Blob } | { error: string }> {
-  const t = await token();
-  if (!t) return { error: PDF_SIGN_IN };
+  // Never rejects: a token that cannot be had, or a body cut off on its way, is said in words (R3b.2-3).
   let res: Response;
   try {
+    const t = await token();
+    if (!t) return { error: PDF_SIGN_IN };
     res = await d.fetch(`${d.base}/api/jobs/${encodeURIComponent(id)}/pdf`, { headers: { authorization: `Bearer ${t}` }, cache: 'no-store' });
+    if (res.ok) return { blob: await res.blob() };
   } catch {
     return { error: UNREACHABLE };
   }
-  if (res.ok) return { blob: await res.blob() };
   if (res.status === 404) return { error: PDF_GONE };
   if (res.status === 401) return { error: PDF_SIGN_IN };
   return { error: (await errorFrom(res)).message };
+}
+
+export interface RunHooks {
+  /** The line the page shows: the wake line, "Sending the project…", the job's status. */
+  onStatus: (text: string) => void;
+  /** The new job, as soon as the checker gives it (so Cancel can delete it; it carries `checksLeft`). */
+  onSent: (first: CheckerJob) => void;
+  /** True once the page no longer wants the answer. */
+  stale: () => boolean;
+}
+
+/** The line for a job's status while it is followed. */
+export function statusText(j: Pick<CheckerJob, 'status'>): string {
+  return j.status === 'queued' ? 'Waiting for its turn on the checker…' : j.status === 'running' ? 'Compiling and checking…' : '';
+}
+
+/**
+ * One check, from the zip to its end: wakes the checker (AC-27), sends the
+ * project with the token of the moment and follows the job (R3b.1-2). Throws
+ * a CheckerError with the words to show; `stale()` stops it (a CheckerError
+ * 'stale').
+ */
+export async function runJob(d: CheckerDeps, zip: Uint8Array, mainFile: string, token: TokenSource, hooks: RunHooks): Promise<CheckerJob> {
+  const t = await tokenNow(token).catch((e: unknown) => {
+    throw e instanceof NoToken && e.status === 401 ? new CheckerError('Sign in again to compile: your sign-in has ended.', 401) : e;
+  });
+  if (hooks.stale()) throw new CheckerError('stale');
+  await wake(d, (s) => hooks.onStatus(`${WAKING} (${s} s)`), undefined, hooks.stale);
+  if (hooks.stale()) throw new CheckerError('stale');
+  hooks.onStatus(SENDING);
+  const first = await submit(d, zip, mainFile, t);
+  hooks.onSent(first);
+  if (hooks.stale()) throw new CheckerError('stale');
+  return follow(d, first, token, (j) => hooks.onStatus(statusText(j)), hooks.stale);
 }

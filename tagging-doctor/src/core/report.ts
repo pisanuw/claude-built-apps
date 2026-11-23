@@ -23,8 +23,11 @@ export interface ScanReport {
   data: { asOf: string; source: string; page: string; commit: string; licence: string; note: string };
   caveat: string;
   projectWarnings: ProjectWarning[];
-  documents: DocumentScan[];
+  /** The scans as the documented schema (AC-12) has them: the patch's own field is left out. */
+  documents: ReportDocument[];
 }
+
+export type ReportDocument = Omit<DocumentScan, 'metadataFile'>;
 
 export function buildReport(
   projectName: string,
@@ -50,7 +53,7 @@ export function buildReport(
     },
     caveat: CAVEAT,
     projectWarnings: projectWarnings.map((w) => ({ ...w })),
-    documents,
+    documents: documents.map(({ metadataFile: _metadataFile, ...d }) => d),
   };
 }
 
@@ -140,7 +143,7 @@ function findingHtml(f: Finding): string {
   return parts.join('');
 }
 
-function documentHtml(d: DocumentScan, level: number): string {
+function documentHtml(d: ReportDocument, level: number): string {
   const h = (n: number) => `h${Math.min(6, level + n)}`;
   const out: string[] = [];
   out.push(`<section class="doc"><${h(0)}>${escapeHtml(d.mainFile)}: ${escapeHtml(d.summary.verdict)}</${h(0)}>`);

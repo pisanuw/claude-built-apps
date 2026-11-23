@@ -1,0 +1,12 @@
+% Swap fixture for package-swaps.json (AC-40): arrayjob -> arrayjobx.
+\DocumentMetadata{lang=en-US, pdfstandard=ua-2, tagging=on, tagging-setup={math/setup=mathml-SE}}
+\documentclass{article}
+\usepackage{arrayjob}
+\newarray\Days
+\readarray{Days}{Monday&Tuesday&Wednesday}
+\title{Office hours}
+\begin{document}
+\maketitle
+\section{When}
+Office hours are on \Days(1) and \Days(3).
+\end{document}

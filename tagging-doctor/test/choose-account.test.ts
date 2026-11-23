@@ -1,6 +1,8 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { Account } from '../src/ui/app';
-import { chooseAccount } from '../src/ui/choose-account';
+import { chooseAccount, optionalChunk } from '../src/ui/choose-account';
 
 const live = { mountSignIn: () => () => {}, onUser: () => {}, store: () => null } as unknown as Account;
 const preview = { ...live } as Account;
@@ -32,5 +34,17 @@ describe('R2.1-7: which account the page gets', () => {
     expect(await chooseAccount({ hasSupabase: true, hostname: 'x', live: failing, preview: async () => preview, warn })).toBeUndefined();
     expect(warn).toHaveBeenCalledWith('Sign-in is off: Failed to fetch dynamically imported module');
     expect(await chooseAccount({ hasSupabase: false, hostname: 'localhost', live: async () => live, preview: () => Promise.reject('x') })).toBeUndefined();
+  });
+
+  it('R4a.1-8 c: the compare chunk is optional; one that fails to load leaves the page mounted', async () => {
+    const warn = vi.fn();
+    expect(await optionalChunk(async () => 'mod', warn)).toBe('mod');
+    expect(await optionalChunk(() => Promise.reject(new Error('Failed to fetch dynamically imported module')), warn)).toBeNull();
+    expect(warn).toHaveBeenCalledWith('A part of the page did not load: Failed to fetch dynamically imported module');
+    expect(await optionalChunk(() => Promise.reject('x'))).toBeNull();
+    // main.ts loads the compare through it, so a failed load is not a rejection of the top-level await.
+    const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.ts'), 'utf8');
+    expect(main).toMatch(/await optionalChunk\(\(\) => import\('\.\/ui\/compare'\)/);
+    expect(main).not.toMatch(/await import\('\.\/ui\/compare'\)/);
   });
 });
