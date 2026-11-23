@@ -159,7 +159,7 @@ describe('R4a.1-9', () => {
 
   it('(c) .env.example gives AC-80’s rule for the compare flag since CR-13', () => {
     const env = fs.readFileSync(path.join(__dirname, '..', '.env.example'), 'utf8');
-    expect(env).toContain('# tagged job passes on the live checker in backend-hub (AC-80, CR-13).\nVITE_COMPARE_PATCHED=off');
+    expect(env).toContain('# checker in backend-hub (AC-80, D-152).\nVITE_COMPARE_PATCHED=off');
     expect(env).not.toMatch(/owner\s+#?\s*says yes/);
   });
 

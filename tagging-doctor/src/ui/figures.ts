@@ -33,8 +33,12 @@ export const EMPTY = 'No figures found in this project.';
  * its PDF, and the texts belong in the separate text version AC-3 names.
  */
 export function untaggedLine(cls: string): string {
-  const deck = cls === 'beamer';
-  return `${deck ? 'Beamer' : `The ${cls} class`} cannot take the \\DocumentMetadata line that switches tagging on, so the patched copy makes an untagged PDF. Approved texts still go into the copy as alt keys, but an untagged PDF does not use them: copy them into the separate text version of ${deck ? 'the slides' : 'the document'} that the scan suggests, where readers will find them.`;
+  if (cls === 'beamer') {
+    return 'Beamer cannot take the \\DocumentMetadata line that switches tagging on, so the patched copy makes an untagged PDF. Approved texts still go into the copy as alt keys, but an untagged PDF does not use them: copy them into the separate text version of the slides that the scan suggests, where readers will find them.';
+  }
+  // The scan suggests a text version for Beamer only; for the others, a class that can be tagged (R5a.F-7 b).
+  const why = cls === 'powerdot' || cls === 'prosper' ? `The ${cls} class does not compile with LuaLaTeX, and cannot take the \\DocumentMetadata line that switches tagging on` : `The ${cls} class cannot take the \\DocumentMetadata line that switches tagging on, so the patched copy makes an untagged PDF`;
+  return `${why}. Approved texts still go into the copy as alt keys, which only a tagged PDF uses: they are ready for when the document moves to a class that can be tagged (article, book or report), as the scan suggests.`;
 }
 export const DRAFT_LABEL = 'Draft by a model, check it';
 export const LEWIS_URL = 'https://lewis-alt-text.hintwise.org';

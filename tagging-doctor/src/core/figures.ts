@@ -362,11 +362,14 @@ function graphicsSpan(src: string, ends: Int32Array, offset: number): { star: nu
   let i = offset + '\\includegraphics'.length;
   if (/[A-Za-z@]/.test(src[i] ?? '')) return null;
   if (src[i] === '*') i++;
-  const star = i;
-  const opts: { from: number; to: number }[] = [];
   const skip = () => {
     while (i < src.length && /\s/.test(src[i])) i++;
   };
+  // A Beamer overlay, `\includegraphics<2->[…]{…}`: the key goes after it (R5a.1-9 e).
+  const overlay = /^\s*<[^<>{}[\]\n]{1,40}>/.exec(src.slice(i, i + 48));
+  if (overlay) i += overlay[0].length;
+  const star = i;
+  const opts: { from: number; to: number }[] = [];
   skip();
   while (src[i] === '[' && ends[i] >= 0) {
     opts.push({ from: i + 1, to: ends[i] });

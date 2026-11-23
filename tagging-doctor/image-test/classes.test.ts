@@ -74,6 +74,22 @@ describe(`CR-15 on the image ${IMAGE}`, () => {
     expect(job.status, JSON.stringify(job.failure)).toBe('done');
   });
 
+  it('R5a.1-9 (e): a deck whose figures carry overlays, with an alt key after each overlay, ends done', async () => {
+    const src = ['\\documentclass{beamer}', '\\begin{document}', '\\begin{frame}{R}', '\\includegraphics<2->[width=1cm]{plot.png}', '\\includegraphics<3>{plot.png}', '\\end{frame}', '\\end{document}', ''].join('\n');
+    const at = { mtime: new Date(1980, 0, 1) };
+    const project = openProject('o.zip', zipSync({ 'main.tex': [new TextEncoder().encode(src), at], 'plot.png': [new Uint8Array(PNG), at] }));
+    const scan = scanDocument(project, 'main.tex', index);
+    const figures = listFigures(project, scan);
+    expect(figures).toHaveLength(2);
+    const d = new Map<string, AltDecision>(figures.map((f, i) => [f.id, { decision: 'approved', text: `Overlay ${i + 1}` }]));
+    const out = applyFixes(project, scan, new Set(), { alts: altEdits(project, figures, d) }).files.get('main.tex') as string;
+    expect(out).toContain('\\includegraphics<2->[width=1cm, alt={Overlay 1}]{plot.png}');
+    expect(out).toContain('\\includegraphics<3>[alt={Overlay 2}]{plot.png}');
+    const job = await w.run(zipSync({ 'main.tex': [new TextEncoder().encode(out), at], 'plot.png': [new Uint8Array(PNG), at] }), 'main.tex', freshToken());
+    expect(job.status, JSON.stringify(job.failure)).toBe('done');
+    expect(job.result?.pages).toBe(3);
+  });
+
   it('beamer: the same small deck without the line ends done, and with it stops on Beamer\'s own error', async () => {
     expect((await compile('beamer', false)).status).toBe('done');
     const withLine = await compile('beamer', true);

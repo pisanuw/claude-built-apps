@@ -14,6 +14,7 @@
 import { groupEnds, keyValues, lineIndex, splitList } from './latex';
 import { projectZip } from './outzip';
 import type { Project } from './project';
+import { LOADS_HYPERREF, METADATA_STOPS } from './stops';
 import { babelLanguage, BEAMER_NOTE, bodyBeginOf, scannedSource, type DocumentScan, type Finding } from './scan';
 import swapsData from '../data/package-swaps.json';
 
@@ -35,29 +36,11 @@ export const METADATA_SOURCE =
 
 export const DEFAULT_LANGUAGE = 'en-US';
 
-/** AC-3's reason, as AC-38 quotes it (CR-15). */
-export const BEAMER_STOPS = 'Beamer stops with a \\DocumentMetadata line: the LaTeX Project does not expect Beamer to work with tagging';
+export { BEAMER_STOPS, METADATA_STOPS } from './stops';
 
-/**
- * The classes the line stops, each with why (CR-15, D-151): every class the
- * pinned status data marks `no-support`, as each of them, compiled on the
- * checker's image with the line, ends in an error (image-test/classes.test.ts):
- * beamer, seminar and the two tufte classes compile without it; novel stops
- * on the line's own error; powerdot and prosper do not compile with LuaLaTeX
- * at all. The patch does not insert the line for them.
- */
-export const METADATA_STOPS: Readonly<Record<string, string>> = {
-  beamer: BEAMER_STOPS,
-  novel: 'novel stops with a \\DocumentMetadata line: it sets the PDF version itself, which tagging does not allow, and the LaTeX Project does not support it with tagging',
-  powerdot: 'powerdot does not compile with LuaLaTeX, with a \\DocumentMetadata line or without one: it needs the latex, dvips and ps2pdf route, which tagging does not support',
-  prosper: 'prosper does not compile with LuaLaTeX, with a \\DocumentMetadata line or without one: it needs the latex, dvips and ps2pdf route, which tagging does not support',
-  seminar: 'seminar stops with a \\DocumentMetadata line: the LaTeX Project does not support it with tagging, as it needs the latex, dvips and ps2pdf route',
-  'tufte-book': 'tufte-book stops with a \\DocumentMetadata line: the LaTeX Project does not support it with tagging',
-  'tufte-handout': 'tufte-handout stops with a \\DocumentMetadata line: the LaTeX Project does not support it with tagging',
-};
-
-/** The document's class that the line stops, and why; null for any other class (CR-15). */
-export function metadataRefusal(scan: Pick<DocumentScan, 'findings'>): { cls: string; reason: string } | null {
+/** The document's class that the line stops, and why; null for any other class (CR-15, R5a.F-3). */
+export function metadataRefusal(scan: Pick<DocumentScan, 'findings'> & { refusedClass?: string | null }): { cls: string; reason: string } | null {
+  if (scan.refusedClass) return { cls: scan.refusedClass, reason: METADATA_STOPS[scan.refusedClass] };
   for (const f of scan.findings) {
     if (f.kind === 'class' && f.package && Object.hasOwn(METADATA_STOPS, f.package)) return { cls: f.package, reason: METADATA_STOPS[f.package] };
   }
@@ -293,6 +276,8 @@ export interface FixPlan {
   language: DocumentLanguage;
   cards: FixCard[];
   attention: AttentionItem[];
+  /** The main file's class when the \\DocumentMetadata line stops it (CR-15), or null. */
+  refused: string | null;
 }
 
 /** A change to one file's text: [from, to) becomes `text`. An insertion has from === to. */
@@ -631,10 +616,12 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
       card.what = 'Nothing: the document has its own \\DocumentMetadata line.';
       card.note = `Already done: ${has} has a \\DocumentMetadata line, which the patch leaves alone.`;
     } else if (refused) {
-      // Not offered (CR-15): the copy keeps the preamble as it is, so it compiles as the original does.
+      // Not offered (CR-15): the copy gets no line, so it compiles as the original does.
       card.state = 'not-done';
       card.acceptedByDefault = false;
-      card.what = 'Nothing: the patched copy leaves the preamble as it is, so the PDF stays untagged.';
+      card.what = 'Nothing: the patched copy gets no \\DocumentMetadata line, so its PDF stays untagged.';
+      // The line's reason, for a card that does not add it (R5a.F-7 d).
+      card.why = 'Tagging needs this line, and this class stops with it.';
       card.note = `Not done: ${refused.reason}.`;
     } else if (!f) {
       card.state = 'not-needed';
@@ -664,6 +651,12 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
       state: 'ready',
       changes: [],
     };
+    // A class the line stops cannot be tagged, so the change of engine gains the copy nothing by default (R5a.F-2).
+    const stopped = metadataRefusal(scan);
+    if (stopped) {
+      card.acceptedByDefault = false;
+      card.why = 'This class cannot be tagged, so the copy has no tagging to gain from LuaLaTeX. Accept it only if you compile with LuaLaTeX anyway; pdfLaTeX needs these packages.';
+    }
     const w: CardWork = { card, inserts: [], ops: [] };
     for (const u of uses) {
       const pdftex = u.names.filter((n) => PDFTEX_ONLY.includes(n));
@@ -792,7 +785,8 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
     if (f.rule === 'no-language' && metadata.card.state === 'not-done') {
       // No \DocumentMetadata for this class (CR-15): the PDF's language comes from hyperref instead.
       item.title = 'Set the language';
-      item.advice = `Set the language by hand with \\hypersetup{pdflang=${language.tag}} (hyperref), since this class cannot take \\DocumentMetadata.`;
+      const cls = metadataRefusal(scan)?.cls ?? '';
+      item.advice = `Set the language by hand with \\hypersetup{pdflang=${language.tag}}, or your language's tag${LOADS_HYPERREF.has(cls) ? '' : ', after \\usepackage{hyperref}'}, since this class cannot take \\DocumentMetadata.`;
     } else if (f.rule === 'no-document-metadata') {
       item.title = 'Add \\DocumentMetadata';
       item.message = 'There is no \\DocumentMetadata line, which switches tagging on.';
@@ -823,7 +817,7 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
       advice: 'Save the file as UTF-8 in your editor, then drop the project again.',
     });
   }
-  return { plan: { mainFile: main, language, cards: work.map((w) => w.card), attention }, work, sources };
+  return { plan: { mainFile: main, language, cards: work.map((w) => w.card), attention, refused: metadataRefusal(scan)?.cls ?? null }, work, sources };
 }
 
 function changesOf(sources: Sources, ops: ListOp[]): ShownChange[] {

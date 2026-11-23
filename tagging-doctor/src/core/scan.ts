@@ -4,6 +4,7 @@
  * status data, and check the preamble for what tagging needs. Pure and
  * deterministic: the same project and data give the same result.
  */
+import { LOADS_HYPERREF, METADATA_STOPS, stoppedClass } from './stops';
 import { suggestedFix, plainWords, type Fix } from './fixes';
 import {
   blankComments,
@@ -101,6 +102,8 @@ export interface DocumentScan {
    * .tex file it reads before its \documentclass (R4a.2-3); null when none.
    */
   metadataFile: string | null;
+  /** The main file's class when the \DocumentMetadata line stops it (src/core/stops.ts; CR-15, R5a.F-3), or null. */
+  refusedClass?: string | null;
 }
 
 /** babel's options that are not languages (babel's manual, "Package options"). */
@@ -153,7 +156,7 @@ const SPECS: Record<string, CommandSpec> = {
   subinputfrom: { args: 2 },
   includefrom: { args: 2 },
   subincludefrom: { args: 2 },
-  includegraphics: { args: 1 },
+  includegraphics: { args: 1, overlay: true },
   includesvg: { args: 1 },
   tikzexternalize: { args: 0 },
   DocumentMetadata: { args: 1 },
@@ -194,6 +197,8 @@ interface Ctx {
   languageSet: boolean;
   titleSet: boolean;
   beamer: boolean;
+  /** The main file's \documentclass, as written (R5a.F-3). */
+  mainClass: { name: string; options: string[] } | null;
   /** True while the main file is read up to its \documentclass. */
   beforeClass: boolean;
   /** True once the main file's \begin{document} is read: a file read after it is in the body. */
@@ -497,6 +502,7 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
         if (role !== 'main') break;
         ctx.beforeClass = false;
         if (docclassOffset < 0) docclassOffset = c.offset;
+        ctx.mainClass ??= { name: c.args[0].trim(), options: c.opts.flatMap(splitList) };
         ctx.classOptions.push(...c.opts.flatMap(splitList));
         loadClass(ctx, c, base, at(c.offset));
         break;
@@ -568,9 +574,13 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
       case 'title':
         ctx.titleSet = true;
         break;
-      case 'hypersetup':
-        if (keyValues(c.args[0]).has('pdftitle')) ctx.titleSet = true;
+      case 'hypersetup': {
+        const kv = keyValues(c.args[0]);
+        if (kv.has('pdftitle')) ctx.titleSet = true;
+        // hyperref's pdflang sets the PDF's language, the way an untagged class can (R5a.F-4 a).
+        if ((kv.get('pdflang') ?? '').replace(/[{}]/g, '').trim()) ctx.languageSet = true;
         break;
+      }
       case 'setdefaultlanguage':
       case 'setmainlanguage':
       case 'babelprovide':
@@ -591,7 +601,17 @@ function visitFile(ctx: Ctx, path: string, base: string, role: 'main' | 'input' 
   }
 
   if (role === 'main') {
-    if (docclassOffset >= 0 && metadataOffset < 0 && ctx.metadataFile === null) {
+    const refused = refusedOf(ctx);
+    if (docclassOffset >= 0 && metadataOffset < 0 && ctx.metadataFile === null && refused) {
+      // A class the line stops: the patch does not add it, and the person is not told to (R5a.F-1).
+      warn(ctx, 'no-document-metadata', at(docclassOffset), `There is no \\DocumentMetadata line, which switches tagging on. The patch does not add it: ${METADATA_STOPS[refused]}.`, {
+        name: 'No \\DocumentMetadata for this class',
+        detail:
+          refused === 'beamer'
+            ? 'Keep the slides untagged and give readers a separate text version, or move them by hand to the ltx-talk class (see the Beamer finding).'
+            : 'Move the content by hand to a class that can be tagged (article, book or report), then add the line.',
+      });
+    } else if (docclassOffset >= 0 && metadataOffset < 0 && ctx.metadataFile === null) {
       // The patch adds the line only to a main file saved as UTF-8; otherwise it is the person's to add (Manager's minor 1 at af12111).
       const patched = savedAsUtf8(ctx.project, path);
       warn(ctx, 'no-document-metadata', at(docclassOffset), `There is no \\DocumentMetadata line, which switches tagging on.${patched ? ' Added by the patch.' : ''}`, patched
@@ -739,6 +759,7 @@ function loadPackages(ctx: Ctx, c: Command, base: string, where: Where): void {
       }
     }
     if (pkg === 'polyglossia' && opts.length) ctx.languageSet = true;
+    if (pkg === 'hyperref' && opts.some((o) => /^pdflang\s*=\s*\S/.test(o.trim()))) ctx.languageSet = true;
   }
 }
 
@@ -836,6 +857,7 @@ export function scanDocument(project: Project, mainFile: string, index: StatusIn
     languageSet: false,
     titleSet: false,
     beamer: false,
+    mainClass: null,
     beforeClass: false,
     inBody: false,
     metadataFile: null,
@@ -863,8 +885,12 @@ export function scanDocument(project: Project, mainFile: string, index: StatusIn
       message: 'The document does not set its language, so a screen reader may read it with the wrong voice.',
       // The patch writes the language only into the line it adds: not into a \DocumentMetadata the document has, nor into a main
       // file it does not change (Manager's minor 1 at af12111).
-      fix:
-        ctx.metadataFile === null && savedAsUtf8(ctx.project, mainFile)
+      fix: refusedOf(ctx) && ctx.metadataFile === null
+        ? {
+            name: 'Set the language by hand',
+            detail: `Add \\hypersetup{pdflang=en-US}, or your language's tag${LOADS_HYPERREF.has(refusedOf(ctx) ?? '') ? '' : ', after \\usepackage{hyperref}'}: this class cannot take \\DocumentMetadata.`,
+          }
+        : ctx.metadataFile === null && savedAsUtf8(ctx.project, mainFile)
           ? { name: 'Set the language (added by the patch)', detail: 'The patch writes lang=en-US into \\DocumentMetadata, or the language you choose.' }
           : {
               name: 'Set the language by hand',
@@ -910,7 +936,16 @@ export function scanDocument(project: Project, mainFile: string, index: StatusIn
     },
     filesRead: ctx.filesRead,
     metadataFile: ctx.metadataFile,
+    refusedClass: refusedOf(ctx),
   };
+}
+
+/** The main file's class when the line stops it: by its name and options, or a class the scan found it loads (R5a.F-3). */
+function refusedOf(ctx: Ctx): string | null {
+  const own = ctx.mainClass ? stoppedClass(ctx.mainClass.name, ctx.mainClass.options) : null;
+  if (own) return own;
+  const found = ctx.findings.find((f) => f.kind === 'class' && f.package && Object.hasOwn(METADATA_STOPS, f.package));
+  return found?.package ?? null;
 }
 
 /** The plain-words form of a finding's source comment. */

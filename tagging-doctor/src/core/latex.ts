@@ -225,6 +225,8 @@ function group(s: string, ends: Int32Array, j: number): [string, number] | null 
 export interface CommandSpec {
   args: number;
   bare?: boolean;
+  /** Takes a Beamer overlay, `<2->`, after its name (R5a.1-9 e). */
+  overlay?: boolean;
 }
 
 /**
@@ -252,6 +254,10 @@ export function findCommands(src: string, specs: Record<string, CommandSpec>): C
     if (src[i] === '*') {
       star = true;
       i++;
+    }
+    if (spec.overlay) {
+      const o = /^\s*<[^<>{}[\]\n]{1,40}>/.exec(src.slice(i, i + 48));
+      if (o) i += o[0].length;
     }
     const opts: string[] = [];
     const args: string[] = [];

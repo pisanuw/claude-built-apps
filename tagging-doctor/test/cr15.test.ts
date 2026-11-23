@@ -27,7 +27,8 @@ describe('CR-15, AC-38: the metadata card for a class the line stops', () => {
       const c = card(plan, 'metadata');
       expect(c).toMatchObject({ state: 'not-done', acceptedByDefault: false, changes: [] });
       expect(c?.note).toBe(`Not done: ${BEAMER_STOPS}.`);
-      expect(c?.what).toMatch(/leaves the preamble as it is/);
+      expect(c?.what).toBe('Nothing: the patched copy gets no \\DocumentMetadata line, so its PDF stays untagged.');
+      expect(c?.why).toBe('Tagging needs this line, and this class stops with it.');
       const state = newFixesState();
       expect(acceptedIds(plan, state).has('metadata')).toBe(false);
       // Even turned on by hand, it changes nothing: the card is not ready.
@@ -61,7 +62,7 @@ describe('CR-15, AC-38: the metadata card for a class the line stops', () => {
   it('a language finding says to set it with hyperref, not in \\DocumentMetadata', () => {
     const { plan } = setup(files('\\documentclass{beamer}'));
     const lang = plan.attention.find((a) => a.title === 'Set the language');
-    expect(lang?.advice).toBe('Set the language by hand with \\hypersetup{pdflang=en-US} (hyperref), since this class cannot take \\DocumentMetadata.');
+    expect(lang?.advice).toBe("Set the language by hand with \\hypersetup{pdflang=en-US}, or your language's tag, since this class cannot take \\DocumentMetadata.");
   });
 
   it('article, report and a no-support name in a package are unchanged: the line goes in', () => {
@@ -123,6 +124,9 @@ describe('CR-15, AC-45: the figure panel of a Beamer deck', () => {
   });
 
   it('names another class the line stops', () => {
-    expect(untaggedLine('tufte-handout')).toMatch(/^The tufte-handout class cannot take the \\DocumentMetadata line.*text version of the document/);
+    expect(untaggedLine('tufte-handout')).toMatch(/^The tufte-handout class cannot take the \\DocumentMetadata line.*makes an untagged PDF\. .*a class that can be tagged \(article, book or report\)/);
+    expect(untaggedLine('tufte-handout')).not.toContain('text version');
+    expect(untaggedLine('powerdot')).toMatch(/^The powerdot class does not compile with LuaLaTeX/);
+    expect(untaggedLine('powerdot')).not.toContain('untagged PDF');
   });
 });

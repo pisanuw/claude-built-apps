@@ -27,7 +27,7 @@ export interface ScanReport {
   documents: ReportDocument[];
 }
 
-export type ReportDocument = Omit<DocumentScan, 'metadataFile'>;
+export type ReportDocument = Omit<DocumentScan, 'metadataFile' | 'refusedClass'>;
 
 export function buildReport(
   projectName: string,
@@ -53,7 +53,7 @@ export function buildReport(
     },
     caveat: CAVEAT,
     projectWarnings: projectWarnings.map((w) => ({ ...w })),
-    documents: documents.map(({ metadataFile: _metadataFile, ...d }) => d),
+    documents: documents.map(({ metadataFile: _metadataFile, refusedClass: _refusedClass, ...d }) => d),
   };
 }
 

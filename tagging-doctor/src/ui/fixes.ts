@@ -7,7 +7,7 @@
  * (AC-80), src/ui/compare.ts draws it into the slot this panel leaves.
  */
 import { leftOutLine } from '../core/report';
-import { applyFixes, metadataRefusal, patchedZip, patchedZipName, suggestFixes, validLanguage, type FixCard, type FixPlan, type PatchResult } from '../core/patch';
+import { applyFixes, patchedZip, patchedZipName, suggestFixes, validLanguage, type FixCard, type FixPlan, type PatchResult } from '../core/patch';
 import type { Project } from '../core/project';
 import type { DocumentScan } from '../core/scan';
 import { altEdits, figureAttention, listFigures, styleFigureAttention, type FigureItem } from '../core/figures';
@@ -276,7 +276,8 @@ export function mountFixes(panel: HTMLElement, opts: FixesOpts): { cancel: () =>
     figures,
     choices: state.alts,
     drafting: state.drafting,
-    untagged: metadataRefusal(scan)?.cls ?? null,
+    // Only when the copy really gets no line: a deck with its own line keeps it (R5a.F-7 a).
+    untagged: plan.cards.find((c) => c.kind === 'metadata')?.state === 'not-done' ? plan.refused : null,
     onChange: () => opts.onAltsChange?.(),
   });
   if (opts.compareSlot) compare = opts.compareSlot(slot, ctx);
