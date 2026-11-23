@@ -18,6 +18,9 @@ import type { Project } from '../core/project';
 
 export const FIGURES_INTRO =
   'Draft a description for each figure, check it, and approve it. Approved texts go into the patched copy as each figure’s alt text; nothing goes in until you approve it.';
+/** What a draft sends, said before anything is sent (What we keep, AC-26). */
+export const DRAFT_SENDS =
+  'A draft sends the figure’s image (PNG, JPEG, GIF or WebP), its caption and the text around it to Anthropic, only when you choose Draft or Draft all. Nothing else is uploaded.';
 export const EMPTY = 'No figures found in this project.';
 export const DRAFT_LABEL = 'Draft by a model, check it';
 export const LEWIS_URL = 'https://lewis-alt-text.hintwise.org';
@@ -367,7 +370,7 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
     return { cancel: () => {} };
   }
   listEl.replaceChildren(...figures.map((f, i) => figureItem(f, i + 1)));
-  section.replaceChildren(h, intro, keyEl, modeEl, allEl, live, listEl);
+  section.replaceChildren(h, intro, el('p', { class: 'help' }, DRAFT_SENDS), keyEl, modeEl, allEl, live, listEl);
   drawKey();
   drawMode();
   return {
