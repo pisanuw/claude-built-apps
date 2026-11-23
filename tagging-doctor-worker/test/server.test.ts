@@ -1,6 +1,7 @@
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { createWriteStream, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, request, type Server } from 'node:http';
 import { connect } from 'node:net';
+import { Writable } from 'node:stream';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -55,7 +56,7 @@ const verify: Verify = async (token) => {
   return null;
 };
 
-async function start(allowedOrigins = [PRODUCTION_ORIGIN], selfTest = SELF_TEST, verifyToken: Verify = verify, bodyLimitMs?: number) {
+async function start(allowedOrigins = [PRODUCTION_ORIGIN], selfTest = SELF_TEST, verifyToken: Verify = verify, bodyLimitMs?: number, openUpload?: (file: string) => Writable) {
   root = mkdtempSync(path.join(tmpdir(), 'tdw-srv-'));
   resetRoot(root);
   const log = createLogger((l) => logLines.push(l), () => t);
@@ -76,6 +77,7 @@ async function start(allowedOrigins = [PRODUCTION_ORIGIN], selfTest = SELF_TEST,
     versions: { texlive: 'This is LuaHBTeX, Version 1.24.0 (TeX Live 2026)', verapdf: 'veraPDF 1.30.4' },
     selfTest,
     now: () => t,
+    openUpload,
   });
   server = createServer((req, res) => void handler(req, res));
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
@@ -246,11 +248,15 @@ describe('AC-33: the API under load', () => {
     expect((await body(fetch(`${base}/api/health`))).queue).toEqual({ running: 1, waiting: 3, uploading: 0, maxWaiting: 3 });
   });
 
-  it('answers 429 with the time to retry after 5 jobs in an hour', async () => {
+  it('answers 429 with the time to retry after 5 jobs in an hour; each new job says how many are left (S2-13)', async () => {
     for (let i = 0; i < 5; i++) {
-      expect((await post()).status).toBe(202);
+      const r = await post();
+      expect(r.status).toBe(202);
+      expect((await body(r)).checksLeft).toBe(4 - i);
       await jobs.idle();
     }
+    // Counted per user: another has all five.
+    expect(jobs.checksLeft(USER_B)).toBe(5);
     const r = await post();
     expect(r.status).toBe(429);
     expect(r.headers.get('retry-after')).toBe('3600');
@@ -471,16 +477,31 @@ describe('R3a.2-1 and R3a.2-2: slots of uploads that do not arrive', () => {
     expect(r.headers.get('retry-after')).toBeTruthy();
   });
 
-  it('R3b.1-9: the server\'s own failure to store an upload does not count against the person', async () => {
-    const reserve = jobs.reserve.bind(jobs);
-    // The slot's file in a folder that is not there: the write fails, as on a full disk (500).
-    jobs.reserve = (u, h) => {
-      const slot = reserve(u, h);
-      return slot.ok ? { ...slot, file: path.join(root, 'no-such-folder', 'x.part') } : slot;
+  it('R3b.1-9, R3b.2-1: a write that fails after the body has arrived (a full disk) is the server\'s failure, not the person\'s', async () => {
+    // As on a full disk: the slot's file is there but stays empty, and the write fails only after the
+    // request's end, so Node hands the error to end(cb) before the 'error' event. The old code resolved
+    // there, read the empty file as "not a zip" and counted it against the person (R3b.2-1).
+    let full = true;
+    const openUpload = (file: string): Writable => {
+      if (!full) return createWriteStream(file, { flags: 'wx', mode: 0o600 });
+      writeFileSync(file, '');
+      return new Writable({
+        write(_chunk, _enc, cb) {
+          setTimeout(() => cb(Object.assign(new Error('ENOSPC: no space left on device, write'), { code: 'ENOSPC' })), 20);
+        },
+      });
     };
-    for (let i = 0; i < 6; i++) expect((await post()).status).toBe(500);
-    jobs.reserve = reserve;
+    await new Promise((r) => server.close(r));
+    await start([PRODUCTION_ORIGIN], SELF_TEST, verify, undefined, openUpload);
+    for (let i = 0; i < 6; i++) {
+      const r = await post();
+      expect(r.status).toBe(500);
+      expect(((await r.json()) as { error: string }).error).toBe('The checker could not store the upload.');
+    }
+    // The disk has room again: the person is not refused for the server's failures.
+    full = false;
     expect((await post()).status).toBe(202);
+    expect(readdirSync(root).filter((f) => f.endsWith('.part'))).toEqual([]);
     expect(clientsFault(500)).toBe(false);
     for (const s of [400, 408, 413]) expect(clientsFault(s)).toBe(true);
   });

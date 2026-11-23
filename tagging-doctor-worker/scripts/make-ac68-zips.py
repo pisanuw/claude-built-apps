@@ -5,8 +5,9 @@ app for AC-68's timed jobs, from fixtures/math-notes.
 - math-notes-tagged.zip: the same, with `scripts/spike.sh tagged`'s line put
   before the first line of main.tex.
 
-Only files on the checker's allowlist (src/zip.ts), no folders, a fixed date,
-so the zips are the same each time. Run once; the output is committed.
+Every file under fixtures/math-notes, as it is (no filter: each is on the
+checker's allowlist, src/zip.ts, and test/ac68-zips.test.ts checks every entry
+against it), no folders, a fixed date, so the zips are the same each time. Run once; the output is committed.
 
     python3 scripts/make-ac68-zips.py
 """

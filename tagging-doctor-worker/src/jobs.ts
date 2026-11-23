@@ -158,6 +158,13 @@ export class Jobs {
     return { ok: true };
   }
 
+  /** How many more jobs `userId` may start this hour (AC-33's five), for the page (S2-13). */
+  checksLeft(userId: string): number {
+    const since = this.now() - HOUR;
+    const mine = (this.accepted.get(userId) ?? []).filter((t) => t > since);
+    return Math.max(0, this.o.cfg.perUserPerHour - mine.length);
+  }
+
   /** Counts an upload of `userId` that ended without a job (R3a.2-2). */
   uploadFailed(userId: string): void {
     this.failedUploads.set(userId, [...(this.failedUploads.get(userId) ?? []), this.now()]);
