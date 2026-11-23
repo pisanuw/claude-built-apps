@@ -172,7 +172,7 @@ export function draftErrorWords(e: unknown): string {
   if (status === 401) return 'Anthropic refused your key. Check it, or forget it and paste it again.';
   if (status === 429) return 'Anthropic is limiting your key for now. Wait a minute and try again.';
   if (status === 403) return 'Anthropic refused your key for this request. Check the key’s permissions, or forget it and paste another.';
-  if (typeof status === 'number' && status >= 400 && status < 500) return `Anthropic refused the request (${status}): ${anthropicMessage(e)} Trying again will not help; check your key and its credit.`;
+  if (typeof status === 'number' && status >= 400 && status < 500) return `Anthropic refused the request (${status}): ${anthropicMessage(e)} Trying again will not help${/credit/i.test(anthropicMessage(e)) ? '; check your key and its credit' : ''}.`;
   if (typeof status === 'number') return `Anthropic answered ${status}. Try again in a moment.`;
   return 'The draft could not be made: the connection failed. Try again.';
 }

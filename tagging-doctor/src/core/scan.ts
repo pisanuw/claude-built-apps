@@ -367,7 +367,7 @@ function savedAsUtf8(project: Project, path: string): boolean {
  * `…_use:N…` function, which calls it (R5a.1-6 b); and etoolbox's
  * `\ifdef` family (R5a.1-6 a).
  */
-const NOT_A_CALL = /\\(?:providecommand|newcommand|renewcommand|DeclareRobustCommand|[gex]?def|let|ifdefined|ifx|show|meaning|string|@ifdefinable|ifdef(?:macro|void|param|prefix|protected|ltxprotect|counter|length|dimen|equal|strequal)?|ifndef|ifundef|(?:New|Renew|Provide|Declare)DocumentCommand|(?:New|Renew)CommandCopy|let\s*\\[A-Za-z@]+\s*=?|cs_(?![a-z_]*use:)[a-z_]+:[A-Za-z]+(?:\s*\\[A-Za-z@_:]+)?)\s*\*?\s*\{?\s*$/;
+const NOT_A_CALL = /\\(?:providecommand|newcommand|renewcommand|DeclareRobustCommand|[gex]?def|let|ifdefined|ifx|show|meaning|string|@ifdefinable|ifdef(?:macro|void|empty|string|strequal|equal|param|prefix|protected|ltxprotect|counter|length|dimen)?|ifndef|ifundef|(?:New|Renew|Provide|Declare)DocumentCommand|(?:New|Renew)CommandCopy|let\s*\\[A-Za-z@]+\s*=?|cs_(?![a-z_]*use:)[a-z_]+:[A-Za-z]+(?:\s*\\[A-Za-z@_:]+)?)\s*\*?\s*\{?\s*$/;
 
 /**
  * The body's \begin{document} in a (blanked) main file: the first one whose

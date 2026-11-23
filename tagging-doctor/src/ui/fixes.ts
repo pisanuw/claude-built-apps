@@ -11,10 +11,10 @@ import { applyFixes, patchedZip, patchedZipName, suggestFixes, validLanguage, ty
 import type { Project } from '../core/project';
 import type { DocumentScan } from '../core/scan';
 import { altEdits, figureAttention, listFigures, styleFigureAttention, type FigureItem } from '../core/figures';
-import { approvedDecisions, mountFigures, type FigureChoice, type FiguresOpts } from './figures';
+import { approvedDecisions, mountFigures, newDrafting, type DraftingState, type FigureChoice, type FiguresOpts } from './figures';
 
 export const FIXES_INTRO = 'Each fix is made on a copy of your files, which stay as they are. Accept or skip each one, then download the copy.';
-export const NOTHING_UPLOADED = 'The fixes are made in your browser and upload nothing; a figure draft, below, is the one thing this panel sends, and only when you ask for it.';
+export const NOTHING_UPLOADED = 'The fixes are made in your browser and upload nothing. A figure draft, below, is sent only when you ask for it.';
 
 /** What the compare slot can ask of the panel (src/ui/compare.ts). */
 export interface FixesCtx {
@@ -42,7 +42,7 @@ export interface FixesOpts {
   /** Draws "Compile patched and compare" into `slot`; present only when the build turns it on and the person may compile. */
   compareSlot?: (slot: HTMLElement, ctx: FixesCtx) => { cancel: () => void };
   /** What the figure panel needs from the page (milestone 5a): whether a person is signed in, and stand-ins for tests. */
-  figures?: Omit<FiguresOpts, 'project' | 'figures' | 'choices' | 'onChange'>;
+  figures?: Omit<FiguresOpts, 'project' | 'figures' | 'choices' | 'onChange' | 'drafting'>;
 }
 
 /** The person's choices for one document: the cards they turned on or off, and the language. */
@@ -52,10 +52,12 @@ export interface FixesState {
   highlighted: string | null;
   /** Each figure's text and choice (milestone 5a), by figure id. */
   alts: Map<string, FigureChoice>;
+  /** The drafts out, so a panel drawn again knows them (R5a.2-1). */
+  drafting: DraftingState;
 }
 
 export function newFixesState(): FixesState {
-  return { choices: new Map(), highlighted: null, alts: new Map() };
+  return { choices: new Map(), highlighted: null, alts: new Map(), drafting: newDrafting() };
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, text?: string): HTMLElementTagNameMap[K] {
@@ -239,7 +241,7 @@ export function mountFixes(panel: HTMLElement, opts: FixesOpts): { cancel: () =>
   drawCards();
   drawAttention();
   drawActions();
-  const figs = mountFigures(figuresEl, { signedIn: () => false, ...opts.figures, project, figures, choices: state.alts, onChange: () => {} });
+  const figs = mountFigures(figuresEl, { signedIn: () => false, ...opts.figures, project, figures, choices: state.alts, drafting: state.drafting, onChange: () => {} });
   if (opts.compareSlot) compare = opts.compareSlot(slot, ctx);
   return {
     cancel: () => {

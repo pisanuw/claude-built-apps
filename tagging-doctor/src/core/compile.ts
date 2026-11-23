@@ -194,9 +194,10 @@ export const RECURSION_WORDS = 'A command calls itself without end, or groups or
  */
 export const TEX_ERRORS: [RegExp, (m: RegExpExecArray) => string][] = [
   // The checker caps TeX's memory in the hub (D-134): a long tagged document can reach the cap (R4b.2-3, D-139).
-  [/TeX capacity exceeded, sorry \[(?:main memory|token memory|pool|string characters|font memory|hash)|not enough memory/i, () => MEMORY_WORDS],
-  // A stack or a level size: a command that calls itself, not the checker's cap (R5a.1-6 c).
-  [/TeX capacity exceeded/i, () => RECURSION_WORDS],
+  // LuaTeX's two memory sizes (node and token memory; the image's luahbtex has no pdfTeX "main memory"), and Lua's (R5a.2-5).
+  [/TeX capacity exceeded, sorry \[(?:node memory|token memory|main memory)|not enough memory/i, () => MEMORY_WORDS],
+  // A stack, a nesting level or the expansion depth: a command that calls itself, not the checker's cap (R5a.1-6 c, R5a.2-5).
+  [/TeX capacity exceeded, sorry \[(?:input stack|text input levels|grouping levels|parameter stack|save size|semantic nest|expansion depth)/i, () => RECURSION_WORDS],
   [/Undefined control sequence/i, () => 'A command is not defined. Check its spelling, or load the package that defines it.'],
   // pgfplots' own words. TeX wraps the log at 79 columns, so the name is read only up to its closing quote on the
   // same line; a name the wrap cut is not named at all (R3b.2-4, R4a.1-3). The closing quote is the one before

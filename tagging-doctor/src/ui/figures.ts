@@ -36,6 +36,16 @@ export interface FigureChoice {
   note: string | null;
 }
 
+/** The drafts out for one document: their figure ids, and the panel on the page that draws an arriving answer. */
+export interface DraftingState {
+  busy: Set<string>;
+  draw: ((id: string) => void) | null;
+}
+
+export function newDrafting(): DraftingState {
+  return { busy: new Set(), draw: null };
+}
+
 export function newChoice(): FigureChoice {
   return { text: '', source: 'typed', status: 'none', textOnly: false, error: null, note: null };
 }
@@ -68,6 +78,12 @@ export interface FiguresOpts {
   revokeUrl?: (url: string) => void;
   /** Called when what goes into the patch changes. */
   onChange: () => void;
+  /**
+   * The drafts out for this document, kept by the page beside `choices`, so
+   * a panel drawn again (Close and open, a change of person) knows them and
+   * draws an answer that arrives (R5a.2-1).
+   */
+  drafting?: DraftingState;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, text?: string): HTMLElementTagNameMap[K] {
@@ -103,6 +119,9 @@ function defaultStorage(): Storage | undefined {
 }
 
 /** Draws the panel into `section`; `cancel` stops a Draft all in progress (calls already sent finish). */
+/** Draft all's stop for the same refusal twice in a row (R5a.2-7 a). */
+class RepeatedRefusal extends Error {}
+
 export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel: () => void } {
   const { figures, choices } = opts;
   const storage = opts.storage ?? defaultStorage();
@@ -113,7 +132,8 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
   /** "Stop drafting" in the run going on; cleared when the run ends (R5a.1-1). */
   let stopRun = false;
   let running = false;
-  const busy = new Set<string>();
+  const drafting = opts.drafting ?? newDrafting();
+  const busy = drafting.busy;
   const thumbs = new Map<string, string | null>();
 
   const h = el('h3', { id: 'figures-h', tabindex: '-1' }, 'Alt text for figures');
@@ -225,13 +245,14 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
       const wasIn = c.status === 'approved' || c.status === 'decorative';
       Object.assign(c, { text: r.text, source: r.source, status: 'draft', textOnly: r.textOnly, note: r.imageNote, error: null });
       if (wasIn) opts.onChange();
-      if (single && !closed) live.textContent = `Figure ${figures.indexOf(f) + 1}: draft ready. Check it, then approve it.`;
+      if (single && drafting.draw === drawById) live.textContent = `Figure ${figures.indexOf(f) + 1}: draft ready. Check it, then approve it.`;
     } catch (e) {
       c.error = draftErrorWords(e);
       if (stopsRun(e)) throw e;
     } finally {
       busy.delete(f.id);
-      if (!closed) drawFigure(f);
+      // The panel on the page now, this one or one drawn since (R5a.2-1).
+      drafting.draw?.(f.id);
     }
   }
 
@@ -255,17 +276,32 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
     running = true;
     stopRun = false;
     drawAll();
-    live.textContent = `Drafting ${Math.min(todo.length, DRAFT_ALL_LIMIT)} figures…`;
+    live.textContent = `Drafting up to ${Math.min(todo.length, DRAFT_ALL_LIMIT)} figures…`;
     // A figure the person starts on during the run is passed over when its turn comes (R5a.1-2).
-    const r = await draftAll(todo, (f) => draftOne(f, d, false), { stopped: () => stopRun || closed, skip: (f) => !waiting(f) });
+    // The same refusal twice in a row (a key with no credit, a 400 every call meets) stops the run too (R5a.2-7 a).
+    let lastRefusal: string | null = null;
+    const one = async (f: FigureItem) => {
+      await draftOne(f, d, false);
+      const err = choices.get(f.id)?.error ?? null;
+      if (!err || !/^Anthropic refused the request/.test(err)) {
+        lastRefusal = null;
+        return;
+      }
+      if (err === lastRefusal) throw new RepeatedRefusal(err);
+      lastRefusal = err;
+    };
+    const r = await draftAll(todo, one, { stopped: () => stopRun || closed, skip: (f) => !waiting(f) });
     running = false;
     const stopped = stopRun;
     stopRun = false;
     if (closed) return;
     drawAll();
-    if (r.stop) live.textContent = `Stopped after ${r.started} drafts. ${draftErrorWords(r.stop)}`;
+    // What is left is what still waits now, not what the run passed over (R5a.2-4).
+    const left = open().filter(waiting).length;
+    if (r.stop instanceof RepeatedRefusal) live.textContent = `Stopped after ${r.started} drafts: Anthropic refused two in a row. ${r.stop.message}`;
+    else if (r.stop) live.textContent = `Stopped after ${r.started} drafts. ${draftErrorWords(r.stop)}`;
     else if (stopped) live.textContent = `Stopped after ${r.started} drafts.`;
-    else live.textContent = `Asked for ${r.started} drafts.${r.left ? ` ${r.left} figures are left: choose Draft all again for them.` : ''} Check each one, then approve it.`;
+    else live.textContent = `Asked for ${r.started} drafts.${left ? ` ${left === 1 ? '1 figure is' : `${left} figures are`} left: choose Draft all again for ${left === 1 ? 'it' : 'them'}.` : ''} Check each one, then approve it.`;
   }
 
   function statusText(f: FigureItem, c: FigureChoice): string {
@@ -388,13 +424,16 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
     const set = (status: FigureChoice['status'], words: string) => {
       const before = c.status;
       c.status = status;
+      // The note about a kept text has done its work once the person chooses (R5a.2-7 c).
+      if (c.note?.startsWith('A draft arrived after')) c.note = null;
       if (before !== status) opts.onChange();
       live.textContent = `Figure ${n}: ${words}`;
       drawFigure(f);
     };
     approve.addEventListener('click', () => {
       if (!c.text.trim()) return;
-      set('approved', f.notPatched ? 'approved; copy the text and place it yourself.' : 'approved; it goes into the patched copy.');
+      // The announcement says what the status line says (R5a.2-3).
+      set('approved', f.notPatched ? 'approved; copy the text and place it yourself.' : notCarried(f, c.text) ? `approved, but not in the copy. ${NOT_CARRIED}` : 'approved; it goes into the patched copy.');
     });
     decorative.addEventListener('click', () => set('decorative', 'marked decorative.'));
     skip.addEventListener('click', () => set('skipped', 'skipped.'));
@@ -407,10 +446,22 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
     const n = figures.indexOf(f) + 1;
     const old = [...listEl.children].find((c) => (c as HTMLElement).dataset.figure === f.id);
     if (!old) return;
-    const focusedRole = document.activeElement instanceof HTMLElement && old.contains(document.activeElement) ? (document.activeElement.dataset.role ?? null) : null;
+    const active = document.activeElement instanceof HTMLElement && old.contains(document.activeElement) ? document.activeElement : null;
+    const focusedRole = active?.dataset.role ?? null;
+    // The caret stays where the person was typing (R5a.2-7 c).
+    const caret = active instanceof HTMLTextAreaElement ? [active.selectionStart, active.selectionEnd] : null;
     const next = figureItem(f, n);
     old.replaceWith(next);
-    if (focusedRole) (next.querySelector(`[data-role="${focusedRole}"]`) as HTMLElement | null)?.focus();
+    if (focusedRole) {
+      const target = next.querySelector(`[data-role="${focusedRole}"]`) as HTMLElement | null;
+      target?.focus();
+      if (caret && target instanceof HTMLTextAreaElement) target.setSelectionRange(caret[0], caret[1]);
+    }
+  }
+
+  function drawById(id: string) {
+    const f = figures.find((x) => x.id === id);
+    if (f) drawFigure(f);
   }
 
   const intro = el('p', {}, `${FIGURES_INTRO} `);
@@ -421,12 +472,14 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
     return { cancel: () => {} };
   }
   listEl.replaceChildren(...figures.map((f, i) => figureItem(f, i + 1)));
+  drafting.draw = drawById;
   section.replaceChildren(h, intro, el('p', { class: 'help' }, DRAFT_SENDS), keyEl, modeEl, allEl, live, listEl);
   drawKey();
   drawMode();
   return {
     cancel: () => {
       closed = true;
+      if (drafting.draw === drawById) drafting.draw = null;
       for (const url of thumbs.values()) if (url) revoke(url);
       thumbs.clear();
     },

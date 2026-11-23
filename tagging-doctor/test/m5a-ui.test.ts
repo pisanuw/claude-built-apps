@@ -403,3 +403,115 @@ describe('review round 1 on the page', () => {
     expect(main(s)).not.toContain('alt=');
   });
 });
+
+describe('milestone 5b: the minors carried from 5a round 2, on the page', () => {
+  const SIX = ['\\documentclass{article}', '\\usepackage{graphicx}', '\\begin{document}', ...Array.from({ length: 6 }, (_, i) => `\\includegraphics{f${i}.pdf}`), '\\end{document}', ''].join('\n');
+  const sixFiles = () => Object.fromEntries([['main.tex', SIX], ...Array.from({ length: 6 }, (_, i) => [`f${i}.pdf`, '%PDF'])]) as Record<string, string>;
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  it('R5a.2-1: a draft out when the panel is drawn again is shown as Drafting… and drawn when it arrives; Draft all does not ask for it twice', async () => {
+    document.body.innerHTML = '<div id="p"></div>';
+    const panel = document.getElementById('p') as HTMLElement;
+    const p = project(sixFiles());
+    const state = newFixesState();
+    const storage = memoryStorage();
+    setByokKey('k', storage);
+    let calls = 0;
+    const releases: (() => void)[] = [];
+    const figures = { signedIn: () => false, storage, draft: { ask: () => (calls++, new Promise<Message>((r) => releases.push(() => r(reply('Arrived.'))))) } };
+    const scan = scanDocument(p, 'main.tex', index);
+    const first = mountFixes(panel, { project: p, scan, state, downloadBlob: () => {}, onClose: () => {}, figures });
+    button(items(panel)[0], 'draft').click();
+    await flush();
+    first.cancel();
+    // The panel drawn again (Close and open, or a change of person) with the same state.
+    mountFixes(panel, { project: p, scan, state, downloadBlob: () => {}, onClose: () => {}, figures });
+    expect(button(items(panel)[0], 'draft').textContent).toBe('Drafting…');
+    (panel.querySelector('[data-role="draft-all"]') as HTMLButtonElement).click();
+    await flush();
+    releases.forEach((r) => r());
+    await wait(10);
+    releases.forEach((r) => r());
+    await wait(10);
+    // Six figures, six calls: figure 1 was not asked for twice.
+    expect(calls).toBe(6);
+    const li = items(panel)[0];
+    expect((li.querySelector('textarea') as HTMLTextAreaElement).value).toBe('Arrived.');
+    expect(li.textContent).not.toContain('A draft arrived after you changed this figure');
+    // As before: a new drop (a new state) drops the old answers.
+    expect(newFixesState().drafting.busy.size).toBe(0);
+  });
+
+  it('R5a.2-3: Approve announces what the status line says for a text left out', () => {
+    const s = mount({ files: { 'main.tex': '\\documentclass{article}\n\\usepackage{graphicx}\n\\begin{document}\n\\begin{figure}\\caption{C \\includegraphics{scan.pdf}}\\end{figure}\n\\end{document}\n', 'scan.pdf': '%PDF' } });
+    const ta = items(s.panel)[0].querySelector('textarea') as HTMLTextAreaElement;
+    ta.value = 'a \\ b';
+    ta.dispatchEvent(new Event('input'));
+    button(items(s.panel)[0], 'approve').click();
+    expect(s.panel.querySelector('.figures-status')?.textContent).toMatch(/^Figure 1: approved, but not in the copy\. This figure is in a title or a caption/);
+    ta.value = 'a b';
+    const ta2 = items(s.panel)[0].querySelector('textarea') as HTMLTextAreaElement;
+    ta2.value = 'a b';
+    ta2.dispatchEvent(new Event('input'));
+    button(items(s.panel)[0], 'approve').click();
+    expect(s.panel.querySelector('.figures-status')?.textContent).toBe('Figure 1: approved; it goes into the patched copy.');
+  });
+
+  it('R5a.2-4: figures passed over are not counted as left; untouched ones beyond the 40 still are', async () => {
+    const s = mount({ signedIn: true, files: sixFiles(), answer: async () => (await wait(10), reply('A model draft.')) });
+    (s.panel.querySelector('[data-role="draft-all"]') as HTMLButtonElement).click();
+    await flush();
+    button(items(s.panel)[5], 'decorative').click();
+    const t = items(s.panel)[4].querySelector('textarea') as HTMLTextAreaElement;
+    t.value = 'Mine';
+    t.dispatchEvent(new Event('input'));
+    await wait(80);
+    expect(s.panel.querySelector('.figures-status')?.textContent).toBe('Asked for 4 drafts. Check each one, then approve it.');
+    const many = ['\\documentclass{article}', '\\usepackage{graphicx}', '\\begin{document}', ...Array.from({ length: 45 }, (_, i) => `\\includegraphics{f${i}.pdf}`), '\\end{document}', ''].join('\n');
+    const m = mount({ signedIn: true, files: { 'main.tex': many }, answer: async () => reply('x') });
+    (m.panel.querySelector('[data-role="draft-all"]') as HTMLButtonElement).click();
+    await wait(40);
+    expect(m.panel.querySelector('.figures-status')?.textContent).toBe('Asked for 40 drafts. 5 figures are left: choose Draft all again for them. Check each one, then approve it.');
+  });
+
+  it('R5a.2-7 (a): the same refusal twice in a row stops Draft all; one figure\'s own failure does not', async () => {
+    const credit = Object.assign(new Error('400'), { status: 400, error: { error: { message: 'Your credit balance is too low to access the Anthropic API.' } } });
+    const storage = memoryStorage();
+    setByokKey('k', storage);
+    const s = mount({ storage, files: sixFiles(), answer: async () => Promise.reject(credit) });
+    (s.panel.querySelector('[data-role="draft-all"]') as HTMLButtonElement).click();
+    await wait(20);
+    expect(s.calls.length).toBeLessThanOrEqual(4);
+    expect(s.panel.querySelector('.figures-status')?.textContent).toMatch(/^Stopped after \d drafts: Anthropic refused two in a row\. Anthropic refused the request \(400\): Your credit balance is too low.*check your key and its credit\.$/);
+    // A 413 does not speak of credit.
+    const { draftErrorWords } = await import('../src/lib/draft');
+    expect(draftErrorWords(Object.assign(new Error('413'), { status: 413, error: { error: { message: 'Request too large' } } }))).toBe('Anthropic refused the request (413): Request too large. Trying again will not help.');
+    // Beside it: a refusal of one figure (a 5xx) does not stop the run.
+    let n = 0;
+    const t = mount({ storage, files: sixFiles(), answer: async () => (++n === 1 ? Promise.reject(Object.assign(new Error('500'), { status: 500 })) : reply('ok')) });
+    (t.panel.querySelector('[data-role="draft-all"]') as HTMLButtonElement).click();
+    await wait(20);
+    expect(t.calls).toHaveLength(6);
+  });
+
+  it('R5a.2-7 (c): the kept-text note goes once the person chooses, and the caret stays where they type', async () => {
+    let release: () => void = () => {};
+    const s = mount({ signedIn: true, answer: () => new Promise((r) => (release = () => r(reply('Late draft.')))) });
+    button(items(s.panel)[0], 'draft').click();
+    await flush();
+    const ta = items(s.panel)[0].querySelector('textarea') as HTMLTextAreaElement;
+    ta.value = 'My words';
+    ta.dispatchEvent(new Event('input'));
+    ta.focus();
+    ta.setSelectionRange(2, 2);
+    release();
+    await flush();
+    await flush();
+    const now = items(s.panel)[0].querySelector('textarea') as HTMLTextAreaElement;
+    expect(document.activeElement).toBe(now);
+    expect(now.selectionStart).toBe(2);
+    expect(items(s.panel)[0].textContent).toContain('A draft arrived after you changed this figure');
+    button(items(s.panel)[0], 'approve').click();
+    expect(items(s.panel)[0].textContent).not.toContain('A draft arrived after you changed this figure');
+  });
+});
