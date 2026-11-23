@@ -116,7 +116,11 @@ Google stays.
   `rate_limit_email_sent`, which `configure-auth` sets to 30).
   `--otp-length=N` sets `mailer_otp_length`, the digits of Auth's own email
   code (owner, 22 Nov 2026: 10; "Auth's own code" below); without
-  `--google` or `--email-rate` it sends that key and nothing else. The Google
+  `--google` or `--email-rate` it sends that key and nothing else.
+  `--templates-no-code` runs alone (with `--dry-run` at most) and sends only
+  the email template keys that print Auth's code, rewritten without it. Any
+  other flag is refused before any API call, so a typo never runs the full
+  patch. The Google
   client is **not** switched by default: the project signs in through client
   `989071206831-`; moving to the HintWise client (`985338662899-`) keeps the
   same Google identities (Google's `sub` is the same for every client) but is
@@ -287,7 +291,11 @@ short:
   `type=email`, and refuses `reauthentication`, whose only content is the
   code. `configure-auth --otp-length=10` makes it 10 digits
   (`mailer_otp_length`, 6 to 10); links (token hash) and HintWise's own
-  6-digit code do not depend on it, and `mailer_otp_exp` stays.
+  6-digit code do not depend on it, and `mailer_otp_exp` stays. Nor do
+  Auth's own templates, once `configure-auth --templates-no-code` has run
+  (owner, 23 Nov 2026: "take code out"): it rewrites every template that
+  prints the code, an empty one whose built-in default does included, and
+  sends only those keys; `inspect` shows which print it, never the text.
   `platform/src/signin/README.md`, "Auth's own code".
 - **Log.** Every request is a row in `platform.sign_in_requests`: hashed
   keys (HMAC-SHA256 under the function secret `SIGN_IN_HASH_KEY`), app,
@@ -398,10 +406,11 @@ The contract is `platform/src/signin/README.md`.
 - **Where the opt-out does not hold (fail open).**
   - `email-hook off`: Auth sends its own emails again, without the hook,
     and ignores the list (sign-in-link still checks it). It uses the
-    project's templates through Resend SMTP, and Supabase's default
-    reauthentication template shows Auth's code ("Enter the code:
-    {{ .Token }}"), so the code can show again while the hook is off. No
-    template is changed yet; the owner decides on a follow-up.
+    project's templates through Resend SMTP. Auth's built-in
+    reauthentication template prints Auth's code (subject and body), so
+    until `configure-auth --templates-no-code` has run the code can show
+    again while the hook is off. Once it has run, and `inspect` says no
+    template prints a code, the code is out of Auth's templates too.
   - Rotating `SIGN_IN_HASH_KEY` or `EMAIL_OPTOUT_SECRET` silently drops
     every opt-out (the list is keyed by the hash) and breaks every stop
     link already sent. Never rotate them without migrating the table; the

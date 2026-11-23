@@ -433,6 +433,36 @@ sign-in code ("Sign-in codes" above) is a different code and is unchanged.
   length. Nor for HintWise's code (`code.ts`, 6 digits of its own; sign-in-link
   never reads `generate_link`'s `email_otp`). `mailer_otp_exp` stays as it is
   (D-SC-5: at least 600 seconds; the default 3600).
+- **Nor Auth's own templates** (owner, 23 Nov 2026: "take code out"). They
+  send only while the hook is off. `inspect` lists every
+  `mailer_subjects_*` and `mailer_templates_*_content` key: set or empty
+  (Auth's built-in default), and whether it prints the code (`.Token` or
+  `.TokenNew` however spaced, `index` with "Token", or the whole data).
+  Auth's built-in defaults print it in reauthentication's subject and body
+  since v2.190.0, and before it also in the bodies of invite, confirmation,
+  recovery, magic link and email change ("Alternatively, enter the code";
+  supabase/auth `internal/mailer/templatemailer/templatemailer.go`, read
+  23 Nov 2026; `test/fixtures/auth-default-templates.json`). Both commands
+  read Auth's version from the Management API's health check. When it is
+  unknown (unreadable, or a pre-release of 2.190.0 itself), `inspect` and
+  the dry run count both sets of defaults, and the real run sends nothing.
+  `configure-auth --templates-no-code` (`--dry-run` first; the owner checks
+  that the real run's version line and keys match the dry run's)
+  rewrites each one that prints it: reauthentication becomes "Email
+  confirmation codes are off. Sign out and back in, then make the change."
+  (the hook's refusal) under the subject "Email confirmation codes are
+  off"; another subject becomes Auth's built-in one for its type; an empty
+  link-email body becomes Auth's own code-free one; a set body loses the
+  element (or line) that holds the code, and a label just before it ("Or
+  enter this code:", its own element or plain line, no link or action), and
+  nothing else. Each key's line gives the characters removed, kept and
+  written. A body it cannot rewrite without losing a link or another block
+  element, breaking an `{{ if }}`/`{{ else }}`/`{{ end }}`, or leaving
+  nothing is listed by key, and then nothing is sent: edit it by hand and
+  run again. The PATCH holds those template keys only, never `smtp_pass` or
+  any other. The run is refused with `--otp-length`, `--google` or
+  `--email-rate`, and configure-auth refuses any flag it does not know
+  (`--template-no-code` would otherwise run the full patch).
 
 ## Email footer, logo and opt-out
 
@@ -543,12 +573,13 @@ sign-in-link or auth-email-hook until `optout-ready` sees
 
 - `email-hook off`: Auth then sends its own emails directly, without the
   hook, so it ignores the opt-out list (sign-in-link still checks it). It
-  sends them with the project's templates through Resend SMTP, and
-  Supabase's default reauthentication template shows Auth's code ("Enter
-  the code: {{ .Token }}"; Auth's built-in default, read 22 Nov 2026, has
-  `{{ .Token }}` in the subject and the body), so with the hook off the code
-  can show again. No template is changed yet: the owner decides on a
-  follow-up. The project's templates are not read by any command here.
+  sends them with the project's templates through Resend SMTP. Auth's
+  built-in reauthentication template prints Auth's code in the subject and
+  the body, so until `configure-auth --templates-no-code` has run the code
+  can show again with the hook off. Once it has run (and `inspect` says no
+  template prints a code), the code is out of Auth's templates too:
+  reauthentication says that email confirmation codes are off, and every
+  other email keeps its links ("Auth's own code" above).
 - Rotating `SIGN_IN_HASH_KEY` or `EMAIL_OPTOUT_SECRET`: the list is keyed by
   the hash, so a new hash key silently drops every opt-out (and every
   sign-in ladder), and a new opt-out secret breaks every stop link already

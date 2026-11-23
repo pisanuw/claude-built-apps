@@ -56,13 +56,15 @@ The rules behind it:
 
 - **Every time comes from `date`**, converted to the report time zone. A planned send time is not a timestamp.
 - **"Waiting for you" is complete every time.** Repeat every open decision in full, never "see the 10:00 card", until it is answered or its default is taken.
+- **No back references anywhere.** Not to an earlier card, report, message or note, and not for the exact wording of a change: put the wording itself in. Each item stands alone.
+- **The card's text comes last.** If the reply that sends the report or card also prints its text, the text is the last thing in the reply, whenever possible.
 - **An owner action appears only once it can be done now**, with a command that runs as pasted: no `#` comments inside it (zsh reads them as arguments), and no secret on the command line (`read -rs` it first). If only a dashboard can do it, give its exact URL and the field to change.
 - **Say what is not verified.** "Deployed" means the deploy log and the health check were read, not that the deploy was started.
 - **Keep it short:** the owner reads it on a phone.
 
 ## The decision card
 
-A separate small file, one per decision, sent when the decision arises (not saved for the next status check):
+A separate small file, one per decision, sent when the decision arises (not saved for the next status check). It is self-contained: the owner can act on it without any earlier message, so it carries the exact text, links and commands itself, never "as in my earlier note". When the reply also prints it, it comes last.
 
 ```markdown
 # Decision: <question> (sent <Day D Mon>, <HH:MM TZ>)
