@@ -209,6 +209,13 @@ test('AC-13: the built scripts name only the hosts the criterion lists', async (
     // The checker's address (VITE_CHECKER_URL) of this release step (test/checker-address.ts, D-133), and the walkthrough's stand-in.
     new URL(CHECKER_ADDRESS).hostname,
     new URL(CHECKER_STUB).hostname,
+    // Milestone 5a: the own key's drafts go to api.anthropic.com only (AC-13, AC-46), through the Anthropic SDK,
+    // whose error messages name three documentation pages (strings, never requested); lewis-alt-text is a link.
+    'api.anthropic.com',
+    'platform.claude.com',
+    'docs.anthropic.com',
+    'docs.expo.dev',
+    'lewis-alt-text.hintwise.org',
   ]);
   const seen = new Set<string>();
   for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.js'))) {
@@ -536,4 +543,71 @@ test('AC-81: a running check counts its seconds and says how long a check may ta
   await expect(line.locator('[aria-hidden="true"]')).toHaveText(/^ \(\d+ s\)$/);
   await expect(line).toHaveText('The check is finished.', { timeout: 20_000 });
   await expect(page.locator('#compile .check-takes')).toBeHidden();
+});
+
+// A real 1x1 PNG, so the browser can draw the thumbnail and re-encode the image.
+const PNG_1X1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+
+test('AC-45, AC-46, AC-48, AC-49: alt text drafted with my own key goes only to api.anthropic.com, and the approved text goes into the patched zip', async ({ page }) => {
+  const seen = record(page);
+  const project = zipSync({
+    'main.tex': strToU8('\\documentclass{article}\n\\usepackage{graphicx}\n\\begin{document}\nThe weekly means.\n\\begin{figure}\n\\includegraphics[width=3cm]{plot}\n\\caption{Means by week}\n\\end{figure}\n\\includegraphics{scan.pdf}\n\\end{document}\n'),
+    'plot.png': new Uint8Array(PNG_1X1),
+    'scan.pdf': strToU8('%PDF-1.4'),
+  });
+  const bodies: unknown[] = [];
+  await page.route('https://api.anthropic.com/**', async (route) => {
+    const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    bodies.push(route.request().postDataJSON());
+    return route.fulfill({
+      status: 200,
+      headers: { ...cors, 'content-type': 'application/json' },
+      body: JSON.stringify({ id: 'msg_1', type: 'message', role: 'assistant', model: 'claude-haiku-5-5', content: [{ type: 'text', text: 'Weekly means rise 50% & level off.' }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 10, output_tokens: 10 } }),
+    });
+  });
+  await page.goto('/');
+  await page.locator('#file').setInputFiles({ name: 'stats.zip', mimeType: 'application/zip', buffer: Buffer.from(project) });
+  await expect(page.locator('#result-h')).toBeVisible();
+  await page.getByRole('button', { name: 'Alt text for figures' }).click();
+  await expect(page.locator('#figures-h')).toBeFocused();
+  const figs = page.locator('li.figure-item');
+  await expect(figs).toHaveCount(2);
+  // AC-45: a thumbnail for the PNG that the browser really drew; "No preview" for the PDF.
+  await expect(figs.nth(0).locator('img.thumb')).toBeVisible();
+  expect(await figs.nth(0).locator('img.thumb').evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(1);
+  await expect(figs.nth(1)).toContainText('No preview');
+  await expect(figs.nth(0)).toContainText('Caption: Means by week');
+  // Not signed in, no key: Draft waits for one.
+  await expect(figs.nth(0).getByRole('button', { name: 'Draft', exact: true })).toBeDisabled();
+  await page.getByLabel('Your own Anthropic key (optional)').fill('sk-ant-e2e-not-a-real-key');
+  await page.getByRole('button', { name: 'Use this key' }).click();
+  await expect(page.locator('.draft-mode')).toHaveText('Drafts use your own key.');
+  const before = seen.length;
+  await figs.nth(0).getByRole('button', { name: 'Draft', exact: true }).click();
+  const text = figs.nth(0).getByLabel('Alt text for figure 1');
+  await expect(text).toHaveValue('Weekly means rise 50% & level off.');
+  await expect(figs.nth(0)).toContainText('Draft by a model, check it.');
+  // AC-46: the draft's requests went to api.anthropic.com and nowhere else (the SDK's own chunk comes from the page's origin).
+  const hosts = new Set(seen.slice(before).map((r) => new URL(r.url()).origin));
+  expect([...hosts].filter((h) => h !== BASE)).toEqual(['https://api.anthropic.com']);
+  expect(bodies).toHaveLength(1);
+  const body = bodies[0] as { model: string; messages: { content: { type: string; source?: { media_type: string } }[] }[] };
+  expect(body.model).toBe('claude-haiku-5-5');
+  expect(body.messages[0].content[0]).toMatchObject({ type: 'image', source: { media_type: 'image/png' } });
+  // AC-48: not in the copy until Approve; AC-49: then as alt={…}, escaped.
+  await figs.nth(0).getByRole('button', { name: 'Approve' }).click();
+  await expect(figs.nth(0).locator('.alt-status')).toHaveText('Approved: in the patched copy as its alt text.');
+  await figs.nth(1).getByRole('button', { name: 'Decorative' }).click();
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download patched zip' }).click()]);
+  const file = test.info().outputPath('stats-patched.zip');
+  await dl.saveAs(file);
+  const { unzipSync, strFromU8 } = await import('fflate');
+  const main = strFromU8(unzipSync(new Uint8Array(fs.readFileSync(file)))['main.tex']);
+  expect(main).toContain('\\includegraphics[width=3cm, alt={Weekly means rise 50\\% \\& level off.}]{plot}');
+  expect(main).toContain('\\includegraphics[artifact]{scan.pdf}');
+  await expect(page.locator('#fixes .fixes-status')).toContainText('with 1 fix and 2 alt texts');
+  // Forget key removes it from this browser.
+  await page.getByRole('button', { name: 'Forget key' }).click();
+  expect(await page.evaluate(() => localStorage.getItem('hintwise.anthropicKey'))).toBeNull();
 });

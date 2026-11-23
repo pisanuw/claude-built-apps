@@ -12,7 +12,7 @@
  * `ask` takes its dependencies (storage, fetch, token, SDK factory) as an
  * optional second argument so tests never touch the network.
  */
-import Anthropic from '@anthropic-ai/sdk';
+import type Anthropic from '@anthropic-ai/sdk';
 import { currentToken } from './auth';
 import { APP_SLUG } from './supabase';
 
@@ -51,7 +51,7 @@ export interface AskDeps {
   storage?: Storage;
   fetch?: typeof fetch;
   getToken?: () => Promise<string | null>;
-  createAnthropic?: (apiKey: string) => AnthropicLike;
+  createAnthropic?: (apiKey: string) => AnthropicLike | Promise<AnthropicLike>;
   gatewayUrl?: string;
 }
 
@@ -180,8 +180,15 @@ export async function ask(req: AskRequest, deps: AskDeps = {}): Promise<Message>
   if (mode === 'byok') {
     const apiKey = getByokKey(storage);
     if (!apiKey) throw new LlmUnavailable('Paste your Anthropic API key first.');
-    const create = deps.createAnthropic ?? ((key: string) => new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true }));
-    return create(apiKey).messages.create(body);
+    // The SDK is loaded only when the own key drafts, so the page's first load does not carry it (D-142).
+    const create =
+      deps.createAnthropic ??
+      /* v8 ignore next 4 -- the browser's SDK; the Playwright walkthrough runs it against a stand-in api.anthropic.com */
+      (async (key: string) => {
+        const { default: Sdk } = await import('@anthropic-ai/sdk');
+        return new Sdk({ apiKey: key, dangerouslyAllowBrowser: true });
+      });
+    return (await create(apiKey)).messages.create(body);
   }
 
   const token = await (deps.getToken ?? currentToken)();
