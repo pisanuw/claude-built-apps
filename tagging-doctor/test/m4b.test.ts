@@ -289,7 +289,7 @@ describe('Manager’s minors at af12111', () => {
 
 describe('AC-42 at m4b\'s acceptance: a side with no check names why, and the right cases keep their words', () => {
   const orig = done([clause('8.2.2', 4668), clause('6.1', 1)]);
-  const noPdf: CheckerJob = { ...done([]), status: 'failed', result: null, pdf: false, failure: { kind: 'compile-error', message: 'LuaLaTeX stopped with an error.' } };
+  const noPdf: CheckerJob = { ...done([]), status: 'failed', result: null, pdf: false, failure: { kind: 'compile-error', message: 'LuaLaTeX stopped with an error.', error: null } };
   const noCheck: CheckerJob = { ...done([]), result: { ...(done([]).result as NonNullable<CheckerJob['result']>), validation: null } };
   const words = (a: CheckerJob, b: CheckerJob) => compareJobs(a, b).rows.map((r) => [r.clause, r.change, r.changeText]);
   it('the patched copy did not compile, or the original did not, or a PDF was not checked', () => {
