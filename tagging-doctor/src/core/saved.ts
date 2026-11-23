@@ -107,6 +107,12 @@ export function suggestedProjectName(name: string, existing: readonly string[]):
   return m && existing.includes(m[1]) ? m[1] : name;
 }
 
+/** The names a saved project of a dropped file may have, in order (AC-51): its own, then the one without a browser's copy suffix (AC-73). */
+export function versionNames(name: string): string[] {
+  const m = COPY_SUFFIX.exec(name);
+  return m ? [name, m[1]] : [name];
+}
+
 /** What identifies a blocker across two scans: the package and its kind, or the rule and the file. */
 export function blockerKey(f: Pick<StoredFinding, 'rule' | 'package' | 'kind' | 'path'>): string {
   return f.package ? `${f.kind ?? 'package'}:${f.package}` : `${f.rule}:${f.path}`;

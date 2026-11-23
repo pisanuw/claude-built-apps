@@ -21,6 +21,9 @@ export const FIGURES_INTRO =
 /** What a draft sends, said before anything is sent (What we keep, AC-26). */
 export const DRAFT_SENDS =
   'A draft sends the figure’s image file as it is (PNG, JPEG, GIF or WebP; one over 680 KB or 1568 pixels is redrawn smaller first), the file’s name without its folders, its caption and label, and the text around it to Anthropic, only when you choose Draft or Draft all. Nothing else is uploaded.';
+/** What a saved project keeps of the figure panel (AC-51; What we keep). */
+export const ALTS_KEPT =
+  'Signed in, once the scan is saved, the approved texts and decorative marks are kept with the project, with each file’s path and a fingerprint of its contents, never the file; a new version of the project gets them back for the files that have not changed.';
 export const EMPTY = 'No figures found in this project.';
 export const DRAFT_LABEL = 'Draft by a model, check it';
 export const LEWIS_URL = 'https://lewis-alt-text.hintwise.org';
@@ -122,7 +125,7 @@ function defaultStorage(): Storage | undefined {
 /** Draft all's stop for the same refusal twice in a row (R5a.2-7 a). */
 class RepeatedRefusal extends Error {}
 
-export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel: () => void } {
+export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel: () => void; say: (text: string) => void } {
   const { figures, choices } = opts;
   const storage = opts.storage ?? defaultStorage();
   const objectUrl = opts.objectUrl ?? browserObjectUrl;
@@ -469,11 +472,11 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
   intro.append('For chemistry structures, ', lewis, ' drafts from the drawing.');
   if (!figures.length) {
     section.replaceChildren(h, el('p', { class: 'empty' }, EMPTY));
-    return { cancel: () => {} };
+    return { cancel: () => {}, say: () => {} };
   }
   listEl.replaceChildren(...figures.map((f, i) => figureItem(f, i + 1)));
   drafting.draw = drawById;
-  section.replaceChildren(h, intro, el('p', { class: 'help' }, DRAFT_SENDS), keyEl, modeEl, allEl, live, listEl);
+  section.replaceChildren(h, intro, el('p', { class: 'help' }, `${DRAFT_SENDS} ${ALTS_KEPT}`), keyEl, modeEl, allEl, live, listEl);
   drawKey();
   drawMode();
   return {
@@ -482,6 +485,9 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
       if (drafting.draw === drawById) drafting.draw = null;
       for (const url of thumbs.values()) if (url) revoke(url);
       thumbs.clear();
+    },
+    say: (text) => {
+      live.textContent = text;
     },
   };
 }

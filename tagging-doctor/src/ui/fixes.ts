@@ -43,6 +43,8 @@ export interface FixesOpts {
   compareSlot?: (slot: HTMLElement, ctx: FixesCtx) => { cancel: () => void };
   /** What the figure panel needs from the page (milestone 5a): whether a person is signed in, and stand-ins for tests. */
   figures?: Omit<FiguresOpts, 'project' | 'figures' | 'choices' | 'onChange' | 'drafting'>;
+  /** Called when an approved or decorative figure changes, so a saved project's alt texts follow (AC-51). */
+  onAltsChange?: () => void;
 }
 
 /** The person's choices for one document: the cards they turned on or off, and the language. */
@@ -78,7 +80,7 @@ function changeWhere(c: { path: string; line: number }): string {
 }
 
 /** Draws the panel; returns `cancel`, which stops a compare in progress. */
-export function mountFixes(panel: HTMLElement, opts: FixesOpts): { cancel: () => void; redraw: () => void } {
+export function mountFixes(panel: HTMLElement, opts: FixesOpts): { cancel: () => void; redraw: () => void; say: (text: string) => void } {
   const { project, scan, state } = opts;
   let plan = suggestFixes(project, scan, { language: state.language });
   let compare: { cancel: () => void } | null = null;
@@ -241,7 +243,7 @@ export function mountFixes(panel: HTMLElement, opts: FixesOpts): { cancel: () =>
   drawCards();
   drawAttention();
   drawActions();
-  const figs = mountFigures(figuresEl, { signedIn: () => false, ...opts.figures, project, figures, choices: state.alts, drafting: state.drafting, onChange: () => {} });
+  const figs = mountFigures(figuresEl, { signedIn: () => false, ...opts.figures, project, figures, choices: state.alts, drafting: state.drafting, onChange: () => opts.onAltsChange?.() });
   if (opts.compareSlot) compare = opts.compareSlot(slot, ctx);
   return {
     cancel: () => {
@@ -249,6 +251,11 @@ export function mountFixes(panel: HTMLElement, opts: FixesOpts): { cancel: () =>
       compare?.cancel();
     },
     redraw: drawCards,
+    // Said in the figure panel, where the texts are (AC-51); in the fix panel's line when there are no figures.
+    say: (text) => {
+      if (figures.length) figs.say(text);
+      else live.textContent = text;
+    },
   };
 }
 

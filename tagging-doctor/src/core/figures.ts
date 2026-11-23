@@ -58,6 +58,8 @@ export interface FigureItem {
   insert: { kind: 'options'; from: number; to: number } | { kind: 'none'; at: number } | null;
   /** Why `insert` is null, in plain words; null when it is not. */
   notPatched: string | null;
+  /** A TikZ picture's own source, from `\begin{tikzpicture}` to its `\end`: what a saved alt text's fingerprint is of (AC-51). */
+  source?: string;
 }
 
 /** What the person chose for a figure, as the patch takes it (AC-49). */
@@ -383,9 +385,11 @@ export function listFigures(project: Project, scan: Pick<DocumentScan, 'filesRea
         while (/\s/.test(src[j] ?? '')) j++;
         const optsText = src[j] === '[' && ends[j] >= 0 ? src.slice(j + 1, ends[j]) : '';
         const endAt = src.indexOf('\\end{tikzpicture}', at);
+        const to = endAt < 0 ? at : endAt + '\\end{tikzpicture}'.length;
         out.push({
           ...base,
-          ...contextOf(src, offset, endAt < 0 ? at : endAt + '\\end{tikzpicture}'.length),
+          source: src.slice(offset, to),
+          ...contextOf(src, offset, to),
           file: null,
           resolved: null,
           preview: null,

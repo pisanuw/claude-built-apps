@@ -13,14 +13,16 @@ import { COULD_NOT_SCAN, findMainFiles, scanDocument, wellFormed, type DocumentS
 import { plainWords } from '../core/fixes';
 import type { Group, StatusIndex } from '../core/status';
 import { LIMITS, ZipError } from '../core/zip';
-import { defaultProjectName, toStoredScan, type SaveItem } from '../core/saved';
+import { defaultProjectName, toStoredScan, versionNames, type SaveItem } from '../core/saved';
 import type { SavedResult } from '../lib/store';
 import type { CourseStore } from '../lib/store';
 import { jobRecord, type CheckerJob, type JobRecord } from '../core/compile';
 import { finished } from '../core/compare';
 import { mountCompile, KEPT, type CompileDeps } from './compile';
 import { mountFixes, newFixesState, type FixesState } from './fixes';
-import type { FiguresOpts } from './figures';
+import { newChoice, type FiguresOpts } from './figures';
+import { listFigures, type FigureItem } from '../core/figures';
+import { altSync, figureKeys, restoreAlts, restoredWords, type FigureKey } from '../lib/alts';
 import type { CompareDeps, compareSlot as CompareSlot } from './compare';
 import { KEEP_HASH, renderCourse, renderCourseReport, renderCourses, renderKeep, renderNotFound, renderProject, renderSaveDialog, type PageCtx } from './pages';
 
@@ -91,6 +93,10 @@ export interface DroppedFile {
 
 export const EMPTY_TEXT = 'Drop a zip of your LaTeX project, or one .tex file. Nothing is uploaded: the scan runs in your browser.';
 export const LOAD_FAILED = 'The package list could not be loaded. Check your connection and drop the file again. Your file was not sent anywhere.';
+
+/** The figure panel’s line when a saved project's alt texts could not be read or written (AC-51). */
+export const ALTS_NOT_READ = 'The saved alt texts could not be loaded, so none was filled in. The figures are as in this drop.';
+export const ALTS_NOT_SAVED = 'The approved alt texts could not be saved with the project. They are still on this page and go into the patched copy; approve one again to try saving once more.';
 
 export const NO_MAIN_TEXT = 'No .tex file with \\documentclass was found';
 
@@ -177,7 +183,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   let newestPanel: 'compile' | 'fixes' = 'compile';
   const fixesPanel = el('section', { id: 'fixes', class: 'fixes-panel', 'aria-labelledby': 'fixes-h' });
   fixesPanel.hidden = true;
-  let fixesRun: { cancel: () => void } | null = null;
+  let fixesRun: { cancel: () => void; say: (text: string) => void } | null = null;
   /** The document the fix panel is for, and each document's fix choices in this drop (milestone 4). */
   let fixesFor: string | null = null;
   let fixStates = new Map<string, FixesState>();
@@ -185,6 +191,12 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   let originals = new Map<string, CheckerJob>();
   /** The saved scan of each main file of this drop, so a job row can name it (AC-35). */
   let savedScans = new Map<string, { projectId: string; scanId: string }>();
+  /** Each document's figures and their saved-text slots in this drop (AC-51). */
+  let figureSlots = new Map<string, Promise<{ figures: FigureItem[]; keys: Map<string, FigureKey> }>>();
+  /** The restores asked for in this drop, by document and person (AC-51). */
+  let restoreAsked = new Set<string>();
+  /** One alt-text sync at a time per saved project, so two never insert the same slot (AC-51). */
+  const altChains = new Map<string, Promise<void>>();
   /** Finished jobs of this drop whose scan is not saved yet: saving keeps them (AC-27, "Save to keep this result"). */
   let unsavedJobs = new Map<string, { job: CheckerJob; kind: JobRecord['kind'] }[]>();
   const account = deps.account;
@@ -261,6 +273,8 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     unsavedJobs = new Map();
     fixStates = new Map();
     originals = new Map();
+    figureSlots = new Map();
+    restoreAsked = new Set();
   }
 
   function showError(message: string) {
@@ -591,8 +605,13 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     if (!project || !fixesFor) return;
     const main = fixesFor;
     fixesRun?.cancel();
-    let state = fixStates.get(main);
-    if (!state) fixStates.set(main, (state = newFixesState()));
+    const state = fixState(main);
+    // Signed in: the saved project's alt texts come back for the unchanged files (AC-51), once per document and person.
+    const asked = `${main}\u0000${userId ?? ''}`;
+    if (signedIn && !restoreAsked.has(asked)) {
+      restoreAsked.add(asked);
+      void restoreFor(main);
+    }
     const compare = deps.compare && deps.compile && account && signedIn ? deps.compare : null;
     const compile = deps.compile;
     fixesRun = mountFixes(fixesPanel, {
@@ -602,6 +621,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       downloadBlob: deps.downloadBlob ?? deps.compile?.downloadBlob ?? (() => {}),
       onClose: hideFixes,
       figures: { ...deps.figures, signedIn: () => signedIn },
+      onAltsChange: () => void syncAlts(main),
       compareSlot:
         compare && compile && account
           ? compare.compareSlot({
@@ -625,12 +645,99 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     fixesPanel.remove();
   }
 
+  function fixState(main: string): FixesState {
+    let state = fixStates.get(main);
+    if (!state) fixStates.set(main, (state = newFixesState()));
+    return state;
+  }
+
+  /** The figures of `main` in this drop and their slots (AC-51), worked out once. */
+  function slotsOf(main: string): Promise<{ figures: FigureItem[]; keys: Map<string, FigureKey> }> {
+    let s = figureSlots.get(main);
+    if (!s) {
+      const figures = listFigures(project as Project, scans.get(main) as DocumentScan);
+      s = figureKeys(project as Project, figures).then((keys) => ({ figures, keys }));
+      figureSlots.set(main, s);
+    }
+    return s;
+  }
+
+  /**
+   * Fills the figures of `main` the person has not started on from the saved
+   * project's alt texts, where the file is unchanged (AC-51). The project is
+   * the one this drop saved the document to, or else the one saved project
+   * of the same name and main file; with none, or several, nothing is filled
+   * until the scan is saved.
+   */
+  async function restoreFor(main: string): Promise<void> {
+    if (!account || !signedIn || !project || !scans.has(main)) return;
+    const p = project;
+    const run = generation;
+    const who = userId;
+    const gone = () => run !== generation || project !== p || userId !== who;
+    const state = fixState(main);
+    const slots = slotsOf(main);
+    try {
+      const store = account.store();
+      let projectId = savedScans.get(wellFormed(main))?.projectId ?? null;
+      if (!projectId) {
+        // The drop's own name first, then the name without a copy suffix ("hw1 (1).zip" is a new version of hw1, AC-73).
+        const names = mains.length > 1 ? [wellFormed(main)] : versionNames(wellFormed(defaultProjectName(p.name)));
+        for (const name of names) {
+          const found = await store.projectsMatching(name, wellFormed(main));
+          if (gone()) return;
+          if (found.length > 1) return;
+          if (found.length === 1) {
+            projectId = found[0].id;
+            break;
+          }
+        }
+        if (!projectId) return;
+      }
+      const [rows, { figures, keys }] = await Promise.all([store.altTexts(projectId), slots]);
+      if (gone()) return;
+      const r = restoreAlts(figures, keys, rows, state.alts, newChoice);
+      for (const id of [...r.restored, ...r.stale]) state.drafting.draw?.(id);
+      const words = restoredWords(r.restored.length, r.stale.length);
+      if (words && fixesFor === main) fixesRun?.say(words);
+    } catch (e) {
+      console.warn('tagging-doctor: the saved alt texts could not be read', e);
+      if (!gone() && fixesFor === main) fixesRun?.say(ALTS_NOT_READ);
+    }
+  }
+
+  /** Brings the saved project's alt texts to the person's choices for `main` (AC-51); one at a time per project. */
+  function syncAlts(main: string): Promise<void> {
+    const saved = savedScans.get(wellFormed(main));
+    const state = fixStates.get(main);
+    if (!account || !signedIn || !saved || !state || !project) return Promise.resolve();
+    const p = project;
+    const store = account.store();
+    const slots = slotsOf(main);
+    const next = (altChains.get(saved.projectId) ?? Promise.resolve())
+      .then(async () => {
+        // The choices as they are when this sync's turn comes, so a quick run of changes ends in the last one.
+        const { figures, keys } = await slots;
+        const { want, drop } = altSync(figures, keys, state.alts);
+        if (want.length || drop.length) await store.syncAltTexts(saved.projectId, want, drop);
+      })
+      .catch((e) => {
+        console.warn('tagging-doctor: the alt texts could not be saved', e);
+        if (fixesFor === main && project === p) fixesRun?.say(ALTS_NOT_SAVED);
+      });
+    altChains.set(saved.projectId, next);
+    return next;
+  }
+
   /** After a save: remember the saved scans, and write the rows of results shown before it (AC-27, AC-35). */
   function onSaved(items: SaveItem[], mode: 'one' | 'all', results: SavedResult[]) {
     for (const r of results) {
       const item = mode === 'one' ? items[0] : items.find((i) => i.name.trim() === r.project.name);
       if (item) savedScans.set(item.mainFile, { projectId: r.project.id, scanId: r.scan.id });
     }
+    // The saved project's alt texts come back first, then the person's approvals go to it (AC-51).
+    const savedMains = new Set(results.map((r) => (mode === 'one' ? items[0] : items.find((i) => i.name.trim() === r.project.name))?.mainFile));
+    for (const m of mains) if (savedMains.has(wellFormed(m)) && scans.has(m)) void restoreFor(m).then(() => syncAlts(m));
     for (const [main, jobs] of [...unsavedJobs]) {
       if (!savedScans.has(main)) continue;
       for (const { job, kind } of jobs) void keepJob(main, job, kind).then(

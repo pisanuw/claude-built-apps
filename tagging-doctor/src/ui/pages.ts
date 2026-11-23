@@ -317,6 +317,7 @@ export const KEEP_POINTS: string[] = [
   'Your account and saved reports are kept in HintWise’s database at Supabase, in the US (US East).',
   'Compile and check sends the project’s files to the HintWise checker, which runs on Render in the US (region oregon). The checker deletes a job’s files within 30 minutes. Upload only materials you wrote or may change. For a saved scan, the check’s result is kept with the project: its status, times, page count, warnings and the PDF/UA failures by clause, never the PDF or your files.',
   'A figure draft sends the figure’s image file as it is (PNG, JPEG, GIF or WebP; one over 680 KB or 1568 pixels is redrawn smaller first, and what a file carries inside, such as a photo’s place, goes with it), the file’s name without its folders, its caption and label, and up to 1,200 characters of the text around it to Anthropic, and only when you choose Draft or Draft all: straight from this browser with your own key, which is kept in this browser only, or through HintWise’s gateway with HintWise’s key. The gateway records when each person first and last used the app.',
+  'When you approve an alt text, or mark a figure decorative, for a scan you saved, we keep the text or the mark with the project, where it came from (typed, or a draft by a model), the figure file’s path in the project and a SHA-256 fingerprint of the file’s contents (of a TikZ picture, its source lines), never the file. A new version of the project, dropped while you are signed in, gets each text back for a file that has not changed. Taking the approval back removes it.',
   'Visits are counted without cookies.',
 ];
 
@@ -342,7 +343,7 @@ export function renderSaveDialog(panel: HTMLElement, opts: SaveDialogOpts): void
   const { store, items, mode } = opts;
   const h = el('h3', { id: 'save-h', tabindex: '-1' }, mode === 'all' ? 'Save all to a course' : 'Save to a course');
   const keep = el('p', { class: 'help' });
-  keep.append('Saved: the verdict, the counts, and each finding’s file, line and a short excerpt; never your files. ', link(KEEP_HASH, 'What we keep'));
+  keep.append('Saved: the verdict, the counts, and each finding’s file, line and a short excerpt, and the alt texts you approve; never your files. ', link(KEEP_HASH, 'What we keep'));
   const status = el('p', { class: 'save-status', role: 'status' });
   panel.replaceChildren(h, keep, el('p', { class: 'loading', role: 'status' }, 'Loading your courses…'));
 
