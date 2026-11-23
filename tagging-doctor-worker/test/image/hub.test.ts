@@ -184,3 +184,26 @@ describe.runIf(IN_HUB)('R4b.1-1: the hub runs with NODE_ENV=production, as on th
     expect(`${run.stdout}${run.stderr}`).toContain('COOKIE_SECRET must be set in production');
   });
 });
+
+describe.runIf(IN_HUB)('R4b.1-4 (a): the memory bomb leaves room for the live hub', () => {
+  it('at --memory 512m the bomb fails inside TeX\'s cap, and the container\'s peak leaves the live hub\'s 123 MB beside it', async () => {
+    w = await Worker.start({ cpus: '0.5' });
+    const id = docker(['inspect', '-f', '{{.Id}}', w.name]).trim();
+    const cg = `/sys/fs/cgroup/memory/docker/${id}`;
+    const read = (f: string) => (existsSync(`${cg}/${f}`) ? readFileSync(`${cg}/${f}`, 'utf8') : '0');
+    const rss = () => Number(/^total_rss (\d+)$/m.exec(read('memory.stat'))?.[1] ?? 0);
+    await new Promise((r) => setTimeout(r, 1_000));
+    const idle = rss();
+    let peak = 0;
+    const sampler = setInterval(() => (peak = Math.max(peak, rss())), 50);
+    const bomb = await run(w, { 'main.tex': fixture('memory-bomb.tex') });
+    clearInterval(sampler);
+    const mb = (b: number) => Math.round(b / 1048576);
+    console.log(`R4b.1-4a bomb status=${bomb.status} idle_rss_mb=${mb(idle)} peak_rss_mb=${mb(peak)} max_usage_mb=${mb(Number(read('memory.max_usage_in_bytes')))} oom=${read('memory.oom_control').match(/oom_kill (\d+)/)?.[1] ?? '?'}`);
+    expect(bomb.status).toBe('failed');
+    expect(bomb.logTail.join('\n')).toMatch(/not enough memory/);
+    // With the live hub's own peak in place of the idle one, the container stays under 512 MB.
+    expect(mb(peak) - mb(idle) + 123).toBeLessThan(500);
+    expect(docker(['inspect', '-f', '{{.State.OOMKilled}} {{.State.Running}} {{.RestartCount}}', w.name]).trim()).toBe('false true 0');
+  });
+});
