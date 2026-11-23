@@ -11,7 +11,7 @@
  * a definition (`\newcommand`, `\def`, `\newenvironment` …), where the patch
  * does not change it.
  */
-import { dirOf, extOf, findCommands, groupEnds, keyValues, lineIndex, resolvePath } from './latex';
+import { blankComments, dirOf, extOf, findCommands, groupEnds, keyValues, lineIndex, resolvePath } from './latex';
 import { Sources } from './patch';
 import type { Project } from './project';
 import type { DocumentScan } from './scan';
@@ -47,6 +47,8 @@ export interface FigureItem {
   existing: 'alt' | 'decorative' | null;
   /** Inside a definition: listed, never patched (AC-49). */
   inDefinition: boolean;
+  /** In a moving argument (a title or a caption), where `\\`, `~` and `^` cannot go into the alt text (R5a.1-5). */
+  moving: boolean;
   /**
    * Where the patch writes the key: inside the options' brackets, or (with
    * no options) right after the command's name. Null when the patch cannot
@@ -114,9 +116,56 @@ export function unescapeAlt(latex: string): string {
 
 // ---- Finding the figures (AC-45) -----------------------------------------------------
 
-/** Commands whose argument is a definition's body: a figure inside one is not patched. */
-const DEFINER =
-  /\\(?:(?:re)?newcommand|providecommand|DeclareRobustCommand|[gex]?def|(?:re)?newenvironment|(?:New|Renew|Provide|Declare)Document(?:Command|Environment)|NewCommandCopy)\*?\s*(?:\{?\s*\\[A-Za-z@]+\s*\}?)?\s*(?:#\d\s*)*(?:\[[^\]]*\]\s*)*(?:\{[^{}]*\}\s*)*(?:#\d\s*)*$/;
+/**
+ * The definers whose arguments are bodies, and how their arguments run
+ * (R5a.1-9 b, c): `name` a `{\cs}`, `{name}` or bare `\cs`; `opts` any
+ * `[…]`; `params` TeX's parameter text up to the body (`\def`); `spec` one
+ * `{…}` that is not a body; each `body` one `{…}` that is.
+ */
+const DEFINERS: [RegExp, ('name' | 'opts' | 'params' | 'spec' | 'body')[]][] = [
+  [/^\\(?:(?:re)?newcommand|providecommand|DeclareRobustCommand)\*?/, ['name', 'opts', 'body']],
+  [/^\\[gex]?def(?![A-Za-z@])/, ['name', 'params', 'body']],
+  [/^\\(?:re)?newenvironment\*?/, ['name', 'opts', 'body', 'body']],
+  [/^\\(?:New|Renew|Provide|Declare)DocumentCommand(?![A-Za-z@])/, ['name', 'spec', 'body']],
+  [/^\\(?:New|Renew|Provide|Declare)DocumentEnvironment(?![A-Za-z@])/, ['name', 'spec', 'body', 'body']],
+];
+
+/** Every definition body in (blanked) source, as [from, to) of its braces' inside. */
+function definitionBodies(src: string, ends: Int32Array): [number, number][] {
+  const out: [number, number][] = [];
+  const skip = (i: number) => {
+    while (i < src.length && /\s/.test(src[i])) i++;
+    return i;
+  };
+  for (const m of src.matchAll(/\\(?:(?:re)?newcommand|providecommand|DeclareRobustCommand|[gex]?def|(?:re)?newenvironment|(?:New|Renew|Provide|Declare)Document(?:Command|Environment))/g)) {
+    const at = m.index as number;
+    let bs = 0;
+    for (let k = at - 1; k >= 0 && src[k] === '\\'; k--) bs++;
+    if (bs % 2) continue;
+    const def = DEFINERS.find(([re]) => re.test(src.slice(at, at + 40)));
+    if (!def) continue;
+    let i = at + (def[0].exec(src.slice(at, at + 40)) as RegExpExecArray)[0].length;
+    for (const part of def[1]) {
+      i = skip(i);
+      if (part === 'name') {
+        if (src[i] === '{' && ends[i] >= 0) i = ends[i] + 1;
+        else {
+          const cs = /^\\(?:[A-Za-z@]+|.)/.exec(src.slice(i, i + 80));
+          if (!cs) break;
+          i += cs[0].length;
+        }
+      } else if (part === 'opts') {
+        while (src[i] === '[' && ends[i] >= 0) i = skip(ends[i] + 1);
+      } else if (part === 'params') {
+        while (i < src.length && src[i] !== '{' && src[i] !== '}') i++;
+      } else if (src[i] === '{' && ends[i] >= 0) {
+        if (part === 'body') out.push([i + 1, ends[i]]);
+        i = ends[i] + 1;
+      } else break;
+    }
+  }
+  return out;
+}
 
 const FIGURE_ENVS = /^(?:figure|figure\*|wrapfigure|subfigure|SCfigure|marginfigure|table|table\*)$/;
 
@@ -153,39 +202,55 @@ function environments(src: string): { name: string; from: number; to: number }[]
   return out;
 }
 
-function captionAndLabel(src: string, env: { from: number; to: number } | undefined): { caption: string; label: string } {
+function captionAndLabel(src: string, env: { from: number; to: number } | undefined, envs: { from: number; to: number }[], offset: number): { caption: string; label: string } {
   if (!env) return { caption: '', label: '' };
-  const inner = src.slice(env.from, env.to);
-  const cmds = findCommands(inner, { caption: { args: 1 }, label: { args: 1 } });
+  // Not the caption of a subfigure beside it: one inside another environment within this one that does not hold the figure (R5a.1-9 f).
+  const others = envs.filter((e) => e !== env && e.from > env.from && e.to <= env.to && !(e.from <= offset && offset < e.to));
+  const own = (at: number) => !others.some((e) => e.from <= at && at < e.to);
+  const cmds = findCommands(src.slice(env.from, env.to), { caption: { args: 1 }, label: { args: 1 } }).filter((c) => own(env.from + c.offset));
   const caption = cmds.find((c) => c.name === 'caption');
   const label = cmds.find((c) => c.name === 'label');
   return { caption: caption ? collapse(caption.args[0]) : '', label: label ? collapse(label.args[0]) : '' };
 }
 
-/** For offsets in increasing order: whether one stands inside the body of a definition. */
-function definitionTest(src: string): (offset: number) => boolean {
-  const open: number[] = [];
-  let k = 0;
-  return (offset) => {
-    for (; k < offset; k++) {
-      const c = src[k];
-      if (c === '\\') k++;
-      else if (c === '{') open.push(k);
-      else if (c === '}') open.pop();
+/** Whether an offset stands inside the body of a definition (begin and end code of an environment both count). */
+function definitionTest(src: string, ends: Int32Array): (offset: number) => boolean {
+  const bodies = definitionBodies(src, ends);
+  return (offset) => bodies.some(([from, to]) => from <= offset && offset < to);
+}
+
+/**
+ * Whether an offset stands in the argument of a command whose argument LaTeX
+ * writes to the .aux and reads again (a moving argument: a sectioning title,
+ * a caption, a running head): there `\`, `~` and `^` in an alt text do not
+ * survive the write (R5a.1-5).
+ */
+function movingTest(src: string, ends: Int32Array): (offset: number) => boolean {
+  const args: [number, number][] = [];
+  for (const m of src.matchAll(/\\(?:part|chapter|section|subsection|subsubsection|paragraph|subparagraph|caption|title|author|thanks|markboth|markright|addcontentsline)(?![A-Za-z@])\*?/g)) {
+    let i = (m.index as number) + m[0].length;
+    for (;;) {
+      while (i < src.length && /\s/.test(src[i])) i++;
+      if ((src[i] === '[' || src[i] === '{') && ends[i] >= 0) {
+        args.push([i + 1, ends[i]]);
+        if (src[i] === '{') break;
+        i = ends[i] + 1;
+      } else break;
     }
-    return open.some((b) => DEFINER.test(src.slice(Math.max(0, b - 200), b)));
-  };
+  }
+  return (offset) => args.some(([from, to]) => from <= offset && offset < to);
 }
 
 /** The folders `\graphicspath` names, in the files the scan read. */
-function graphicsPaths(sources: Sources, files: string[]): string[] {
+function graphicsPaths(sources: Sources, files: string[], mainDir: string): string[] {
   const out: string[] = [];
   for (const path of files) {
     const src = sources.get(path).src;
     if (!src) continue;
     for (const c of findCommands(src, { graphicspath: { args: 1 } })) {
       for (const m of c.args[0].matchAll(/\{([^{}]*)\}/g)) {
-        const r = resolvePath('', m[1]);
+        // LaTeX reads them from the main file's folder, its working directory (R5a.1-4).
+        const r = resolvePath(mainDir, m[1]);
         if (r.kind === 'inside') out.push(r.path);
       }
     }
@@ -194,8 +259,9 @@ function graphicsPaths(sources: Sources, files: string[]): string[] {
 }
 
 function locateImage(project: Project, mainDir: string, fileDir: string, extra: string[], file: string): string | null {
-  const bases = [mainDir, ...extra.map((d) => (d ? d : mainDir)), fileDir];
-  const names = extOf(file) ? [file] : GRAPHIC_EXTS.map((e) => `${file}.${e}`);
+  const bases = [mainDir, ...extra, fileDir];
+  // The name as written, then with each extension graphicx tries (a dot in the name is not always one: plot.v2, R5a.1-9 a).
+  const names = GRAPHIC_EXTS.includes(extOf(file)) ? [file] : [file, ...GRAPHIC_EXTS.map((e) => `${file}.${e}`)];
   for (const base of bases) {
     for (const n of names) {
       const r = resolvePath(base, n);
@@ -232,8 +298,8 @@ function graphicsSpan(src: string, ends: Int32Array, offset: number): { star: nu
 export function listFigures(project: Project, scan: Pick<DocumentScan, 'filesRead' | 'mainFile'>): FigureItem[] {
   const sources = new Sources(project, scan.mainFile);
   const files = scan.filesRead.filter((p) => !['sty', 'cls', 'bib', 'bbx', 'cbx'].includes(extOf(p)));
-  const extra = graphicsPaths(sources, scan.filesRead);
   const mainDir = dirOf(scan.mainFile);
+  const extra = graphicsPaths(sources, scan.filesRead, mainDir);
   const out: FigureItem[] = [];
   for (const path of files) {
     const f = sources.get(path);
@@ -243,7 +309,8 @@ export function listFigures(project: Project, scan: Pick<DocumentScan, 'filesRea
     const ends = groupEnds(src);
     const lineOf = lineIndex(src);
     const envs = environments(src);
-    const inDef = definitionTest(src);
+    const inDef = definitionTest(src, ends);
+    const inMoving = movingTest(src, ends);
     const found: { offset: number; kind: 'image' | 'tikz' }[] = [];
     for (const m of src.matchAll(/\\includegraphics(?![A-Za-z@])|\\begin\s*\{tikzpicture\}/g)) {
       let bs = 0;
@@ -252,7 +319,7 @@ export function listFigures(project: Project, scan: Pick<DocumentScan, 'filesRea
     }
     for (const { offset, kind } of found) {
       const env = envs.filter((e) => e.from <= offset && offset < e.to).sort((a, b) => b.from - a.from)[0];
-      const { caption, label } = captionAndLabel(src, env);
+      const { caption, label } = captionAndLabel(src, env, envs, offset);
       const inDefinition = inDef(offset);
       const base: Omit<FigureItem, 'file' | 'resolved' | 'preview' | 'existing' | 'insert' | 'notPatched' | 'before' | 'after'> = {
         id: `${path}:${offset}`,
@@ -263,6 +330,7 @@ export function listFigures(project: Project, scan: Pick<DocumentScan, 'filesRea
         caption,
         label,
         inDefinition,
+        moving: inMoving(offset),
       };
       if (kind === 'tikz') {
         const at = offset + (/^\\begin\s*\{tikzpicture\}/.exec(src.slice(offset))?.[0].length ?? 0);
@@ -339,20 +407,31 @@ export function altEdits(project: Project, figures: FigureItem[], decisions: Rea
   for (const fig of figures) {
     const d = decisions.get(fig.id);
     if (!d || !fig.insert || fig.existing) continue;
+    if (d.decision === 'approved' && (!normalizeAlt(d.text) || notCarried(fig, d.text))) continue;
     const key = d.decision === 'decorative' ? 'artifact' : `alt={${escapeAlt(d.text)}}`;
-    if (d.decision === 'approved' && !normalizeAlt(d.text)) continue;
     if (fig.insert.kind === 'none') {
       out.push({ path: fig.path, from: fig.insert.at, to: fig.insert.at, text: `[${key}]` });
       continue;
     }
-    const text = (sources.get(fig.path).utf8 as { text: string }).text;
-    const inner = text.slice(fig.insert.from, fig.insert.to);
-    const end = fig.insert.from + inner.trimEnd().length;
-    if (!inner.trim()) out.push({ path: fig.path, from: fig.insert.from, to: fig.insert.to, text: key });
-    else out.push({ path: fig.path, from: end, to: end, text: inner.trimEnd().endsWith(',') ? ` ${key}` : `, ${key}` });
+    // The end of the options in the text with comments blanked, so the key never lands inside a comment (R5a.1-3).
+    const blanked = blankComments((sources.get(fig.path).utf8 as { text: string }).text).slice(fig.insert.from, fig.insert.to);
+    const kept = blanked.trimEnd();
+    if (!kept.trim()) out.push({ path: fig.path, from: fig.insert.from, to: fig.insert.from, text: key });
+    else {
+      const end = fig.insert.from + kept.length;
+      out.push({ path: fig.path, from: end, to: end, text: kept.endsWith(',') ? ` ${key}` : `, ${key}` });
+    }
   }
   return out;
 }
+
+/** An approved text the patch cannot carry for this figure: `\\`, `~` or `^` in a moving argument (R5a.1-5). */
+export function notCarried(fig: FigureItem, text: string): boolean {
+  return fig.moving && /[\\~^]/.test(text);
+}
+
+export const NOT_CARRIED =
+  'This figure is in a title or a caption, which LaTeX also writes into the table of contents or the list of figures, and a \\, ~ or ^ in its alt text does not survive that. The text is not in the copy: take those characters out and approve it again, or add the alt key by hand.';
 
 /** The "Needs your attention" items of the figures the patch cannot change and that have no alt text (AC-49). */
 export function figureAttention(figures: FigureItem[]): { title: string; where: string; message: string }[] {
@@ -360,3 +439,30 @@ export function figureAttention(figures: FigureItem[]): { title: string; where: 
     .filter((f) => f.notPatched && !f.existing && f.kind === 'image')
     .map((f) => ({ title: `Figure ${f.file ?? ''}`.trim(), where: `${f.path}, line ${f.line}`, message: f.notPatched as string }));
 }
+
+/**
+ * The figures in the style and class files the scan read (R5a.1-9 d): the
+ * scan counts them, the patch never changes such a file, and the figure
+ * panel does not list them, so "Needs your attention" names each.
+ */
+export function styleFigureAttention(project: Project, scan: Pick<DocumentScan, 'filesRead' | 'mainFile'>): { title: string; where: string; message: string }[] {
+  const sources = new Sources(project, scan.mainFile);
+  const out: { title: string; where: string; message: string }[] = [];
+  for (const path of scan.filesRead.filter((p) => ['sty', 'cls'].includes(extOf(p)))) {
+    const src = sources.get(path).src;
+    if (src === null) continue;
+    const ends = groupEnds(src);
+    const lineOf = lineIndex(src);
+    for (const m of src.matchAll(/\\includegraphics(?![A-Za-z@])/g)) {
+      let bs = 0;
+      for (let k = (m.index as number) - 1; k >= 0 && src[k] === '\\'; k--) bs++;
+      if (bs % 2) continue;
+      const span = graphicsSpan(src, ends, m.index as number);
+      const file = span ? collapse(src.slice(span.file.from, span.file.to)) : '';
+      out.push({ title: `Figure ${file}`.trim(), where: `${path}, line ${lineOf(m.index as number)}`, message: STYLE_FIGURE });
+    }
+  }
+  return out;
+}
+
+export const STYLE_FIGURE = 'This figure is in a style or class file, which the patch does not change. If it shows content, add alt={…} to it there by hand; if it is a logo or an ornament, add artifact.';

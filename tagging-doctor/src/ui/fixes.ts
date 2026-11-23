@@ -10,7 +10,7 @@ import { leftOutLine } from '../core/report';
 import { applyFixes, patchedZip, patchedZipName, suggestFixes, validLanguage, type FixCard, type FixPlan, type PatchResult } from '../core/patch';
 import type { Project } from '../core/project';
 import type { DocumentScan } from '../core/scan';
-import { altEdits, figureAttention, listFigures, type FigureItem } from '../core/figures';
+import { altEdits, figureAttention, listFigures, styleFigureAttention, type FigureItem } from '../core/figures';
 import { approvedDecisions, mountFigures, type FigureChoice, type FiguresOpts } from './figures';
 
 export const FIXES_INTRO = 'Each fix is made on a copy of your files, which stay as they are. Accept or skip each one, then download the copy.';
@@ -82,6 +82,7 @@ export function mountFixes(panel: HTMLElement, opts: FixesOpts): { cancel: () =>
   let compare: { cancel: () => void } | null = null;
   const slot = el('div', { class: 'compare-slot' });
   const figures: FigureItem[] = listFigures(project, scan);
+  const styleFigures = styleFigureAttention(project, scan);
   /** The approved alt texts as the patch's edits (AC-49). */
   const alts = () => altEdits(project, figures, approvedDecisions(figures, state.alts));
 
@@ -187,7 +188,7 @@ export function mountFixes(panel: HTMLElement, opts: FixesOpts): { cancel: () =>
 
   function drawAttention() {
     // The figures the patch cannot give alt text to are listed too (AC-49).
-    const list = [...plan.attention, ...figureAttention(figures).map((a) => ({ ...a, severity: 'warning' as const, advice: null }))];
+    const list = [...plan.attention, ...[...figureAttention(figures), ...styleFigures].map((a) => ({ ...a, severity: 'warning' as const, advice: null }))];
     const head = el('h4', { id: 'attention-h' }, `Needs your attention (${list.length})`);
     if (!list.length) {
       attentionEl.replaceChildren(head, el('p', {}, 'Nothing: every finding of the scan is fixed by a card above.'));

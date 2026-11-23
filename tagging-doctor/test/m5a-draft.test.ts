@@ -46,6 +46,7 @@ function fig(over: Partial<FigureItem> = {}): FigureItem {
     after: 'After text.',
     existing: null,
     inDefinition: false,
+    moving: false,
     insert: { kind: 'none', at: 26 },
     notPatched: null,
     ...over,
