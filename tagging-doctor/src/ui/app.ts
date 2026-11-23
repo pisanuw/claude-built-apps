@@ -20,6 +20,7 @@ import { jobRecord, type CheckerJob, type JobRecord } from '../core/compile';
 import { finished } from '../core/compare';
 import { mountCompile, KEPT, type CompileDeps } from './compile';
 import { mountFixes, newFixesState, type FixesState } from './fixes';
+import type { FiguresOpts } from './figures';
 import type { CompareDeps, compareSlot as CompareSlot } from './compare';
 import { KEEP_HASH, renderCourse, renderCourseReport, renderCourses, renderKeep, renderNotFound, renderProject, renderSaveDialog, type PageCtx } from './pages';
 
@@ -68,6 +69,8 @@ export interface AppDeps {
   compare?: { compareSlot: typeof CompareSlot };
   /** The browser's download of a file it made (the patched zip, AC-41); else the patched zip goes through `download`'s Blob path. */
   downloadBlob?: (name: string, blob: Blob) => void;
+  /** Stand-ins for the figure panel's model call, image codec, key storage and thumbnails (milestone 5a); tests only. */
+  figures?: Omit<FiguresOpts, 'project' | 'figures' | 'choices' | 'onChange' | 'signedIn'>;
 }
 
 /** sessionStorage key of a save asked for before signing in (it holds what a saved scan holds, no more). */
@@ -493,7 +496,10 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     // Signed in or not (AC-37): the patch runs in the browser.
     const fixes = el('button', { type: 'button', class: 'fixes-open' }, 'Suggest fixes');
     fixes.addEventListener('click', () => openFixes(wrap));
-    wrap.append(' ', fixes);
+    // The figure panel is part of the fix panel (D-141): the same copy takes the fixes and the alt texts.
+    const alt = el('button', { type: 'button', class: 'figures-open' }, 'Alt text for figures');
+    alt.addEventListener('click', () => openFixes(wrap, '#figures-h'));
+    wrap.append(' ', fixes, ' ', alt);
     if (account) {
       const save = el('button', { type: 'button', class: 'save' }, scannedAll ? 'Save all to a course' : 'Save');
       save.addEventListener('click', () => openSave(wrap, scannedAll ? 'all' : 'one'));
@@ -564,7 +570,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
 
   // ---- Suggest fixes and compare (milestone 4) ------------------------------------
 
-  function openFixes(after: HTMLElement) {
+  function openFixes(after: HTMLElement, focus = '#fixes-h') {
     if (!project || !shown) return;
     hideFixes();
     after.after(fixesPanel);
@@ -572,7 +578,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     fixesFor = shown;
     newestPanel = 'fixes';
     drawFixes();
-    (fixesPanel.querySelector('#fixes-h') as HTMLElement | null)?.focus();
+    (fixesPanel.querySelector(focus) as HTMLElement | null)?.focus();
   }
 
   /** (Re)draws the fix panel for `fixesFor`, keeping the person's choices; the compare part only for a signed-in person. */
@@ -590,6 +596,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       state,
       downloadBlob: deps.downloadBlob ?? deps.compile?.downloadBlob ?? (() => {}),
       onClose: hideFixes,
+      figures: { ...deps.figures, signedIn: () => signedIn },
       compareSlot:
         compare && compile && account
           ? compare.compareSlot({

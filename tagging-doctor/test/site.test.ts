@@ -40,14 +40,17 @@ describe('AC-13: the page loads nothing from another host', () => {
     expect(files).toEqual(
       expect.arrayContaining(['src/main.ts', 'src/ui/app.ts', 'src/ui/pages.ts', 'src/core/scan.ts', 'src/core/zip.ts', 'src/data/tagging-status.json', 'src/lib/auth.ts', 'src/lib/store.ts', 'src/ui/preview-account.ts']),
     );
-    // The model call (milestone 5) is not mounted yet.
-    expect(files).not.toContain('src/lib/llm.ts');
-    const linkHosts = new Set(['latex3.github.io', 'github.com', 'tagging-doctor.hintwise.org', 'json-schema.org']);
+    // From milestone 5a the model call is mounted (the figure panel): llm.ts, through draft.ts.
+    expect(files).toEqual(expect.arrayContaining(['src/lib/llm.ts', 'src/lib/draft.ts', 'src/ui/figures.ts']));
+    // lewis-alt-text is a link in the figure panel (SPEC §2), not a load.
+    const linkHosts = new Set(['latex3.github.io', 'github.com', 'tagging-doctor.hintwise.org', 'json-schema.org', 'lewis-alt-text.hintwise.org']);
     // AC-13 (CR-3): the sign-in panel loads Cloudflare Turnstile when the sign-in-link function asks for a check.
     const loadHosts = new Set(['challenges.cloudflare.com']);
     // The calls of sign-in (sign-in-link, delete-account) go to VITE_SUPABASE_URL, auth.hintwise.org in target.yml.
     // From M3b the checker's calls go to VITE_CHECKER_URL (src/lib/checker.ts, through the fetch main.ts hands it).
-    const callers = new Set(['src/lib/auth.ts', 'src/lib/account.ts', 'src/lib/checker.ts', 'src/main.ts']);
+    // From 5a llm.ts calls the llm-gateway function, under VITE_SUPABASE_URL too; its own-key path goes through the
+    // Anthropic SDK to api.anthropic.com only (AC-46; the Playwright walkthrough lists the hosts).
+    const callers = new Set(['src/lib/auth.ts', 'src/lib/account.ts', 'src/lib/checker.ts', 'src/main.ts', 'src/lib/llm.ts']);
     for (const f of files) {
       const body = read(f).replace(/\/\*[\s\S]*?\*\//g, '');
       if (!callers.has(f)) expect(body, f).not.toMatch(/\bfetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon|EventSource|importScripts/);
@@ -67,6 +70,10 @@ describe('AC-13: the page loads nothing from another host', () => {
     const checker = read('src/lib/checker.ts').replace(/\/\*[\s\S]*?\*\//g, '');
     for (const m of checker.matchAll(/\bfetch\(([^,)]+)/g)) expect(m[1].trim(), m[0]).toMatch(/^`\$\{d\.base\}\/api\//);
     expect([...checker.matchAll(/\bfetch\(/g)].length).toBeGreaterThanOrEqual(5);
+    // llm.ts's one fetch goes to the gateway, built from VITE_SUPABASE_URL.
+    const llm = read('src/lib/llm.ts').replace(/\/\*[\s\S]*?\*\//g, '');
+    expect([...llm.matchAll(/\bdoFetch\(([^,]+),/g)].map((m) => m[1].trim())).toEqual(['deps.gatewayUrl ?? gatewayUrl()']);
+    expect(llm).toMatch(/return `\$\{url\.replace\(\/\\\/\$\/, ''\)\}\/functions\/v1\/llm-gateway`;/);
     // main.ts's fetch is the browser's, handed to the checker client only.
     expect(read('src/main.ts')).toMatch(/fetch: \(\.\.\.a\) => fetch\(\.\.\.a\)/);
   });
