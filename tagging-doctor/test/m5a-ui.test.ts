@@ -262,3 +262,144 @@ describe('AC-50: Draft all on the page', () => {
     expect(s.panel.querySelector('.figures-status')?.textContent).toMatch(/^Stopped after \d drafts\.$/);
   });
 });
+
+describe('review round 1 on the page', () => {
+  const SIX = ['\\documentclass{article}', '\\usepackage{graphicx}', '\\begin{document}', ...Array.from({ length: 6 }, (_, i) => `\\includegraphics{f${i}.pdf}`), '\\end{document}', ''].join('\n');
+  const sixFiles = () => Object.fromEntries([['main.tex', SIX], ...Array.from({ length: 6 }, (_, i) => [`f${i}.pdf`, '%PDF'])]) as Record<string, string>;
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  it('R5a.1-1: after Stop drafting, a single Draft is shown; a panel closed while a draft is out does not draw it', async () => {
+    const s = mount({ signedIn: true, files: sixFiles(), answer: async () => (await wait(5), reply('A draft.')) });
+    (s.panel.querySelector('[data-role="draft-all"]') as HTMLButtonElement).click();
+    (s.panel.querySelector('[data-role="stop-all"]') as HTMLButtonElement).click();
+    await wait(40);
+    expect(s.panel.querySelector('.figures-status')?.textContent).toMatch(/^Stopped after \d drafts\.$/);
+    // As before: the drafts already sent arrived.
+    expect((items(s.panel)[0].querySelector('textarea') as HTMLTextAreaElement).value).toBe('A draft.');
+    button(items(s.panel)[5], 'draft').click();
+    await wait(20);
+    expect((items(s.panel)[5].querySelector('textarea') as HTMLTextAreaElement).value).toBe('A draft.');
+    expect(s.panel.querySelector('.figures-status')?.textContent).toBe('Figure 6: draft ready. Check it, then approve it.');
+  });
+
+  it('R5a.1-2: a figure approved, marked Decorative or typed into during Draft all keeps the person\'s choice; one left alone gets its draft', async () => {
+    const s = mount({ signedIn: true, files: sixFiles(), answer: async () => (await wait(10), reply('A model draft.')) });
+    (s.panel.querySelector('[data-role="draft-all"]') as HTMLButtonElement).click();
+    await flush();
+    // Figure 1 is out: type and approve on it, approve figure 5, mark figure 6 Decorative.
+    const t1 = items(s.panel)[0].querySelector('textarea') as HTMLTextAreaElement;
+    t1.value = 'Typed while out';
+    t1.dispatchEvent(new Event('input'));
+    const t5 = items(s.panel)[4].querySelector('textarea') as HTMLTextAreaElement;
+    t5.value = 'My own words for figure five';
+    t5.dispatchEvent(new Event('input'));
+    button(items(s.panel)[4], 'approve').click();
+    button(items(s.panel)[5], 'decorative').click();
+    await wait(80);
+    expect(s.panel.querySelector('[data-role="draft-all"]')).not.toBeNull();
+    const v = (i: number) => (items(s.panel)[i].querySelector('textarea') as HTMLTextAreaElement).value;
+    expect(v(0)).toBe('Typed while out');
+    expect(items(s.panel)[0].textContent).toContain('A draft arrived after you changed this figure');
+    expect(v(1)).toBe('A model draft.');
+    expect(v(4)).toBe('My own words for figure five');
+    const out = main(s);
+    expect(out).toContain('\\includegraphics[alt={My own words for figure five}]{f4.pdf}');
+    expect(out).toContain('\\includegraphics[artifact]{f5.pdf}');
+    // Figures 5 and 6 were passed over: four calls, not six.
+    expect(s.calls).toHaveLength(4);
+  });
+
+  it('as before: Draft again on an approved figure replaces its text and takes it out of the copy', async () => {
+    const s = mount({ signedIn: true, answer: async () => reply('New draft.') });
+    const ta = items(s.panel)[0].querySelector('textarea') as HTMLTextAreaElement;
+    ta.value = 'Old';
+    ta.dispatchEvent(new Event('input'));
+    button(items(s.panel)[0], 'approve').click();
+    expect(main(s)).toContain('alt={Old}');
+    button(items(s.panel)[0], 'draft').click();
+    await flush();
+    await flush();
+    expect((items(s.panel)[0].querySelector('textarea') as HTMLTextAreaElement).value).toBe('New draft.');
+    expect(main(s)).not.toContain('alt={Old}');
+  });
+
+  it('R5a.1-7: the focus stays on Draft while it is out and after; the key controls hand the focus on', async () => {
+    let release: () => void = () => {};
+    const s = mount({ signedIn: true, answer: () => new Promise((r) => (release = () => r(reply('Done.')))) });
+    const d = button(items(s.panel)[0], 'draft');
+    d.focus();
+    d.click();
+    await flush();
+    expect(document.activeElement?.getAttribute('data-role')).toBe('draft');
+    expect(document.activeElement?.getAttribute('aria-disabled')).toBe('true');
+    (document.activeElement as HTMLButtonElement).click();
+    expect(s.calls).toHaveLength(1);
+    release();
+    await flush();
+    await flush();
+    expect(document.activeElement?.getAttribute('data-role')).toBe('draft');
+    expect(document.activeElement?.textContent).toBe('Draft again');
+    (s.panel.querySelector('[data-role="key"]') as HTMLInputElement).value = 'k';
+    (s.panel.querySelector('[data-role="save-key"]') as HTMLButtonElement).click();
+    expect(document.activeElement?.getAttribute('data-role')).toBe('forget-key');
+    (document.activeElement as HTMLButtonElement).click();
+    expect(document.activeElement?.getAttribute('data-role')).toBe('key');
+  });
+
+  it('R5a.1-10: an image the zip cannot unpack shows "No preview", and the rest of the panel opens', async () => {
+    const { zipSync, strToU8 } = await import('fflate');
+    const z = zipSync({ 'main.tex': [strToU8(MAIN), { level: 0 }], 'plot.png': [new Uint8Array(4000).map((_, i) => (i * 7) % 251), { level: 9 }] });
+    // plot.png's compression method set to one the reader does not know, in its local and central headers.
+    const mark = (sig: number[], nameAt: number, methodAt: number) => {
+      for (let k = 0; k < z.length - 4; k++) if (sig.every((b, j) => z[k + j] === b) && new TextDecoder().decode(z.subarray(k + nameAt, k + nameAt + 8)) === 'plot.png') z[k + methodAt] = 99;
+    };
+    mark([0x50, 0x4b, 3, 4], 30, 8);
+    mark([0x50, 0x4b, 1, 2], 46, 10);
+    const { openProject } = await import('../src/core/project');
+    const p = openProject('bad.zip', z);
+    document.body.innerHTML = '<div id="p"></div>';
+    const panel = document.getElementById('p') as HTMLElement;
+    let threw: unknown = null;
+    try {
+      mountFixes(panel, { project: p, scan: scanDocument(p, 'main.tex', index), state: newFixesState(), downloadBlob: () => {}, onClose: () => {}, figures: { signedIn: () => false, storage: memoryStorage(), objectUrl: (b) => (b.length ? 'blob:x' : null) } });
+    } catch (e) {
+      threw = e;
+    }
+    expect(() => p.bytes('plot.png')).toThrow(/compression method/);
+    expect(threw).toBeNull();
+    expect(panel.querySelector('#figures-h')).not.toBeNull();
+    expect(panel.querySelector('li.figure-item .no-preview')?.textContent).toBe('No preview (the file cannot be read from the zip). Drafted from the text only.');
+  });
+
+  it('R5a.1-10: the thumbnails\' URLs are given back when the panel goes', () => {
+    document.body.innerHTML = '<div id="p"></div>';
+    const panel = document.getElementById('p') as HTMLElement;
+    const p = project({ 'main.tex': MAIN, 'plot.png': PNG, 'scan.pdf': '%PDF-1.4' });
+    const revoked: string[] = [];
+    const run = mountFixes(panel, { project: p, scan: scanDocument(p, 'main.tex', index), state: newFixesState(), downloadBlob: () => {}, onClose: () => {}, figures: { signedIn: () => false, storage: memoryStorage(), objectUrl: () => 'blob:t', revokeUrl: (u) => void revoked.push(u) } });
+    run.cancel();
+    expect(revoked).toEqual(['blob:t', 'blob:t']);
+  });
+
+  it('R5a.1-11 (a): Draft all stops at a 403 "app" and says why; (d) typing updates the status at once', async () => {
+    const s = mount({ signedIn: true, files: sixFiles(), answer: async () => Promise.reject(new GatewayError(403, { error: 'app' })) });
+    (s.panel.querySelector('[data-role="draft-all"]') as HTMLButtonElement).click();
+    for (let i = 0; i < 8; i++) await flush();
+    expect(s.calls.length).toBeLessThanOrEqual(3);
+    expect(s.panel.querySelector('.figures-status')?.textContent).toMatch(/^Stopped after \d drafts\. Drafting with HintWise’s key is not available yet; use your own key\.$/);
+    const ta = items(s.panel)[5].querySelector('textarea') as HTMLTextAreaElement;
+    ta.value = 'x';
+    ta.dispatchEvent(new Event('input'));
+    expect(items(s.panel)[5].querySelector('.alt-status')?.textContent).toBe('Draft: not in the patched copy until you approve it.');
+  });
+
+  it('R5a.1-5 on the page: a backslash in a caption figure\'s text is approved but not in the copy, and the page says so', () => {
+    const s = mount({ files: { 'main.tex': '\\documentclass{article}\n\\usepackage{graphicx}\n\\begin{document}\n\\begin{figure}\\caption{C \\includegraphics{scan.pdf}}\\end{figure}\n\\end{document}\n', 'scan.pdf': '%PDF' } });
+    const ta = items(s.panel)[0].querySelector('textarea') as HTMLTextAreaElement;
+    ta.value = 'a \\ b';
+    ta.dispatchEvent(new Event('input'));
+    button(items(s.panel)[0], 'approve').click();
+    expect(items(s.panel)[0].querySelector('.alt-status')?.textContent).toMatch(/^Approved, but not in the copy\. This figure is in a title or a caption/);
+    expect(main(s)).not.toContain('alt=');
+  });
+});

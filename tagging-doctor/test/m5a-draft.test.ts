@@ -239,19 +239,19 @@ describe('AC-50: Draft all', () => {
     expect(most).toBe(3);
     expect(done).toHaveLength(DRAFT_ALL_LIMIT);
     expect(DRAFT_ALL_LIMIT).toBe(40);
-    expect(r).toEqual({ started: 40, cap: null, left: 10 });
+    expect(r).toEqual({ started: 40, stop: null, cap: null, left: 10 });
   });
 
-  it('stops at the first cap error: no call starts after it, and other errors do not stop it', async () => {
+  it('stops at the first error the run is given (a cap): no call starts after it', async () => {
     const started: number[] = [];
     const cap = new CapReached('app-day', '2026-11-24T00:00:00Z');
     const r = await draftAll(Array.from({ length: 10 }, (_, i) => i), async (i) => {
       started.push(i);
       await new Promise((res) => setTimeout(res, 1));
-      if (i === 1) throw new Error('one figure failed');
       if (i === 4) throw cap;
     });
     expect(r.cap).toBe(cap);
+    expect(r.stop).toBe(cap);
     // 0 to 5 start (three at a time, 4 throws while 5 and 6 may be running); nothing after the cap is seen.
     expect(Math.max(...started)).toBeLessThanOrEqual(6);
     expect(r.started).toBe(started.length);

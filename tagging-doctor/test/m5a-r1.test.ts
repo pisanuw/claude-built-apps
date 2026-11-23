@@ -144,3 +144,32 @@ describe('R5a.1-5: in a title or a caption, a text with \\, ~ or ^ is not writte
     expect(plain.out.match(/alt=\{/g)).toHaveLength(4);
   });
 });
+
+describe('R5a.1-6: what the carried fixes gave up', () => {
+  const MAIN = '\\documentclass{article}\n\\usepackage{my}\n\\begin{document}\nHi\n\\end{document}\n';
+  it('(a) etoolbox tests with a one-word branch are tests; (b) \\cs_if_exist_use:N is a call', async () => {
+    const { card } = await import('./patch-helpers');
+    for (const sty of ['\\ifdef\\DocumentMetadata{yes}{no}\n', '\\ifundef\\DocumentMetadata{old}{new}\n', '\\ifdefmacro\\DocumentMetadata{yes}{no}\n', '\\ifndef\\DocumentMetadata{a}{b}\n', '\\ifdefvoid\\DocumentMetadata{a}{b}\n']) {
+      const s = setup({ 'main.tex': MAIN, 'my.sty': sty });
+      expect(s.scan.metadataFile, sty).toBeNull();
+      expect(card(s.plan, 'metadata')?.state).toBe('ready');
+    }
+    const use = setup({ 'main.tex': '\\RequirePackage{setup}\n\\documentclass{article}\n\\begin{document}\nHi\n\\end{document}\n', 'setup.sty': '\\cs_if_exist_use:N \\DocumentMetadata {lang=en-US, tagging=on}\n' });
+    expect(use.scan.metadataFile).toBe('setup.sty');
+    // Beside them, as before: a real call with an unknown key is a call; \ifdefined and \cs_if_exist:NTF stay tests.
+    expect(setup({ 'main.tex': MAIN.replace('\\usepackage{my}\n', '').replace('\\documentclass', '\\RequirePackage{my}\n\\documentclass'), 'my.sty': '\\DocumentMetadata{lang=en-US, taging=on}\n' }).scan.metadataFile).toBe('my.sty');
+    expect(setup({ 'main.tex': MAIN, 'my.sty': '\\ifdefined\\DocumentMetadata x\\fi\n' }).scan.metadataFile).toBeNull();
+    expect(setup({ 'main.tex': MAIN, 'my.sty': '\\cs_if_exist:NTF \\DocumentMetadata { } { }\n' }).scan.metadataFile).toBeNull();
+  });
+  it('(c) a stack or level size is a command that calls itself, not the checker\'s memory', async () => {
+    const { plainTexError } = await import('../src/core/compile');
+    for (const l of ['! TeX capacity exceeded, sorry [input stack size=10000].', '! TeX capacity exceeded, sorry [text input levels=15].', '! TeX capacity exceeded, sorry [grouping levels=255].', '! TeX capacity exceeded, sorry [parameter stack size=10000].']) {
+      const w = plainTexError(l) ?? '';
+      expect(w, l).toMatch(/calls itself/);
+      expect(w, l).not.toMatch(/not an error in your source/);
+    }
+    expect(plainTexError('./main.tex:1943: TeX capacity exceeded, sorry [token memory size=5906145]')).toMatch(/more memory than the checker gives one job/);
+    expect(plainTexError('! TeX capacity exceeded, sorry [main memory size=5000000].')).toMatch(/more memory than the checker gives one job/);
+    expect(plainTexError('(lua): not enough memory')).toMatch(/more memory than the checker gives one job/);
+  });
+});

@@ -39,10 +39,15 @@ export function draftMode(hasKey: boolean, signedIn: boolean): DraftMode | null 
 
 export const NO_MODE = 'Paste your own Anthropic key above, or sign in to draft with HintWise’s key.';
 
+/** The file's name without its folders: a path as written can name the person's own account (R5a.1-12). */
+function baseName(file: string | null): string {
+  return (file ?? '').split(/[\\/]/).pop() ?? '';
+}
+
 function kindLine(fig: FigureItem, image: PreparedImage | null): string {
   if (fig.kind === 'tikz') return 'A TikZ picture drawn by the document; no image is attached, so write from the text only.';
-  if (image) return `An image file, ${fig.file ?? ''}, attached.`;
-  return `An image file, ${fig.file ?? ''}, that cannot be attached (${fig.resolved ? 'PDF, EPS or another type with no preview' : 'not in the project'}); write from the text only.`;
+  if (image) return `An image file, ${baseName(fig.file)}, attached.`;
+  return `An image file, ${baseName(fig.file)}, that cannot be attached (${fig.resolved ? 'PDF, EPS or another type with no preview' : 'not in the project'}); write from the text only.`;
 }
 
 /** The request for one figure: the image first when there is one, then the text. */
@@ -145,6 +150,13 @@ export function localTime(iso: string): string {
 
 export const NOT_REGISTERED = 'Drafting with HintWise’s key is not available yet; use your own key.';
 
+/** Anthropic's own words for a refused request, as the SDK's error carries them. */
+function anthropicMessage(e: unknown): string {
+  const body = (e as { error?: { error?: { message?: unknown } } }).error;
+  const m = body?.error?.message ?? (e as { message?: unknown }).message;
+  return typeof m === 'string' && m.trim() ? m.trim().replace(/\.?$/, '.') : 'no reason was given.';
+}
+
 /** Any failure of a draft, in plain words (AC-47). */
 export function draftErrorWords(e: unknown): string {
   if (e instanceof CapReached) return `HintWise’s key cannot draft now: ${capWords(e.scope)} until ${localTime(e.resetsAt)}. To go on, use your own key: paste it above.`;
@@ -159,6 +171,8 @@ export function draftErrorWords(e: unknown): string {
   const status = typeof e === 'object' && e !== null ? (e as { status?: unknown }).status : undefined;
   if (status === 401) return 'Anthropic refused your key. Check it, or forget it and paste it again.';
   if (status === 429) return 'Anthropic is limiting your key for now. Wait a minute and try again.';
+  if (status === 403) return 'Anthropic refused your key for this request. Check the key’s permissions, or forget it and paste another.';
+  if (typeof status === 'number' && status >= 400 && status < 500) return `Anthropic refused the request (${status}): ${anthropicMessage(e)} Trying again will not help; check your key and its credit.`;
   if (typeof status === 'number') return `Anthropic answered ${status}. Try again in a moment.`;
   return 'The draft could not be made: the connection failed. Try again.';
 }
@@ -166,10 +180,20 @@ export function draftErrorWords(e: unknown): string {
 export interface DraftAllResult {
   /** How many drafts were asked for in this run. */
   started: number;
-  /** Set when a cap stopped the run. */
+  /** The error that stopped the run (stopsRun), if one did. */
+  stop: unknown;
+  /** Set when that error is a cap. */
   cap: CapReached | null;
-  /** Figures left for another run (over the limit, or not started after the cap). */
+  /** Figures left for another run (over the limit, passed over, or not started after the stop). */
   left: number;
+}
+
+/** An error every next call would meet too: a cap, a refused key or sign-in, an app not enabled (R5a.1-11 a). */
+export function stopsRun(e: unknown): boolean {
+  if (e instanceof CapReached) return true;
+  if (e instanceof GatewayError) return e.status === 401 || e.status === 403;
+  const status = typeof e === 'object' && e !== null ? (e as { status?: unknown }).status : undefined;
+  return status === 401 || status === 403;
 }
 
 /**
@@ -178,23 +202,28 @@ export interface DraftAllResult {
  * and throws only what should stop the run (a CapReached); other failures
  * are its own to show.
  */
-export async function draftAll<T>(items: readonly T[], run: (item: T) => Promise<void>, opts: { limit?: number; concurrency?: number; stopped?: () => boolean } = {}): Promise<DraftAllResult> {
+export async function draftAll<T>(
+  items: readonly T[],
+  run: (item: T) => Promise<void>,
+  opts: { limit?: number; concurrency?: number; stopped?: () => boolean; skip?: (item: T) => boolean } = {},
+): Promise<DraftAllResult> {
   const limit = opts.limit ?? DRAFT_ALL_LIMIT;
   const todo = items.slice(0, limit);
   let next = 0;
   let started = 0;
-  let cap: CapReached | null = null;
+  let stop: unknown = null;
   const worker = async () => {
-    while (next < todo.length && !cap && !opts.stopped?.()) {
+    while (next < todo.length && stop === null && !opts.stopped?.()) {
       const item = todo[next++];
+      if (opts.skip?.(item)) continue;
       started++;
       try {
         await run(item);
       } catch (e) {
-        if (e instanceof CapReached) cap ??= e;
+        stop ??= e;
       }
     }
   };
   await Promise.all(Array.from({ length: Math.min(opts.concurrency ?? DRAFT_CONCURRENCY, todo.length) }, worker));
-  return { started, cap, left: items.length - started };
+  return { started, stop, cap: stop instanceof CapReached ? stop : null, left: items.length - started };
 }

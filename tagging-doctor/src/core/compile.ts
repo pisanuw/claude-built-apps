@@ -184,6 +184,9 @@ export const PGF_TABLE_CUT =
 export const MEMORY_WORDS =
   'The document needs more memory than the checker gives one job. It is not an error in your source: a long tagged document can need this much (about 50 pages of dense mathematics). Check a part of it, or the untagged original. It can also mean that a command calls itself without end.';
 
+/** TeX ran out of a stack or nesting level: a definition that uses itself (R5a.1-6 c). */
+export const RECURSION_WORDS = 'A command calls itself without end, or groups or files are nested too deeply: look for a definition that uses its own name.';
+
 /**
  * The first error in plain words (AC-29; S2-9's map of common TeX errors), or
  * null when the message is not one of them (TeX's own words are then shown).
@@ -191,7 +194,9 @@ export const MEMORY_WORDS =
  */
 export const TEX_ERRORS: [RegExp, (m: RegExpExecArray) => string][] = [
   // The checker caps TeX's memory in the hub (D-134): a long tagged document can reach the cap (R4b.2-3, D-139).
-  [/TeX capacity exceeded|not enough memory/i, () => MEMORY_WORDS],
+  [/TeX capacity exceeded, sorry \[(?:main memory|token memory|pool|string characters|font memory|hash)|not enough memory/i, () => MEMORY_WORDS],
+  // A stack or a level size: a command that calls itself, not the checker's cap (R5a.1-6 c).
+  [/TeX capacity exceeded/i, () => RECURSION_WORDS],
   [/Undefined control sequence/i, () => 'A command is not defined. Check its spelling, or load the package that defines it.'],
   // pgfplots' own words. TeX wraps the log at 79 columns, so the name is read only up to its closing quote on the
   // same line; a name the wrap cut is not named at all (R3b.2-4, R4a.1-3). The closing quote is the one before

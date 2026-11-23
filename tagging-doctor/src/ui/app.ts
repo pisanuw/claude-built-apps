@@ -572,6 +572,11 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
 
   function openFixes(after: HTMLElement, focus = '#fixes-h') {
     if (!project || !shown) return;
+    // Open already for this document: only the focus moves, so a Draft all going on keeps running (R5a.1-8).
+    if (fixesFor === shown && fixesPanel.isConnected && !fixesPanel.hidden) {
+      (fixesPanel.querySelector(focus) as HTMLElement | null)?.focus();
+      return;
+    }
     hideFixes();
     after.after(fixesPanel);
     fixesPanel.hidden = false;

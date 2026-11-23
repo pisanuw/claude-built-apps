@@ -14,7 +14,7 @@ import { altEdits, figureAttention, listFigures, styleFigureAttention, type Figu
 import { approvedDecisions, mountFigures, type FigureChoice, type FiguresOpts } from './figures';
 
 export const FIXES_INTRO = 'Each fix is made on a copy of your files, which stay as they are. Accept or skip each one, then download the copy.';
-export const NOTHING_UPLOADED = 'The fixes are made in your browser; nothing is uploaded.';
+export const NOTHING_UPLOADED = 'The fixes are made in your browser and upload nothing; a figure draft, below, is the one thing this panel sends, and only when you ask for it.';
 
 /** What the compare slot can ask of the panel (src/ui/compare.ts). */
 export interface FixesCtx {
