@@ -41,7 +41,9 @@
  *                           included, and sends only those keys, nothing when
  *                           none does; it runs alone (refused with
  *                           --otp-length, --google or --email-rate) and
- *                           lists the keys, never the text
+ *                           lists the keys with character counts, never the
+ *                           text; the real run needs a known Auth version.
+ *                           configure-auth refuses any flag it does not know
  *   keys [--write]          print the project URL and anon (publishable) key
  *                           as the JSON for platform/supabase.json
  *   usage [days]            print platform.llm_usage_report(days) as tables
@@ -633,9 +635,9 @@ async function configureAuth() {
   if (google && !(process.env.HINTWISE_AUTH_GOOGLE_ID && process.env.HINTWISE_AUTH_GOOGLE_SECRET)) {
     fail('--google needs HINTWISE_AUTH_GOOGLE_ID and HINTWISE_AUTH_GOOGLE_SECRET');
   }
-  const rateFlag = flagValue('--email-rate');
+  const rateFlag = flags.has('--email-rate') ? '' : flagValue('--email-rate');
   const emailRate = rateFlag === undefined ? undefined : Number(rateFlag);
-  if (rateFlag !== undefined && !(Number.isInteger(emailRate) && emailRate > 0 && emailRate <= 10000)) fail(`--email-rate wants a whole number of emails an hour, got ${rateFlag}`);
+  if (rateFlag !== undefined && !(Number.isInteger(emailRate) && emailRate > 0 && emailRate <= 10000)) fail(`--email-rate wants a whole number of emails an hour, got ${rateFlag || '(nothing)'}`);
   const otp = parseOtpLength(flags.has('--otp-length') ? '' : flagValue('--otp-length'));
   if (otp.error) fail(otp.error);
   const opts = { google, emailRate, otpLength: otp.value };
@@ -749,32 +751,39 @@ export function codeActions(text) {
 /** Pure: true when a template's text can print Auth's code. */
 export const printsCode = (text) => codeActions(text).length > 0;
 
+/** A version: major.minor.patch and an optional pre-release (letters, digits, dots and hyphens only). */
+const VERSION = /(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]{1,40})?/;
+
 /**
  * Pure: whose built-in templates an Auth version has: 'new' (v2.190.0 or
  * later: only reauthentication prints the code), 'old' (before: the five
- * link emails' bodies too), or 'unknown' (counted as both).
+ * link emails' bodies too), or 'unknown' (counted as both): no version, or
+ * a pre-release of 2.190.0 itself (2.190.0-rc.4), which may have either.
  */
 export function authDefaultsEra(version) {
-  const m = /(\d+)\.(\d+)\.(\d+)/.exec(String(version ?? ''));
+  const m = VERSION.exec(String(version ?? ''));
   if (!m) return 'unknown';
-  const v = m.slice(1).map(Number);
+  const v = m.slice(1, 4).map(Number);
   const i = v.findIndex((n, k) => n !== AUTH_CODE_FREE_DEFAULTS[k]);
-  return i === -1 || v[i] > AUTH_CODE_FREE_DEFAULTS[i] ? 'new' : 'old';
+  if (i === -1) return m[4] ? 'unknown' : 'new';
+  return v[i] > AUTH_CODE_FREE_DEFAULTS[i] ? 'new' : 'old';
 }
 
-/** Pure: Auth's version from the Management API's health answer for auth, or undefined. */
+/** Pure: Auth's version from the Management API's health answer for auth (rebuilt from its parts, so safe to print), or undefined. */
 export function pickAuthVersion(rows) {
   const auth = Array.isArray(rows) ? rows.find((r) => r?.name === 'auth') : undefined;
-  const m = /(\d+)\.(\d+)\.(\d+)/.exec(String(auth?.info?.version ?? ''));
-  return m ? `v${m[1]}.${m[2]}.${m[3]}` : undefined;
+  const m = VERSION.exec(String(auth?.info?.version ?? ''));
+  return m ? `v${m[1]}.${m[2]}.${m[3]}${m[4] ?? ''}` : undefined;
 }
 
 /** Pure: the line that says which built-in templates were counted. */
 export function authVersionLine(version) {
   const era = authDefaultsEra(version);
+  const every = "counting every built-in template that prints the code in any version (reauthentication's subject and body; before v2.190.0 also the five link emails' bodies)";
   if (era === 'new') return `Auth ${version}: of Auth's built-in templates, only reauthentication's subject and body print the code.`;
   if (era === 'old') return `Auth ${version} is older than v2.190.0: the built-in bodies of invite, confirmation, recovery, magic_link, email_change and reauthentication print the code.`;
-  return "Auth's version cannot be read: counting every built-in template that prints the code in any version (reauthentication's subject and body; before v2.190.0 also the five link emails' bodies).";
+  if (version) return `Auth ${version} is a pre-release of v2.190.0, which may have either set of built-in templates: ${every}.`;
+  return `Auth's version cannot be read: ${every}.`;
 }
 
 /** Pure: true when an empty template of this kind and type sends a built-in default that prints the code. */
@@ -815,21 +824,33 @@ const BLOCK_TAG = /<(\/?)(p|li|h[1-6]|pre|blockquote|td|th|div)\b[^>]*>/gi;
 const LINE_BREAK = /\n|<br\s*\/?>/gi;
 const LINK_VARS = ['ConfirmationURL', 'TokenHash', 'SiteURL', 'RedirectTo'];
 
-/** Pure: the matched open and close tags of the block elements, as [start, end) offsets. */
-function blockPairs(text) {
+// Block-level elements a cut may not take out unless they hold the code.
+const OTHER_BLOCK = /<(\/?)(p|div|h[1-6]|table|ul|ol|li|section|blockquote)\b[^>]*>/gi;
+
+/**
+ * Pure: the elements of the given tags as [start, end) offsets, each open
+ * tag matched to its close; one left open ends where its parent closes, or
+ * at the end of the text (closed: false).
+ */
+function elementSpans(text, tags) {
   const open = [];
-  const pairs = [];
-  for (const m of text.matchAll(BLOCK_TAG)) {
+  const spans = [];
+  for (const m of text.matchAll(tags)) {
     const name = m[2].toLowerCase();
     if (!m[1]) { open.push({ name, start: m.index }); continue; }
     let i = open.length - 1;
     while (i >= 0 && open[i].name !== name) i--;
     if (i < 0) continue;
-    pairs.push({ start: open[i].start, end: m.index + m[0].length });
-    open.length = i;
+    const end = m.index + m[0].length;
+    spans.push({ start: open[i].start, end, closed: true });
+    for (const o of open.splice(i).slice(1)) spans.push({ start: o.start, end, closed: false });
   }
-  return pairs;
+  for (const o of open) spans.push({ start: o.start, end: text.length, closed: false });
+  return spans;
 }
+
+/** Pure: the matched open and close tags of the block elements, as [start, end) offsets. */
+const blockPairs = (text) => elementSpans(text, BLOCK_TAG).filter((s) => s.closed);
 
 /** Pure: what to cut for one code action: its innermost block element, else its line; a lone element's whole line. */
 function cutRange(text, { start, end }) {
@@ -852,11 +873,45 @@ function cutRange(text, { start, end }) {
   return { from, to };
 }
 
-/** Pure: actions that open a block ({{ if }}, {{ range }}, ...) minus those that close one ({{ end }}). */
-function controlBalance(text) {
-  let n = 0;
-  for (const m of text.matchAll(/\{\{-?\s*(if|range|with|define|block|end)\b/g)) n += m[1] === 'end' ? -1 : 1;
-  return n;
+/**
+ * Pure: why one cut cannot go, or undefined. It must keep the template's
+ * structure: its depth of {{ if }}, {{ range }}, {{ with }}, {{ define }} and
+ * {{ block }} never goes below zero, no {{ else }} sits at depth zero, and it
+ * ends at depth zero. And every other block-level element in it must hold
+ * the code too, so a wrapper never goes with the code.
+ */
+export function cutProblem(cut) {
+  let depth = 0;
+  const actions = cut.replace(/\{\{-?\s*\/\*[\s\S]*?\*\/\s*-?\}\}/g, '');
+  for (const m of actions.matchAll(/\{\{-?\s*(if|range|with|define|block|else|end)\b/g)) {
+    if (m[1] === 'end') depth--;
+    else if (m[1] !== 'else') depth++;
+    if (depth < 0) return 'the block around the code holds an {{ end }} whose {{ if }}, {{ range }} or {{ with }} is outside it';
+    if (m[1] === 'else' && depth === 0) return 'the block around the code holds an {{ else }} whose {{ if }}, {{ range }} or {{ with }} is outside it';
+  }
+  if (depth !== 0) return 'the block around the code opens an {{ if }}, {{ range }} or {{ with }} whose {{ end }} is outside it';
+  const codes = codeActions(cut);
+  if (elementSpans(cut, OTHER_BLOCK).some((s) => !codes.some((c) => c.start >= s.start && c.end <= s.end))) return 'taking the code out would take another block element out too';
+  return undefined;
+}
+
+/**
+ * Pure: where a cut starts once the label just before it goes too: a block
+ * element, or a line with no tag, whose text ends in "code:" (any case),
+ * with no template action and no link. Otherwise the cut's own start.
+ */
+function withLabel(text, from) {
+  const end = text.slice(0, from).replace(/\s+$/, '').length;
+  const label = blockPairs(text).find((p) => p.end === end);
+  let start;
+  if (label) start = label.start;
+  else if (text.slice(end, from).includes('\n')) start = end === 0 ? 0 : text.lastIndexOf('\n', end - 1) + 1;
+  else return from;
+  const fragment = text.slice(start, end);
+  if (/\{\{|href/i.test(fragment) || (!label && /</.test(fragment)) || elementSpans(fragment, OTHER_BLOCK).length > 1) return from;
+  if (!/code:$/i.test(fragment.replace(/<[^>]*>/g, '').trim())) return from;
+  const lineStart = start === 0 ? 0 : text.lastIndexOf('\n', start - 1) + 1;
+  return text.slice(lineStart, start).trim() ? start : lineStart;
 }
 
 const countOf = (list, x) => list.filter((y) => y === x).length;
@@ -865,18 +920,20 @@ const linkVars = (text) => [...text.matchAll(/\{\{([\s\S]*?)\}\}/g)].flatMap((m)
 
 /**
  * Pure: a template body without the code: each block element (or line)
- * that holds the code is taken out, and nothing else. Refused, with a
- * reason and never the text, when that would also take out a link (an href,
- * or ConfirmationURL, TokenHash, SiteURL or RedirectTo), split an
- * {{ if }}/{{ range }}/{{ with }} from its {{ end }}, or leave nothing.
+ * that holds the code is taken out, with a label just before it ("Or enter
+ * this code:"), and nothing else. Refused, with a reason and never the
+ * text, when that would also take out a link (an href, or ConfirmationURL,
+ * TokenHash, SiteURL or RedirectTo) or another block element, break an
+ * {{ if }}/{{ range }}/{{ with }}, or leave nothing.
  * @returns {{ text?: string, error?: string }}
  */
 export function withoutCode(text) {
   let out = String(text);
   for (let spans = codeActions(out); spans.length; spans = codeActions(out)) {
     const { from, to } = cutRange(out, spans[0]);
-    if (controlBalance(out.slice(from, to)) !== 0) return { error: 'the code sits in an {{ if }}, {{ range }} or {{ with }} that its block cuts in two' };
-    out = out.slice(0, from) + out.slice(to);
+    const problem = cutProblem(out.slice(from, to));
+    if (problem) return { error: problem };
+    out = out.slice(0, withLabel(out, from)) + out.slice(to);
   }
   out = out.replace(/\n{3,}/g, '\n\n');
   if (!/\s$/.test(text)) out = out.replace(/\s+$/, '');
@@ -890,49 +947,75 @@ export function withoutCode(text) {
 }
 
 /**
- * Pure: the code-free text for one template that prints the code.
+ * Pure: the code-free text for one template that prints the code, and how
+ * it was made ('replaced', 'default' for an empty one, or 'cut').
  * Reauthentication, nothing but the code, gets CODE_OFF_SUBJECT and
  * CODE_OFF_BODY; another subject gets Auth's built-in subject for its type;
  * an empty link-email body gets Auth's own code-free body (AUTH_LINK_BODIES);
  * a set body loses the elements that hold the code (withoutCode).
+ * @returns {{ text?: string, how?: string, error?: string }}
  */
 export function codeFreeTemplate({ kind, type, set }, text) {
-  if (type === 'reauthentication') return { text: kind === 'subject' ? CODE_OFF_SUBJECT : CODE_OFF_BODY };
-  if (kind === 'subject') return AUTH_DEFAULT_SUBJECTS[type] ? { text: AUTH_DEFAULT_SUBJECTS[type] } : { error: 'no code-free subject is known for this type' };
-  if (!set) return { text: AUTH_LINK_BODIES[type] };
-  return withoutCode(text);
+  const how = set ? 'replaced' : 'default';
+  if (type === 'reauthentication') return { text: kind === 'subject' ? CODE_OFF_SUBJECT : CODE_OFF_BODY, how };
+  if (kind === 'subject') return AUTH_DEFAULT_SUBJECTS[type] ? { text: AUTH_DEFAULT_SUBJECTS[type], how } : { error: 'no code-free subject is known for this type' };
+  if (!set) return AUTH_LINK_BODIES[type] ? { text: AUTH_LINK_BODIES[type], how } : { error: 'no code-free body is known for this type' };
+  const r = withoutCode(text);
+  return r.error ? r : { text: r.text, how: 'cut' };
 }
 
 /**
  * Pure: the PATCH for --templates-no-code: only the template keys that print
- * the code, each with its code-free text, and the keys that cannot be
- * rewritten safely (key and reason, never the text). Nothing else, ever.
- * @returns {{ patch: Record<string, string>, problems: { key: string, reason: string }[] }}
+ * the code, each with its code-free text; per key, how it was made and how
+ * many characters were removed, kept and written; and the keys that cannot
+ * be rewritten safely (key and reason, never the text). Nothing else, ever.
+ * @returns {{ patch: Record<string, string>, changes: { key: string, how: string, removed: number, kept: number, written: number }[], problems: { key: string, reason: string }[] }}
  */
 export function templatesPatch(config, version) {
   /** @type {Record<string, string>} */
   const patch = {};
+  const changes = [];
   const problems = [];
   for (const s of templateStates(config, version)) {
     if (!s.printsCode) continue;
-    const r = codeFreeTemplate(s, config[s.key]);
-    if (r.error) problems.push({ key: s.key, reason: r.error });
-    else patch[s.key] = r.text;
+    const old = s.set ? config[s.key] : '';
+    const r = codeFreeTemplate(s, old);
+    if (r.error) { problems.push({ key: s.key, reason: r.error }); continue; }
+    patch[s.key] = r.text;
+    const kept = r.how === 'cut' ? r.text.length : 0;
+    changes.push({ key: s.key, how: r.how, removed: old.length - kept, kept, written: r.text.length });
   }
-  return { patch, problems };
+  return { patch, changes, problems };
 }
 
+/** Pure: the line for one key: its name, how it changes and character counts, never the text. */
+export function changeLine({ key, how, removed, kept, written }) {
+  if (how === 'cut') return `  ${key}: prints code -> no code (cut: ${removed} characters removed, ${kept} kept)`;
+  if (how === 'replaced') return `  ${key}: prints code -> no code (replaced: ${removed} characters removed, 0 kept, ${written} written)`;
+  return `  ${key}: prints code -> no code (empty, Auth's default: ${written} characters written)`;
+}
+
+/** configure-auth's flags: switches, and flags that take =N. Any other is refused before any API call. */
+export const CONFIGURE_AUTH_SWITCHES = ['--dry-run', '--google', TEMPLATES_FLAG];
+export const CONFIGURE_AUTH_VALUES = ['--email-rate', '--otp-length'];
+
 /**
- * Pure: why configure-auth cannot run with these flags, or undefined.
- * --templates-no-code runs alone, with --dry-run at most: never in one PATCH
- * with --otp-length, --google or --email-rate (the last two widen it to
- * smtp_pass and the rest).
+ * Pure: why configure-auth cannot run with these flags, or undefined. A
+ * flag it does not know (--template-no-code, --dryrun) is refused: a typo
+ * would otherwise run the full additive patch, smtp_pass included. A switch
+ * takes no value. --templates-no-code runs alone, with --dry-run at most:
+ * never in one PATCH with --otp-length, --google or --email-rate (the last
+ * two widen it to smtp_pass and the rest). The values of --email-rate and
+ * --otp-length are checked by configure-auth itself.
  */
 export function configureAuthFlagProblem(flagList) {
-  const own = flagList.filter((f) => f === TEMPLATES_FLAG || f.startsWith(`${TEMPLATES_FLAG}=`));
-  if (!own.length) return undefined;
-  if (own.some((f) => f !== TEMPLATES_FLAG)) return `${TEMPLATES_FLAG} takes no value`;
-  const others = flagList.filter((f) => f !== TEMPLATES_FLAG && f !== '--dry-run').map((f) => f.split('=')[0]);
+  const name = (f) => f.split('=')[0];
+  const unknown = flagList.filter((f) => !CONFIGURE_AUTH_SWITCHES.includes(name(f)) && !CONFIGURE_AUTH_VALUES.includes(name(f)));
+  if (unknown.length) return `configure-auth does not know ${unknown.map((f) => JSON.stringify(name(f))).join(', ')}; it takes --dry-run, --google, --email-rate=N, --otp-length=N or ${TEMPLATES_FLAG}`;
+  const valued = flagList.filter((f) => CONFIGURE_AUTH_SWITCHES.includes(name(f)) && f.includes('='));
+  if (valued.length) return `${valued.map(name).join(', ')} takes no value`;
+  if (!flagList.includes(TEMPLATES_FLAG)) return undefined;
+  const others = flagList.filter((f) => f !== TEMPLATES_FLAG && f !== '--dry-run').map(name);
   if (others.length) return `${TEMPLATES_FLAG} runs alone (with --dry-run at most), not with ${others.join(', ')}: run --otp-length, --google or --email-rate in a run of its own`;
   return undefined;
 }
@@ -947,13 +1030,16 @@ async function configureTemplates(dryRun) {
   console.log(`${TEMPLATES_FLAG}: only the Auth email templates that print a code are sent; every other auth setting is left as it is.`);
   const version = await authVersion();
   console.log(authVersionLine(version));
+  // The real run writes only what a known version says; the dry run (and
+  // inspect) show the cautious answer, so the owner can compare the two.
+  if (!dryRun && authDefaultsEra(version) === 'unknown') fail(`${TEMPLATES_FLAG}: nothing sent: Auth's version is not known; run it again once the version line names a release`);
   const current = await api(`/v1/projects/${ref}/config/auth`);
-  const { patch, problems } = templatesPatch(current, version);
+  const { patch, changes, problems } = templatesPatch(current, version);
   const keys = Object.keys(patch);
   if (!keys.length && !problems.length) { console.log('No Auth email template prints a code; nothing to change.'); return; }
   if (keys.length) {
     console.log(`${dryRun || problems.length ? 'Would change' : 'Changing'} ${keys.length} key(s):`);
-    for (const k of keys) console.log(`  ${k}: prints code -> no code`);
+    for (const c of changes) console.log(changeLine(c));
   }
   if (problems.length) {
     console.log(`Cannot take the code out of ${problems.length} key(s) safely (edit them by hand in the dashboard, then run this again):`);

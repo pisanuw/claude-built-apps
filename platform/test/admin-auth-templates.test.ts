@@ -72,10 +72,18 @@ describe("Auth's built-in templates (supabase/auth templatemailer.go, test/fixtu
     expect(['v2.189.9', 'v2.188.1', 'v1.999.0'].map((v) => m.authDefaultsEra(v))).toEqual(['old', 'old', 'old']);
     expect([undefined, '', 'GoTrue', 'v2'].map((v) => m.authDefaultsEra(v))).toEqual(['unknown', 'unknown', 'unknown', 'unknown']);
   });
+  it('counts a pre-release of exactly 2.190.0 as unknown, and orders the others as releases', () => {
+    expect(['v2.190.0-rc.4', '2.190.0-beta', 'v2.190.0-0'].map((v) => m.authDefaultsEra(v))).toEqual(['unknown', 'unknown', 'unknown']);
+    expect(['v2.190.1-rc.1', 'v2.191.0-rc.2', 'v2.190.0+build.7'].map((v) => m.authDefaultsEra(v))).toEqual(['new', 'new', 'new']);
+    expect(['v2.189.0-rc.1', 'v2.189.9-rc.9'].map((v) => m.authDefaultsEra(v))).toEqual(['old', 'old']);
+    expect(m.authVersionLine('v2.190.0-rc.4')).toBe("Auth v2.190.0-rc.4 is a pre-release of v2.190.0, which may have either set of built-in templates: counting every built-in template that prints the code in any version (reauthentication's subject and body; before v2.190.0 also the five link emails' bodies).");
+  });
   it("reads Auth's version from the health answer, digits only", () => {
     const health = (version: unknown) => [{ name: 'db', healthy: true, status: 'ACTIVE_HEALTHY' }, { name: 'auth', healthy: true, status: 'ACTIVE_HEALTHY', info: { name: 'GoTrue', version, description: 'GoTrue is a user registration and authentication API' } }];
     expect(m.pickAuthVersion(health('v2.198.0'))).toBe('v2.198.0');
-    expect(m.pickAuthVersion(health('2.177.0-rc.1'))).toBe('v2.177.0');
+    expect(m.pickAuthVersion(health('2.177.0-rc.1'))).toBe('v2.177.0-rc.1');
+    expect(m.pickAuthVersion(health('2.190.0-rc.4'))).toBe('v2.190.0-rc.4');
+    expect(m.pickAuthVersion(health('v2.1.0-rc::error::x'))).toBe('v2.1.0-rc');
     expect(m.pickAuthVersion(health('::error::v2.1.0'))).toBe('v2.1.0');
     expect(m.pickAuthVersion(health(7))).toBeUndefined();
     expect(m.pickAuthVersion([{ name: 'db' }])).toBeUndefined();
@@ -186,16 +194,47 @@ describe('withoutCode and codeFreeTemplate: the code goes, the links and the res
     expect(m.withoutCode('<p><a href="{{ .SiteURL }}/verify?code={{ .Token }}">Go</a></p><p>Hi</p>')).toEqual({ error: 'taking the code out would take a link out too' });
     expect(m.withoutCode('<p>Hi</p><p>Enter {{ .Token }} at {{ .SiteURL }}</p>')).toEqual({ error: 'taking the code out would take a link out too' });
     expect(m.withoutCode('<p>Your code: {{ .Token }}</p>')).toEqual({ error: 'nothing but the code would be left' });
-    expect(m.withoutCode('{{ if .X }}<p>a</p>\n<p>Code {{ .Token }} {{ end }}</p>')).toEqual({ error: 'the code sits in an {{ if }}, {{ range }} or {{ with }} that its block cuts in two' });
+    expect(m.withoutCode('{{ if .X }}<p>a</p>\n<p>Code {{ .Token }} {{ end }}</p>')).toEqual({ error: 'the block around the code holds an {{ end }} whose {{ if }}, {{ range }} or {{ with }} is outside it' });
     expect(m.withoutCode('<a href="{{ .ConfirmationURL }}"></a>\n<p>{{ .Token }}</p>').text).toBe('<a href="{{ .ConfirmationURL }}"></a>');
+  });
+  it('keeps the if/else/end structure: the depth never below zero, no {{ else }} at depth zero, back to zero at the end', () => {
+    const outside = 'the block around the code holds an {{ else }} whose {{ if }}, {{ range }} or {{ with }} is outside it';
+    expect(m.withoutCode('{{ if .A }}<p>x {{ else }} {{ .Token }}</p>{{ end }}<p>keep</p>')).toEqual({ error: outside });
+    expect(m.withoutCode('{{ if .A }}<p>x {{- else if .B -}} {{ .Token }}</p>{{ end }}<p>keep</p>')).toEqual({ error: outside });
+    expect(m.withoutCode('<div>{{ end }}{{ .Token }}{{ if .B }}</div>')).toEqual({ error: 'the block around the code holds an {{ end }} whose {{ if }}, {{ range }} or {{ with }} is outside it' });
+    expect(m.withoutCode('<p>A</p><p>{{ .Token }} {{ range .Data }}</p>x{{ end }}')).toEqual({ error: 'the block around the code opens an {{ if }}, {{ range }} or {{ with }} whose {{ end }} is outside it' });
+    expect(m.cutProblem('<p>{{ if .A }}a{{ else }}{{ .Token }}{{ end }}</p>')).toBeUndefined();
+    expect(m.cutProblem('<p>{{/* {{ end }} */}}{{ .Token }}</p>')).toBeUndefined();
+  });
+  it('never takes a wrapper out with the code: another block element in the cut is refused', () => {
+    const wrapper = 'taking the code out would take another block element out too';
+    expect(m.withoutCode('<div><h2>T</h2>Your code {{ .Token }} and important words</div><p>More</p>')).toEqual({ error: wrapper });
+    expect(m.withoutCode('<td><p>Intro</p>Code {{ .Token }}</td><p>More</p>')).toEqual({ error: wrapper });
+    expect(m.withoutCode('<p>A</p><ul><li>B</li></ul> {{ .Token }}\n<p>More</p>')).toEqual({ error: wrapper });
+    expect(m.withoutCode('<td>Code {{ .Token }} <p>{{ .TokenNew }}</p></td><p>More</p>').text).toBe('<p>More</p>');
+  });
+  it('takes the label just before the code out too, when it is only a label', () => {
+    expect(m.withoutCode('<p>Sign in: <a href="{{ .ConfirmationURL }}">link</a></p>\n<p>Or enter this code:</p>\n<p>{{ .Token }}</p>').text).toBe('<p>Sign in: <a href="{{ .ConfirmationURL }}">link</a></p>');
+    expect(m.withoutCode('<p>Hi</p><p>Or enter this CODE:</p><p><b>{{ .Token }}</b></p>').text).toBe('<p>Hi</p>');
+    expect(m.withoutCode('Sign in: {{ .ConfirmationURL }}\nOr use this code:\n\n{{ .Token }}\n').text).toBe('Sign in: {{ .ConfirmationURL }}\n');
+    // Not a label: it has a link, an action, more than one element, a tag on a plain line, or no "code:".
+    expect(m.withoutCode('<p>Or <a href="{{ .ConfirmationURL }}">sign in</a>, or enter this code:</p>\n<p>{{ .Token }}</p>').text).toBe('<p>Or <a href="{{ .ConfirmationURL }}">sign in</a>, or enter this code:</p>');
+    expect(m.withoutCode('<p>Hi {{ .Email }}, your code:</p><p>{{ .Token }}</p>').text).toBe('<p>Hi {{ .Email }}, your code:</p>');
+    expect(m.withoutCode('<div><p>Intro</p><p>Your code:</p></div><p>{{ .Token }}</p>').text).toBe('<div><p>Intro</p><p>Your code:</p></div>');
+    expect(m.withoutCode('Intro <b>x</b> code:\n{{ .Token }}').text).toBe('Intro <b>x</b> code:');
+    expect(m.withoutCode('<p>Thanks</p>\n<p>{{ .Token }}</p>').text).toBe('<p>Thanks</p>');
+    expect(m.withoutCode('Your code:<br>{{ .Token }}<br>Thanks').text).toBe('Your code:<br>Thanks');
   });
   it('gives reauthentication the plain email in the words of the hook, and other subjects their built-in subject', () => {
     expect(m.CODE_OFF_SENTENCE).toBe(CODE_ONLY_REFUSAL_MESSAGE);
-    expect(m.codeFreeTemplate({ kind: 'subject', type: 'reauthentication', set: false }, null)).toEqual({ text: 'Email confirmation codes are off' });
-    expect(m.codeFreeTemplate({ kind: 'content', type: 'reauthentication', set: true }, CUSTOM.mailer_templates_reauthentication_content)).toEqual({ text: '<p>Email confirmation codes are off. Sign out and back in, then make the change.</p>\n' });
-    expect(m.codeFreeTemplate({ kind: 'subject', type: 'magic_link', set: true }, CUSTOM.mailer_subjects_magic_link)).toEqual({ text: 'Your sign-in link' });
+    expect(m.codeFreeTemplate({ kind: 'subject', type: 'reauthentication', set: false }, null)).toEqual({ text: 'Email confirmation codes are off', how: 'default' });
+    expect(m.codeFreeTemplate({ kind: 'content', type: 'reauthentication', set: true }, CUSTOM.mailer_templates_reauthentication_content)).toEqual({ text: '<p>Email confirmation codes are off. Sign out and back in, then make the change.</p>\n', how: 'replaced' });
+    expect(m.codeFreeTemplate({ kind: 'subject', type: 'magic_link', set: true }, CUSTOM.mailer_subjects_magic_link)).toEqual({ text: 'Your sign-in link', how: 'replaced' });
     expect(m.codeFreeTemplate({ kind: 'subject', type: 'new_type', set: true }, '{{ .Token }}')).toEqual({ error: 'no code-free subject is known for this type' });
-    expect(m.codeFreeTemplate({ kind: 'content', type: 'confirmation', set: false }, '')).toEqual({ text: DEFAULTS.since_v2_190_0.bodies.confirmation });
+    expect(m.codeFreeTemplate({ kind: 'content', type: 'confirmation', set: false }, '')).toEqual({ text: DEFAULTS.since_v2_190_0.bodies.confirmation, how: 'default' });
+    expect(m.codeFreeTemplate({ kind: 'content', type: 'password_changed_notification', set: false }, '')).toEqual({ error: 'no code-free body is known for this type' });
+    expect(m.codeFreeTemplate({ kind: 'content', type: 'magic_link', set: true }, '<p>A</p><p>{{ .Token }}</p>')).toEqual({ text: '<p>A</p>', how: 'cut' });
+    expect(m.codeFreeTemplate({ kind: 'content', type: 'magic_link', set: true }, '<p>{{ .Token }}</p>')).toEqual({ error: 'nothing but the code would be left' });
     for (const t of [m.CODE_OFF_SUBJECT, m.CODE_OFF_BODY]) expect(m.printsCode(t)).toBe(false);
   });
 });
@@ -223,7 +262,24 @@ describe('templatesPatch: only the template keys that print a code', () => {
   });
   it('sends nothing when no template prints a code', () => {
     const done = { ...PROJECT, mailer_subjects_reauthentication: m.CODE_OFF_SUBJECT, mailer_templates_reauthentication_content: m.CODE_OFF_BODY };
-    expect(m.templatesPatch(done, 'v2.198.0')).toEqual({ patch: {}, problems: [] });
+    expect(m.templatesPatch(done, 'v2.198.0')).toEqual({ patch: {}, changes: [], problems: [] });
+  });
+  it('counts, per key, the characters removed, kept and written', () => {
+    const { changes } = m.templatesPatch({ ...PROJECT, ...CUSTOM, mailer_subjects_reauthentication: null }, 'v2.198.0');
+    const ml = CUSTOM.mailer_templates_magic_link_content;
+    const kept = (m.withoutCode(ml).text as string).length;
+    expect(changes).toEqual([
+      { key: 'mailer_subjects_magic_link', how: 'replaced', removed: CUSTOM.mailer_subjects_magic_link.length, kept: 0, written: 'Your sign-in link'.length },
+      { key: 'mailer_templates_magic_link_content', how: 'cut', removed: ml.length - kept, kept, written: kept },
+      { key: 'mailer_subjects_reauthentication', how: 'default', removed: 0, kept: 0, written: 32 },
+      { key: 'mailer_templates_reauthentication_content', how: 'replaced', removed: CUSTOM.mailer_templates_reauthentication_content.length, kept: 0, written: 85 },
+    ]);
+    expect(changes.map((c) => m.changeLine(c))).toEqual([
+      `  mailer_subjects_magic_link: prints code -> no code (replaced: ${CUSTOM.mailer_subjects_magic_link.length} characters removed, 0 kept, 17 written)`,
+      `  mailer_templates_magic_link_content: prints code -> no code (cut: ${ml.length - kept} characters removed, ${kept} kept)`,
+      "  mailer_subjects_reauthentication: prints code -> no code (empty, Auth's default: 32 characters written)",
+      `  mailer_templates_reauthentication_content: prints code -> no code (replaced: ${CUSTOM.mailer_templates_reauthentication_content.length} characters removed, 0 kept, 85 written)`,
+    ]);
   });
   it('lists the templates it cannot rewrite safely, by key and reason', () => {
     const bad = { ...PROJECT, mailer_templates_invite_content: '<p>Join with {{ .Token }} at <a href="{{ .ConfirmationURL }}">here</a></p>' };
@@ -231,7 +287,24 @@ describe('templatesPatch: only the template keys that print a code', () => {
   });
 });
 
-describe('configureAuthFlagProblem: --templates-no-code runs alone', () => {
+describe('configureAuthFlagProblem: only the flags configure-auth knows; --templates-no-code runs alone', () => {
+  it('refuses a flag it does not know, a near miss above all, naming it', () => {
+    const known = 'it takes --dry-run, --google, --email-rate=N, --otp-length=N or --templates-no-code';
+    expect(m.configureAuthFlagProblem(['--template-no-code'])).toBe(`configure-auth does not know "--template-no-code"; ${known}`);
+    for (const typo of ['--templates-no-codes', '--templates_no_code', '--no-code', '--dryrun', '--dry_run', '--Dry-run', '--otp_length=10', '--otp-lenght=10', '--email_rate=200', '--rate=200', '--googel', '--write', '--'])
+      expect(m.configureAuthFlagProblem(['--dry-run', typo]), typo).toContain(`configure-auth does not know ${JSON.stringify(typo.split('=')[0])}`);
+    expect(m.configureAuthFlagProblem(['--otp_length=10', '--templates-no-code', '--x=secret'])).toBe(`configure-auth does not know "--otp_length", "--x"; ${known}`);
+  });
+  it('refuses a value on a switch', () => {
+    expect(m.configureAuthFlagProblem(['--google=yes'])).toBe('--google takes no value');
+    expect(m.configureAuthFlagProblem(['--dry-run=false', '--otp-length=10'])).toBe('--dry-run takes no value');
+  });
+  it('lets every flag the workflow and the docs use through', () => {
+    for (const set of [[], ['--dry-run'], ['--google'], ['--google', '--dry-run'], ['--email-rate=200'], ['--otp-length=10'], ['--otp-length=10', '--dry-run'], ['--otp-length=10', '--google', '--email-rate=200'], ['--templates-no-code'], ['--templates-no-code', '--dry-run'], ['--otp-length'], ['--email-rate']])
+      expect(m.configureAuthFlagProblem(set), set.join(' ')).toBeUndefined();
+    expect(m.CONFIGURE_AUTH_SWITCHES).toEqual(['--dry-run', '--google', '--templates-no-code']);
+    expect(m.CONFIGURE_AUTH_VALUES).toEqual(['--email-rate', '--otp-length']);
+  });
   it('allows it alone or with --dry-run, and leaves other runs to the other checks', () => {
     expect(m.configureAuthFlagProblem(['--templates-no-code'])).toBeUndefined();
     expect(m.configureAuthFlagProblem(['--dry-run', '--templates-no-code'])).toBeUndefined();
@@ -318,8 +391,8 @@ globalThis.fetch = async (url, init = {}) => {
       '--templates-no-code: only the Auth email templates that print a code are sent; every other auth setting is left as it is.',
       "Auth v2.198.0: of Auth's built-in templates, only reauthentication's subject and body print the code.",
       'Would change 2 key(s):',
-      '  mailer_subjects_reauthentication: prints code -> no code',
-      '  mailer_templates_reauthentication_content: prints code -> no code',
+      "  mailer_subjects_reauthentication: prints code -> no code (empty, Auth's default: 32 characters written)",
+      "  mailer_templates_reauthentication_content: prints code -> no code (empty, Auth's default: 85 characters written)",
       'Dry run: nothing sent.',
     ]);
     noLeak(r);
@@ -333,7 +406,8 @@ globalThis.fetch = async (url, init = {}) => {
     expect(body).not.toHaveProperty('smtp_pass');
     for (const text of Object.values(body)) expect(m.printsCode(text)).toBe(false);
     expect(body.mailer_templates_magic_link_content).toContain('token_hash={{ .TokenHash }}');
-    expect(r.out).toContain('Changing 3 key(s):\n  mailer_subjects_magic_link: prints code -> no code\n');
+    expect(r.out).toContain(`Changing 3 key(s):\n  mailer_subjects_magic_link: prints code -> no code (replaced: ${CUSTOM.mailer_subjects_magic_link.length} characters removed, 0 kept, 17 written)\n`);
+    expect(r.out).toMatch(/\n {2}mailer_templates_magic_link_content: prints code -> no code \(cut: \d+ characters removed, \d+ kept\)\n/);
     expect(r.out).toContain('After: mailer_subjects_magic_link set, prints code: false; mailer_templates_magic_link_content set, prints code: false; mailer_templates_reauthentication_content set, prints code: false');
     noLeak(r);
   });
@@ -344,12 +418,38 @@ globalThis.fetch = async (url, init = {}) => {
     expect(r.calls.map((c) => c.method)).toEqual(['GET', 'GET']);
     expect(r.out).toContain('No Auth email template prints a code; nothing to change.');
   });
-  it('counts both versions of the defaults when the version cannot be read', () => {
+  it('counts both versions of the defaults in the dry run when the version cannot be read', () => {
     const r = run(['configure-auth', '--templates-no-code', '--dry-run'], PROJECT, {});
     expect(r.status).toBe(0);
     expect(r.out).toContain("Auth's version cannot be read");
     expect(r.out).toContain('Would change 7 key(s):');
     expect(r.calls.map((c) => c.method)).toEqual(['GET', 'GET']);
+    const rc = run(['configure-auth', '--templates-no-code', '--dry-run'], PROJECT, { FAKE_AUTH_VERSION: '2.190.0-rc.4' });
+    expect(rc.status).toBe(0);
+    expect(rc.out).toContain('Auth v2.190.0-rc.4 is a pre-release of v2.190.0');
+    expect(rc.out).toContain('Would change 7 key(s):');
+  });
+  it('the real run sends nothing, and exits 1, when the version is not known', () => {
+    for (const extra of [{}, { FAKE_AUTH_VERSION: 'v2.190.0-rc.4' }, { FAKE_AUTH_VERSION: 'GoTrue' }] as Record<string, string>[]) {
+      const r = run(['configure-auth', '--templates-no-code'], PROJECT, extra);
+      expect(r.status).toBe(1);
+      expect(r.calls.map((c) => c.path)).toEqual(['/v1/projects/abcdefghijklmnopqrst/health?services=auth']);
+      expect(r.out).toContain("::error::--templates-no-code: nothing sent: Auth's version is not known; run it again once the version line names a release");
+      expect(r.out).not.toContain('Changing');
+    }
+  });
+  it('refuses a flag configure-auth does not know before any API call, whatever else is given', () => {
+    for (const flags of [['--template-no-code'], ['--template-no-code', '--dry-run'], ['--dryrun'], ['--otp_length=10'], ['--google=yes'], ['--templates-no-code', '--dryrun']]) {
+      const r = run(['configure-auth', ...flags]);
+      expect(r.status, flags.join(' ')).toBe(1);
+      expect(r.calls).toEqual([]);
+      expect(r.out).toMatch(/^::error::(configure-auth does not know|--google takes no value)/m);
+      expect(r.out).not.toContain('smtp');
+    }
+    const bare = run(['configure-auth', '--email-rate']);
+    expect(bare.status).toBe(1);
+    expect(bare.calls).toEqual([]);
+    expect(bare.out).toContain('::error::--email-rate wants a whole number of emails an hour, got (nothing)');
   });
   it('refuses bad combinations before any API call', () => {
     for (const flags of [['--otp-length=10'], ['--google'], ['--email-rate=200'], ['--otp-length=10', '--dry-run']]) {
@@ -367,7 +467,7 @@ globalThis.fetch = async (url, init = {}) => {
     const r = run(['configure-auth', '--templates-no-code'], bad);
     expect(r.status).toBe(1);
     expect(r.calls.map((c) => c.method)).toEqual(['GET', 'GET']);
-    expect(r.out).toContain('Would change 2 key(s):');
+    expect(r.out).toContain("Would change 2 key(s):\n  mailer_subjects_reauthentication: prints code -> no code (empty, Auth's default: 32 characters written)");
     expect(r.out).toContain('  mailer_templates_invite_content: prints code -> taking the code out would take a link out too');
     expect(r.out).toContain('::error::--templates-no-code: nothing sent; mailer_templates_invite_content cannot be rewritten safely');
     noLeak(r);
