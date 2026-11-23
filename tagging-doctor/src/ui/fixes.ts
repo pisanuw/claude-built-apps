@@ -7,7 +7,7 @@
  * (AC-80), src/ui/compare.ts draws it into the slot this panel leaves.
  */
 import { leftOutLine } from '../core/report';
-import { applyFixes, patchedZip, patchedZipName, suggestFixes, validLanguage, type FixCard, type FixPlan, type PatchResult } from '../core/patch';
+import { applyFixes, metadataRefusal, patchedZip, patchedZipName, suggestFixes, validLanguage, type FixCard, type FixPlan, type PatchResult } from '../core/patch';
 import type { Project } from '../core/project';
 import type { DocumentScan } from '../core/scan';
 import { altEdits, figureAttention, listFigures, styleFigureAttention, type FigureItem } from '../core/figures';
@@ -243,7 +243,16 @@ export function mountFixes(panel: HTMLElement, opts: FixesOpts): { cancel: () =>
   drawCards();
   drawAttention();
   drawActions();
-  const figs = mountFigures(figuresEl, { signedIn: () => false, ...opts.figures, project, figures, choices: state.alts, drafting: state.drafting, onChange: () => opts.onAltsChange?.() });
+  const figs = mountFigures(figuresEl, {
+    signedIn: () => false,
+    ...opts.figures,
+    project,
+    figures,
+    choices: state.alts,
+    drafting: state.drafting,
+    untagged: metadataRefusal(scan)?.cls ?? null,
+    onChange: () => opts.onAltsChange?.(),
+  });
   if (opts.compareSlot) compare = opts.compareSlot(slot, ctx);
   return {
     cancel: () => {

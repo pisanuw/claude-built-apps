@@ -32,8 +32,11 @@ env:
   VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFya3R4bHJseWNlZmZ5b3pkd2hxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4ODEwMTAsImV4cCI6MjA5MjQ1NzAxMH0.Vuku-irT3kAHZYibK23q6dpyOEqV_Eg5zB78I3dyshE
   VITE_CHECKER_URL: https://backend-hub-wk2e.onrender.com/tagging-doctor
   VITE_COMPILE_CHECK: 'on'
-  # VITE_COMPARE_PATCHED stays unset (off) until the tagged math-notes job,
-  # run by the owner on the live hub, passes AC-68's rule (AC-80, CR-13).
+  # "Compile patched and compare" (AC-80, CR-13): on since the owner's tagged
+  # math-notes job on the live hub passed AC-68's rule on 2026-11-23 (41.8 s,
+  # backend-hub's memory at 291 MB; DECISIONS.md D-152). Back to 'off' (one
+  # line) if a live patched check goes over 90 s or about 450 MB.
+  VITE_COMPARE_PATCHED: 'on'
 
 envPassthrough: []
 

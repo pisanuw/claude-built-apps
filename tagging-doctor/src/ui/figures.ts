@@ -25,6 +25,16 @@ export const DRAFT_SENDS =
 export const ALTS_KEPT =
   'Signed in, once the scan is saved, the approved texts and decorative marks are kept with the project, with each file’s path and a fingerprint of its contents, never the file; a new version of the project gets them back for the files that have not changed.';
 export const EMPTY = 'No figures found in this project.';
+
+/**
+ * The line above the list for a class the \\DocumentMetadata line stops
+ * (CR-15, AC-45): the copy stays untagged, so the alt keys are not used in
+ * its PDF, and the texts belong in the separate text version AC-3 names.
+ */
+export function untaggedLine(cls: string): string {
+  const deck = cls === 'beamer';
+  return `${deck ? 'Beamer' : `The ${cls} class`} cannot take the \\DocumentMetadata line that switches tagging on, so the patched copy makes an untagged PDF. Approved texts still go into the copy as alt keys, but an untagged PDF does not use them: copy them into the separate text version of ${deck ? 'the slides' : 'the document'} that the scan suggests, where readers will find them.`;
+}
 export const DRAFT_LABEL = 'Draft by a model, check it';
 export const LEWIS_URL = 'https://lewis-alt-text.hintwise.org';
 
@@ -79,6 +89,8 @@ export interface FiguresOpts {
   objectUrl?: (bytes: Uint8Array, type: string) => string | null;
   /** Gives a thumbnail's URL back when the panel goes (R5a.1-10). */
   revokeUrl?: (url: string) => void;
+  /** The document's class when the \\DocumentMetadata line stops it (CR-15): the panel says where the texts can go. */
+  untagged?: string | null;
   /** Called when what goes into the patch changes. */
   onChange: () => void;
   /**
@@ -513,7 +525,8 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
   }
   listEl.replaceChildren(...figures.map((f, i) => figureItem(f, i + 1)));
   drafting.draw = drawById;
-  section.replaceChildren(h, intro, el('p', { class: 'help' }, `${DRAFT_SENDS} ${ALTS_KEPT}`), keyEl, modeEl, allEl, live, listEl);
+  const untagged = opts.untagged ? [el('p', { class: 'untagged-note', role: 'note' }, untaggedLine(opts.untagged))] : [];
+  section.replaceChildren(h, intro, ...untagged, el('p', { class: 'help' }, `${DRAFT_SENDS} ${ALTS_KEPT}`), keyEl, modeEl, allEl, live, listEl);
   drawKey();
   drawMode();
   return {
