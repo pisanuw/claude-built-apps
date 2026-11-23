@@ -35,6 +35,10 @@ export interface AskRequest {
   model?: string;
   max_tokens?: number;
   tools?: Tool[];
+  /** Passed as given; the gateway allows `adaptive`, and `disabled` on claude-haiku-5-5 at effort high or below. */
+  thinking?: { type: 'adaptive' | 'disabled' };
+  /** Only `effort` passes the gateway. */
+  output_config?: { effort: 'low' | 'medium' | 'high' | 'xhigh' | 'max' };
 }
 
 /** The minimum of the Anthropic client that BYOK mode uses. */
@@ -156,6 +160,8 @@ export function requestBody(req: AskRequest): Anthropic.Messages.MessageCreatePa
   };
   if (req.system) body.system = req.system;
   if (req.tools) body.tools = req.tools;
+  if (req.thinking) Object.assign(body, { thinking: req.thinking });
+  if (req.output_config) Object.assign(body, { output_config: req.output_config });
   return body;
 }
 
