@@ -93,15 +93,26 @@ Signed in, **Compile and check** runs a real compile and a PDF/UA-2 check:
   veraPDF version, and the failures grouped by clause of the standard, the
   most frequent first, in plain words.
 
-The checker sleeps when nobody uses it; the first check then waits about a
-minute while it wakes ("Waking the checker"). One check runs at a time, at
-most five per person an hour, and each stops after two minutes. The checker
+The checker runs in HintWise's shared server (backend-hub, always on), so a
+check starts at once; only right after the server restarts does it wait
+while the checker wakes ("Waking the checker"). One check runs at a time, at
+most five per person an hour, and each stops after two minutes. A restart
+of the server (every update of any app on it) deletes the checks and PDFs
+it holds. The checker
 runs no outside programs (EPS conversion, `minted`, `pythontex`).
 
 ## Limits
 
 A zip of at most 20 MB, 2000 files and 100 MB unpacked. Password-protected
 zips cannot be read. The checker takes at most 25 MB.
+
+The fixes do not make every document pass PDF/UA-2. The test document
+`math-notes` (22 pages of lecture notes with equations, two TikZ pictures,
+two figures and `titlesec`), patched with the default fixes, compiles and
+goes from 4,785 failed checks in 9 rules to 181 in one: clause 8.2.2 of
+ISO 14289-2 ("content that is neither tagged nor marked as an artifact"),
+from the TikZ pictures and the partly compatible `titlesec`. Those need
+work by hand (alt text and the tagging project's advice for each package).
 
 ## Credits
 
@@ -133,8 +144,8 @@ preview`). The schema is `supabase/migrations/0001_init.sql`; `test/schema.test.
 runs it on PGlite and checks row level security, the composite keys and the
 cascades. Without the Supabase env (`vite preview`, `npm run e2e`) sign-in is a
 stand-in that signs a preview person in (`src/ui/preview-account.ts`).
-The checker (`tagging-doctor-worker/`) is called by `src/lib/checker.ts` at
-`VITE_CHECKER_URL`; "Compile and check" shows only when `VITE_COMPILE_CHECK` is
+The checker (`tagging-doctor-worker/`, mounted in `backend-hub/` at
+`/tagging-doctor`) is called by `src/lib/checker.ts` at `VITE_CHECKER_URL`; "Compile and check" shows only when `VITE_COMPILE_CHECK` is
 `on` (`.env.example`). The walkthrough builds with a stand-in address and
 answers the checker's routes itself.
 

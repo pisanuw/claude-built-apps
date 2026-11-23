@@ -31,11 +31,16 @@ export interface Limits {
 }
 
 /**
- * 400 MiB of address space for TeX: math-notes peaks at 153 MiB untagged and
- * 241 MiB tagged (D-60), and TeX plus the server stay under the instance's
- * 512 MB, so a memory bomb meets this limit before the out-of-memory killer.
+ * 352 MiB of address space for TeX. In backend-hub (CR-13) TeX shares the
+ * instance's 512 MB with the hub's own Node and mult-streak: the live hub
+ * peaked at 123 MB over seven days (SPEC AC-82), so a memory bomb must meet
+ * this limit with room for that, before the out-of-memory killer (R4b.1-4 a).
+ * A job's largest LuaLaTeX run needs: math-notes untagged 153 MiB, tagged
+ * with D-56's line 241 MiB (D-60), and patched with AC-38's line (MathML)
+ * 275 MiB (D-134), so the cap leaves 28% above the patched job. It was
+ * 400 MiB on the worker alone.
  */
-export const TEX_LIMITS: Limits = { addressSpace: 400 * 1024 * 1024, fileSize: 200 * 1024 * 1024, processes: 64, openFiles: 256 };
+export const TEX_LIMITS: Limits = { addressSpace: 352 * 1024 * 1024, fileSize: 200 * 1024 * 1024, processes: 64, openFiles: 256 };
 export const JAVA_LIMITS: Limits = { addressSpace: 'unlimited', fileSize: 200 * 1024 * 1024, processes: 64, openFiles: 256 };
 
 export interface User {

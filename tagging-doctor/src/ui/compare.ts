@@ -11,9 +11,9 @@
  * removal made it compile is highlighted when both runs finished.
  */
 import { CHECKER_MAX_BYTES, checkerTakes, type CheckerJob } from '../core/compile';
-import { CHANGE_WORDS, compareJobs, compiledWords, failuresWords, finished, madeItFail, trendLine, type PatchedRun } from '../core/compare';
+import { compareJobs, compiledWords, failuresWords, finished, madeItFail, trendLine, type PatchedRun } from '../core/compare';
 import { projectZip } from '../core/outzip';
-import { CheckerError, forget, runJob, SENDING, WAKING, type CheckerDeps, type TokenSource } from '../lib/checker';
+import { CheckerError, forget, keptToken, runJob, SENDING, WAKING, type CheckerDeps, type TokenSource } from '../lib/checker';
 import { CHECK_TAKES, progress, realClock, type Clock } from './progress';
 import { jobResult, mainFileRefusal, NOTICE_KEY, TOO_LARGE, UPLOAD_NOTICE } from './compile';
 import type { FixesCtx } from './fixes';
@@ -91,7 +91,7 @@ export function comparisonView(original: CheckerJob, patched: CheckerJob): HTMLE
         el('td', {}, r.words),
         el('td', {}, r.original === null ? '—' : r.original.toLocaleString('en-US')),
         el('td', {}, r.patched === null ? '—' : r.patched.toLocaleString('en-US')),
-        el('td', {}, CHANGE_WORDS[r.change]),
+        el('td', {}, r.changeText),
       );
       tb.append(tr);
     }
@@ -109,6 +109,8 @@ export function compareSlot(deps: CompareDeps): (slot: HTMLElement, ctx: FixesCt
 }
 
 export function mountCompare(slot: HTMLElement, deps: CompareDeps, ctx: FixesCtx): { cancel: () => void } {
+  // The last token these checks used, for their DELETE when the person signs out (R4a.2-4 g).
+  const tok = keptToken(deps.token);
   let gen = 0;
   let running = false;
   /** Jobs the checker holds for the current run, deleted on Cancel. */
@@ -133,11 +135,16 @@ export function mountCompare(slot: HTMLElement, deps: CompareDeps, ctx: FixesCtx
     actions.replaceChildren(button(COMPARE_LABEL, () => void start(), { class: 'primary', id: 'compare-go' }));
   }
 
+  /** The token of the last stop, asked once and used for every job of it: `orLast` gives a kept token only once (R4b.1-5). */
+  let stopToken: Promise<string | null> | null = null;
+
   function stop() {
     gen++;
     prog.stop();
     running = false;
-    for (const id of sent) void forget(deps.checker, id, deps.token);
+    const t = tok.orLast();
+    stopToken = t;
+    for (const id of sent) void forget(deps.checker, id, () => t);
     sent = [];
   }
 
@@ -174,7 +181,7 @@ export function mountCompare(slot: HTMLElement, deps: CompareDeps, ctx: FixesCtx
     }));
     let left: number | null = null;
     const once = (zip: Uint8Array, label: string) =>
-      runJob(deps.checker, zip, ctx.scan.mainFile, deps.token, {
+      runJob(deps.checker, zip, ctx.scan.mainFile, tok.token, {
         // AC-81: each of the two checks counts from its own sending.
         onStatus: (text) => {
           if (stale() || !text) return;
@@ -185,7 +192,11 @@ export function mountCompare(slot: HTMLElement, deps: CompareDeps, ctx: FixesCtx
         onSent: (first) => {
           sent.push(first.id);
           if (typeof first.checksLeft === 'number') left = first.checksLeft;
-          if (stale()) void forget(deps.checker, first.id, deps.token);
+          // Stopped while this upload was on its way: the job goes with the stop's token (R4b.1-5).
+          if (stale()) {
+            const t = stopToken;
+            void forget(deps.checker, first.id, t ? () => t : tok.orLast);
+          }
         },
         stale,
       });

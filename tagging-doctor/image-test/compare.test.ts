@@ -1,8 +1,8 @@
 /**
- * AC-42, AC-43 and AC-67 on the worker's image at the CPU of the plan in
- * question 5 (0.5 CPU, 512 MB: backend-hub's instance, the owner's decision
- * of 2026-11-22), with the build flag of AC-80 on: the app's patch and
- * compare code against the real checker, not the live one.
+ * AC-42, AC-43 and AC-67 on the hub's image (backend-hub:dev, the checker
+ * mounted beside mult-streak, CR-13) at the hub's 0.5 CPU and 512 MB, with
+ * the build flag of AC-80 on: the app's patch and compare code against the
+ * real checker, not the live one. WORKER_IMAGE names another image.
  *
  * - AC-67: math-notes patched with the default fixes (the \DocumentMetadata
  *   line AC-38 inserts, and the engine fix) compiles, and veraPDF's failure
@@ -17,10 +17,10 @@
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { checkerTakes } from '../src/core/compile';
-import { compareJobs, finished, madeItFail } from '../src/core/compare';
+import { compareJobs, complete, finished, madeItFail } from '../src/core/compare';
 import { projectZip } from '../src/core/outzip';
 import { applyFixes, suggestFixes } from '../src/core/patch';
-import { APP, dropFolder, freshToken, line, REPO, timedRun, Worker } from './common';
+import { APP, dropFolder, freshToken, IMAGE, line, REPO, timedRun, Worker } from './common';
 
 const CPUS = process.env.CPUS ?? '0.5';
 let w: Worker;
@@ -31,7 +31,7 @@ afterAll(async () => {
   await w?.stop();
 });
 
-describe(`on the worker's image at --cpus ${CPUS} --memory 512m`, () => {
+describe(`on the image ${IMAGE} at --cpus ${CPUS} --memory 512m`, () => {
   it('AC-67 and AC-42: math-notes patched with the default fixes compiles, with fewer veraPDF failures, side by side', async () => {
     const { project, scan } = dropFolder(path.join(REPO, 'tagging-doctor-worker', 'fixtures', 'math-notes'), 'math-notes.zip');
     const plan = suggestFixes(project, scan);
@@ -49,6 +49,10 @@ describe(`on the worker's image at --cpus ${CPUS} --memory 512m`, () => {
     expect(c.patched.failedChecks).toBeLessThan(c.original.failedChecks as number);
     expect(c.trend).toBe('fewer');
     expect(c.rows.some((r) => r.change === 'fixed')).toBe(true);
+    // The checker sends every failed rule, so each change is known (R4a.1-8 a), and a clause in both is named by its counts (b).
+    expect(complete(original.job) && complete(patched.job)).toBe(true);
+    expect(c.rows.some((r) => r.change === 'unknown')).toBe(false);
+    for (const r of c.rows.filter((x) => x.original !== null && x.patched !== null)) expect(r.change).toBe(r.patched === r.original ? 'unchanged' : (r.patched as number) < (r.original as number) ? 'fewer' : 'more');
     for (const r of c.rows) console.log(`AC-42 clause ${r.clause}: original=${r.original ?? '-'} patched=${r.patched ?? '-'} ${r.change} | ${r.words}`);
     const left = c.rows.filter((r) => r.patched !== null).map((r) => `${r.clause} (${r.patched})`);
     console.log(`AC-67 clauses left in the patched copy: ${left.join(', ') || 'none'}; passed=${c.patched.passed}`);

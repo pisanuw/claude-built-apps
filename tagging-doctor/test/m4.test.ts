@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { CheckerClause, CheckerJob } from '../src/core/compile';
 import { CHANGE_WORDS, compareJobs, compiledWords, failuresWords, finished, madeItFail, side, trendLine } from '../src/core/compare';
 import { metadataLine } from '../src/core/patch';
-import type { CheckerDeps } from '../src/lib/checker';
+import { keptToken, type CheckerDeps } from '../src/lib/checker';
 import { CourseStore, MemoryDb } from '../src/lib/store';
 import { mountApp, type Account, type AppDeps, type DroppedFile } from '../src/ui/app';
 import * as compareModule from '../src/ui/compare';
@@ -126,7 +126,8 @@ function page(opts: { signedIn?: boolean; account?: boolean; compare?: boolean; 
       cb(user);
     },
     store: () => store,
-    token: async () => 'tok',
+    // As the sign-in library: no token once the person has signed out.
+    token: async () => (user ? 'tok' : null),
   };
   const blobs: { name: string; blob: Blob }[] = [];
   const checker = opts.checker ?? stub(() => job());
@@ -412,7 +413,7 @@ describe('AC-42: compile patched and compare (stubbed checker)', () => {
     expect(cells(3)).toEqual(['4,786 failed checks (3 rules)', '190 failed checks (2 rules)']);
     const rows = [...t.root.querySelectorAll<HTMLElement>('table.compare-clauses tbody tr')].map((r) => [r.dataset.clause, r.dataset.change, r.lastElementChild?.textContent]);
     expect(rows).toEqual([
-      ['8.2.2', 'unchanged', 'Unchanged'],
+      ['8.2.2', 'fewer', 'Fewer'],
       ['8.8', 'fixed', 'Fixed'],
       ['5', 'fixed', 'Fixed'],
       ['8.4.3', 'new', 'New'],
@@ -424,6 +425,22 @@ describe('AC-42: compile patched and compare (stubbed checker)', () => {
     await settle();
     expect(c.posts.map((p) => p.patched)).toEqual([false, true, true]);
     expect(t.q('.compare-status').textContent).toBe('The comparison is finished (the original’s check from this session was used again). 2 checks left this hour.');
+  });
+
+  it('AC-42 (acceptance/m4b.md): when the patched copy does not compile, each clause says it was not checked, not "not known"', async () => {
+    const c = stub((patched) => (patched ? failedRun() : job()));
+    const t = page({ compare: true, checker: c });
+    await t.app.handleFile(file('week1.zip', PROJECT));
+    t.button('Suggest fixes').click();
+    t.button('Compile patched and compare').click();
+    await settle();
+    const rows = [...t.root.querySelectorAll<HTMLElement>('table.compare-clauses tbody tr')].map((r) => [r.dataset.clause, r.dataset.change, r.lastElementChild?.textContent]);
+    expect(rows).toEqual([
+      ['8.2.2', 'not-checked', 'Not checked: the patched copy did not compile'],
+      ['8.8', 'not-checked', 'Not checked: the patched copy did not compile'],
+      ['5', 'not-checked', 'Not checked: the patched copy did not compile'],
+    ]);
+    expect(t.root.textContent).not.toMatch(/Not known/);
   });
 
   it('S2-13: uses this scan\'s check from "Compile and check" again, so only the patched copy is sent', async () => {
@@ -521,7 +538,7 @@ describe('the comparison, pure (src/core/compare.ts)', () => {
     const c = compareJobs(job(), patchedDone());
     expect(c.original).toEqual({ compiled: true, pages: 3, failedChecks: 4786, failedRules: 3, passed: false, profile: 'PDF/UA-2 + Tagged PDF validation profile' });
     expect(c.trend).toBe('fewer');
-    expect(c.rows.find((r) => r.clause === '8.2.2')).toMatchObject({ original: 4668, patched: 181, change: 'unchanged' });
+    expect(c.rows.find((r) => r.clause === '8.2.2')).toMatchObject({ original: 4668, patched: 181, change: 'fewer' });
     expect(c.rows.find((r) => r.clause === '8.2.2')?.words).not.toBe('veraPDF says 8.2.2');
     expect(compareJobs(job(), job()).trend).toBe('same');
     expect(trendLine(compareJobs(job(), job()))).toBe('The patched copy has as many failed checks as the original.');
@@ -539,7 +556,7 @@ describe('the comparison, pure (src/core/compare.ts)', () => {
     expect(failuresWords({ ...side(job()), failedChecks: 0 })).toBe('No failure');
     expect(failuresWords({ ...side(job()), failedChecks: 1, failedRules: 1 })).toBe('1 failed check (1 rule)');
     expect(failuresWords({ ...side(job()), failedRules: null })).toBe('4,786 failed checks');
-    expect(CHANGE_WORDS).toEqual({ fixed: 'Fixed', new: 'New', unchanged: 'Unchanged' });
+    expect(Object.keys(CHANGE_WORDS)).toEqual(['fixed', 'new', 'unchanged', 'fewer', 'more', 'unknown']);
     // A clause of another specification keeps veraPDF's words; a clause listed twice is added up.
     const other = job({ result: { ...(job().result as NonNullable<CheckerJob['result']>), validation: { ...(job().result?.validation as NonNullable<NonNullable<CheckerJob['result']>['validation']>), clauses: [{ ...clause('7.1', 2), specification: 'ISO 14289-1:2014' }, clause('8.8', 3), clause('8.8', 4)] } } });
     const rows = compareJobs(other, job()).rows;
@@ -566,5 +583,79 @@ describe('the comparison, pure (src/core/compare.ts)', () => {
     expect(compareModule.checksLeftLine(0)).toBe('No checks left this hour.');
     expect(compareModule.checksLeftLine(1)).toBe('1 check left this hour.');
     expect(compareModule.checksLeftLine(4)).toBe('4 checks left this hour.');
+  });
+});
+
+describe('R4a.2-4 (g): signing out while a check runs stops it on the checker', () => {
+  it('Compile and check: the panel goes, and the job is deleted with the last token the check used', async () => {
+    const c = stub(() => job(), { realSleep: true });
+    const t = page({ checker: c });
+    await t.app.handleFile(file('week1.zip', PROJECT));
+    t.button('Compile and check').click();
+    for (let i = 0; i < 200 && !c.posts.length; i++) await settle(1);
+    expect(c.posts).toHaveLength(1);
+    t.setUser(null);
+    await settle();
+    expect(t.q('#compile')).toBeNull();
+    expect(c.deletes).toHaveLength(1);
+  });
+
+  it('Compile patched and compare, both jobs sent (R4b.1-5): a sign-out deletes both, the running patched one included', async () => {
+    // The patched job stays running, as math-notes' does for 47 s.
+    const c = stub((patched) => (patched ? job({ status: 'running', result: null }) : job()), { realSleep: true });
+    const t = page({ compare: true, checker: c });
+    await t.app.handleFile(file('week1.zip', PROJECT));
+    t.button('Suggest fixes').click();
+    t.button('Compile patched and compare').click();
+    for (let i = 0; i < 400 && c.posts.length < 2; i++) await settle(1);
+    expect(c.posts.map((p) => p.patched)).toEqual([false, true]);
+    t.setUser(null);
+    await settle();
+    expect(c.deletes).toHaveLength(2);
+    expect(c.deletes.some((id) => id.includes('b'))).toBe(true); // the patched job's id
+    expect(new Set(c.deletes).size).toBe(2);
+  });
+
+  it('Compile patched and compare (R4b.1-5): a sign-out while the patched upload is on its way deletes that job once its id is known', async () => {
+    const c = stub((patched) => (patched ? job({ status: 'running', result: null }) : job()), { realSleep: true });
+    const real = c.deps.fetch;
+    let release: () => void = () => {};
+    const held = new Promise<void>((r) => (release = r));
+    c.deps.fetch = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
+      // The second upload (the patched copy) waits until the test lets it through.
+      if ((init.method ?? 'GET') === 'POST' && c.posts.length === 1) await held;
+      return real(input, init);
+    }) as typeof fetch;
+    const t = page({ compare: true, checker: c });
+    await t.app.handleFile(file('week1.zip', PROJECT));
+    t.button('Suggest fixes').click();
+    t.button('Compile patched and compare').click();
+    for (let i = 0; i < 400 && !c.gets.length; i++) await settle(1);
+    for (let i = 0; i < 100; i++) await settle(1);
+    t.setUser(null);
+    await settle();
+    release();
+    for (let i = 0; i < 100 && c.deletes.length < 2; i++) await settle(1);
+    expect(c.posts).toHaveLength(2);
+    expect(new Set(c.deletes).size).toBe(2);
+  });
+});
+
+describe('keptToken (R4a.2-4 g)', () => {
+  it('gives the token of the moment; once there is none, the last one, once', async () => {
+    let now: string | null = 'a';
+    const k = keptToken(async () => now);
+    expect(await k.orLast()).toBe('a');
+    expect(await k.token()).toBe('a');
+    now = 'b';
+    expect(await k.token()).toBe('b');
+    now = null;
+    expect(await k.token()).toBeNull();
+    expect(await k.orLast()).toBe('b');
+    expect(await k.orLast()).toBeNull();
+    const throwing = keptToken(async () => {
+      throw new Error('offline');
+    });
+    expect(await throwing.orLast()).toBeNull();
   });
 });

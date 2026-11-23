@@ -1,6 +1,6 @@
 /**
  * The worker's HTTP routes (SPEC section 4, "The worker"):
- *   GET    /api/health            no token (AC-36)
+ *   GET    /api/health            no token (AC-36; in backend-hub, /tagging-doctor/api/health)
  *   POST   /api/jobs              zip body, ?mainFile=<path>&mode=check; 202 and the job's id
  *   GET    /api/jobs/:id          the owner's job: status, result, log tail
  *   GET    /api/jobs/:id/pdf      the owner's PDF, until 30 minutes pass or the checker restarts
@@ -40,6 +40,8 @@ export interface ServerDeps {
   now?: () => number;
   /** Opens the slot's file for an upload's body (a test gives a stream whose writes fail, as on a full disk: R3b.2-1). */
   openUpload?: (file: string) => Writable;
+  /** The path the routes sit under for a client (`/tagging-doctor` in backend-hub, CR-13); '' on the worker. */
+  basePath?: string;
 }
 
 const openUploadFile = (file: string): Writable => createWriteStream(file, { flags: 'wx', mode: 0o600 });
@@ -175,6 +177,7 @@ export function publicJob(job: Job, jobs: Jobs) {
 
 export function createHandler(d: ServerDeps) {
   const now = d.now ?? Date.now;
+  const base = (d.basePath ?? '').replace(/\/+$/, '');
 
   // The page reads Location and Retry-After (AC-33's time to retry), so they are exposed (R3a.1-8).
   const corsHeaders = (origin: string | undefined): Record<string, string> =>
@@ -273,7 +276,7 @@ export function createHandler(d: ServerDeps) {
         }
         const job = d.jobs.submit(userId, slot.file, mainFile, entries);
         // The checks left this hour go with the new job, so the page can say so (S2-13).
-        send(res, 202, { ...publicJob(job, d.jobs), checksLeft: d.jobs.checksLeft(userId) }, { ...cors, location: `/api/jobs/${job.id}` });
+        send(res, 202, { ...publicJob(job, d.jobs), checksLeft: d.jobs.checksLeft(userId) }, { ...cors, location: `${base}/api/jobs/${job.id}` });
         return 'jobs';
       } finally {
         slot.release();

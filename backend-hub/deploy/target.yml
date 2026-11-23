@@ -2,7 +2,8 @@
 #
 # One Render instance serving several low-traffic backends behind path
 # prefixes ($7/service/month adds up when each idle app has its own service).
-# Currently mounted: /mult-streak. Reserved: /chat (chatwithdigitalme).
+# Currently mounted: /mult-streak and /tagging-doctor (Tagging Doctor's
+# checker, CR-13). Reserved: /chat (chatwithdigitalme).
 # /dsa (dsa-instructor) stays standalone and redirects to ypdsa.pisan.me;
 # see backend-hub/README.md for the migration recipe.
 #
@@ -13,18 +14,31 @@
 provider: render
 projectName: backend-hub
 directory: backend-hub
-# The hub consumes mult-streak as a file:../mult-streak dependency, so the
-# dependency must be installed and built first (npm run deps does exactly
-# that). Render clones the full repo; rootDir only sets the working directory.
-build: npm run deps && npm ci && npm run build
+# Since Tagging Doctor's milestone 4b (CR-13) the hub is a Docker image,
+# built from backend-hub/Dockerfile with the repository's root as its
+# context: the image takes backend-hub/, mult-streak/ (a file: dependency)
+# and tagging-doctor-worker/ (the checker), on TeX Live and veraPDF. The
+# image runs npm ci and both builds itself, so there is no `build` command.
+# Before, it was Render's native Node runtime with
+#   build: npm run deps && npm ci && npm run build
+# To switch back: restore that line, `runtime: node` and `rootDir: backend-hub`
+# below, and drop dockerfilePath and dockerContext; the runner changes the
+# runtime and root directory of the existing service either way (D-108).
 
-# Non-secret runtime values (all for the mounted mult-streak; the hub itself
-# only reads PORT, which Render injects).
+# Non-secret runtime values for the mounted apps (the hub itself only reads
+# PORT, which Render injects).
 env:
   # Idle threshold before the "player stopped" email fires. Kept at 5 minutes
   # so the email reliably sends before a free Render instance spins down.
   IDLE_MINUTES: '5'
   FROM_EMAIL: mult-streak@hintwise.org
+  # Tagging Doctor's checker (mounted at /tagging-doctor). It holds no secret:
+  # it checks the visitor's Supabase token with the app's public anon key
+  # (platform/supabase.json, public by design). The hub passes it every
+  # TAGGING_DOCTOR_* variable with the prefix taken off; the image sets
+  # TAGGING_DOCTOR_CHECKER and TAGGING_DOCTOR_JOBS_ROOT itself.
+  TAGGING_DOCTOR_SUPABASE_URL: https://auth.hintwise.org
+  TAGGING_DOCTOR_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFya3R4bHJseWNlZmZ5b3pkd2hxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4ODEwMTAsImV4cCI6MjA5MjQ1NzAxMH0.Vuku-irT3kAHZYibK23q6dpyOEqV_Eg5zB78I3dyshE
 
 # Secret values forwarded from the workflow environment (GitHub repo secrets).
 # Names only; values never live in this file.
@@ -35,7 +49,27 @@ envPassthrough:
 
 render:
   type: web_service
-  runtime: node
+  runtime: docker
+  # The repository's root: Render gives a build only the files under the
+  # root directory, and the image needs three folders (D-122).
+  rootDir: ''
+  dockerfilePath: ./backend-hub/Dockerfile
+  dockerContext: .
+  # With the root as root directory, Render would rebuild the hub (a Docker
+  # build on a 2.9 GB TeX image) on every push to main. It rebuilds only when
+  # a file the image takes changes (paths are from the repository's root).
+  buildFilter:
+    paths:
+      - backend-hub/**
+      - mult-streak/**
+      - tagging-doctor-worker/src/**
+      - tagging-doctor-worker/docker/**
+      - tagging-doctor-worker/package.json
+      - scripts/site-footer.mjs
+    ignoredPaths:
+      - '**/*.md'
+      - backend-hub/test/**
+      - mult-streak/test/**
   # mult-streak refuses to boot in production without COOKIE_SECRET. The
   # COOKIE_SECRET repo secret is currently unset, so have the deploy runner
   # generate a strong random value once on the service. Setting the repo
@@ -48,6 +82,6 @@ render:
   # its current name so the deploy sees no change to make.
   plan: 0.5c-512mb
   region: oregon
-  startCommand: npm start
+  # The hub's own health route; the checker's is /tagging-doctor/api/health.
   healthCheckPath: /api/health
   branch: main

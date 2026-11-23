@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { strToU8, zipSync } from 'fflate';
 import { expect, test, type Request } from '@playwright/test';
+import { CHECKER_ADDRESS } from '../test/checker-address';
 import { fiftyFileZip, zipFixture } from '../test/fixture-zip';
 import { CHECKER_STUB } from '../playwright.config';
 
@@ -205,8 +206,8 @@ test('AC-13: the built scripts name only the hosts the criterion lists', async (
     'www.w3.org',
     // supabase-js's default auth address, replaced by VITE_SUPABASE_URL (auth.hintwise.org) in every client the app makes.
     'localhost',
-    // From M3b the checker's address (VITE_CHECKER_URL): the live one AC-13 names, and the walkthrough's stand-in.
-    'tagging-doctor-worker.onrender.com',
+    // The checker's address (VITE_CHECKER_URL) of this release step (test/checker-address.ts, D-133), and the walkthrough's stand-in.
+    new URL(CHECKER_ADDRESS).hostname,
     new URL(CHECKER_STUB).hostname,
   ]);
   const seen = new Set<string>();

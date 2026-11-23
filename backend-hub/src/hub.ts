@@ -1,5 +1,6 @@
 import express, { type Express } from 'express';
 import { createService, type Service } from 'mult-streak';
+import { CHECKER_PREFIX, standIn, type CheckerMount } from './checker.js';
 
 /**
  * Mount points served by the hub. Each app lives under a path prefix so one
@@ -17,6 +18,13 @@ import { createService, type Service } from 'mult-streak';
 export const MOUNTS = {
   /** Multiplication-streak game, moved here from the standalone Render service. */
   'mult-streak': 'mounted',
+  /**
+   * Tagging Doctor's checker (CR-13): LuaLaTeX and veraPDF, one job at a
+   * time, from tagging-doctor-worker/src/mount.ts. It needs the hub's Docker
+   * image (backend-hub/Dockerfile); elsewhere a stand-in answers
+   * `compile: false`. Its health route is /tagging-doctor/api/health.
+   */
+  'tagging-doctor': 'mounted',
   /**
    * RESERVED for chatwithdigitalme (https://github.com/pisanorg/... , Render
    * service chatwithdigitalme). Not yet moved: its repo is separate. Export an
@@ -40,9 +48,19 @@ const STANDALONE_URLS: Partial<Record<MountName, string>> = {
   dsa: 'https://ypdsa.pisan.me',
 };
 
+/** Where the index links a mount that has no page of its own. */
+const MOUNT_LINKS: Partial<Record<MountName, string>> = {
+  'tagging-doctor': `${CHECKER_PREFIX}/api/health`,
+};
+
 export interface HubDeps {
   /** Injectable mult-streak service, for tests. Defaults to the real one. */
   multStreak?: Service;
+  /**
+   * Tagging Doctor's checker, started by index.ts (loadChecker). Null or
+   * absent mounts the stand-in, which takes no job.
+   */
+  checker?: CheckerMount | null;
 }
 
 export interface Hub {
@@ -55,7 +73,7 @@ function indexPage(): string {
   const rows = (Object.entries(MOUNTS) as [MountName, string][])
     .map(([name, status]) => {
       if (status === 'mounted') {
-        return `<li><a href="/${name}/">/${name}/</a> &mdash; live</li>`;
+        return `<li><a href="${MOUNT_LINKS[name] ?? `/${name}/`}">/${name}/</a> &mdash; live</li>`;
       }
       if (status === 'standalone') {
         return `<li><a href="${STANDALONE_URLS[name]}">/${name}/</a> &mdash; stays standalone at ${STANDALONE_URLS[name]}</li>`;
@@ -103,6 +121,15 @@ export function createHub(deps: HubDeps = {}): Hub {
     res.redirect(301, '/mult-streak/');
   });
   hub.use('/mult-streak', multStreak.app);
+
+  // The checker reads the raw request itself (a zip body of up to 25 MB), so
+  // nothing at the hub's level parses bodies. Express strips the prefix from
+  // req.url, which is what the checker's routes expect.
+  const checker = deps.checker ?? null;
+  hub.use(CHECKER_PREFIX, (req, res) => {
+    if (checker) void checker.handle(req, res);
+    else standIn(req, res);
+  });
 
   // Standalone apps live elsewhere on purpose; send visitors to the real home.
   for (const [name, status] of Object.entries(MOUNTS) as [MountName, string][]) {

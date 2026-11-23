@@ -22,7 +22,7 @@ import {
 } from '../core/compile';
 import { projectZip } from '../core/outzip';
 import type { Project } from '../core/project';
-import { CheckerError, forget, pdf, runJob, SENDING, WAKING, type CheckerDeps } from '../lib/checker';
+import { CheckerError, forget, keptToken, pdf, runJob, SENDING, WAKING, type CheckerDeps } from '../lib/checker';
 import { CHECK_TAKES, progress, realClock, type Clock, type Progress } from './progress';
 
 export const UPLOAD_NOTICE =
@@ -144,6 +144,8 @@ export function jobResult(job: CheckerJob): HTMLElement[] {
  */
 export function mountCompile(panel: HTMLElement, deps: CompileDeps, opts: CompileOpts): { cancel: () => void; start: () => Promise<void> } {
   let gen = 0;
+  // The last token this panel used, for the DELETE when the person signs out during a check (R4a.2-4 g).
+  const tok = keptToken(deps.token);
   const h = el('h3', { id: 'compile-h', tabindex: '-1' }, 'Compile and check');
   const notice = el('p', { class: 'upload-notice' }, UPLOAD_NOTICE);
   const left = leftOutOfUploadLine(leftOutOfUpload(opts.project));
@@ -166,7 +168,7 @@ export function mountCompile(panel: HTMLElement, deps: CompileDeps, opts: Compil
     gen++;
     prog.stop();
     running = false;
-    if (sent) void forget(deps.checker, sent, deps.token);
+    if (sent) void forget(deps.checker, sent, tok.orLast);
     sent = null;
   }
 
@@ -210,7 +212,7 @@ export function mountCompile(panel: HTMLElement, deps: CompileDeps, opts: Compil
         running = false;
         return fail(TOO_LARGE);
       }
-      const done = await runJob(deps.checker, zip, opts.mainFile, deps.token, {
+      const done = await runJob(deps.checker, zip, opts.mainFile, tok.token, {
         onStatus: (text) => {
           if (!stale()) showStep(prog, text);
         },
@@ -218,7 +220,7 @@ export function mountCompile(panel: HTMLElement, deps: CompileDeps, opts: Compil
           sent = id;
           // Cancelled while the upload was on its way: the job is deleted now that its id is known.
           if (stale()) {
-            void forget(deps.checker, id, deps.token);
+            void forget(deps.checker, id, tok.orLast);
             sent = null;
           }
         },

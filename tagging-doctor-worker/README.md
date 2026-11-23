@@ -3,14 +3,20 @@
 The server behind Tagging Doctor's "Compile and check": it compiles a LaTeX
 project with LuaLaTeX (TeX Live 2026) and checks the PDF against PDF/UA-2 with
 veraPDF 1.30.4, one job at a time, and deletes everything within 30 minutes.
-The app is at https://tagging-doctor.hintwise.org; this service runs on
-Render's free instance from `Dockerfile`.
+The app is at https://tagging-doctor.hintwise.org. Since the app's milestone
+4b (CR-13) the checker runs as a mount of [backend-hub](../backend-hub/) at
+`/tagging-doctor`, in the hub's Docker image (`backend-hub/Dockerfile`, whose
+TeX stage is this folder's `Dockerfile`, line for line): `src/mount.ts`
+(`startChecker`) is what the hub loads, with its `TAGGING_DOCTOR_*` env vars,
+prefix taken off. Before, it was a Render service of its own on the free
+instance; its `deploy/target.yml` is gone, and `src/main.ts` still runs the
+checker alone (local runs, `tagging-doctor-worker:dev`).
 
 ## API
 
 | Route | Token | What it does |
 |---|---|---|
-| `GET /api/health` | no | `status`, the TeX Live and veraPDF versions, the self-test, the queue |
+| `GET /api/health` (in the hub `/tagging-doctor/api/health`) | no | `status`, the TeX Live and veraPDF versions, the self-test, the queue |
 | `POST /api/jobs?mainFile=<path>&mode=check` | yes | body: the project as a zip (at most 25 MB); 202 and the job |
 | `GET /api/jobs/:id` | owner | status (`queued`, `running`, `done`, `failed`), result, failure, last 50 log lines |
 | `GET /api/jobs/:id/pdf` | owner | the PDF, until 30 minutes after the check or a restart |
@@ -35,8 +41,11 @@ project's decisions D-56 to D-63 (hintwise-workflow
 
 ```bash
 npm ci && npm run lint && npm run typecheck && npm run coverage && npm run build
-docker build -t tagging-doctor-worker:dev .   # about 9.4 GB (TeX Live full); the tag the image tests use
-npm run test:image                        # hostile fixtures and the API, against the image
+# The image tests run against the hub's image by default (AC-82):
+(cd .. && docker build -f backend-hub/Dockerfile -t backend-hub:dev .)
+npm run test:image                        # hostile fixtures, the API, load, the spike and hub.test.ts (AC-82)
+# Or against this folder's image, the checker alone:
+docker build -t tagging-doctor-worker:dev . && WORKER_IMAGE=tagging-doctor-worker:dev npm run test:image
 sh scripts/spike-measure.sh <image> 0.1   # the AC-65 spike: one job at 0.1 CPU and 512 MB
 ```
 

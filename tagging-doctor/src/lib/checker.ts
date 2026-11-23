@@ -198,6 +198,37 @@ export async function submit(d: CheckerDeps, zip: Uint8Array, mainFile: string, 
 /** The signed-in person's token now; the sign-in library refreshes it, so it is asked before each request (R3b.1-2). */
 export type TokenSource = () => Promise<string | null>;
 
+/**
+ * A token source for one check that keeps the last token it gave (R4a.2-4 g).
+ * `token` is the source as before. `orLast` is for the DELETE of `forget`:
+ * the token of the moment, or, when there is none any more because the person
+ * has just signed out, the last one this check used, once. The app signs out
+ * locally (the session stays valid on Supabase until the token expires), so
+ * the checker still accepts it, and the job stops rather than holding the
+ * checker's one place for up to two minutes. Nothing keeps it after that.
+ */
+export function keptToken(src: TokenSource): { token: TokenSource; orLast: TokenSource } {
+  let last: string | null = null;
+  const token: TokenSource = async () => {
+    const t = await src();
+    if (t) last = t;
+    return t;
+  };
+  const orLast: TokenSource = async () => {
+    let t: string | null = null;
+    try {
+      t = await src();
+    } catch {
+      // No answer from the library: the last one, as after a sign-out.
+    }
+    if (t) return t;
+    const kept = last;
+    last = null;
+    return kept;
+  };
+  return { token, orLast };
+}
+
 /** Thrown for a token the sign-in library could not give: no answer, or none while offline (R3b.2-3). */
 class NoToken extends CheckerError {}
 
