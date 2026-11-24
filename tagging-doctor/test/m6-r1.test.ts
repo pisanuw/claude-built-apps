@@ -87,7 +87,7 @@ describe('R6.1-2: the downloaded report\'s tables are in regions too; headings w
     d.innerHTML = /<main>([\s\S]*)<\/main>/.exec(html)?.[1] ?? '';
     expect(regions(d)).toEqual([
       ['region', 'Documents', '0'],
-      ['region', 'Figures without alt text', '0'],
+      ['region', 'Figures without alt text in a/main.tex', '0'],
     ]);
     expect(html).toMatch(/p,h1,h2,h3,h4\{overflow-wrap:anywhere\}/);
     expect(regionHtml('a"<b', '<table></table>')).toBe('<div class="table-wrap" role="region" aria-label="a&quot;&lt;b" tabindex="0"><table></table></div>');
