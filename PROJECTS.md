@@ -1336,7 +1336,7 @@ row level security; the worker holds no service-role key and reaches the
 database only through token-checked functions. Limits: 10 runs a day per
 person and 40 in all, three waiting or running per person, and a run stops
 after 15 minutes. The free host sleeps when idle and has 0.1 CPU, so the
-first visit can take up to a minute and a run with several journeys or both
+first run after a quiet spell can wait up to a minute and a run with several journeys or both
 modes can hit the time limit. Transcripts are evidence for a reviewer, not a
 replacement for testing with real screen readers and the people who use them.
 Live: [screen-reader-journeys.hintwise.org](https://screen-reader-journeys.hintwise.org).
