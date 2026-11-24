@@ -132,7 +132,7 @@ describe('R6.1-8: a count in a saved row is a number', () => {
 });
 
 describe('R6.1-6 (a): a draft\'s own note does not repeat under the stale note', () => {
-  it('three drafts of a figure whose image cannot be read: the stale note once, the draft\'s note once; a change of person takes both', async () => {
+  it('three drafts of a figure whose image cannot be read: the stale note once, the draft\'s note once; a change of person takes the stale note only', async () => {
     const pr = openProject('t.zip', zipSync({ 'main.tex': strToU8(doc('\\includegraphics{f.png}')), 'f.png': new Uint8Array([1, 2, 3]) }));
     const storage = memoryStorage();
     setByokKey('k', storage);
@@ -154,8 +154,10 @@ describe('R6.1-6 (a): a draft\'s own note does not repeat under the stale note',
     expect(got.split(note).length - 1).toBe(1);
     // The draft's own note (this file is not an image the browser reads) appears once.
     expect(got.split('The draft is from the text only.').length - 1).toBe(1);
+    // A change of person takes the stale note and leaves the draft's own.
     forgetRestored(state);
-    expect(state.alts.get(id)).toMatchObject({ text: 'A draft', note: null });
+    expect(state.alts.get(id)).toMatchObject({ text: 'A draft', note: got.slice(note.length).trim() });
+    expect(state.alts.get(id)?.note).toMatch(/The draft is from the text only\.$/);
     expect(state.alts.get(id)?.stale).toBeUndefined();
   });
 });
