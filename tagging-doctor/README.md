@@ -2,6 +2,8 @@
 
 **https://tagging-doctor.hintwise.org**
 
+![A LaTeX project scanned, its fixes and an alt text accepted, the original and the patched copy compared, and the course report](demo.gif)
+
 Tagging Doctor tells you what stops your LaTeX course materials (lecture notes,
 problem sets, exams) from producing a tagged PDF, the kind a screen reader can
 follow, and helps you fix it. It is for faculty who write in LaTeX, and for the
