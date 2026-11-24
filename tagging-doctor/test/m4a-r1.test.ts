@@ -167,7 +167,8 @@ describe('R4a.1-9', () => {
     const about = (swapsFile as { about: string }).about;
     const named = /written by (\S+\.ts)/.exec(about)?.[1] ?? '';
     expect(named).toBe('tagging-doctor/image-test/swaps.test.ts');
-    expect(fs.existsSync(path.join(__dirname, '..', '..', named))).toBe(true);
+    // Read from the app's own folder, whatever that folder is called (the pisan-labs mirror, a clone; R6.1-6 d).
+    expect(fs.existsSync(path.join(__dirname, '..', named.replace(/^tagging-doctor\//, '')))).toBe(true);
   });
 
   it('(b) leaves a line whose options are shared with a package that stays, and lists it', () => {

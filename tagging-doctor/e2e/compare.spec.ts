@@ -8,6 +8,7 @@
 import { strToU8, zipSync } from 'fflate';
 import { expect, test, type Page } from '@playwright/test';
 import { CHECKER_STUB, COMPARE_PORT } from '../playwright.config';
+import { axe } from './axe';
 
 const BASE = `http://localhost:${COMPARE_PORT}`;
 test.use({ baseURL: BASE });
@@ -117,4 +118,44 @@ test('AC-51, AC-52: approved alt texts are saved, come back on a new drop, and t
   await expect(row).toContainText('Did not pass the PDF/UA-2 + Tagged PDF check (1 rule failed). (the patched copy, ');
   await expect(row).toContainText('older than the latest scan');
   await expect(row).toContainText('0 of 2 figures; in Tagging Doctor’s patched copy, 1 more with alt text and 1 marked decorative');
+});
+
+/** Two documents with long folder and file names, for "Scan all" at phone width. */
+const LONG = 'week-twelve-lecture-notes-on-hypothesis-testing-and-confidence-intervals';
+const COURSE = Buffer.from(
+  zipSync({
+    [`${LONG}/${LONG}-main-document.tex`]: strToU8('\\documentclass{article}\n\\begin{document}\nNotes.\n\\end{document}\n'),
+    [`${LONG}-second-copy/${LONG}-handout.tex`]: strToU8('\\documentclass{article}\n\\usepackage{tabu}\n\\begin{document}\nHandout.\n\\end{document}\n'),
+  }),
+);
+
+test('launch L-1, R6.1-1: axe finds nothing serious on the compile result, the compare result and "Scan all", at 375 px', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 375, height: 800 });
+  await stubChecker(page);
+  await page.goto('/');
+  await page.locator('#signin').getByRole('button', { name: 'Sign in with Google' }).click();
+  await page.locator('#file').setInputFiles({ name: 'stats.zip', mimeType: 'application/zip', buffer: STATS });
+  await expect(page.locator('#result-h')).toBeVisible();
+
+  // Compile and check: the result and its table of failed rules.
+  await page.getByRole('button', { name: 'Compile and check' }).click();
+  await page.getByRole('button', { name: 'Upload and check' }).click();
+  await expect(page.locator('#compile table.clauses tbody tr')).toHaveCount(2, { timeout: 30_000 });
+  await expect(page.locator('#compile .table-wrap[role="region"]')).toHaveCount(1);
+  expect(await axe(page, 'compile result 375')).toEqual([]);
+
+  // Compile patched and compare: both tables, the corner cell named.
+  await page.getByRole('button', { name: 'Suggest fixes' }).click();
+  await page.getByRole('button', { name: 'Compile patched and compare' }).click();
+  await expect(page.locator('#compare-result-h')).toHaveText('The original and the patched copy', { timeout: 30_000 });
+  await expect(page.locator('table.compare-clauses tbody tr')).toHaveCount(2);
+  expect(await axe(page, 'compare result 375')).toEqual([]);
+
+  // "Scan all" with long names.
+  await page.locator('#file').setInputFiles({ name: 'course.zip', mimeType: 'application/zip', buffer: COURSE });
+  await page.getByRole('button', { name: 'Scan all' }).click();
+  await expect(page.locator('#all tbody tr')).toHaveCount(2);
+  expect(await axe(page, 'scan all 375')).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 });

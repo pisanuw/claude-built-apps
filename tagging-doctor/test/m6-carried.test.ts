@@ -151,11 +151,12 @@ describe('R5b.3-3: the figure list reads a picture’s files without adding to t
     expect(await hashOf('1,2')).not.toBe(await hashOf('1,3'));
   });
 
-  it('a damaged entry the picture inputs: the list does not throw and adds no warning', () => {
-    const main = pic('table {data.csv}').replace('\\addplot table {data.csv};', '\\input{part.tex}');
-    const z = zipSync({ 'main.tex': [strToU8(main), { level: 0 }], 'part.tex': [new Uint8Array(4000).map((_, i) => (i * 7) % 251), { level: 9 }] });
+  it('a damaged data file the picture reads, which the scan did not read: the list does not throw and adds no warning', () => {
+    // `Project.text` would add "unreadable" here (R6.1-6 c: the test fails with it); the scan never reads a .csv.
+    const main = pic('table {data.csv}');
+    const z = zipSync({ 'main.tex': [strToU8(main), { level: 0 }], 'data.csv': [new Uint8Array(4000).map((_, i) => (i * 7) % 251), { level: 9 }] });
     const mark = (sig: number[], nameAt: number, methodAt: number) => {
-      for (let k = 0; k < z.length - 4; k++) if (sig.every((b, j) => z[k + j] === b) && new TextDecoder().decode(z.subarray(k + nameAt, k + nameAt + 8)) === 'part.tex') z[k + methodAt] = 99;
+      for (let k = 0; k < z.length - 4; k++) if (sig.every((b, j) => z[k + j] === b) && new TextDecoder().decode(z.subarray(k + nameAt, k + nameAt + 8)) === 'data.csv') z[k + methodAt] = 99;
     };
     mark([0x50, 0x4b, 3, 4], 30, 8);
     mark([0x50, 0x4b, 1, 2], 46, 10);

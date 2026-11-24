@@ -5,30 +5,10 @@
  * fail a step; the lesser impacts are printed for the record.
  */
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
 import { strToU8, zipSync } from 'fflate';
 import { expect, test, type Page } from '@playwright/test';
 import { zipFixture } from '../test/fixture-zip';
-
-const AXE = fs.readFileSync(createRequire(import.meta.url).resolve('axe-core/axe.min.js'), 'utf8');
-
-interface AxeViolation {
-  id: string;
-  impact: string | null;
-  nodes: { target: unknown[] }[];
-}
-
-/** axe's WCAG 2.1 A and AA rules and its best practices on the page as it stands; the serious and critical ones. */
-async function axe(page: Page, label: string): Promise<string[]> {
-  await page.addScriptTag({ content: AXE });
-  const violations = await page.evaluate(async () => {
-    const w = window as unknown as { axe: { run: (ctx: Document, opts: unknown) => Promise<{ violations: AxeViolation[] }> } };
-    const r = await w.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'] } });
-    return r.violations.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.map((n) => n.target) }));
-  });
-  for (const v of violations) console.log(`axe ${label}: ${v.impact} ${v.id} ${JSON.stringify(v.nodes).slice(0, 200)}`);
-  return violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => `${v.id} ${JSON.stringify(v.nodes).slice(0, 200)}`);
-}
+import { axe } from './axe';
 
 test('the axe harness itself: it reports a serious failure it is shown', async ({ page }) => {
   await page.setContent('<!doctype html><html lang="en"><head><title>t</title></head><body><main><img src="data:,"><input type="text"></main></body></html>');
@@ -108,47 +88,49 @@ test('AC-56, AC-60: axe finds nothing serious on My courses, the course, the pro
   expect(await axe(page, 'what we keep')).toEqual([]);
 });
 
+/** Presses Tab (then, if need be, Shift+Tab) until the focused element matches `sel`; only the keyboard moves the focus (R6.1-6 h). */
+async function tabTo(page: Page, sel: string, max = 60): Promise<void> {
+  for (const key of ['Tab', 'Shift+Tab']) {
+    for (let i = 0; i < max; i++) {
+      if (await page.evaluate((s) => !!document.activeElement?.matches(s), sel)) return;
+      await page.keyboard.press(key);
+    }
+  }
+  throw new Error(`Tab never reached ${sel}`);
+}
+
 test('AC-55: the main flow by keyboard alone, with what is announced', async ({ page }) => {
+  // The chooser's listener is set before the page loads, so it cannot miss the chooser (launch review, the race).
+  const chooserOpened = new Promise<import('@playwright/test').FileChooser>((resolve) => page.once('filechooser', resolve));
   await page.goto('/');
   // The drop area's "Choose files" button is reached by Tab and opens the file chooser with Enter.
-  let reached = false;
-  for (let i = 0; i < 15 && !reached; i++) {
-    await page.keyboard.press('Tab');
-    reached = await page.evaluate(() => document.activeElement?.id === 'choose');
-  }
-  expect(reached).toBe(true);
+  await tabTo(page, '#choose');
   await expect(page.getByRole('button', { name: 'Choose files' })).toBeFocused();
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.keyboard.press('Enter')]);
+  await page.keyboard.press('Enter');
+  const chooser = await chooserOpened;
   await chooser.setFiles({ name: 'stats.zip', mimeType: 'application/zip', buffer: STATS });
   // The result is announced: the status region says what was found, and the result is a named region.
   await expect(page.locator('#status')).toHaveText(/^Scan finished in \d+\.\d s: one document, 1 blocker found\.$/);
   await expect(page.locator('#status')).toHaveAttribute('role', 'status');
   await expect(page.getByRole('region', { name: '1 blocker found' })).toBeVisible();
 
-  // Suggest fixes and the figure panel, by keyboard.
-  await page.getByRole('button', { name: 'Suggest fixes' }).focus();
+  // Suggest fixes and the figure panel, reached by Tab and opened with Enter.
+  await tabTo(page, 'button.fixes-open');
   await page.keyboard.press('Enter');
   await expect(page.locator('#fixes-h')).toBeFocused();
-  await page.getByRole('button', { name: 'Alt text for figures' }).focus();
+  await tabTo(page, 'button.figures-open');
   await page.keyboard.press('Enter');
   await expect(page.locator('#figures-h')).toBeFocused();
-  const box = page.getByRole('textbox', { name: 'Alt text for figure 1' });
-  await box.focus();
+  await tabTo(page, 'li.figure-item textarea');
   await page.keyboard.type('Weekly means rise, then level off.');
-  await page.keyboard.press('Tab');
   // Approve is reached by Tab from the text and pressed with Space; the status region says so.
-  let approve = false;
-  for (let i = 0; i < 6 && !approve; i++) {
-    approve = await page.evaluate(() => document.activeElement?.getAttribute('data-role') === 'approve');
-    if (!approve) await page.keyboard.press('Tab');
-  }
-  expect(approve).toBe(true);
+  await tabTo(page, 'li.figure-item [data-role="approve"]');
   await page.keyboard.press('Space');
   await expect(page.locator('.figures-status')).toHaveText(/Figure 1: approved/i);
   await expect(page.locator('.figures-status')).toHaveAttribute('role', 'status');
 
   // The patched copy downloads by keyboard.
-  await page.getByRole('button', { name: 'Download patched zip' }).focus();
+  await tabTo(page, '#download-patched');
   const [dl] = await Promise.all([page.waitForEvent('download'), page.keyboard.press('Enter')]);
   expect(dl.suggestedFilename()).toBe('stats-patched.zip');
 });
