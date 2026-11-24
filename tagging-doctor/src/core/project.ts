@@ -124,6 +124,8 @@ export class Project {
   readonly leftOutFolders: LeftOutFolder[];
   readonly warnings: ProjectWarning[];
   private readonly texts = new Map<string, string | null>();
+  /** What `peekText` read, apart from the scan's own reads (R6.1-6 b). */
+  private readonly peeked = new Map<string, string | null>();
 
   constructor(
     readonly name: string,
@@ -160,13 +162,19 @@ export class Project {
    */
   peekText(path: string): string | null {
     if (this.texts.has(path)) return this.texts.get(path) ?? null;
+    // Kept apart from `texts`, so the scan's own read of the file still warns (R6.1-6 b).
+    if (this.peeked.has(path)) return this.peeked.get(path) ?? null;
     const e = this.entries.get(path);
-    if (!e || e.size > MAX_TEXT_BYTES) return null;
-    try {
-      return utf8.decode(e.read()).replace(/^\uFEFF/, '');
-    } catch {
-      return null;
+    let out: string | null = null;
+    if (e && e.size <= MAX_TEXT_BYTES) {
+      try {
+        out = utf8.decode(e.read()).replace(/^\uFEFF/, '');
+      } catch {
+        out = null;
+      }
     }
+    this.peeked.set(path, out);
+    return out;
   }
 
   /** The text of a file, read once; null (with a warning) when it cannot be read. */

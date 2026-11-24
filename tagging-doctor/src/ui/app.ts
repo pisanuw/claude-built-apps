@@ -25,6 +25,7 @@ import { listFigures, type FigureItem } from '../core/figures';
 import { altCopyOf, altSync, figureKeys, restoreAlts, restoredWords, type FigureKey } from '../lib/alts';
 import type { CompareDeps, compareSlot as CompareSlot } from './compare';
 import { KEEP_HASH, renderCourse, renderCourseReport, renderCourses, renderKeep, renderNotFound, renderProject, renderSaveDialog, type PageCtx } from './pages';
+import { tableRegion } from './table-region';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -475,7 +476,8 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       );
       const td = el('td');
       const b = el('button', { type: 'button', 'data-show': m }, m === shown ? 'Shown below' : 'Show details');
-      b.setAttribute('aria-label', `Show details of ${m}`);
+      // The name holds the visible label, so the button can be named by voice (R6.1-3).
+      b.setAttribute('aria-label', m === shown ? `Shown below: details of ${m}` : `Show details of ${m}`);
       b.addEventListener('click', guarded(() => scanOne(m)));
       td.append(b);
       tr.append(td);
@@ -488,7 +490,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     allEl.replaceChildren(
       el('h2', { id: 'all-h' }, 'All documents'),
       el('p', {}, `${total} of ${mains.length} documents have blockers.`),
-      wrapTable(table),
+      tableRegion(table),
       downloads(),
     );
     if (keepDialog) allEl.querySelector('.downloads')?.after(savePanel);
@@ -937,6 +939,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     if (scannedAll) {
       for (const b of allEl.querySelectorAll<HTMLButtonElement>('button[data-show]')) {
         b.textContent = b.dataset.show === main ? 'Shown below' : 'Show details';
+        b.setAttribute('aria-label', b.dataset.show === main ? `Shown below: details of ${main}` : `Show details of ${b.dataset.show}`);
       }
     }
     const s = scans.get(main) as DocumentScan;
@@ -1110,13 +1113,16 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   if (typeof window !== 'undefined') window.addEventListener('hashchange', () => void route(location.hash));
   if (typeof location !== 'undefined' && location.hash) void route(location.hash);
 
-  return { handleFile, route };
-}
+  /**
+   * The compare's script, when it arrives after the page is drawn (AC-53, R6.1-5): an open fix
+   * panel is drawn again with it, keeping the person's choices, as a sign-in does.
+   */
+  function setCompare(m: NonNullable<AppDeps['compare']>): void {
+    deps.compare = m;
+    if (fixesFor !== null) drawFixes();
+  }
 
-function wrapTable(table: HTMLElement): HTMLElement {
-  const d = el('div', { class: 'table-wrap' });
-  d.append(table);
-  return d;
+  return { handleFile, route, setCompare };
 }
 
 /** The browser's download of a text file. */

@@ -41,6 +41,8 @@ const account = wantsAccount(choice)
       }),
     )
   : undefined;
+// Said in the console, as chooseAccount says it when it is asked (R6.1-6 f).
+if (!account) console.warn('Sign-in is off: this build has no Supabase values.');
 
 const deps: AppDeps = {
   loadStatus,
@@ -61,17 +63,17 @@ const deps: AppDeps = {
   downloadBlob: browserDownloadBlob,
 };
 
+const app = mountApp(root, deps);
+
 // "Compile patched and compare" (AC-42, AC-80): Vite writes the flag's value into the build, so with it
 // off this branch is dead and src/ui/compare.ts is neither bundled nor called. A chunk that does not load
-// leaves the compare out, not the page (R4a.1-8 c). It is read when the fix panel is drawn, which for a
-// signed-in person comes after the sign-in chunk.
+// leaves the compare out, not the page (R4a.1-8 c). When it arrives, an open fix panel is drawn again
+// with it (R6.1-5).
 if (checker && import.meta.env.VITE_COMPARE_PATCHED === 'on') {
   void optionalChunk(() => import('./ui/compare'), (m) => console.warn(m)).then((m) => {
-    if (m) deps.compare = m;
+    if (m) app.setCompare(m);
   });
 }
-
-mountApp(root, deps);
 
 // The page must not open a file dropped outside the drop area.
 for (const t of ['dragover', 'drop']) window.addEventListener(t, (e) => e.preventDefault());

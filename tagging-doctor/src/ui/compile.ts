@@ -24,6 +24,7 @@ import { projectZip } from '../core/outzip';
 import type { Project } from '../core/project';
 import { CheckerError, forget, keptToken, pdf, runJob, SENDING, WAKING, type CheckerDeps } from '../lib/checker';
 import { CHECK_TAKES, progress, realClock, type Clock, type Progress } from './progress';
+import { tableRegion } from './table-region';
 
 export const UPLOAD_NOTICE =
   'Compile sends this project’s files to the HintWise checker, which deletes them within 30 minutes. Upload only materials you wrote or may change.';
@@ -110,9 +111,7 @@ export function jobResult(job: CheckerJob): HTMLElement[] {
           body.append(tr);
         }
         t.append(thead, body);
-        const wrap = el('div', { class: 'table-wrap' });
-        wrap.append(t);
-        out.push(wrap);
+        out.push(tableRegion(t));
         out.push(el('p', { class: 'help' }, `Clauses of ${rows[0].specification || 'the standard'}, as veraPDF reports them; most of them go away once tagging is on.`));
       }
     }

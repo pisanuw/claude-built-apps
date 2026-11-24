@@ -24,6 +24,7 @@ import {
 import { SaveError, type CourseRow, type CourseStore, type ProjectRow, type SavedResult } from '../lib/store';
 import type { StatusData } from '../core/status';
 import { jobLine } from '../core/compile';
+import { tableRegion } from './table-region';
 
 export interface PageCtx {
   /** The signed-in person's store, or null when signed out. */
@@ -95,9 +96,7 @@ function table(caption: string, cols: string[], rows: (string | Node)[][]): HTML
   }
   t.append(thead, body);
   // A region of its own that scrolls when the table is wider than the screen, reachable by keyboard (AC-54, AC-55).
-  const wrap = el('div', { class: 'table-wrap', role: 'region', 'aria-label': caption, tabindex: '0' });
-  wrap.append(t);
-  return wrap;
+  return tableRegion(t, caption);
 }
 
 /** Shows "Loading…", runs `load`, and on failure the error with a retry (AC-18). */

@@ -17,6 +17,7 @@ import { CheckerError, forget, keptToken, runJob, SENDING, WAKING, type CheckerD
 import { CHECK_TAKES, progress, realClock, type Clock } from './progress';
 import { jobResult, mainFileRefusal, NOTICE_KEY, TOO_LARGE, UPLOAD_NOTICE } from './compile';
 import type { FixesCtx } from './fixes';
+import { tableRegion } from './table-region';
 
 export const COMPARE_LABEL = 'Compile patched and compare';
 
@@ -60,7 +61,11 @@ export function comparisonView(original: CheckerJob, patched: CheckerJob): HTMLE
   const t = el('table', { class: 'compare' });
   t.append(el('caption', {}, 'Side by side'));
   const head = el('tr');
-  for (const x of ['', 'Original', 'Patched copy']) head.append(el('th', { scope: 'col' }, x));
+  // The corner cell is named, for a screen reader and for axe's empty-table-header (L-1).
+  const corner = el('th', { scope: 'col' });
+  corner.append(el('span', { class: 'visually-hidden' }, 'Measure'));
+  head.append(corner);
+  for (const x of ['Original', 'Patched copy']) head.append(el('th', { scope: 'col' }, x));
   const thead = el('thead');
   thead.append(head);
   const body = el('tbody');
@@ -73,9 +78,7 @@ export function comparisonView(original: CheckerJob, patched: CheckerJob): HTMLE
   row('Pages', c.original.pages === null ? '—' : String(c.original.pages), c.patched.pages === null ? '—' : String(c.patched.pages));
   row('veraPDF', failuresWords(c.original), failuresWords(c.patched));
   t.append(thead, body);
-  const wrap = el('div', { class: 'table-wrap' });
-  wrap.append(t);
-  out.push(wrap, el('p', { class: `trend ${c.trend ?? 'none'}` }, trendLine(c)));
+  out.push(tableRegion(t), el('p', { class: `trend ${c.trend ?? 'none'}` }, trendLine(c)));
   if (c.rows.length) {
     const ct = el('table', { class: 'compare-clauses' });
     ct.append(el('caption', {}, 'Failed checks by clause'));
@@ -96,9 +99,7 @@ export function comparisonView(original: CheckerJob, patched: CheckerJob): HTMLE
       tb.append(tr);
     }
     ct.append(th, tb);
-    const w = el('div', { class: 'table-wrap' });
-    w.append(ct);
-    out.push(w);
+    out.push(tableRegion(ct));
   }
   return out;
 }

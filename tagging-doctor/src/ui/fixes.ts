@@ -94,9 +94,12 @@ export function forgetRestored(state: FixesState): string[] {
     // Decorative the person chose there holds nothing from the account.
     const still = c.text === was.text && (was.text !== '' || c.status === was.status);
     // `drafted: undefined`: no text read from the account stays in the choice (R5b.3-4 d).
-    if (still) Object.assign(c, { ...newChoice(), drafted: undefined, error: c.error, forgotten: (c.forgotten ?? 0) + 1 });
+    if (still) Object.assign(c, { ...newChoice(), drafted: undefined, stale: undefined, error: c.error, forgotten: (c.forgotten ?? 0) + 1 });
     // A draft keeps the stale note at the front of its own (R5b.3-4 c), so the note is matched by its start.
-    else if (was.note && c.note?.startsWith(was.note)) c.note = null;
+    else if (was.note && c.note?.startsWith(was.note)) {
+      c.note = null;
+      c.stale = undefined;
+    }
     else continue;
     out.push(id);
   }

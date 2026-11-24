@@ -56,6 +56,8 @@ export interface FigureChoice {
   drafted?: string;
   /** How often a change of person emptied it (R5b.2-5 h): a draft out across that is still used. */
   forgotten?: number;
+  /** The stale note alone, kept while drafts come, so each draft's own note replaces the last (R6.1-6 a). */
+  stale?: string;
 }
 
 /** The drafts out for one document: their figure ids, and the panel on the page that draws an arriving answer. */
@@ -336,7 +338,9 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
       }
       const wasIn = c.status === 'approved' || c.status === 'decorative';
       // The stale note, the only place the earlier text is shown, stays under a draft (R5b.3-4 c).
-      const note = isStaleNote(c.note) ? [c.note, r.imageNote].filter(Boolean).join(' ') : r.imageNote;
+      const stale = c.stale ?? (isStaleNote(c.note) ? (c.note as string) : undefined);
+      const note = stale ? [stale, r.imageNote].filter(Boolean).join(' ') : r.imageNote;
+      c.stale = stale;
       Object.assign(c, { text: r.text, drafted: r.text, source: r.source, status: 'draft', textOnly: r.textOnly, note, error: null });
       if (wasIn) opts.onChange();
       if (single && drafting.draw === drawById) live.textContent = `Figure ${figures.indexOf(f) + 1}: draft ready. Check it, then approve it.`;
@@ -553,7 +557,10 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
       const before = c.status;
       c.status = status;
       // The note about a kept text has done its work once the person chooses (R5a.2-7 c).
-      if (c.note?.startsWith('A draft arrived after') || isRestoreNote(c.note)) c.note = null;
+      if (c.note?.startsWith('A draft arrived after') || isRestoreNote(c.note)) {
+        c.note = null;
+        c.stale = undefined;
+      }
       if (before !== status) opts.onChange();
       live.textContent = `Figure ${n}: ${words}`;
       drawFigure(f);
