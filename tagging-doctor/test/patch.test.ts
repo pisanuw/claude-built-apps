@@ -32,7 +32,10 @@ import data from '../src/data/tagging-status.json';
 import { statusIndex } from './helpers';
 
 const index = statusIndex();
-const MATH_NOTES = fs.readFileSync(path.join(__dirname, '..', '..', 'tagging-doctor-worker', 'fixtures', 'math-notes', 'main.tex'));
+// The checker's fixture; in the pisan-labs mirror, which holds this folder alone, the tests that read it are skipped.
+const MATH_NOTES_PATH = path.join(__dirname, '..', '..', 'tagging-doctor-worker', 'fixtures', 'math-notes', 'main.tex');
+const HAS_WORKER = fs.existsSync(MATH_NOTES_PATH);
+const MATH_NOTES = HAS_WORKER ? fs.readFileSync(MATH_NOTES_PATH) : new Uint8Array();
 
 function project(files: Record<string, string | Uint8Array>, name = 'p.zip'): Project {
   const z = zipSync(Object.fromEntries(Object.entries(files).map(([k, v]) => [k, [typeof v === 'string' ? strToU8(v) : v, { mtime: new Date(1980, 0, 1) }]])));
@@ -162,7 +165,9 @@ describe('AC-40: package swaps', () => {
       // A replacement the pinned data lists as compatible, and a fixture project that exists.
       const target = data.entries.find((x) => x.name === e.to);
       expect(target?.status, e.to).toBe('compatible');
-      expect('fixture' in e && fs.existsSync(path.join(__dirname, '..', '..', String(e.fixture), 'main.tex')), String(e.from)).toBe(true);
+      expect('fixture' in e, String(e.from)).toBe(true);
+      // The fixture lives in the checker's folder, beside this one in the monorepo (not in the pisan-labs mirror).
+      if (HAS_WORKER) expect(fs.existsSync(path.join(__dirname, '..', '..', String(e.fixture), 'main.tex')), String(e.from)).toBe(true);
       const rec = ('record' in e ? e.record : null) as SwapRecord | null;
       if (rec) {
         expect(rec).toMatchObject({ date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), before: { compiled: expect.any(Boolean) }, after: { compiled: expect.any(Boolean) } });
@@ -314,7 +319,7 @@ describe('AC-41: the patched zip and the diff', () => {
 });
 
 describe('AC-44: the same input gives the same bytes; what the patch cannot fix stays listed', () => {
-  it('applies the same fixes to the same scan twice with byte-identical output', () => {
+  it.runIf(HAS_WORKER)('applies the same fixes to the same scan twice with byte-identical output', () => {
     const files = { 'main.tex': MATH_NOTES, 'figures/damped.png': new Uint8Array([1, 2, 3]) };
     const a = setup(files);
     const b = setup(files);
@@ -342,7 +347,7 @@ describe('AC-44: the same input gives the same bytes; what the patch cannot fix 
     expect(exam.attention.some((a) => a.title === 'Add a \\title')).toBe(true);
   });
 
-  it('lists every finding of the scan that is not ok and no card fixes', () => {
+  it.runIf(HAS_WORKER)('lists every finding of the scan that is not ok and no card fixes', () => {
     const { scan, plan } = setup({ 'main.tex': MATH_NOTES });
     const fixed = new Set(['no-document-metadata', 'no-language', 'pdftex-only']);
     const open = scan.findings.filter((f) => f.severity !== 'ok' && !fixed.has(f.rule));
