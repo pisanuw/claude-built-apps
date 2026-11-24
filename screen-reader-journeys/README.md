@@ -18,6 +18,11 @@ sha256), never edit an applied file, and put later changes in a new
   (main), sha256
   9b55da7b0224fbf6768535ac2a828e23bc3dd9b0552663e6c878223498ef570b; owner's
   yes on 24 Nov 2026 ("SR release yes").
+- `0002_daily_cap.sql`: from pisan-labs/screen-reader-journeys #17
+  (reviewed at 7be549e, merged head e9f4fd9), sha256
+  1292bfa20857cf27a92cf48a1a147549819cf42beeeb1ce7ab41ba741904cc60; owner's
+  yes on 24 Nov 2026 ("SR today, SR limits yes": 10 runs a day per person,
+  40 a day in total, UTC days).
 
 `deploy/target.yml` creates and deploys the worker, a Render web service of its
 own (Docker, free plan, built from that repository's main). The Deploy workflow
