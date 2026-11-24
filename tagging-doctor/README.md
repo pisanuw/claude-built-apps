@@ -181,8 +181,10 @@ The checker runs no outside programs (EPS conversion, `minted`, `pythontex`).
 - Alt texts come back on a new version of a project only for a figure whose
   file is unchanged; a renamed file counts as a new figure. One image used
   several times keeps a text for each use, matched by its place. When a use
-  is removed from the middle, the texts after it are not filled in (the app
-  cannot tell which use went); they stay in your saved project.
+  is removed, the uses left take the texts by their place (the app cannot
+  tell which use went), so check each one; a text whose place is gone, or
+  that came after a use with no text, is not filled in and stays in your
+  saved project.
 - Drafts on HintWise's key are limited each day, for each person and for the
   app as a whole; your own key has no such limit.
 
