@@ -4,22 +4,18 @@
  * and saved courses use Supabase when the build has its env
  * (deploy/target.yml); without it, on this computer only (`vite preview`,
  * the Playwright walkthrough), a stand-in signs a preview person in and keeps
- * courses in memory. Elsewhere, or when the chunk fails to load, the page
- * mounts without sign-in and the scan still works (src/ui/choose-account.ts).
+ * courses in memory. Elsewhere the page mounts without sign-in, and when the
+ * chunk fails to load the person stays signed out; the scan works either way
+ * (src/ui/choose-account.ts). The page is drawn before either chunk is there
+ * (AC-53).
  */
 import { loadStatus } from './core/status';
 import { hasSupabase } from './lib/supabase';
-import { browserDownload, browserDownloadBlob, mountApp } from './ui/app';
-import { chooseAccount, optionalChunk } from './ui/choose-account';
+import { browserDownload, browserDownloadBlob, mountApp, type AppDeps } from './ui/app';
+import { chooseAccount, deferredAccount, optionalChunk, wantsAccount } from './ui/choose-account';
 import { checkerUrl } from './lib/checker';
 
 const checker = checkerUrl();
-
-// "Compile patched and compare" (AC-42, AC-80): Vite writes the flag's value into the build, so with it
-// off this branch is dead and src/ui/compare.ts is neither bundled nor called. A chunk that does not load
-// leaves the compare out, not the page (R4a.1-8 c).
-const compare =
-  checker && import.meta.env.VITE_COMPARE_PATCHED === 'on' ? await optionalChunk(() => import('./ui/compare'), (m) => console.warn(m)) : null;
 
 const root = document.getElementById('app');
 if (!root) throw new Error('index.html needs <div id="app">');
@@ -32,15 +28,21 @@ function session(): Storage | null {
   }
 }
 
-const account = await chooseAccount({
-  hasSupabase: hasSupabase(),
-  hostname: location.hostname,
-  live: async () => (await import('./lib/account-live')).liveAccount(),
-  preview: async () => (await import('./ui/preview-account')).previewAccount(),
-  warn: (m) => console.warn(m),
-});
+// AC-53 (D-41): nothing is awaited before the page is drawn. The sign-in chunk (supabase-js) and the
+// compare's chunk load beside the first paint; the page shows sign-in when its chunk is there.
+const choice = { hasSupabase: hasSupabase(), hostname: location.hostname };
+const account = wantsAccount(choice)
+  ? deferredAccount(
+      chooseAccount({
+        ...choice,
+        live: async () => (await import('./lib/account-live')).liveAccount(),
+        preview: async () => (await import('./ui/preview-account')).previewAccount(),
+        warn: (m) => console.warn(m),
+      }),
+    )
+  : undefined;
 
-mountApp(root, {
+const deps: AppDeps = {
   loadStatus,
   now: () => new Date(),
   session: session(),
@@ -56,9 +58,20 @@ mountApp(root, {
         downloadBlob: browserDownloadBlob,
       }
     : undefined,
-  compare: compare ?? undefined,
   downloadBlob: browserDownloadBlob,
-});
+};
+
+// "Compile patched and compare" (AC-42, AC-80): Vite writes the flag's value into the build, so with it
+// off this branch is dead and src/ui/compare.ts is neither bundled nor called. A chunk that does not load
+// leaves the compare out, not the page (R4a.1-8 c). It is read when the fix panel is drawn, which for a
+// signed-in person comes after the sign-in chunk.
+if (checker && import.meta.env.VITE_COMPARE_PATCHED === 'on') {
+  void optionalChunk(() => import('./ui/compare'), (m) => console.warn(m)).then((m) => {
+    if (m) deps.compare = m;
+  });
+}
+
+mountApp(root, deps);
 
 // The page must not open a file dropped outside the drop area.
 for (const t of ['dragover', 'drop']) window.addEventListener(t, (e) => e.preventDefault());

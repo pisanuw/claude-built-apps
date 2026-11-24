@@ -332,6 +332,8 @@ test('R2.1-7: when the account chunk fails to load, the scan still works without
   await expect(page.locator('#result-h')).toHaveText('2 blockers found');
   await expect(page.locator('#signin button')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
+  // AC-53: the page was drawn before the chunk; the sign-in slot says it did not load.
+  await expect(page.locator('#signin')).toContainText('Sign-in did not load. Reload the page to sign in; the scan works without it.');
 });
 
 const RENAME = 'If this folder holds course material, not student records, rename it and drop the zip again.';

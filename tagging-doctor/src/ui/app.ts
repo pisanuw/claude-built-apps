@@ -48,6 +48,11 @@ export interface Account {
   store(): CourseStore;
   /** The signed-in person's access token, for the checker (milestone 3b). */
   token?(): Promise<string | null>;
+  /**
+   * Set when the account is still loading as the page is drawn (AC-53): false
+   * once it is clear none came, and the page then offers no Save (R2.1-7).
+   */
+  loaded?: Promise<boolean>;
 }
 
 export interface AppDeps {
@@ -202,7 +207,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   const altChains = new Map<string, Promise<void>>();
   /** Finished jobs of this drop whose scan is not saved yet: saving keeps them (AC-27, "Save to keep this result"). */
   let unsavedJobs = new Map<string, { job: CheckerJob; kind: JobRecord['kind'] }[]>();
-  const account = deps.account;
+  let account = deps.account;
   let signedIn = false;
   /** The signed-in person's id; the dialog and the pages are redrawn only when it changes (R2.1-2). */
   let userId: string | null = null;
@@ -537,7 +542,8 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   // ---- Compile and check (milestone 3b) ---------------------------------------
 
   function openCompile(after: HTMLElement) {
-    if (!deps.compile || !account || !project || !shown) return;
+    const acc = account;
+    if (!deps.compile || !acc || !project || !shown) return;
     const main = shown;
     hideCompile();
     after.after(compilePanel);
@@ -546,7 +552,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     newestPanel = 'compile';
     compileRun = mountCompile(
       compilePanel,
-      { ...deps.compile, token: async () => (account.token ? account.token() : null), session: deps.session },
+      { ...deps.compile, token: async () => (acc.token ? acc.token() : null), session: deps.session },
       {
         project,
         mainFile: main,
@@ -619,6 +625,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     }
     const compare = deps.compare && deps.compile && account && signedIn ? deps.compare : null;
     const compile = deps.compile;
+    const acc = account;
     fixesRun = mountFixes(fixesPanel, {
       project,
       scan: scans.get(main) as DocumentScan,
@@ -628,10 +635,10 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       figures: { ...deps.figures, signedIn: () => signedIn },
       onAltsChange: () => void syncAlts(main),
       compareSlot:
-        compare && compile && account
+        compare && compile && acc
           ? compare.compareSlot({
               checker: compile.checker,
-              token: async () => (account.token ? account.token() : null),
+              token: async () => (acc.token ? acc.token() : null),
               session: deps.session,
               original: () => originals.get(main) ?? null,
               rememberOriginal: (job) => void originals.set(main, job),
@@ -1059,6 +1066,13 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     if (gen === routeGen) focusHeading();
   }
 
+  // An account that did not load is no account: Save goes, as for a build without one (R2.1-7, AC-53).
+  void account?.loaded?.then((ok) => {
+    if (ok) return;
+    account = undefined;
+    for (const b of root.querySelectorAll('button.save')) b.remove();
+    if (saveItems) hideSave();
+  });
   if (account) {
     account.mountSignIn($('signin'));
     let first = true;

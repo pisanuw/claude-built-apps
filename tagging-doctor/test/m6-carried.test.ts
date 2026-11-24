@@ -356,3 +356,26 @@ describe('R4b.2-5 (c): two wrapped commands removed before \\begin{document} lea
     expect(run(`${head}x \\usepackage[\nutf8]{inputenc}\\usepackage[\nT1]{fontenc}${tail}`)).toContain('x \n\\usepackage{unicode-math}\n\\begin{document}');
   });
 });
+
+describe('AC-53 (D-41): an account that never loads takes Save away, as no account did (R2.1-7)', () => {
+  it('the scan is drawn with Save while the account loads; when it fails, Save goes; kept: one that loads keeps Save', async () => {
+    const { mountApp } = await import('../src/ui/app');
+    const { deferredAccount } = await import('../src/ui/choose-account');
+    const { file } = await import('./alt-page');
+    const { CourseStore: Store, MemoryDb: Db } = await import('../src/lib/store');
+    for (const ok of [false, true]) {
+      let resolve: (a: never) => void = () => {};
+      const account = deferredAccount(new Promise((r) => (resolve = r)));
+      document.body.innerHTML = '<div id="app"></div>';
+      const root = document.getElementById('app') as HTMLElement;
+      const app = mountApp(root, { loadStatus: async () => idx, now: () => NOW, session: null, download: () => {}, pause: async () => {}, account });
+      await app.handleFile(file('lab.zip', v()));
+      const saves = () => [...root.querySelectorAll('button')].filter((b) => b.textContent === 'Save');
+      expect(saves()).toHaveLength(1);
+      resolve((ok ? { mountSignIn: () => () => {}, onUser: (cb: (u: null) => void) => cb(null), store: () => new Store(new Db('u1', () => NOW)) } : undefined) as never);
+      await settle();
+      expect(saves()).toHaveLength(ok ? 1 : 0);
+      expect(root.querySelector('#signin')?.textContent ?? '').toMatch(ok ? /^$/ : /Sign-in did not load/);
+    }
+  });
+});

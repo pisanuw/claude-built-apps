@@ -45,3 +45,62 @@ export async function optionalChunk<T>(load: () => Promise<T>, warn?: (message: 
     return null;
   }
 }
+
+/** What the sign-in slot says when the sign-in part of the page did not load (AC-53). */
+export const SIGNIN_NOT_LOADED = 'Sign-in did not load. Reload the page to sign in; the scan works without it.';
+
+/**
+ * The account as the page sees it while the sign-in chunk (supabase-js) is
+ * still loading, so the page is drawn first and sign-in comes after (AC-53,
+ * D-41). Until the account is there, nobody is signed in. If it never comes
+ * (`chooseAccount` gave none), the person stays signed out and the sign-in
+ * slot says so, and `loaded` tells the page to take Save away, as it was
+ * without an account before (R2.1-7). When the page will have no account at all (no
+ * Supabase values, not this computer; `wantsAccount`), main.ts gives it none,
+ * as before, and the page shows neither sign-in nor Save.
+ */
+export function deferredAccount(loading: Promise<Account | undefined>): Account {
+  let real: Account | undefined;
+  const ready = loading.then(
+    (a) => (real = a),
+    () => undefined,
+  );
+  return {
+    loaded: ready.then((a) => !!a),
+    mountSignIn(el) {
+      let gone = false;
+      let unmount: (() => void) | null = null;
+      void ready.then((a) => {
+        if (gone) return;
+        if (a) unmount = a.mountSignIn(el);
+        else {
+          const p = document.createElement('p');
+          p.className = 'signin-off';
+          p.textContent = SIGNIN_NOT_LOADED;
+          el.replaceChildren(p);
+        }
+      });
+      return () => {
+        gone = true;
+        unmount?.();
+      };
+    },
+    onUser(cb) {
+      void ready.then((a) => (a ? a.onUser(cb) : cb(null)));
+    },
+    store() {
+      // The page asks only for a signed-in person, which needs the account loaded.
+      if (!real) throw new Error('Sign-in has not loaded yet.');
+      return real.store();
+    },
+    async token() {
+      const a = await ready;
+      return a?.token ? a.token() : null;
+    },
+  };
+}
+
+/** True when the page will try to load an account: the build has the Supabase values, or this is this computer. */
+export function wantsAccount(c: Pick<AccountChoice, 'hasSupabase' | 'hostname'>): boolean {
+  return c.hasSupabase || LOCAL_HOSTS.has(c.hostname);
+}
