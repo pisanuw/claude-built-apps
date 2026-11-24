@@ -22,7 +22,6 @@ import { mountCompile, KEPT, type CompileDeps } from './compile';
 import { forgetRestored, mountFixes, newFixesState, type FixesState } from './fixes';
 import { newChoice, type FiguresOpts } from './figures';
 import { listFigures, type FigureItem } from '../core/figures';
-import { dirOf } from '../core/latex';
 import { altCopyOf, altSync, figureKeys, restoreAlts, restoredWords, type FigureKey } from '../lib/alts';
 import type { CompareDeps, compareSlot as CompareSlot } from './compare';
 import { KEEP_HASH, renderCourse, renderCourseReport, renderCourses, renderKeep, renderNotFound, renderProject, renderSaveDialog, type PageCtx } from './pages';
@@ -662,7 +661,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     let s = figureSlots.get(main);
     if (!s) {
       const figures = listFigures(project as Project, scans.get(main) as DocumentScan);
-      s = figureKeys(project as Project, figures, undefined, dirOf(main)).then((keys) => ({ figures, keys }));
+      s = figureKeys(project as Project, figures).then((keys) => ({ figures, keys }));
       figureSlots.set(main, s);
     }
     return s;

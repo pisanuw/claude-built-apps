@@ -98,6 +98,13 @@ export interface FiguresOpts {
   objectUrl?: (bytes: Uint8Array, type: string) => string | null;
   /** Gives a thumbnail's URL back when the panel goes (R5a.1-10). */
   revokeUrl?: (url: string) => void;
+  /**
+   * Runs `show` once `el` comes near the screen, and returns a stop (R5a.1-10:
+   * a thumbnail is unpacked when its figure is first shown). The browser's
+   * IntersectionObserver by default; null, or a browser without it, unpacks
+   * every thumbnail at once.
+   */
+  whenShown?: ((el: Element, show: () => void) => () => void) | null;
   /** The document's class when the \\DocumentMetadata line stops it (CR-15): the panel says where the texts can go. */
   untagged?: string | null;
   /** Called when what goes into the patch changes. */
@@ -117,13 +124,28 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string,
   return e;
 }
 
-/* v8 ignore start -- jsdom has no object URLs; the Playwright walkthrough shows a thumbnail */
+/* v8 ignore start -- jsdom has no object URLs and no IntersectionObserver; the Playwright walkthrough shows a thumbnail */
 function browserObjectUrl(bytes: Uint8Array, type: string): string | null {
   try {
     return URL.createObjectURL(new Blob([bytes as BlobPart], { type }));
   } catch {
     return null;
   }
+}
+function browserWhenShown(): ((el: Element, show: () => void) => () => void) | null {
+  if (typeof IntersectionObserver !== 'function') return null;
+  return (target, show) => {
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return;
+        io.disconnect();
+        show();
+      },
+      { rootMargin: '400px 0px' },
+    );
+    io.observe(target);
+    return () => io.disconnect();
+  };
 }
 function browserRevoke(url: string): void {
   try {
@@ -142,6 +164,11 @@ function defaultStorage(): Storage | undefined {
   }
 }
 
+/** A refusal every call of a run would meet: a model that is retired or unknown, a request shape refused (R5b.2-5 g). */
+const EVERY_CALL = /\bmodel\b|not[ _]found|unsupported|parameter|invalid_request/i;
+/** A refusal about one figure: its image, or what its draft said (R5b.1-6, R5b.3-4 b). */
+const ONE_FIGURE = /image|content|filter|policy|blocked/i;
+
 /** Draft all's stop for the same account-wide refusal twice in a row (R5a.2-7 a, R5b.1-6). */
 class RepeatedRefusal extends Error {}
 
@@ -159,6 +186,9 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
   const drafting = opts.drafting ?? newDrafting();
   const busy = drafting.busy;
   const thumbs = new Map<string, string | null>();
+  const whenShown = opts.whenShown === undefined ? browserWhenShown() : opts.whenShown;
+  /** The watch of each thumbnail not shown yet, by figure id: stopped when its figure is drawn again or the panel goes. */
+  const watching = new Map<string, () => void>();
 
   const h = el('h3', { id: 'figures-h', tabindex: '-1' }, 'Alt text for figures');
   const live = el('p', { class: 'figures-status', role: 'status', 'aria-live': 'polite' });
@@ -305,7 +335,9 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
         return;
       }
       const wasIn = c.status === 'approved' || c.status === 'decorative';
-      Object.assign(c, { text: r.text, drafted: r.text, source: r.source, status: 'draft', textOnly: r.textOnly, note: r.imageNote, error: null });
+      // The stale note, the only place the earlier text is shown, stays under a draft (R5b.3-4 c).
+      const note = isStaleNote(c.note) ? [c.note, r.imageNote].filter(Boolean).join(' ') : r.imageNote;
+      Object.assign(c, { text: r.text, drafted: r.text, source: r.source, status: 'draft', textOnly: r.textOnly, note, error: null });
       if (wasIn) opts.onChange();
       if (single && drafting.draw === drawById) live.textContent = `Figure ${figures.indexOf(f) + 1}: draft ready. Check it, then approve it.`;
     } catch (e) {
@@ -342,9 +374,11 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
     // A figure the person starts on during the run is passed over when its turn comes (R5a.1-2).
     // The same refusal twice in a row stops the run too, when every call would meet it: the key's credit or
     // billing (R5a.2-7 a), a retired model or a request shape refused (R5b.2-5 g). One figure's own refusal, about
-    // its image ("Could not process image"), does not, even twice (R5b.1-6).
+    // its image ("Could not process image"), does not, even twice (R5b.1-6), and neither does one about what
+    // a figure's draft said ("Output blocked by content filtering policy"): only the named every-call cases
+    // stop it (R5b.3-4 b).
     let lastRefusal: string | null = null;
-    const everyCall = (err: string) => /credit|billing/i.test(err) || !/image/i.test(err);
+    const everyCall = (err: string) => /credit|billing/i.test(err) || (EVERY_CALL.test(err) && !ONE_FIGURE.test(err));
     const one = async (f: FigureItem) => {
       await draftOne(f, d, false);
       const err = choices.get(f.id)?.error ?? null;
@@ -391,6 +425,22 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
   }
 
   function thumb(f: FigureItem): HTMLElement {
+    // Unpacked when the figure is first near the screen, not all at the panel's opening (R5a.1-10).
+    watching.get(f.id)?.();
+    watching.delete(f.id);
+    if (f.preview && f.resolved && !thumbs.has(f.id) && whenShown) {
+      const wait = el('div', { class: 'thumb-wait', 'aria-hidden': 'true' });
+      const stop = whenShown(wait, () => {
+        if (watching.get(f.id) === stop) watching.delete(f.id);
+        if (!closed && wait.isConnected) wait.replaceWith(thumbNow(f));
+      });
+      watching.set(f.id, stop);
+      return wait;
+    }
+    return thumbNow(f);
+  }
+
+  function thumbNow(f: FigureItem): HTMLElement {
     let unreadable = false;
     if (f.preview && f.resolved) {
       if (!thumbs.has(f.id)) {
@@ -559,6 +609,8 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
     cancel: () => {
       closed = true;
       if (drafting.draw === drawById) drafting.draw = null;
+      for (const stop of watching.values()) stop();
+      watching.clear();
       for (const url of thumbs.values()) if (url) revoke(url);
       thumbs.clear();
     },

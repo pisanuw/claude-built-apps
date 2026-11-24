@@ -213,7 +213,7 @@ export async function courseReport(store: CourseStore, id: string, now: Date, da
   // Summaries first; then the findings of the latest scan of each project only (R2.1-6).
   const latestSummaries = latestByProject(await store.scanSummaries(projects.map((p) => p.id)));
   const ids = projects.map((p) => p.id);
-  const [latest, jobs] = await Promise.all([store.scansById([...latestSummaries.values()].map((x) => x.id)).then(latestByProject), store.jobsOf(ids)]);
+  const [latest, jobs] = await Promise.all([store.scansById([...latestSummaries.values()].map((x) => x.id)).then(latestByProject), store.latestJobs(ids)]);
   // AC-52: each project's latest check; what its latest version's copy carries is in that scan's summary (D-153).
   return {
     course: { name: course.name, term: course.term },

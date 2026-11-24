@@ -153,6 +153,22 @@ export class Project {
     return e.read();
   }
 
+  /**
+   * The text of a file for a reader after the scan (R5b.3-3): the scan's own
+   * copy when it read the file, else read here with no warning added and
+   * nothing thrown; null for a file over 4 MB or one that cannot be read.
+   */
+  peekText(path: string): string | null {
+    if (this.texts.has(path)) return this.texts.get(path) ?? null;
+    const e = this.entries.get(path);
+    if (!e || e.size > MAX_TEXT_BYTES) return null;
+    try {
+      return utf8.decode(e.read()).replace(/^\uFEFF/, '');
+    } catch {
+      return null;
+    }
+  }
+
   /** The text of a file, read once; null (with a warning) when it cannot be read. */
   text(path: string): string | null {
     if (this.texts.has(path)) return this.texts.get(path) ?? null;

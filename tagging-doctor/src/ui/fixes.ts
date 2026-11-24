@@ -79,7 +79,8 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string,
  * Takes back what a restore put on the page from the person's saved rows
  * (R5b.1-1, R5b.2-1): a figure whose text is still the restored text is
  * emptied, whatever its choice now (Skip or Decorative leave the text in the
- * box); one whose text the person changed keeps it, without the restore's
+ * box), and one the restore gave no text is emptied only while its choice is
+ * still the restore's (R5b.3-1); one whose text the person changed keeps it, without the restore's
  * note. The choice is emptied in place, and marked, so a draft that is out
  * for it still arrives (R5b.2-5 h). Returns the ids changed.
  */
@@ -88,8 +89,14 @@ export function forgetRestored(state: FixesState): string[] {
   for (const [id, was] of state.restored) {
     const c = state.alts.get(id);
     if (!c) continue;
-    if (c.text === was.text) Object.assign(c, { ...newChoice(), error: c.error, forgotten: (c.forgotten ?? 0) + 1 });
-    else if (was.note && c.note === was.note) c.note = null;
+    // A restore that put no text (the stale note, a decorative mark) counts as
+    // still the restore's only while its choice is too (R5b.3-1): a Skip or a
+    // Decorative the person chose there holds nothing from the account.
+    const still = c.text === was.text && (was.text !== '' || c.status === was.status);
+    // `drafted: undefined`: no text read from the account stays in the choice (R5b.3-4 d).
+    if (still) Object.assign(c, { ...newChoice(), drafted: undefined, error: c.error, forgotten: (c.forgotten ?? 0) + 1 });
+    // A draft keeps the stale note at the front of its own (R5b.3-4 c), so the note is matched by its start.
+    else if (was.note && c.note?.startsWith(was.note)) c.note = null;
     else continue;
     out.push(id);
   }

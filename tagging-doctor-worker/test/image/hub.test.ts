@@ -202,6 +202,9 @@ describe.runIf(IN_HUB)('R4b.1-4 (a): the memory bomb leaves room for the live hu
     console.log(`R4b.1-4a bomb status=${bomb.status} idle_rss_mb=${mb(idle)} peak_rss_mb=${mb(peak)} max_usage_mb=${mb(Number(read('memory.max_usage_in_bytes')))} oom=${read('memory.oom_control').match(/oom_kill (\d+)/)?.[1] ?? '?'}`);
     expect(bomb.status).toBe('failed');
     expect(bomb.logTail.join('\n')).toMatch(/not enough memory/);
+    // The sampler read the container's cgroup: on a host without the v1 path both would be 0 (R4b.2-5 a).
+    expect(idle).toBeGreaterThan(0);
+    expect(peak).toBeGreaterThan(idle);
     // With the live hub's own peak in place of the idle one, the container stays under 512 MB.
     expect(mb(peak) - mb(idle) + 123).toBeLessThan(500);
     expect(docker(['inspect', '-f', '{{.State.OOMKilled}} {{.State.Running}} {{.RestartCount}}', w.name]).trim()).toBe('false true 0');

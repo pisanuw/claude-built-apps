@@ -135,15 +135,18 @@ export function mountCompare(slot: HTMLElement, deps: CompareDeps, ctx: FixesCtx
     actions.replaceChildren(button(COMPARE_LABEL, () => void start(), { class: 'primary', id: 'compare-go' }));
   }
 
-  /** The token of the last stop, asked once and used for every job of it: `orLast` gives a kept token only once (R4b.1-5). */
-  let stopToken: Promise<string | null> | null = null;
+  /**
+   * The token of a stopped run, asked once and used for every job of it: `orLast` gives a kept token only once
+   * (R4b.1-5). Kept by the run's number only until that run has ended (R4b.2-5 d).
+   */
+  const stopTokens = new Map<number, Promise<string | null>>();
 
   function stop() {
+    const t = tok.orLast();
+    if (running) stopTokens.set(gen, t);
     gen++;
     prog.stop();
     running = false;
-    const t = tok.orLast();
-    stopToken = t;
     for (const id of sent) void forget(deps.checker, id, () => t);
     sent = [];
   }
@@ -194,7 +197,7 @@ export function mountCompare(slot: HTMLElement, deps: CompareDeps, ctx: FixesCtx
           if (typeof first.checksLeft === 'number') left = first.checksLeft;
           // Stopped while this upload was on its way: the job goes with the stop's token (R4b.1-5).
           if (stale()) {
-            const t = stopToken;
+            const t = stopTokens.get(run);
             void forget(deps.checker, first.id, t ? () => t : tok.orLast);
           }
         },
@@ -237,6 +240,9 @@ export function mountCompare(slot: HTMLElement, deps: CompareDeps, ctx: FixesCtx
       alert.replaceChildren(el('p', {}, msg));
       actions.replaceChildren(button('Try again', () => void start(), { id: 'compare-retry' }));
       running = false;
+    } finally {
+      // The run has ended: no answer of it can come any more, so its stop's token goes (R4b.2-5 d).
+      stopTokens.delete(run);
     }
   }
 
