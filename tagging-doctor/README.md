@@ -180,17 +180,18 @@ The checker runs no outside programs (EPS conversion, `minted`, `pythontex`).
   advice for each package).
 - Alt texts come back on a new version of a project only for a figure whose
   file is unchanged; a renamed file counts as a new figure. One image used
-  several times keeps a text for each use, matched by its place.
+  several times keeps a text for each use, matched by its place. When a use
+  is removed from the middle, the texts after it are not filled in (the app
+  cannot tell which use went); they stay in your saved project.
 - Drafts on HintWise's key are limited each day, for each person and for the
   app as a whole; your own key has no such limit.
 
 ## Credits
 
 The package and class data is a converted copy of the LaTeX Project's
-[tagging status list](https://latex3.github.io/tagging-project/tagging-status/)
-(`latex3/tagging-project`, `_data/tagging-status.yml`), under the LaTeX
-Project Public License, version 1.3c or later. The copy's date, commit and
-source are on every report.
+[tagging status list](https://latex3.github.io/tagging-project/tagging-status/),
+under the LaTeX Project Public License, version 1.3c or later. The copy's
+date, commit and source are on every report.
 
 ## For developers
 
@@ -237,6 +238,16 @@ npm run lint && npm run typecheck && npm run coverage && npm run build
 npm run e2e        # Playwright against vite preview, axe-core included (e2e/a11y.spec.ts)
 npm run test:image # the checker's own tests on backend-hub's Docker image (needs Docker)
 ```
+
+`npm run typecheck` and `npm run test:image` need the monorepo
+(pisanuw/claude-built-apps): `image-test/` uses the checker's test harness in
+`../tagging-doctor-worker/`. In the pisan-labs mirror, which holds this folder
+alone, type-check with `npx tsc -p tsconfig.json --noEmit`; the unit tests that
+read the checker's fixtures are skipped there.
+
+The status data is a converted copy of `latex3/tagging-project`'s
+`_data/tagging-status.yml` (`src/data/tagging-status.json` holds its commit and
+date).
 
 To refresh the status data from a newer commit of the list:
 
