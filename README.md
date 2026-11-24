@@ -97,6 +97,7 @@ addresses for now.
 | App | What it does |
 |---|---|
 | [Accessibility Lens](https://accessibility-lens.hintwise.org/) ([code](./accessibility-lens)) | Scan a public page against WCAG 2.1, then see it the way low-vision, color-blind, keyboard-only and screen-reader users do. |
+| [Screen Reader Journeys](https://screen-reader-journeys.hintwise.org/) ([code](https://github.com/pisan-labs/screen-reader-journeys)) | Give a public page and a scripted journey; a real browser walks it by keyboard and reports what a screen reader would announce at every stop, and which checks pass or fail. |
 | [ACR Draft](https://acr-draft.hintwise.org/) ([code](./acr-draft)) | Write the accessibility report (VPAT) a university asks for before it buys your software: scans plus a guided review, exported to Word. |
 | [Agent Blast Radius](https://agent-blast-radius.hintwise.org/) ([code](./agent-blast-radius)) | Drop in MCP configs and agent settings to see what each AI tool on your machine can reach. |
 | [HAR Detective](https://har-detective.hintwise.org/) ([code](./har-detective)) | Drag in a browser HAR file for a waterfall and a ranked, plain-English performance report. |
