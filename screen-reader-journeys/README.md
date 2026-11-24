@@ -18,3 +18,8 @@ sha256), never edit an applied file, and put later changes in a new
   (main), sha256
   9b55da7b0224fbf6768535ac2a828e23bc3dd9b0552663e6c878223498ef570b; owner's
   yes on 24 Nov 2026 ("SR release yes").
+
+`deploy/target.yml` creates and deploys the worker, a Render web service of its
+own (Docker, free plan, built from that repository's main). The Deploy workflow
+runs when it changes; after that Render redeploys on every push to that
+repository's main.

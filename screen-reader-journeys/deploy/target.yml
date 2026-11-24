@@ -1,0 +1,50 @@
+# Deploy control file for screen-reader-journeys (Render web service, Docker).
+#
+# Screen Reader Journeys' API and worker (Chromium) live in their own
+# repository, pisan-labs/screen-reader-journeys (render.repo below), built from
+# its Dockerfile at the repository's root (its render.yaml and docs/deploy.md,
+# "3. Render"). Free plan, one instance (owner, 23 November 2026; released on
+# the owner's "SR release yes", 24 November 2026). A paid plan needs the
+# owner's yes.
+#
+# Secrets are not in this file. WORKER_TOKEN is generated once at creation
+# (render.generateEnv) only so the server can start: nobody knows that value,
+# and its hash is never pinned, so the worker claims nothing ("Bad worker
+# token.") until the owner sets their own token on the service and PManager
+# pins its SHA-256 (supabase/ops/worker-token.sql in that repository). Later
+# deploys never overwrite it: generateEnv fills only a missing key.
+# SUPABASE_ANON_KEY is the public anon key (platform/supabase.json).
+# ALLOWED_TARGET_HOSTS is the owner's list of sites the service may test; an
+# empty value is not sent, which allows nothing. Leave CHROMIUM_SANDBOX unset.
+#
+# Deploys: the Deploy workflow runs when this file changes on main (it creates
+# the service the first time). After that, Render rebuilds and redeploys on
+# every push to that repository's main (autoDeploy, set by the runner): each
+# merge there is a production deploy of the worker.
+
+provider: render
+projectName: screen-reader-journeys
+directory: .
+
+env:
+  SUPABASE_URL: https://auth.hintwise.org
+  SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFya3R4bHJseWNlZmZ5b3pkd2hxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4ODEwMTAsImV4cCI6MjA5MjQ1NzAxMH0.Vuku-irT3kAHZYibK23q6dpyOEqV_Eg5zB78I3dyshE
+  ALLOWED_ORIGINS: https://screen-reader-journeys.hintwise.org
+  ALLOWED_TARGET_HOSTS: ""
+  RUN_TIMEOUT_SECONDS: "900"
+  POLL_INTERVAL_SECONDS: "5"
+
+envPassthrough: []
+
+render:
+  repo: https://github.com/pisan-labs/screen-reader-journeys
+  type: web_service
+  runtime: docker
+  dockerfilePath: ./Dockerfile
+  dockerContext: .
+  plan: free
+  region: virginia
+  healthCheckPath: /health
+  branch: main
+  generateEnv:
+    - WORKER_TOKEN
