@@ -373,19 +373,19 @@ export function courseReportBody(r: CourseReport, top = 1, zone: 'local' | 'UTC'
   out.push(`<p>${withBlockers} of ${r.rows.length === 1 ? '1 project has' : `${r.rows.length} projects have`} blockers.</p>`);
   // When every project is named by its main file ("Save all"), one column says it.
   const files = r.rows.some((x) => x.project !== x.mainFile);
-  out.push(`<table><caption>Projects</caption><thead><tr><th scope="col">Project</th>${files ? '<th scope="col">Main file</th>' : ''}<th scope="col">Verdict</th><th scope="col">Blockers</th><th scope="col">Warnings</th><th scope="col">${zone === 'UTC' ? 'Latest scan (UTC)' : 'Latest scan'}</th><th scope="col">Latest compile and PDF/UA check</th><th scope="col">Alt text in the sources</th></tr></thead><tbody>`);
+  out.push(`<div class="table-wrap" role="region" aria-label="Projects" tabindex="0"><table><caption>Projects</caption><thead><tr><th scope="col">Project</th>${files ? '<th scope="col">Main file</th>' : ''}<th scope="col">Verdict</th><th scope="col">Blockers</th><th scope="col">Warnings</th><th scope="col">${zone === 'UTC' ? 'Latest scan (UTC)' : 'Latest scan'}</th><th scope="col">Latest compile and PDF/UA check</th><th scope="col">Alt text in the sources</th></tr></thead><tbody>`);
   for (const x of r.rows) {
     out.push(
       `<tr><td>${escapeHtml(x.project)}</td>${files ? `<td>${escapeHtml(x.mainFile)}</td>` : ''}<td>${escapeHtml(x.verdict ?? 'Not scanned yet')}</td><td>${x.blockers}</td><td>${x.warnings}</td><td>${escapeHtml(x.scannedAt ? shortDate(x.scannedAt, tz) : 'none')}</td><td>${escapeHtml(checkWords(x.check, tz))}</td><td>${escapeHtml(altWords(x.alt))}</td></tr>`,
     );
   }
-  out.push('</tbody></table>');
+  out.push('</tbody></table></div>');
   out.push(`<h${top + 1}>Blockers by how many projects they affect</h${top + 1}>`);
   if (!r.blockers.length) out.push('<p>No known blockers in the latest scans.</p>');
   else {
-    out.push('<table><caption>Blockers</caption><thead><tr><th scope="col">Blocker</th><th scope="col">Projects affected</th><th scope="col">Which</th></tr></thead><tbody>');
+    out.push('<div class="table-wrap" role="region" aria-label="Blockers" tabindex="0"><table><caption>Blockers</caption><thead><tr><th scope="col">Blocker</th><th scope="col">Projects affected</th><th scope="col">Which</th></tr></thead><tbody>');
     for (const b of r.blockers) out.push(`<tr><td>${escapeHtml(b.blocker)}</td><td>${b.projects.length}</td><td>${escapeHtml(b.projects.join(', '))}</td></tr>`);
-    out.push('</tbody></table>');
+    out.push('</tbody></table></div>');
   }
   return out.join('\n');
 }

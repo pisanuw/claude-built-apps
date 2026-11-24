@@ -94,7 +94,8 @@ function table(caption: string, cols: string[], rows: (string | Node)[][]): HTML
     body.append(tr);
   }
   t.append(thead, body);
-  const wrap = el('div', { class: 'table-wrap' });
+  // A region of its own that scrolls when the table is wider than the screen, reachable by keyboard (AC-54, AC-55).
+  const wrap = el('div', { class: 'table-wrap', role: 'region', 'aria-label': caption, tabindex: '0' });
   wrap.append(t);
   return wrap;
 }

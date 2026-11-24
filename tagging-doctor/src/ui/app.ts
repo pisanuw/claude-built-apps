@@ -343,8 +343,10 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
         else if (remembered?.doc && mains.includes(remembered.doc)) scanOne(remembered.doc);
       }
       const secs = ((deps.now().getTime() - started) / 1000).toFixed(1);
+      // The verdict is in the polite status line too, so a screen reader hears the result (AC-55).
+      const one = scans.size === 1 ? [...scans.values()][0] : null;
       status.textContent = scans.size
-        ? `Scan finished in ${secs} s: ${scans.size === 1 ? 'one document' : `${scans.size} documents`}.`
+        ? `Scan finished in ${secs} s: ${one ? `one document, ${one.summary.verdict.replace(/^No /, 'no ')}` : `${scans.size} documents`}.`
         : `This zip holds ${mains.length} documents. Choose one, or scan all.`;
     } catch (e) {
       if (stale()) return;

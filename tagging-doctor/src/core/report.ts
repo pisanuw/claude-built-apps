@@ -177,13 +177,14 @@ export const REPORT_CSS = `
 body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#1a1a1a;background:#fff}
 main{max-width:52rem;margin:0 auto;padding:1.5rem 1rem}
 h1{font-size:1.6rem;margin:0 0 .5rem}h2{font-size:1.3rem;margin:1.5rem 0 .5rem}h3{font-size:1.1rem;margin:1.25rem 0 .4rem}h4{font-size:1rem}
-table{border-collapse:collapse;margin:.5rem 0;width:100%}th,td{border:1px solid #767676;padding:.3rem .5rem;text-align:left;vertical-align:top}caption{text-align:left;font-weight:600}
+table{border-collapse:collapse;margin:.5rem 0;width:100%}th,td{border:1px solid #767676;padding:.3rem .5rem;text-align:left;vertical-align:top;overflow-wrap:break-word}caption{text-align:left;font-weight:600}
+.table-wrap{overflow-x:auto}.table-wrap:focus-visible{outline:3px solid #1a4fa0;outline-offset:2px}
 ul.findings{list-style:none;padding:0}li.finding{border-left:4px solid #767676;padding:.25rem .75rem;margin:.6rem 0}
 li.blocker{border-color:#b3261e}li.warning{border-color:#8a5300}li.unknown{border-color:#4a4a8a}li.ok{border-color:#1e6b34}
 .where{color:#444;font-size:.9rem}.excerpt{background:#f4f4f4;padding:.3rem .5rem;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.85rem}
 .source,.read,.meta{color:#444;font-size:.9rem}.caveat{border:1px solid #767676;padding:.5rem .75rem}
 a{color:#1a4fa0}p{overflow-wrap:anywhere}
-@media print{a{color:inherit}tr{break-inside:avoid}}
+@media print{a{color:inherit}tr{break-inside:avoid}.table-wrap{overflow:visible}th,td{padding:.2rem .35rem;font-size:.85rem}}
 `;
 
 /** One HTML file with inline styles and no scripts, images or external loads (AC-11). */

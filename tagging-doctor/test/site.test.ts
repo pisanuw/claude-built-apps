@@ -102,3 +102,16 @@ describe('AC-14: the footer, the layout and no prices', () => {
     for (const t of texts) expect(t).not.toMatch(/\bprice|\bpricing|\bpayment|\bsubscribe|\bcheckout|(?<!['"\w])\$\s?\d+(?![$\w])|\bUSD\b|per month/i);
   });
 });
+
+describe('AC-53, AC-57: the page before its script runs', () => {
+  it('index.html draws the heading and the lede the script draws, and says JavaScript is needed when it is off', async () => {
+    const { shellHtml } = await import('../src/ui/app');
+    const html = read('index.html');
+    const app = /<div id="app">([\s\S]*?)<\/div>\s*<script/.exec(html)?.[1] ?? '';
+    expect(app).toContain('<h1>Tagging Doctor</h1>');
+    const lede = /<p class="lede">([^<]+)<\/p>/.exec(shellHtml())?.[1];
+    expect(lede).toBeTruthy();
+    expect(app).toContain(`<p class="lede">${lede}</p>`);
+    expect(app).toMatch(/<noscript>[\s\S]*needs JavaScript[\s\S]*<\/noscript>/);
+  });
+});
