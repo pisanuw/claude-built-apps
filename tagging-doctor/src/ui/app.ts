@@ -192,7 +192,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   let newestPanel: 'compile' | 'fixes' = 'compile';
   const fixesPanel = el('section', { id: 'fixes', class: 'fixes-panel', 'aria-labelledby': 'fixes-h' });
   fixesPanel.hidden = true;
-  let fixesRun: { cancel: () => void; say: (text: string) => void } | null = null;
+  let fixesRun: ReturnType<typeof mountFixes> | null = null;
   /** The document the fix panel is for, and each document's fix choices in this drop (milestone 4). */
   let fixesFor: string | null = null;
   let fixStates = new Map<string, FixesState>();
@@ -627,9 +627,6 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       restoreAsked.add(asked);
       void restoreFor(main);
     }
-    const compare = deps.compare && deps.compile && account && signedIn ? deps.compare : null;
-    const compile = deps.compile;
-    const acc = account;
     fixesRun = mountFixes(fixesPanel, {
       project,
       scan: scans.get(main) as DocumentScan,
@@ -638,18 +635,25 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       onClose: hideFixes,
       figures: { ...deps.figures, signedIn: () => signedIn },
       onAltsChange: () => void syncAlts(main),
-      compareSlot:
-        compare && compile && acc
-          ? compare.compareSlot({
-              checker: compile.checker,
-              token: async () => (acc.token ? acc.token() : null),
-              session: deps.session,
-              original: () => originals.get(main) ?? null,
-              rememberOriginal: (job) => void originals.set(main, job),
-              keep: (job, kind) => keepJob(main, job, kind),
-            } satisfies CompareDeps)
-          : undefined,
+      compareSlot: compareSlotFor(main),
     });
+  }
+
+  /** The compare part of the fix panel for `main`: only when the build has it and the person is signed in. */
+  function compareSlotFor(main: string) {
+    const compare = deps.compare && deps.compile && account && signedIn ? deps.compare : null;
+    const compile = deps.compile;
+    const acc = account;
+    return compare && compile && acc
+      ? compare.compareSlot({
+          checker: compile.checker,
+          token: async () => (acc.token ? acc.token() : null),
+          session: deps.session,
+          original: () => originals.get(main) ?? null,
+          rememberOriginal: (job) => void originals.set(main, job),
+          keep: (job, kind) => keepJob(main, job, kind),
+        } satisfies CompareDeps)
+      : undefined;
   }
 
   function hideFixes() {
@@ -1115,11 +1119,14 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
 
   /**
    * The compare's script, when it arrives after the page is drawn (AC-53, R6.1-5): an open fix
-   * panel is drawn again with it, keeping the person's choices, as a sign-in does.
+   * panel gets it in its compare slot, for a signed-in person.
    */
   function setCompare(m: NonNullable<AppDeps['compare']>): void {
     deps.compare = m;
-    if (fixesFor !== null) drawFixes();
+    // Added to the panel that is there, not drawn again, so a box being typed in and a Draft all
+    // going on are left alone; for a person who gets no compare nothing happens (R6.2-2).
+    const slot = fixesFor !== null ? compareSlotFor(fixesFor) : undefined;
+    if (slot) fixesRun?.addCompare(slot);
   }
 
   return { handleFile, route, setCompare };

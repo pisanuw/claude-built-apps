@@ -83,6 +83,18 @@ export async function figureKeys(project: Project, figures: FigureItem[], digest
   const out = new Map<string, FigureKey>();
   const seen = new Map<string, number>();
   const hashes = new Map<string, Promise<string | null>>();
+  // A file several pictures read is unpacked once (R6.2-4 d); null for one that cannot be read.
+  const read = new Map<string, Uint8Array | null>();
+  const bytesOnce = (path: string): Uint8Array | null => {
+    if (!read.has(path)) {
+      try {
+        read.set(path, project.bytes(path));
+      } catch {
+        read.set(path, null);
+      }
+    }
+    return read.get(path) ?? null;
+  };
   const fileHash = (path: string) => {
     let h = hashes.get(path);
     if (!h) {
@@ -109,13 +121,7 @@ export async function figureKeys(project: Project, figures: FigureItem[], digest
       const parts: Uint8Array[] = [new TextEncoder().encode(f.source)];
       for (const input of f.reads ?? []) {
         parts.push(new TextEncoder().encode(`\u0000${input}\u0000`));
-        if (!input.startsWith('missing:')) {
-          try {
-            parts.push(project.bytes(input));
-          } catch {
-            parts.push(new TextEncoder().encode('unreadable'));
-          }
-        }
+        if (!input.startsWith('missing:')) parts.push(bytesOnce(input) ?? new TextEncoder().encode('unreadable'));
       }
       hash = await digest(parts.length === 1 ? parts[0] : concat(parts));
     } else {

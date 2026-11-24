@@ -155,7 +155,9 @@ function documentHtml(d: ReportDocument, level: number): string {
   const missing = fg.list.filter((x) => !x.hasAlt);
   if (missing.length) {
     const rows = missing.map((x) => `<tr><td>${x.kind === 'image' ? 'Image' : 'TikZ picture'}</td><td>${escapeHtml(where(x))}</td><td>${escapeHtml(x.file ?? '')}</td></tr>`);
-    out.push(regionHtml('Figures without alt text', `<table><caption>Figures without alt text</caption><thead><tr><th scope="col">Kind</th><th scope="col">Where</th><th scope="col">File</th></tr></thead><tbody>${rows.join('')}</tbody></table>`));
+    // Named with the document, so the regions of a report of several documents differ (R6.2-4 a).
+    const name = `Figures without alt text in ${d.mainFile}`;
+    out.push(regionHtml(name, `<table><caption>${escapeHtml(name)}</caption><thead><tr><th scope="col">Kind</th><th scope="col">Where</th><th scope="col">File</th></tr></thead><tbody>${rows.join('')}</tbody></table>`));
   }
   for (const g of ['blocker', 'warning', 'unknown', 'ok'] as Group[]) {
     const list = d.findings.filter((f) => f.severity === g);

@@ -332,13 +332,14 @@ export function mountFigures(section: HTMLElement, opts: FiguresOpts): { cancel:
       // Emptied by a change of person while out: used if the figure is still empty (R5b.2-5 h).
       const emptied = (c.forgotten ?? 0) !== asked.forgotten;
       const changed = emptied ? c.status !== 'none' || c.text.trim() !== '' : c.text !== asked.text || c.status !== asked.status;
+      // The stale note, the only place the earlier text is shown, stays in front of what follows (R5b.3-4 c, R6.2-4 c).
+      const stale = c.stale ?? (isStaleNote(c.note) ? (c.note as string) : undefined);
       if (changed) {
-        c.note = 'A draft arrived after you changed this figure, so your text and choice were kept.';
+        c.note = [stale, 'A draft arrived after you changed this figure, so your text and choice were kept.'].filter(Boolean).join(' ');
+        c.stale = stale;
         return;
       }
       const wasIn = c.status === 'approved' || c.status === 'decorative';
-      // The stale note, the only place the earlier text is shown, stays under a draft (R5b.3-4 c).
-      const stale = c.stale ?? (isStaleNote(c.note) ? (c.note as string) : undefined);
       const note = stale ? [stale, r.imageNote].filter(Boolean).join(' ') : r.imageNote;
       c.stale = stale;
       Object.assign(c, { text: r.text, drafted: r.text, source: r.source, status: 'draft', textOnly: r.textOnly, note, error: null });

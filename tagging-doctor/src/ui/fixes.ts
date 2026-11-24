@@ -86,6 +86,8 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string,
  */
 export function forgetRestored(state: FixesState): string[] {
   const out: string[] = [];
+  // The copy of the stale note quotes the account's text: it goes on every figure, whatever its note reads now (R6.2-1).
+  for (const c of state.alts.values()) c.stale = undefined;
   for (const [id, was] of state.restored) {
     const c = state.alts.get(id);
     if (!c) continue;
@@ -119,7 +121,10 @@ function changeWhere(c: { path: string; line: number }): string {
 }
 
 /** Draws the panel; returns `cancel`, which stops a compare in progress. */
-export function mountFixes(panel: HTMLElement, opts: FixesOpts): { cancel: () => void; redraw: () => void; say: (text: string) => void } {
+export function mountFixes(
+  panel: HTMLElement,
+  opts: FixesOpts,
+): { cancel: () => void; redraw: () => void; say: (text: string) => void; addCompare: (fn: NonNullable<FixesOpts['compareSlot']>) => void } {
   const { project, scan, state } = opts;
   let plan = suggestFixes(project, scan, { language: state.language });
   let compare: { cancel: () => void } | null = null;
@@ -300,6 +305,10 @@ export function mountFixes(panel: HTMLElement, opts: FixesOpts): { cancel: () =>
       compare?.cancel();
     },
     redraw: drawCards,
+    // The compare's script arrived after the panel was drawn (R6.2-2): drawn into its slot, once.
+    addCompare: (fn) => {
+      if (!compare) compare = fn(slot, ctx);
+    },
     // Said in the figure panel, where the texts are (AC-51); in the fix panel's line when there are no figures.
     say: (text) => {
       if (figures.length) figs.say(text);

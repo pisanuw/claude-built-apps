@@ -7,7 +7,7 @@
  * for the downloaded reports.
  */
 export function tableRegion(table: HTMLTableElement, name?: string): HTMLDivElement {
-  const label = name ?? table.querySelector('caption')?.textContent?.trim() ?? 'Table';
+  const label = name || table.querySelector('caption')?.textContent?.trim() || 'Table';
   const d = document.createElement('div');
   d.className = 'table-wrap';
   d.setAttribute('role', 'region');
