@@ -14,8 +14,10 @@
 # pins its SHA-256 (supabase/ops/worker-token.sql in that repository). Later
 # deploys never overwrite it: generateEnv fills only a missing key.
 # SUPABASE_ANON_KEY is the public anon key (platform/supabase.json).
-# ALLOWED_TARGET_HOSTS is the owner's list of sites the service may test; an
-# empty value is not sent, which allows nothing. Leave CHROMIUM_SANDBOX unset.
+# ALLOWED_TARGET_HOSTS is the owner's list of sites the service may test
+# (studio.hintwise.org, the owner's own site, on the owner's word of 24 Nov
+# 2026); an empty value is not sent, which allows nothing. Leave
+# CHROMIUM_SANDBOX unset.
 #
 # Deploys: the Deploy workflow runs when this file changes on main (it creates
 # the service the first time). After that, Render rebuilds and redeploys on
@@ -30,7 +32,7 @@ env:
   SUPABASE_URL: https://auth.hintwise.org
   SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFya3R4bHJseWNlZmZ5b3pkd2hxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4ODEwMTAsImV4cCI6MjA5MjQ1NzAxMH0.Vuku-irT3kAHZYibK23q6dpyOEqV_Eg5zB78I3dyshE
   ALLOWED_ORIGINS: https://screen-reader-journeys.hintwise.org
-  ALLOWED_TARGET_HOSTS: ""
+  ALLOWED_TARGET_HOSTS: studio.hintwise.org
   RUN_TIMEOUT_SECONDS: "900"
   POLL_INTERVAL_SECONDS: "5"
 
