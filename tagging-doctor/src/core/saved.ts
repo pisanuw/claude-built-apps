@@ -8,6 +8,7 @@
  * and the LaTeX Project's comments are not stored: they follow from the rule
  * and the package, and the page writes them again.
  */
+import { jobLine, type JobSummary } from './compile';
 import { CAVEAT, escapeHtml, REPORT_CSS } from './report';
 import { cutAt, wellFormed, type DocumentScan, type Finding, type Rule } from './scan';
 import type { Group, StatusData } from './status';
@@ -35,6 +36,19 @@ export interface StoredSummary {
   ok: number;
   notes: string[];
   figures: { images: number; imagesWithoutAlt: number; tikz: number; tikzWithoutAlt: number };
+  /**
+   * What this version's patched copy carries from Tagging Doctor (AC-52,
+   * D-153): the saved alt texts and decorative marks of this version's own
+   * figures, for files unchanged since they were approved, that the patch
+   * writes. Set by the page after the save and after each change; absent on
+   * a scan saved before milestone 5b, or whose figure panel never ran.
+   */
+  altCopy?: AltCopy;
+}
+
+export interface AltCopy {
+  approved: number;
+  decorative: number;
 }
 
 /** The part of a scans row the app writes. */
@@ -106,6 +120,12 @@ export function suggestedProjectName(name: string, existing: readonly string[]):
   return m && existing.includes(m[1]) ? m[1] : name;
 }
 
+/** The names a saved project of a dropped file may have, in order (AC-51): its own, then the one without a browser's copy suffix (AC-73). */
+export function versionNames(name: string): string[] {
+  const m = COPY_SUFFIX.exec(name);
+  return m ? [name, m[1]] : [name];
+}
+
 /** What identifies a blocker across two scans: the package and its kind, or the rule and the file. */
 export function blockerKey(f: Pick<StoredFinding, 'rule' | 'package' | 'kind' | 'path'>): string {
   return f.package ? `${f.kind ?? 'package'}:${f.package}` : `${f.rule}:${f.path}`;
@@ -161,6 +181,57 @@ export interface CourseReportRow {
   blockers: number;
   warnings: number;
   scannedAt: string | null;
+  /** The latest compile and veraPDF result (AC-52); null when none was run. */
+  check?: ReportCheck | null;
+  /** Alt text coverage of the latest scan (AC-52); null when the project has no saved scan. */
+  alt?: ReportAlt | null;
+}
+
+/** One project's latest check, as the course report shows it (AC-52). */
+export interface ReportCheck {
+  /** The original or the patched copy. */
+  kind: 'original' | 'patched';
+  /** When it finished (or was saved). */
+  at: string;
+  /** Its words: compiled or not, pages, and the veraPDF result. */
+  result: string;
+  /** Its scan is not the project's latest. */
+  older: boolean;
+}
+
+/** Figures with alt text in the latest scan's sources, out of its figures, and what that version's patched copy adds (AC-52, AC-51). */
+export interface ReportAlt {
+  withAlt: number;
+  figures: number;
+  copy: AltCopy | null;
+}
+
+/** What the course report needs of a saved check (a jobs row). */
+export interface CheckRow {
+  project_id: string;
+  scan_id: string;
+  kind: 'check' | 'patched-check';
+  status: string;
+  finished_at: string | null;
+  created_at: string;
+  result: JobSummary | null;
+  error: string | null;
+}
+
+/** A check in the report's words: the result line of the project's history, without the error's detail (it names files). */
+export function checkResult(j: Pick<CheckRow, 'status' | 'result' | 'error'>): string {
+  return j.status === 'failed' ? 'Did not compile.' : jobLine(j);
+}
+
+/** Each project's latest check: by when it finished, else when it was saved. */
+export function latestCheck(jobs: CheckRow[]): Map<string, CheckRow> {
+  const at = (j: CheckRow) => j.finished_at ?? j.created_at;
+  const out = new Map<string, CheckRow>();
+  for (const j of jobs) {
+    const cur = out.get(j.project_id);
+    if (!cur || at(j) > at(cur) || (at(j) === at(cur) && j.created_at > cur.created_at)) out.set(j.project_id, j);
+  }
+  return out;
 }
 
 export interface BlockerRow {
@@ -181,10 +252,13 @@ export function latestByProject<T extends { project_id: string; created_at: stri
 /** One row per project, with its latest verdict, counts and date (AC-19, AC-20). */
 export function courseRows(
   projects: { id: string; name: string; main_file: string }[],
-  latest: Map<string, { created_at: string; summary: StoredSummary }>,
+  latest: Map<string, { id?: string; created_at: string; summary: StoredSummary }>,
+  checks: Map<string, CheckRow> = new Map(),
 ): CourseReportRow[] {
   return projects.map((p) => {
     const s = latest.get(p.id);
+    const j = checks.get(p.id);
+    const fg = s?.summary.figures;
     return {
       project: p.name,
       mainFile: p.main_file,
@@ -192,8 +266,33 @@ export function courseRows(
       blockers: s ? s.summary.blockers : 0,
       warnings: s ? s.summary.warnings : 0,
       scannedAt: s ? s.created_at : null,
+      check: j ? { kind: j.kind === 'patched-check' ? 'patched' : 'original', at: j.finished_at ?? j.created_at, result: checkResult(j), older: !s || j.scan_id !== s.id } : null,
+      alt: fg ? { figures: fg.images + fg.tikz, withAlt: fg.images - fg.imagesWithoutAlt + (fg.tikz - fg.tikzWithoutAlt), copy: s?.summary.altCopy ?? null } : null,
     };
   });
+}
+
+/** "Compiled, 12 pages … (the patched copy, 23 Nov 2026; older than the latest scan)", or "not run" (AC-52). */
+export function checkWords(c: ReportCheck | null | undefined, timeZone?: string): string {
+  if (!c) return 'not run';
+  return `${c.result} (${c.kind === 'patched' ? 'the patched copy' : 'the original'}, ${shortDate(c.at, timeZone)}${c.older ? '; older than the latest scan' : ''})`;
+}
+
+/**
+ * "3 of 10 figures", with what the latest version's patched copy adds:
+ * "; in Tagging Doctor's patched copy, 2 more with alt text and 1 marked
+ * decorative"; "no figures", or "not run" (AC-52, D-153).
+ */
+export function altWords(a: ReportAlt | null | undefined): string {
+  if (!a) return 'not run';
+  if (!a.figures) return 'no figures';
+  const base = `${a.withAlt} of ${a.figures} ${a.figures === 1 ? 'figure' : 'figures'}`;
+  const c = a.copy;
+  if (!c || (!c.approved && !c.decorative)) return base;
+  const parts: string[] = [];
+  if (c.approved) parts.push(`${c.approved} more with alt text`);
+  if (c.decorative) parts.push(`${c.decorative} marked decorative`);
+  return `${base}; in Tagging Doctor’s patched copy, ${parts.join(' and ')}`;
 }
 
 /** The blockers of the latest scans, sorted by how many projects each affects, then by name (AC-20). */
@@ -274,10 +373,10 @@ export function courseReportBody(r: CourseReport, top = 1, zone: 'local' | 'UTC'
   out.push(`<p>${withBlockers} of ${r.rows.length === 1 ? '1 project has' : `${r.rows.length} projects have`} blockers.</p>`);
   // When every project is named by its main file ("Save all"), one column says it.
   const files = r.rows.some((x) => x.project !== x.mainFile);
-  out.push(`<table><caption>Projects</caption><thead><tr><th scope="col">Project</th>${files ? '<th scope="col">Main file</th>' : ''}<th scope="col">Verdict</th><th scope="col">Blockers</th><th scope="col">Warnings</th><th scope="col">${zone === 'UTC' ? 'Latest scan (UTC)' : 'Latest scan'}</th></tr></thead><tbody>`);
+  out.push(`<table><caption>Projects</caption><thead><tr><th scope="col">Project</th>${files ? '<th scope="col">Main file</th>' : ''}<th scope="col">Verdict</th><th scope="col">Blockers</th><th scope="col">Warnings</th><th scope="col">${zone === 'UTC' ? 'Latest scan (UTC)' : 'Latest scan'}</th><th scope="col">Latest compile and PDF/UA check</th><th scope="col">Alt text in the sources</th></tr></thead><tbody>`);
   for (const x of r.rows) {
     out.push(
-      `<tr><td>${escapeHtml(x.project)}</td>${files ? `<td>${escapeHtml(x.mainFile)}</td>` : ''}<td>${escapeHtml(x.verdict ?? 'Not scanned yet')}</td><td>${x.blockers}</td><td>${x.warnings}</td><td>${escapeHtml(x.scannedAt ? shortDate(x.scannedAt, tz) : 'none')}</td></tr>`,
+      `<tr><td>${escapeHtml(x.project)}</td>${files ? `<td>${escapeHtml(x.mainFile)}</td>` : ''}<td>${escapeHtml(x.verdict ?? 'Not scanned yet')}</td><td>${x.blockers}</td><td>${x.warnings}</td><td>${escapeHtml(x.scannedAt ? shortDate(x.scannedAt, tz) : 'none')}</td><td>${escapeHtml(checkWords(x.check, tz))}</td><td>${escapeHtml(altWords(x.alt))}</td></tr>`,
     );
   }
   out.push('</tbody></table>');

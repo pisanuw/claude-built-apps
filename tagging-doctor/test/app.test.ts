@@ -447,3 +447,32 @@ describe('browserDownload', () => {
     expect(document.querySelector('a[download]')).toBeNull();
   });
 });
+
+describe('R5a.1-8: a second click on "Alt text for figures" or "Suggest fixes" keeps the panel that is open', () => {
+  it('the same panel stays, with the focus moved, and a draft that is out is drawn when it arrives', async () => {
+    const { strToU8, zipSync } = await import('fflate');
+    const { memoryStorage, setByokKey } = await import('../src/lib/llm');
+    const storage = memoryStorage();
+    setByokKey('k', storage);
+    let release: () => void = () => {};
+    const answer = { id: 'm', type: 'message', role: 'assistant', model: 'claude-haiku-5-5', content: [{ type: 'text', text: 'Arrived.' }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } };
+    const { app, q, qa, button } = setup({
+      figures: { storage, draft: { ask: () => new Promise((r) => (release = () => r(answer as never))) } },
+    });
+    const z = zipSync({ 'main.tex': strToU8('\\documentclass{article}\n\\usepackage{graphicx}\n\\begin{document}\n\\includegraphics{a.pdf}\n\\end{document}\n'), 'a.pdf': strToU8('%PDF') });
+    await app.handleFile(file('f.zip', z));
+    button('Alt text for figures').click();
+    const panel = q('#fixes');
+    expect(document.activeElement?.id).toBe('figures-h');
+    (qa('li.figure-item [data-role="draft"]')[0] as HTMLButtonElement).click();
+    button('Suggest fixes').click();
+    expect(q('#fixes')).toBe(panel);
+    expect(document.activeElement?.id).toBe('fixes-h');
+    button('Alt text for figures').click();
+    expect(document.activeElement?.id).toBe('figures-h');
+    release();
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    expect((q('li.figure-item textarea') as HTMLTextAreaElement).value).toBe('Arrived.');
+  });
+});

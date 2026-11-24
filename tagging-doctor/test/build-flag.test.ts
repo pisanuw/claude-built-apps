@@ -64,8 +64,13 @@ describe('AC-80: the build flag of "Compile patched and compare"', () => {
     const target = fs.readFileSync(path.join(ROOT, 'deploy', 'target.yml'), 'utf8');
     const url = /^\s*VITE_CHECKER_URL:\s*(\S+)\s*$/m.exec(target)?.[1];
     expect(url).toBe(CHECKER_ADDRESS);
-    expect(/^\s*VITE_COMPARE_PATCHED:/m.test(target)).toBe(false);
-    const prod = await built(undefined, url);
+    // The deploy file's flag, as the live build gets it (D-152), on or off: the build matches it, so turning it
+    // off again is one line in deploy/target.yml (R5a.F-5).
+    const flag = /^\s*VITE_COMPARE_PATCHED:\s*'?(\w+)'?\s*$/m.exec(target)?.[1];
+    expect(['on', 'off', undefined]).toContain(flag);
+    const prod = await built(flag, url);
+    if (flag === 'on') expect(prod.text).toContain('Compile patched and compare');
+    else expect(prod.text).not.toContain('Compile patched and compare');
     expect(prod.text).toContain(CHECKER_ADDRESS);
     const host = new URL(CHECKER_ADDRESS).hostname;
     expect(prod.text).not.toContain(new URL(NOT_CALLED).hostname);
@@ -73,9 +78,9 @@ describe('AC-80: the build flag of "Compile patched and compare"', () => {
     expect([...hosts].filter((h) => h.endsWith('onrender.com'))).toEqual([host]);
   }, 240_000);
 
-  it('is named in .env.example and left off in the app\'s deploy file', () => {
+  it('is named in .env.example (off for a local build) and set in the app\'s deploy file, on or off, in one line (AC-80, D-152, R5a.F-5)', () => {
     expect(fs.readFileSync(path.join(ROOT, '.env.example'), 'utf8')).toMatch(/^VITE_COMPARE_PATCHED=off$/m);
     const target = fs.readFileSync(path.join(ROOT, 'deploy', 'target.yml'), 'utf8');
-    expect(target).not.toMatch(/VITE_COMPARE_PATCHED:\s*'?on/);
+    expect(target.match(/^ {2}VITE_COMPARE_PATCHED: '(on|off)'$/gm)).toHaveLength(1);
   });
 });

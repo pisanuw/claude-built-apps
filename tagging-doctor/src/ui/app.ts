@@ -13,13 +13,17 @@ import { COULD_NOT_SCAN, findMainFiles, scanDocument, wellFormed, type DocumentS
 import { plainWords } from '../core/fixes';
 import type { Group, StatusIndex } from '../core/status';
 import { LIMITS, ZipError } from '../core/zip';
-import { defaultProjectName, toStoredScan, type SaveItem } from '../core/saved';
+import { defaultProjectName, toStoredScan, versionNames, type SaveItem } from '../core/saved';
 import type { SavedResult } from '../lib/store';
 import type { CourseStore } from '../lib/store';
 import { jobRecord, type CheckerJob, type JobRecord } from '../core/compile';
 import { finished } from '../core/compare';
 import { mountCompile, KEPT, type CompileDeps } from './compile';
-import { mountFixes, newFixesState, type FixesState } from './fixes';
+import { forgetRestored, mountFixes, newFixesState, type FixesState } from './fixes';
+import { newChoice, type FiguresOpts } from './figures';
+import { listFigures, type FigureItem } from '../core/figures';
+import { dirOf } from '../core/latex';
+import { altCopyOf, altSync, figureKeys, restoreAlts, restoredWords, type FigureKey } from '../lib/alts';
 import type { CompareDeps, compareSlot as CompareSlot } from './compare';
 import { KEEP_HASH, renderCourse, renderCourseReport, renderCourses, renderKeep, renderNotFound, renderProject, renderSaveDialog, type PageCtx } from './pages';
 
@@ -68,6 +72,8 @@ export interface AppDeps {
   compare?: { compareSlot: typeof CompareSlot };
   /** The browser's download of a file it made (the patched zip, AC-41); else the patched zip goes through `download`'s Blob path. */
   downloadBlob?: (name: string, blob: Blob) => void;
+  /** Stand-ins for the figure panel's model call, image codec, key storage and thumbnails (milestone 5a); tests only. */
+  figures?: Omit<FiguresOpts, 'project' | 'figures' | 'choices' | 'onChange' | 'signedIn'>;
 }
 
 /** sessionStorage key of a save asked for before signing in (it holds what a saved scan holds, no more). */
@@ -76,6 +82,8 @@ export const PENDING_KEY = 'tagging-doctor.pending-save';
 interface PendingSave {
   mode: 'one' | 'all';
   items: SaveItem[];
+  /** The drop the items are of, while the page is the same (R5b.1-3); null for another drop. */
+  drop?: string | null;
 }
 
 /** What the page needs from a dropped or chosen file. */
@@ -88,6 +96,11 @@ export interface DroppedFile {
 
 export const EMPTY_TEXT = 'Drop a zip of your LaTeX project, or one .tex file. Nothing is uploaded: the scan runs in your browser.';
 export const LOAD_FAILED = 'The package list could not be loaded. Check your connection and drop the file again. Your file was not sent anywhere.';
+
+/** The figure panel’s line when a saved project's alt texts could not be read or written (AC-51). */
+export const ALTS_NOT_READ = 'The saved alt texts could not be loaded, so none was filled in. The figures are as in this drop.';
+export const ALTS_PROJECT_GONE = 'The saved project of this scan was deleted, so the approved alt texts are no longer saved. They are still on this page and go into the patched copy; choose Save to keep them in a project again.';
+export const ALTS_NOT_SAVED = 'The approved alt texts could not be saved with the project. They are still on this page and go into the patched copy; approve one again to try saving once more.';
 
 export const NO_MAIN_TEXT = 'No .tex file with \\documentclass was found';
 
@@ -174,7 +187,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   let newestPanel: 'compile' | 'fixes' = 'compile';
   const fixesPanel = el('section', { id: 'fixes', class: 'fixes-panel', 'aria-labelledby': 'fixes-h' });
   fixesPanel.hidden = true;
-  let fixesRun: { cancel: () => void } | null = null;
+  let fixesRun: { cancel: () => void; say: (text: string) => void } | null = null;
   /** The document the fix panel is for, and each document's fix choices in this drop (milestone 4). */
   let fixesFor: string | null = null;
   let fixStates = new Map<string, FixesState>();
@@ -182,6 +195,12 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   let originals = new Map<string, CheckerJob>();
   /** The saved scan of each main file of this drop, so a job row can name it (AC-35). */
   let savedScans = new Map<string, { projectId: string; scanId: string }>();
+  /** Each document's figures and their saved-text slots in this drop (AC-51). */
+  let figureSlots = new Map<string, Promise<{ figures: FigureItem[]; keys: Map<string, FigureKey> }>>();
+  /** The restores asked for in this drop, by document and person (AC-51). */
+  let restoreAsked = new Set<string>();
+  /** One alt-text sync at a time per saved project, so two never insert the same slot (AC-51). */
+  const altChains = new Map<string, Promise<void>>();
   /** Finished jobs of this drop whose scan is not saved yet: saving keeps them (AC-27, "Save to keep this result"). */
   let unsavedJobs = new Map<string, { job: CheckerJob; kind: JobRecord['kind'] }[]>();
   const account = deps.account;
@@ -190,7 +209,9 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   let userId: string | null = null;
   /** Unmounts the sign-in controls drawn in the signed-out save panel (R2.1-9). */
   let unmountPanelSignIn: (() => void) | null = null;
-  let saveItems: { mode: 'one' | 'all'; items: SaveItem[] } | null = null;
+  let saveItems: { mode: 'one' | 'all'; items: SaveItem[]; drop: string | null } | null = null;
+  /** This page load, so a drop's name differs from one before a reload (R5b.1-3). */
+  const pageLoad = Math.random().toString(36).slice(2);
 
   let project: Project | null = null;
   let index: StatusIndex | null = null;
@@ -258,6 +279,8 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     unsavedJobs = new Map();
     fixStates = new Map();
     originals = new Map();
+    figureSlots = new Map();
+    restoreAsked = new Set();
   }
 
   function showError(message: string) {
@@ -493,7 +516,10 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     // Signed in or not (AC-37): the patch runs in the browser.
     const fixes = el('button', { type: 'button', class: 'fixes-open' }, 'Suggest fixes');
     fixes.addEventListener('click', () => openFixes(wrap));
-    wrap.append(' ', fixes);
+    // The figure panel is part of the fix panel (D-141): the same copy takes the fixes and the alt texts.
+    const alt = el('button', { type: 'button', class: 'figures-open' }, 'Alt text for figures');
+    alt.addEventListener('click', () => openFixes(wrap, '#figures-h'));
+    wrap.append(' ', fixes, ' ', alt);
     if (account) {
       const save = el('button', { type: 'button', class: 'save' }, scannedAll ? 'Save all to a course' : 'Save');
       save.addEventListener('click', () => openSave(wrap, scannedAll ? 'all' : 'one'));
@@ -564,15 +590,20 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
 
   // ---- Suggest fixes and compare (milestone 4) ------------------------------------
 
-  function openFixes(after: HTMLElement) {
+  function openFixes(after: HTMLElement, focus = '#fixes-h') {
     if (!project || !shown) return;
+    // Open already for this document: only the focus moves, so a Draft all going on keeps running (R5a.1-8).
+    if (fixesFor === shown && fixesPanel.isConnected && !fixesPanel.hidden) {
+      (fixesPanel.querySelector(focus) as HTMLElement | null)?.focus();
+      return;
+    }
     hideFixes();
     after.after(fixesPanel);
     fixesPanel.hidden = false;
     fixesFor = shown;
     newestPanel = 'fixes';
     drawFixes();
-    (fixesPanel.querySelector('#fixes-h') as HTMLElement | null)?.focus();
+    (fixesPanel.querySelector(focus) as HTMLElement | null)?.focus();
   }
 
   /** (Re)draws the fix panel for `fixesFor`, keeping the person's choices; the compare part only for a signed-in person. */
@@ -580,8 +611,13 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     if (!project || !fixesFor) return;
     const main = fixesFor;
     fixesRun?.cancel();
-    let state = fixStates.get(main);
-    if (!state) fixStates.set(main, (state = newFixesState()));
+    const state = fixState(main);
+    // Signed in: the saved project's alt texts come back for the unchanged files (AC-51), once per document and person.
+    const asked = `${main}\u0000${userId ?? ''}`;
+    if (signedIn && !restoreAsked.has(asked)) {
+      restoreAsked.add(asked);
+      void restoreFor(main);
+    }
     const compare = deps.compare && deps.compile && account && signedIn ? deps.compare : null;
     const compile = deps.compile;
     fixesRun = mountFixes(fixesPanel, {
@@ -590,6 +626,8 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       state,
       downloadBlob: deps.downloadBlob ?? deps.compile?.downloadBlob ?? (() => {}),
       onClose: hideFixes,
+      figures: { ...deps.figures, signedIn: () => signedIn },
+      onAltsChange: () => void syncAlts(main),
       compareSlot:
         compare && compile && account
           ? compare.compareSlot({
@@ -613,12 +651,116 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     fixesPanel.remove();
   }
 
+  function fixState(main: string): FixesState {
+    let state = fixStates.get(main);
+    if (!state) fixStates.set(main, (state = newFixesState()));
+    return state;
+  }
+
+  /** The figures of `main` in this drop and their slots (AC-51), worked out once. */
+  function slotsOf(main: string): Promise<{ figures: FigureItem[]; keys: Map<string, FigureKey> }> {
+    let s = figureSlots.get(main);
+    if (!s) {
+      const figures = listFigures(project as Project, scans.get(main) as DocumentScan);
+      s = figureKeys(project as Project, figures, undefined, dirOf(main)).then((keys) => ({ figures, keys }));
+      figureSlots.set(main, s);
+    }
+    return s;
+  }
+
+  /**
+   * Fills the figures of `main` the person has not started on from the saved
+   * project's alt texts, where the file is unchanged (AC-51). The project is
+   * the one this drop saved the document to, or else the one saved project
+   * of the same name and main file; with none, or several, nothing is filled
+   * until the scan is saved.
+   */
+  async function restoreFor(main: string): Promise<void> {
+    if (!account || !signedIn || !project || !scans.has(main)) return;
+    const p = project;
+    const run = generation;
+    const who = userId;
+    const gone = () => run !== generation || project !== p || userId !== who;
+    const state = fixState(main);
+    const slots = slotsOf(main);
+    try {
+      const store = account.store();
+      let projectId = savedScans.get(wellFormed(main))?.projectId ?? null;
+      if (!projectId) {
+        // The drop's own name first, then the name without a copy suffix ("hw1 (1).zip" is a new version of hw1, AC-73).
+        const names = mains.length > 1 ? [wellFormed(main)] : versionNames(wellFormed(defaultProjectName(p.name)));
+        for (const name of names) {
+          const found = await store.projectsMatching(name, wellFormed(main));
+          if (gone()) return;
+          if (found.length > 1) return;
+          if (found.length === 1) {
+            projectId = found[0].id;
+            break;
+          }
+        }
+        if (!projectId) return;
+      }
+      const [rows, { figures, keys }] = await Promise.all([store.altTexts(projectId), slots]);
+      if (gone()) return;
+      const r = restoreAlts(figures, keys, rows, state.alts, newChoice);
+      for (const id of [...r.restored, ...r.stale]) {
+        // What came from this person's rows, so a change of person can take it back (R5b.1-1).
+        const c = state.alts.get(id);
+        if (c) state.restored.set(id, { text: c.text, status: c.status, note: c.note });
+        state.drafting.draw?.(id);
+      }
+      const words = restoredWords(r.restored.length, r.stale.length);
+      if (words && fixesFor === main) fixesRun?.say(words);
+    } catch (e) {
+      console.warn('tagging-doctor: the saved alt texts could not be read', e);
+      if (!gone() && fixesFor === main) fixesRun?.say(ALTS_NOT_READ);
+    }
+  }
+
+  /** Brings the saved project's alt texts to the person's choices for `main` (AC-51); one at a time per project. */
+  function syncAlts(main: string): Promise<void> {
+    const saved = savedScans.get(wellFormed(main));
+    const state = fixStates.get(main);
+    if (!account || !signedIn || !saved || !state || !project) return Promise.resolve();
+    const p = project;
+    const store = account.store();
+    const slots = slotsOf(main);
+    const who = userId;
+    const next = (altChains.get(saved.projectId) ?? Promise.resolve())
+      .then(async () => {
+        // Queued by a person who has since signed out or changed: not sent as the next one (R5b.2-5 e).
+        if (userId !== who) return;
+        // The choices as they are when this sync's turn comes, so a quick run of changes ends in the last one.
+        const { figures, keys } = await slots;
+        const { want, drop } = altSync(figures, keys, state.alts);
+        if (want.length || drop.length) await store.syncAltTexts(saved.projectId, want, drop);
+        // What this version's copy carries of the saved texts, for the course report (AC-52, D-153).
+        await store.setAltCopy(saved.scanId, altCopyOf(p, figures, keys, state.alts));
+      })
+      .catch((e) => {
+        console.warn('tagging-doctor: the alt texts could not be saved', e);
+        if (userId !== who) return;
+        // The project was deleted (another tab, its page): the document is no longer saved, so Save can be chosen again (R5b.1-8 e).
+        const gone = /foreign key/i.test(e instanceof Error ? e.message : String(e));
+        if (gone && savedScans.get(wellFormed(main))?.projectId === saved.projectId) savedScans.delete(wellFormed(main));
+        if (fixesFor === main && project === p) fixesRun?.say(gone ? ALTS_PROJECT_GONE : ALTS_NOT_SAVED);
+      });
+    altChains.set(saved.projectId, next);
+    return next;
+  }
+
   /** After a save: remember the saved scans, and write the rows of results shown before it (AC-27, AC-35). */
-  function onSaved(items: SaveItem[], mode: 'one' | 'all', results: SavedResult[]) {
+  function onSaved(items: SaveItem[], mode: 'one' | 'all', results: SavedResult[], drop: string | null) {
+    // Items of another drop (the banner's, kept before a sign-in that reloaded the page) are saved, but not tied
+    // to the documents on the page: their checks and alt texts are not this drop's (R5b.1-3).
+    if (!sameDrop(items, mode, drop)) return;
     for (const r of results) {
       const item = mode === 'one' ? items[0] : items.find((i) => i.name.trim() === r.project.name);
       if (item) savedScans.set(item.mainFile, { projectId: r.project.id, scanId: r.scan.id });
     }
+    // The saved project's alt texts come back first, then the person's approvals go to it (AC-51).
+    const savedMains = new Set(results.map((r) => (mode === 'one' ? items[0] : items.find((i) => i.name.trim() === r.project.name))?.mainFile));
+    for (const m of mains) if (savedMains.has(wellFormed(m)) && scans.has(m)) void restoreFor(m).then(() => syncAlts(m));
     for (const [main, jobs] of [...unsavedJobs]) {
       if (!savedScans.has(main)) continue;
       for (const { job, kind } of jobs) void keepJob(main, job, kind).then(
@@ -635,6 +777,28 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     }
   }
 
+  /**
+   * Whether a save's items are the drop on the page: made from it, or (the
+   * banner's, after a sign-in that reloaded the page) the same project
+   * dropped again, with each item's name, main file and scan as the page's
+   * now (R5b.1-3, R5b.2-5 d). A drop of another zip has another name.
+   */
+  function sameDrop(items: SaveItem[], mode: 'one' | 'all', drop: string | null): boolean {
+    const now = currentDrop();
+    if (now === null) return false;
+    if (drop === now) return true;
+    if (mode === 'one' && (!shown || !scans.has(shown))) return false;
+    if (mode === 'all' && mains.some((m) => !scans.has(m))) return false;
+    const here = currentItems(mode);
+    const key = (i: SaveItem) => JSON.stringify([i.name.trim(), i.mainFile, i.scan]);
+    return items.length === here.length && items.every((it, k) => key(it) === key(here[k]));
+  }
+
+  /** The drop on the page, as a save's items name it (R5b.1-3); null with none. */
+  function currentDrop(): string | null {
+    return project ? `${pageLoad}:${generation}` : null;
+  }
+
   /** What a save of the scan on screen holds (AC-17, AC-23). */
   function currentItems(mode: 'one' | 'all'): SaveItem[] {
     const p = project as Project;
@@ -646,8 +810,8 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   }
 
   /** "Save": the save dialog when signed in; signed out, sign-in, keeping the save for after it (AC-16). */
-  function openSave(after: HTMLElement, mode: 'one' | 'all', items: SaveItem[] = currentItems(mode)) {
-    saveItems = { mode, items };
+  function openSave(after: HTMLElement, mode: 'one' | 'all', items: SaveItem[] = currentItems(mode), drop: string | null = currentDrop()) {
+    saveItems = { mode, items, drop };
     after.after(savePanel);
     savePanel.hidden = false;
     drawSave();
@@ -656,7 +820,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
 
   function drawSave() {
     if (!saveItems || !account) return;
-    const { mode, items } = saveItems;
+    const { mode, items, drop } = saveItems;
     if (signedIn) {
       unmountPanelSignIn?.();
       unmountPanelSignIn = null;
@@ -664,11 +828,11 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       // Signing in from the panel redraws it: keep the focus in it (acceptance m2, focus note).
       const active = document.activeElement;
       const hadFocus = !active || active === document.body || savePanel.contains(active);
-      renderSaveDialog(savePanel, { store: account.store(), items, mode, onClose: closeSave, onSaved: (results) => onSaved(items, mode, results) });
+      renderSaveDialog(savePanel, { store: account.store(), items, mode, onClose: closeSave, onSaved: (results) => onSaved(items, mode, results, drop) });
       if (hadFocus) (savePanel.querySelector('#save-h') as HTMLElement | null)?.focus();
       return;
     }
-    writePending({ mode, items });
+    writePending({ mode, items, drop });
     const h = el('h3', { id: 'save-h', tabindex: '-1' }, 'Sign in to save');
     const why = el('p', {}, 'Saving keeps this scan’s report under a course, so you can see the whole course at once. Sign in with Google or with a link by email:');
     const box = el('div', { class: 'save-signin' });
@@ -739,7 +903,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       pendingEl.hidden = true;
       pendingEl.replaceChildren();
       // After the banner, not inside it: the banner is hidden now (R2.1-1).
-      openSave(pendingEl, p.mode, p.items);
+      openSave(pendingEl, p.mode, p.items, p.drop ?? null);
     });
     const drop = el('button', { type: 'button' }, 'Discard');
     drop.addEventListener('click', () => {
@@ -915,6 +1079,10 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       if (compileFor !== null) hideCompile();
       savedScans = new Map();
       unsavedJobs = new Map();
+      // Texts and notes a restore read from the person before are theirs, not the page's: they go,
+      // unless that person changed them since; the next person's own restore comes when the panel is drawn (R5b.1-1).
+      for (const state of fixStates.values()) forgetRestored(state);
+      restoreAsked = new Set();
       // That person's checks are not the new person's; the fix panel is drawn again, with or without the compare.
       originals = new Map();
       if (fixesFor !== null) drawFixes();

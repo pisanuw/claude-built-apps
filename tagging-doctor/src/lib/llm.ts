@@ -12,7 +12,7 @@
  * `ask` takes its dependencies (storage, fetch, token, SDK factory) as an
  * optional second argument so tests never touch the network.
  */
-import Anthropic from '@anthropic-ai/sdk';
+import type Anthropic from '@anthropic-ai/sdk';
 import { currentToken } from './auth';
 import { APP_SLUG } from './supabase';
 
@@ -35,6 +35,10 @@ export interface AskRequest {
   model?: string;
   max_tokens?: number;
   tools?: Tool[];
+  /** Passed as given; the gateway allows `adaptive`, and `disabled` on claude-haiku-5-5 at effort high or below. */
+  thinking?: { type: 'adaptive' | 'disabled' };
+  /** Only `effort` passes the gateway. */
+  output_config?: { effort: 'low' | 'medium' | 'high' | 'xhigh' | 'max' };
 }
 
 /** The minimum of the Anthropic client that BYOK mode uses. */
@@ -47,7 +51,7 @@ export interface AskDeps {
   storage?: Storage;
   fetch?: typeof fetch;
   getToken?: () => Promise<string | null>;
-  createAnthropic?: (apiKey: string) => AnthropicLike;
+  createAnthropic?: (apiKey: string) => AnthropicLike | Promise<AnthropicLike>;
   gatewayUrl?: string;
 }
 
@@ -156,6 +160,8 @@ export function requestBody(req: AskRequest): Anthropic.Messages.MessageCreatePa
   };
   if (req.system) body.system = req.system;
   if (req.tools) body.tools = req.tools;
+  if (req.thinking) Object.assign(body, { thinking: req.thinking });
+  if (req.output_config) Object.assign(body, { output_config: req.output_config });
   return body;
 }
 
@@ -174,8 +180,15 @@ export async function ask(req: AskRequest, deps: AskDeps = {}): Promise<Message>
   if (mode === 'byok') {
     const apiKey = getByokKey(storage);
     if (!apiKey) throw new LlmUnavailable('Paste your Anthropic API key first.');
-    const create = deps.createAnthropic ?? ((key: string) => new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true }));
-    return create(apiKey).messages.create(body);
+    // The SDK is loaded only when the own key drafts, so the page's first load does not carry it (D-142).
+    const create =
+      deps.createAnthropic ??
+      /* v8 ignore next 4 -- the browser's SDK; the Playwright walkthrough runs it against a stand-in api.anthropic.com */
+      (async (key: string) => {
+        const { default: Sdk } = await import('@anthropic-ai/sdk');
+        return new Sdk({ apiKey: key, dangerouslyAllowBrowser: true });
+      });
+    return (await create(apiKey)).messages.create(body);
   }
 
   const token = await (deps.getToken ?? currentToken)();
@@ -190,6 +203,38 @@ export async function ask(req: AskRequest, deps: AskDeps = {}): Promise<Message>
   if (res.status === 429 && isCap(data)) throw new CapReached(data.scope, data.resets_at, data.message);
   if (!res.ok) throw new GatewayError(res.status, data);
   return data as Message;
+}
+
+/** The fields of the gateway's check-mode answer this app reads (platform/src/gateway/caps.ts, `allowance`). */
+export interface GatewayAllowance {
+  allowed: boolean;
+  uses_credit?: boolean;
+  scope: string | null;
+  resets_at: string | null;
+  app_open?: boolean;
+  /** The person's own limits in this app and across apps: spent and cap, in calls (unit "calls") or else in dollars. */
+  limits: { scope: string; unit: string; used: number; cap: number; resets_at: string }[];
+  calls_left: number | null;
+}
+
+/**
+ * The gateway's check mode (`{ app, check: true }`): what the next call
+ * would get, with no model call and no cost (S2-12). Throws LlmUnavailable
+ * signed out, GatewayError on an error answer.
+ */
+export async function checkAllowance(deps: AskDeps = {}): Promise<GatewayAllowance> {
+  const token = await (deps.getToken ?? currentToken)();
+  if (!token) throw new LlmUnavailable('Sign in to use the HintWise key.');
+  const res = await (deps.fetch ?? fetch)(deps.gatewayUrl ?? gatewayUrl(), {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ app: GATEWAY_APP, check: true }),
+  });
+  const data: unknown = await res.json().catch(() => ({}));
+  if (!res.ok) throw new GatewayError(res.status, data);
+  const a = data as Partial<GatewayAllowance>;
+  if (typeof a.allowed !== 'boolean' || !Array.isArray(a.limits)) throw new GatewayError(res.status, { message: 'The HintWise gateway gave an allowance this page cannot read.' });
+  return { ...a, allowed: a.allowed, limits: a.limits, scope: a.scope ?? null, resets_at: a.resets_at ?? null, calls_left: a.calls_left ?? null };
 }
 
 function isCap(data: unknown): data is { error: 'cap'; scope: string; resets_at: string; message?: string } {

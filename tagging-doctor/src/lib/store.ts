@@ -7,7 +7,8 @@
  * fills user_id (so this code never sends or filters by user).
  */
 import type { JobRecord, JobSummary } from '../core/compile';
-import { blockerDelta, type Delta, type SaveItem, type StoredFinding, type StoredScan, type StoredSummary } from '../core/saved';
+import { blockerDelta, type AltCopy, type Delta, type SaveItem, type StoredFinding, type StoredScan, type StoredSummary } from '../core/saved';
+import type { AltWant } from './alts';
 import { newId } from './repository';
 
 export type Table = 'courses' | 'projects' | 'scans' | 'jobs' | 'alt_texts';
@@ -56,8 +57,12 @@ export interface AltTextRow {
   id: string;
   project_id: string;
   figure_path: string;
+  /** SHA-256 of the figure's file (AC-51; src/lib/alts.ts). */
+  figure_hash: string;
   text: string;
   decision: string;
+  source: string;
+  updated_at: string;
 }
 
 export type Where = Record<string, string | string[]>;
@@ -114,9 +119,16 @@ export class MemoryDb implements Db {
     if (table === 'projects' && this.rows.projects.some((p) => p.course_id === row.course_id && p.name === row.name)) {
       throw new Error('projects: duplicate key value violates unique constraint');
     }
+    // A row of a project that is gone is refused, as the database's composite key does (R5b.1-8 d).
+    if ((table === 'scans' || table === 'jobs' || table === 'alt_texts') && !this.rows.projects.some((p) => p.id === row.project_id)) {
+      throw new Error(`${table}: insert or update on table violates foreign key constraint`);
+    }
+    if (table === 'alt_texts' && this.rows.alt_texts.some((a) => a.project_id === row.project_id && a.figure_path === row.figure_path)) {
+      throw new Error('alt_texts: duplicate key value violates unique constraint');
+    }
     // created_at strictly increasing, so "latest" is well defined within one millisecond.
     const at = new Date(this.now().getTime() + this.tick++).toISOString();
-    const stored = { id: newId(), user_id: this.userId, created_at: at, ...structuredClone(row) };
+    const stored = { id: newId(), user_id: this.userId, ...(table === 'alt_texts' ? { updated_at: at } : { created_at: at }), ...structuredClone(row) };
     this.rows[table].push(stored);
     return structuredClone(stored) as T;
   }
@@ -260,6 +272,70 @@ export class CourseStore {
   async scanSummaries(projectIds: string[]): Promise<ScanSummaryRow[]> {
     if (!projectIds.length) return [];
     return sortByCreated(await this.db.select<ScanSummaryRow>('scans', { project_id: projectIds }, SCAN_SUMMARY_COLUMNS));
+  }
+
+  /** The checks of these projects (AC-52), oldest first. */
+  async jobsOf(projectIds: string[]): Promise<JobRow[]> {
+    if (!projectIds.length) return [];
+    return sortByCreated(await this.db.select<JobRow>('jobs', { project_id: projectIds }));
+  }
+
+  /** The saved projects of a name and main file, in any course: where a new drop's alt texts may come from (AC-51). */
+  async projectsMatching(name: string, mainFile: string): Promise<ProjectRow[]> {
+    return this.db.select<ProjectRow>('projects', { name, main_file: mainFile });
+  }
+
+  async altTexts(projectId: string): Promise<AltTextRow[]> {
+    return this.db.select<AltTextRow>('alt_texts', { project_id: projectId });
+  }
+
+  /**
+   * Brings a project's saved alt texts to `want` and removes the slots in
+   * `drop` (AC-51): a new slot is inserted, a changed one updated with a new
+   * updated_at, an unchanged one left. The page runs one sync at a time per
+   * project, so two never insert the same slot.
+   */
+  async syncAltTexts(projectId: string, want: AltWant[], drop: string[]): Promise<{ written: number; removed: number }> {
+    const rows = await this.altTexts(projectId);
+    const byPath = new Map(rows.map((r) => [r.figure_path, r]));
+    let written = 0;
+    let removed = 0;
+    for (const w of want) {
+      const row = byPath.get(w.figure_path);
+      if (!row) {
+        await this.db.insert('alt_texts', { project_id: projectId, ...w });
+        written++;
+      } else if (row.figure_hash !== w.figure_hash || row.text !== w.text || row.decision !== w.decision || row.source !== w.source) {
+        await this.db.update('alt_texts', row.id, { ...w, updated_at: new Date().toISOString() });
+        written++;
+      }
+    }
+    for (const path of new Set(drop)) {
+      const row = byPath.get(path);
+      if (!row) continue;
+      await this.db.remove('alt_texts', row.id);
+      removed++;
+    }
+    return { written, removed };
+  }
+
+  /**
+   * Records with a saved scan what its version's patched copy carries from
+   * Tagging Doctor (AC-52, D-153), in its summary; nothing is written when
+   * it is already so. The page calls it after each sync of the document.
+   */
+  async setAltCopy(scanId: string, altCopy: AltCopy): Promise<void> {
+    const row = (await this.db.select<Pick<ScanRow, 'id' | 'summary'>>('scans', { id: scanId }, 'id, summary'))[0];
+    if (!row) return;
+    const was = row.summary.altCopy;
+    if (was && was.approved === altCopy.approved && was.decorative === altCopy.decorative) return;
+    await this.db.update('scans', scanId, { summary: { ...row.summary, altCopy } });
+  }
+
+  /** The saved alt texts of these projects (AC-51). */
+  async altTextsOf(projectIds: string[]): Promise<AltTextRow[]> {
+    if (!projectIds.length) return [];
+    return this.db.select<AltTextRow>('alt_texts', { project_id: projectIds });
   }
 
   /** These scans, with their findings. */

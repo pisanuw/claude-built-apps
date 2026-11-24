@@ -515,7 +515,7 @@ describe('AC-26: "What we keep"', () => {
       'Saved reports hold excerpts only',
       '“Export my data”',
       '“Delete my account”',
-      'sends the image and up to 1,200 characters of the text around it to Anthropic: directly, with your own key, or through HintWise’s gateway',
+      'up to 1,200 characters of the text around it to Anthropic, and only when you choose Draft or Draft all: straight from this browser with your own key',
       'The gateway records when each person first and last used the app.',
       'Visits are counted without cookies.',
       'sends the project’s files to the HintWise checker, which runs on Render in the US (region oregon)',

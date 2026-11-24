@@ -14,6 +14,7 @@
 import { groupEnds, keyValues, lineIndex, splitList } from './latex';
 import { projectZip } from './outzip';
 import type { Project } from './project';
+import { LOADS_HYPERREF, METADATA_STOPS } from './stops';
 import { babelLanguage, BEAMER_NOTE, bodyBeginOf, scannedSource, type DocumentScan, type Finding } from './scan';
 import swapsData from '../data/package-swaps.json';
 
@@ -34,6 +35,17 @@ export const METADATA_SOURCE =
   'The LaTeX Tagging Project, “Using LaTeX to produce accessible PDF” (Guidelines for LaTeX2e 2026-06-01), sections “Basic setup” and “MathML Structure Element Tagging”: https://latex3.github.io/tagging-project/documentation/usage-instructions';
 
 export const DEFAULT_LANGUAGE = 'en-US';
+
+export { BEAMER_STOPS, METADATA_STOPS } from './stops';
+
+/** The document's class that the line stops, and why; null for any other class (CR-15, R5a.F-3). */
+export function metadataRefusal(scan: Pick<DocumentScan, 'findings'> & { refusedClass?: string | null }): { cls: string; reason: string } | null {
+  if (scan.refusedClass) return { cls: scan.refusedClass, reason: METADATA_STOPS[scan.refusedClass] };
+  for (const f of scan.findings) {
+    if (f.kind === 'class' && f.package && Object.hasOwn(METADATA_STOPS, f.package)) return { cls: f.package, reason: METADATA_STOPS[f.package] };
+  }
+  return null;
+}
 
 /** A language tag the line may hold: letters, digits and hyphens in BCP 47's shape (en, en-US, de-CH, zh-Hant). */
 export function validLanguage(tag: string): boolean {
@@ -97,6 +109,7 @@ const LANGUAGE_SPECS = {
   setmainlanguage: { args: 1 },
   babelprovide: { args: 1 },
   DocumentMetadata: { args: 1 },
+  hypersetup: { args: 1 },
 };
 
 /**
@@ -111,6 +124,7 @@ export function documentLanguage(project: Project, scan: Pick<DocumentScan, 'fil
   let babel: string[] | null = null;
   let poly: { name: string; variant: string | null } | null = null;
   let provided: string | null = null;
+  let pdflang: string | null = null;
   for (const path of scan.filesRead) {
     const src = sources.get(path).src;
     if (src === null) continue;
@@ -121,6 +135,15 @@ export function documentLanguage(project: Project, scan: Pick<DocumentScan, 'fil
       else if (c.name === 'setdefaultlanguage' || c.name === 'setmainlanguage') {
         poly = { name: c.args[0].trim(), variant: keyValues(c.opts.join(',')).get('variant') ?? null };
       } else if (c.name === 'babelprovide' && opts.some((o) => o === 'main')) provided = c.args[0].trim();
+      // hyperref's pdflang, in \hypersetup or in its options: the tag as the document gives it (R5b.2-5 a).
+      const fromHyperref =
+        c.name === 'hypersetup'
+          ? keyValues(c.args[0]).get('pdflang')
+          : (c.name === 'usepackage' || c.name === 'RequirePackage') && splitList(c.args[0]).includes('hyperref')
+            ? keyValues(c.opts.join(',')).get('pdflang')
+            : undefined;
+      const tag = fromHyperref?.replace(/[{}]/g, '').trim();
+      if (tag) pdflang = tag;
     }
   }
   const resolve = (name: string, from: string): DocumentLanguage => {
@@ -148,6 +171,10 @@ export function documentLanguage(project: Project, scan: Pick<DocumentScan, 'fil
     ];
     const last = named[named.length - 1];
     if (last) return resolve(last, `from babel’s main language, ${last}`);
+  }
+  if (pdflang) {
+    if (validLanguage(pdflang)) return { tag: pdflang, from: 'from hyperref’s pdflang' };
+    return { tag: DEFAULT_LANGUAGE, from: `the default, because “${pdflang}” in hyperref’s pdflang is not a language tag; choose it below`, unmapped: pdflang };
   }
   return { tag: DEFAULT_LANGUAGE, from: 'the default, because the document sets no language' };
 }
@@ -245,7 +272,7 @@ export interface FixCard {
   /** Metadata and engine: true; package swaps and unicode-math: false (AC-37, AC-66). */
   acceptedByDefault: boolean;
   /** 'ready' when it changes something; otherwise nothing to accept, and `note` says why ("already done", AC-38). */
-  state: 'ready' | 'already-done' | 'not-needed';
+  state: 'ready' | 'already-done' | 'not-needed' | 'not-done';
   note?: string;
   changes: ShownChange[];
 }
@@ -264,6 +291,8 @@ export interface FixPlan {
   language: DocumentLanguage;
   cards: FixCard[];
   attention: AttentionItem[];
+  /** The main file's class when the \\DocumentMetadata line stops it (CR-15), or null. */
+  refused: string | null;
 }
 
 /** A change to one file's text: [from, to) becomes `text`. An insertion has from === to. */
@@ -293,6 +322,8 @@ interface CardWork {
 export interface PatchOptions {
   /** The language the person chose for \DocumentMetadata; else the document's own (AC-38). */
   language?: string;
+  /** The approved alt texts as edits (figures.ts, `altEdits`; AC-49). They are in the copy whatever cards are accepted. */
+  alts?: readonly { path: string; from: number; to: number; text: string }[];
 }
 
 interface SwapEntry {
@@ -594,10 +625,19 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
     // Where the scan found the line that turns tagging on: the main file, or a .tex file read above its
     // \documentclass; a second line would stop LaTeX (R4a.1-4, R4a.2-3).
     const has = scan.metadataFile;
+    const refused = metadataRefusal(scan);
     if (has) {
       card.state = 'already-done';
       card.what = 'Nothing: the document has its own \\DocumentMetadata line.';
       card.note = `Already done: ${has} has a \\DocumentMetadata line, which the patch leaves alone.`;
+    } else if (refused) {
+      // Not offered (CR-15): the copy gets no line, so it compiles as the original does.
+      card.state = 'not-done';
+      card.acceptedByDefault = false;
+      card.what = 'Nothing: the patched copy gets no \\DocumentMetadata line, so its PDF stays untagged.';
+      // The line's reason, for a card that does not add it (R5a.F-7 d).
+      card.why = 'Tagging needs this line, and this class stops with it.';
+      card.note = `Not done: ${refused.reason}.`;
     } else if (!f) {
       card.state = 'not-needed';
       card.what = `Nothing: ${main} is not saved as UTF-8.`;
@@ -626,6 +666,12 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
       state: 'ready',
       changes: [],
     };
+    // A class the line stops cannot be tagged, so the change of engine gains the copy nothing by default (R5a.F-2).
+    const stopped = metadataRefusal(scan);
+    if (stopped) {
+      card.acceptedByDefault = false;
+      card.why = 'This class cannot be tagged, so the copy has no tagging to gain from LuaLaTeX. Accept it only if you compile with LuaLaTeX anyway; pdfLaTeX needs these packages.';
+    }
     const w: CardWork = { card, inserts: [], ops: [] };
     for (const u of uses) {
       const pdftex = u.names.filter((n) => PDFTEX_ONLY.includes(n));
@@ -750,7 +796,13 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
     const item = attentionItem(f, swaps);
     // What a card would have done, but the file is not UTF-8 (or the options are shared): to do by hand (Manager's note 1).
     // Its title and message then do not say the patch adds it (Manager's minor 2 at 758efdb).
-    if (f.rule === 'no-document-metadata') {
+    if (f.rule === 'no-document-metadata' && metadata.card.state === 'not-done') continue;
+    if (f.rule === 'no-language' && metadata.card.state === 'not-done') {
+      // No \DocumentMetadata for this class (CR-15): the PDF's language comes from hyperref instead.
+      item.title = 'Set the language';
+      const cls = metadataRefusal(scan)?.cls ?? '';
+      item.advice = `Set the language by hand with \\hypersetup{pdflang=${language.tag}}, or your language's tag${LOADS_HYPERREF.has(cls) ? '' : ', after \\usepackage{hyperref}'}, since this class cannot take \\DocumentMetadata.`;
+    } else if (f.rule === 'no-document-metadata') {
       item.title = 'Add \\DocumentMetadata';
       item.message = 'There is no \\DocumentMetadata line, which switches tagging on.';
       item.advice = `Add this line by hand above \\documentclass: ${metadataLine(language.tag)}`;
@@ -780,7 +832,7 @@ function plan(project: Project, scan: DocumentScan, opts: PatchOptions, swaps: S
       advice: 'Save the file as UTF-8 in your editor, then drop the project again.',
     });
   }
-  return { plan: { mainFile: main, language, cards: work.map((w) => w.card), attention }, work, sources };
+  return { plan: { mainFile: main, language, cards: work.map((w) => w.card), attention, refused: metadataRefusal(scan)?.cls ?? null }, work, sources };
 }
 
 function changesOf(sources: Sources, ops: ListOp[]): ShownChange[] {
@@ -817,6 +869,8 @@ export interface PatchResult {
   diff: string;
   /** The ids of the cards that changed something. */
   applied: string[];
+  /** How many alt texts (or decorative marks) the copy got (AC-49). */
+  altTexts: number;
 }
 
 export const DIFF_NAME = 'tagging-doctor.diff';
@@ -825,7 +879,8 @@ export const DIFF_NAME = 'tagging-doctor.diff';
 export function applyFixes(project: Project, scan: DocumentScan, accepted: ReadonlySet<string>, opts: PatchOptions = {}, swaps: SwapEntry[] = SWAPS): PatchResult {
   const { work, sources } = plan(project, scan, opts, swaps);
   const chosen = work.filter((w) => w.card.state === 'ready' && accepted.has(w.card.id));
-  const edits = [...chosen.flatMap((w) => w.inserts), ...opsToEdits(sources, chosen.flatMap((w) => w.ops))];
+  const alts: Edit[] = (opts.alts ?? []).map((a) => ({ ...a, rank: 1000 }));
+  const edits = [...chosen.flatMap((w) => w.inserts), ...opsToEdits(sources, chosen.flatMap((w) => w.ops)), ...alts];
   const byPath = new Map<string, Edit[]>();
   for (const e of edits) {
     const list = byPath.get(e.path);
@@ -843,7 +898,12 @@ export function applyFixes(project: Project, scan: DocumentScan, accepted: Reado
     diffs.push(f.bom ? unifiedDiff(path, `\uFEFF${f.text}`, list.map((e) => ({ ...e, from: e.from + 1, to: e.to + 1 }))) : unifiedDiff(path, f.text, list));
   }
   const header = '# Tagging Doctor: the changes in this copy. To make them in your own copy: patch -p1 < tagging-doctor.diff\n';
-  return { files, diff: header + (diffs.length ? diffs.join('') : '# No changes: no fix was accepted.\n'), applied: chosen.filter((w) => w.inserts.length || w.ops.length).map((w) => w.card.id) };
+  return {
+    files,
+    diff: header + (diffs.length ? diffs.join('') : '# No changes: no fix was accepted.\n'),
+    applied: chosen.filter((w) => w.inserts.length || w.ops.length).map((w) => w.card.id),
+    altTexts: alts.length,
+  };
 }
 
 /**

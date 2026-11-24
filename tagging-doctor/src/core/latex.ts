@@ -225,6 +225,8 @@ function group(s: string, ends: Int32Array, j: number): [string, number] | null 
 export interface CommandSpec {
   args: number;
   bare?: boolean;
+  /** Takes a Beamer overlay, `<2->`, after its name (R5a.1-9 e). */
+  overlay?: boolean;
 }
 
 /**
@@ -252,6 +254,10 @@ export function findCommands(src: string, specs: Record<string, CommandSpec>): C
     if (src[i] === '*') {
       star = true;
       i++;
+    }
+    if (spec.overlay) {
+      const o = /^\s*<[^<>{}[\]\n]{1,40}>/.exec(src.slice(i, i + 48));
+      if (o) i += o[0].length;
     }
     const opts: string[] = [];
     const args: string[] = [];
@@ -302,8 +308,11 @@ export function splitList(s: string): string[] {
     .filter(Boolean);
 }
 
-/** Parses a key-value list at the top level: `alt={a, b}, width=3cm, artifact`. */
-export function keyValues(s: string): Map<string, string> {
+/**
+ * Parses a key-value list at the top level: `alt={a, b}, width=3cm, artifact`.
+ * `keepCase` keeps the keys as written (LaTeX's own keys are case sensitive, R4b.F-2); by default they are lower-cased.
+ */
+export function keyValues(s: string, keepCase = false): Map<string, string> {
   const out = new Map<string, string>();
   let depth = 0;
   let cur = '';
@@ -327,8 +336,9 @@ export function keyValues(s: string): Map<string, string> {
     const t = item.trim();
     if (!t) continue;
     const eq = t.indexOf('=');
-    if (eq < 0) out.set(t.toLowerCase(), '');
-    else out.set(t.slice(0, eq).trim().toLowerCase(), t.slice(eq + 1).trim());
+    const name = (k: string) => (keepCase ? k : k.toLowerCase());
+    if (eq < 0) out.set(name(t), '');
+    else out.set(name(t.slice(0, eq).trim()), t.slice(eq + 1).trim());
   }
   return out;
 }

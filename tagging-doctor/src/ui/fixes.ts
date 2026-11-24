@@ -10,9 +10,11 @@ import { leftOutLine } from '../core/report';
 import { applyFixes, patchedZip, patchedZipName, suggestFixes, validLanguage, type FixCard, type FixPlan, type PatchResult } from '../core/patch';
 import type { Project } from '../core/project';
 import type { DocumentScan } from '../core/scan';
+import { altEdits, figureAttention, listFigures, styleFigureAttention, type FigureItem } from '../core/figures';
+import { approvedDecisions, mountFigures, newChoice, newDrafting, type DraftingState, type FigureChoice, type FiguresOpts } from './figures';
 
 export const FIXES_INTRO = 'Each fix is made on a copy of your files, which stay as they are. Accept or skip each one, then download the copy.';
-export const NOTHING_UPLOADED = 'The fixes are made in your browser; nothing is uploaded.';
+export const NOTHING_UPLOADED = 'The fixes are made in your browser and upload nothing. A figure draft, below, is sent only when you ask for it.';
 
 /** What the compare slot can ask of the panel (src/ui/compare.ts). */
 export interface FixesCtx {
@@ -39,6 +41,10 @@ export interface FixesOpts {
   onClose: () => void;
   /** Draws "Compile patched and compare" into `slot`; present only when the build turns it on and the person may compile. */
   compareSlot?: (slot: HTMLElement, ctx: FixesCtx) => { cancel: () => void };
+  /** What the figure panel needs from the page (milestone 5a): whether a person is signed in, and stand-ins for tests. */
+  figures?: Omit<FiguresOpts, 'project' | 'figures' | 'choices' | 'onChange' | 'drafting'>;
+  /** Called when an approved or decorative figure changes, so a saved project's alt texts follow (AC-51). */
+  onAltsChange?: () => void;
 }
 
 /** The person's choices for one document: the cards they turned on or off, and the language. */
@@ -46,10 +52,20 @@ export interface FixesState {
   choices: Map<string, boolean>;
   language?: string;
   highlighted: string | null;
+  /** Each figure's text and choice (milestone 5a), by figure id. */
+  alts: Map<string, FigureChoice>;
+  /** The drafts out, so a panel drawn again knows them (R5a.2-1). */
+  drafting: DraftingState;
+  /**
+   * The figures a restore filled or noted from the signed-in person's saved
+   * project, each as the restore left it (R5b.1-1): on a change of person,
+   * those still so are emptied, as they came from that person's rows.
+   */
+  restored: Map<string, Pick<FigureChoice, 'text' | 'status' | 'note'>>;
 }
 
 export function newFixesState(): FixesState {
-  return { choices: new Map(), highlighted: null };
+  return { choices: new Map(), highlighted: null, alts: new Map(), drafting: newDrafting(), restored: new Map() };
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, text?: string): HTMLElementTagNameMap[K] {
@@ -57,6 +73,28 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string,
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
   if (text !== undefined) e.textContent = text;
   return e;
+}
+
+/**
+ * Takes back what a restore put on the page from the person's saved rows
+ * (R5b.1-1, R5b.2-1): a figure whose text is still the restored text is
+ * emptied, whatever its choice now (Skip or Decorative leave the text in the
+ * box); one whose text the person changed keeps it, without the restore's
+ * note. The choice is emptied in place, and marked, so a draft that is out
+ * for it still arrives (R5b.2-5 h). Returns the ids changed.
+ */
+export function forgetRestored(state: FixesState): string[] {
+  const out: string[] = [];
+  for (const [id, was] of state.restored) {
+    const c = state.alts.get(id);
+    if (!c) continue;
+    if (c.text === was.text) Object.assign(c, { ...newChoice(), error: c.error, forgotten: (c.forgotten ?? 0) + 1 });
+    else if (was.note && c.note === was.note) c.note = null;
+    else continue;
+    out.push(id);
+  }
+  state.restored.clear();
+  return out;
 }
 
 /** The ids the patch applies: accepted cards (by default or by choice) that change something. */
@@ -70,17 +108,21 @@ function changeWhere(c: { path: string; line: number }): string {
 }
 
 /** Draws the panel; returns `cancel`, which stops a compare in progress. */
-export function mountFixes(panel: HTMLElement, opts: FixesOpts): { cancel: () => void; redraw: () => void } {
+export function mountFixes(panel: HTMLElement, opts: FixesOpts): { cancel: () => void; redraw: () => void; say: (text: string) => void } {
   const { project, scan, state } = opts;
   let plan = suggestFixes(project, scan, { language: state.language });
   let compare: { cancel: () => void } | null = null;
   const slot = el('div', { class: 'compare-slot' });
+  const figures: FigureItem[] = listFigures(project, scan);
+  const styleFigures = styleFigureAttention(project, scan);
+  /** The approved alt texts as the patch's edits (AC-49). */
+  const alts = () => altEdits(project, figures, approvedDecisions(figures, state.alts));
 
   const ctx: FixesCtx = {
     project,
     scan,
     accepted: () => acceptedIds(plan, state),
-    patch: (ids = acceptedIds(plan, state)) => applyFixes(project, scan, ids, { language: state.language }),
+    patch: (ids = acceptedIds(plan, state)) => applyFixes(project, scan, ids, { language: state.language, alts: alts() }),
     cards: () => plan.cards,
     setAccepted: (id, on) => {
       state.choices.set(id, on);
@@ -97,6 +139,7 @@ export function mountFixes(panel: HTMLElement, opts: FixesOpts): { cancel: () =>
   const live = el('p', { class: 'fixes-status', role: 'status', 'aria-live': 'polite' });
   const cardsEl = el('ol', { class: 'fix-cards' });
   const attentionEl = el('section', { class: 'attention', 'aria-labelledby': 'attention-h' });
+  const figuresEl = el('section', { class: 'figures-panel', 'aria-labelledby': 'figures-h' });
   const actions = el('div', { class: 'fix-actions' });
 
   function drawCards() {
@@ -176,7 +219,8 @@ export function mountFixes(panel: HTMLElement, opts: FixesOpts): { cancel: () =>
   }
 
   function drawAttention() {
-    const list = plan.attention;
+    // The figures the patch cannot give alt text to are listed too (AC-49).
+    const list = [...plan.attention, ...[...figureAttention(figures), ...styleFigures].map((a) => ({ ...a, severity: 'warning' as const, advice: null }))];
     const head = el('h4', { id: 'attention-h' }, `Needs your attention (${list.length})`);
     if (!list.length) {
       attentionEl.replaceChildren(head, el('p', {}, 'Nothing: every finding of the scan is fixed by a card above.'));
@@ -209,7 +253,7 @@ export function mountFixes(panel: HTMLElement, opts: FixesOpts): { cancel: () =>
         return;
       }
       opts.downloadBlob(patchedZipName(project.name), new Blob([zip as BlobPart], { type: 'application/zip' }));
-      live.textContent = result.applied.length ? `Downloaded the copy with ${result.applied.length === 1 ? '1 fix' : `${result.applied.length} fixes`}.` : 'Downloaded the copy with no fix: none is accepted.';
+      live.textContent = downloadedWords(result.applied.length, result.altTexts);
     });
     const close = el('button', { type: 'button' }, 'Close');
     close.addEventListener('click', () => {
@@ -223,13 +267,40 @@ export function mountFixes(panel: HTMLElement, opts: FixesOpts): { cancel: () =>
     actions.replaceChildren(p, notes, ...(lo ? [el('p', { class: 'left-out' }, lo)] : []));
   }
 
-  panel.replaceChildren(h, intro, live, cardsEl, attentionEl, slot, actions);
+  panel.replaceChildren(h, intro, live, cardsEl, attentionEl, figuresEl, slot, actions);
   drawCards();
   drawAttention();
   drawActions();
+  const figs = mountFigures(figuresEl, {
+    signedIn: () => false,
+    ...opts.figures,
+    project,
+    figures,
+    choices: state.alts,
+    drafting: state.drafting,
+    // Only when the copy really gets no line: a deck with its own line keeps it (R5a.F-7 a).
+    untagged: plan.cards.find((c) => c.kind === 'metadata')?.state === 'not-done' ? plan.refused : null,
+    onChange: () => opts.onAltsChange?.(),
+  });
   if (opts.compareSlot) compare = opts.compareSlot(slot, ctx);
   return {
-    cancel: () => compare?.cancel(),
+    cancel: () => {
+      figs.cancel();
+      compare?.cancel();
+    },
     redraw: drawCards,
+    // Said in the figure panel, where the texts are (AC-51); in the fix panel's line when there are no figures.
+    say: (text) => {
+      if (figures.length) figs.say(text);
+      else live.textContent = text;
+    },
   };
+}
+
+/** What the download put in the copy, in words. */
+export function downloadedWords(fixes: number, altTexts: number): string {
+  const parts: string[] = [];
+  if (fixes) parts.push(fixes === 1 ? '1 fix' : `${fixes} fixes`);
+  if (altTexts) parts.push(altTexts === 1 ? '1 alt text' : `${altTexts} alt texts`);
+  return parts.length ? `Downloaded the copy with ${parts.join(' and ')}.` : 'Downloaded the copy with no fix: none is accepted.';
 }

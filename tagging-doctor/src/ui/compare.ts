@@ -243,7 +243,11 @@ export function mountCompare(slot: HTMLElement, deps: CompareDeps, ctx: FixesCtx
   /** AC-43: one button per fix in the copy, to turn it off and compile the copy again. */
   function retryList(): HTMLElement[] {
     const on = ctx.cards().filter((c) => ctx.accepted().has(c.id));
-    if (!on.length) return [el('p', {}, 'No fix is accepted, so the original itself does not compile here.')];
+    if (!on.length) {
+      // With approved alt texts the copy is not the original (R5a.1-11 c).
+      const alts = ctx.patch().altTexts;
+      return [el('p', {}, alts ? 'No fix is accepted, so the copy differs from the original only by its alt texts. Take an approval back (edit its text) and compile again to find the one that stops it.' : 'No fix is accepted, so the original itself does not compile here.')];
+    }
     const ul = el('ul', { class: 'retry-list' });
     for (const c of on) {
       const li = el('li');
