@@ -154,11 +154,10 @@ function documentHtml(d: ReportDocument, level: number): string {
   out.push(`<p>${figuresLine(fg)}</p>`);
   const missing = fg.list.filter((x) => !x.hasAlt);
   if (missing.length) {
-    out.push('<table><caption>Figures without alt text</caption><thead><tr><th scope="col">Kind</th><th scope="col">Where</th><th scope="col">File</th></tr></thead><tbody>');
-    for (const x of missing) {
-      out.push(`<tr><td>${x.kind === 'image' ? 'Image' : 'TikZ picture'}</td><td>${escapeHtml(where(x))}</td><td>${escapeHtml(x.file ?? '')}</td></tr>`);
-    }
-    out.push('</tbody></table>');
+    const rows = missing.map((x) => `<tr><td>${x.kind === 'image' ? 'Image' : 'TikZ picture'}</td><td>${escapeHtml(where(x))}</td><td>${escapeHtml(x.file ?? '')}</td></tr>`);
+    // Named with the document, so the regions of a report of several documents differ (R6.2-4 a).
+    const name = `Figures without alt text in ${d.mainFile}`;
+    out.push(regionHtml(name, `<table><caption>${escapeHtml(name)}</caption><thead><tr><th scope="col">Kind</th><th scope="col">Where</th><th scope="col">File</th></tr></thead><tbody>${rows.join('')}</tbody></table>`));
   }
   for (const g of ['blocker', 'warning', 'unknown', 'ok'] as Group[]) {
     const list = d.findings.filter((f) => f.severity === g);
@@ -173,17 +172,23 @@ function documentHtml(d: ReportDocument, level: number): string {
   return out.join('\n');
 }
 
+/** A table's box as markup (the page's `tableRegion`): it scrolls sideways on its own, named and focusable (D-165, R6.1-2). `label` is plain text. */
+export function regionHtml(label: string, tableHtml: string): string {
+  return `<div class="table-wrap" role="region" aria-label="${escapeHtml(label)}" tabindex="0">${tableHtml}</div>`;
+}
+
 export const REPORT_CSS = `
 body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#1a1a1a;background:#fff}
 main{max-width:52rem;margin:0 auto;padding:1.5rem 1rem}
 h1{font-size:1.6rem;margin:0 0 .5rem}h2{font-size:1.3rem;margin:1.5rem 0 .5rem}h3{font-size:1.1rem;margin:1.25rem 0 .4rem}h4{font-size:1rem}
-table{border-collapse:collapse;margin:.5rem 0;width:100%}th,td{border:1px solid #767676;padding:.3rem .5rem;text-align:left;vertical-align:top}caption{text-align:left;font-weight:600}
+table{border-collapse:collapse;margin:.5rem 0;width:100%}th,td{border:1px solid #767676;padding:.3rem .5rem;text-align:left;vertical-align:top;overflow-wrap:break-word}caption{text-align:left;font-weight:600}
+.table-wrap{overflow-x:auto}.table-wrap:focus-visible{outline:3px solid #1a4fa0;outline-offset:2px}
 ul.findings{list-style:none;padding:0}li.finding{border-left:4px solid #767676;padding:.25rem .75rem;margin:.6rem 0}
 li.blocker{border-color:#b3261e}li.warning{border-color:#8a5300}li.unknown{border-color:#4a4a8a}li.ok{border-color:#1e6b34}
 .where{color:#444;font-size:.9rem}.excerpt{background:#f4f4f4;padding:.3rem .5rem;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.85rem}
 .source,.read,.meta{color:#444;font-size:.9rem}.caveat{border:1px solid #767676;padding:.5rem .75rem}
-a{color:#1a4fa0}p{overflow-wrap:anywhere}
-@media print{a{color:inherit}tr{break-inside:avoid}}
+a{color:#1a4fa0}p,h1,h2,h3,h4{overflow-wrap:anywhere}
+@media print{a{color:inherit}tr{break-inside:avoid}.table-wrap{overflow:visible}th,td{padding:.2rem .35rem;font-size:.85rem}}
 `;
 
 /** One HTML file with inline styles and no scripts, images or external loads (AC-11). */
@@ -204,11 +209,8 @@ export function reportHtml(report: ScanReport): string {
   }
   if (many) {
     body.push(`<h2>Summary of ${report.documents.length} documents</h2>`);
-    body.push('<table><thead><tr><th scope="col">Document</th><th scope="col">Verdict</th><th scope="col">Blockers</th><th scope="col">Warnings</th></tr></thead><tbody>');
-    for (const d of report.documents) {
-      body.push(`<tr><td>${escapeHtml(d.mainFile)}</td><td>${escapeHtml(d.summary.verdict)}</td><td>${d.summary.blockers}</td><td>${d.summary.warnings}</td></tr>`);
-    }
-    body.push('</tbody></table>');
+    const rows = report.documents.map((d) => `<tr><td>${escapeHtml(d.mainFile)}</td><td>${escapeHtml(d.summary.verdict)}</td><td>${d.summary.blockers}</td><td>${d.summary.warnings}</td></tr>`);
+    body.push(regionHtml('Documents', `<table><caption>Documents</caption><thead><tr><th scope="col">Document</th><th scope="col">Verdict</th><th scope="col">Blockers</th><th scope="col">Warnings</th></tr></thead><tbody>${rows.join('')}</tbody></table>`));
   }
   for (const d of report.documents) body.push(documentHtml(d, 2));
   return [

@@ -60,7 +60,7 @@ describe('AC-11: the standalone HTML report', () => {
 
   it('lists the figures without alt text in a table with header cells', async () => {
     const doc = new DOMParser().parseFromString(reportHtml(await reportOf('figures')), 'text/html');
-    const t = [...doc.querySelectorAll('table')].find((x) => x.caption?.textContent === 'Figures without alt text');
+    const t = [...doc.querySelectorAll('table')].find((x) => x.caption?.textContent?.startsWith('Figures without alt text in '));
     expect(t?.querySelectorAll('th[scope=col]')).toHaveLength(3);
     expect(t?.querySelectorAll('tbody tr')).toHaveLength(4);
   });

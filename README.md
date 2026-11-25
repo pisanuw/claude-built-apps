@@ -124,6 +124,7 @@ addresses for now.
 | [Where Does It Say](https://where-does-it-say.hintwise.org/) ([code](./where-does-it-say)) | Questions about the syllabus answered only with verbatim quotes, or a refusal. |
 | [Code Analogy Forge](https://code-analogy-forge.hintwise.org/) ([code](./code-analogy-forge)) | Three analogies for a piece of code or a CS concept, pitched at the audience you choose. |
 | [Lewis Structure Alt Text](https://lewis-alt-text.hintwise.org/) ([code](./lewis-alt-text)) | Screen-reader alt text for Lewis structures and related chemistry figures that describes what is drawn without giving away the answer. |
+| [Tagging Doctor](https://tagging-doctor.hintwise.org/) ([code](./tagging-doctor)) | For LaTeX course materials and the April 2027 accessibility deadline: see in your browser what stops each document from producing a tagged PDF, take the fixes and the alt texts you approve on a copy, then compile it and check it against PDF/UA-2. |
 | [Dossier Comment Reflector](https://dossier-comment-reflector.hintwise.org/) ([code](./dossier-comment-reflector)) | Years of student evaluation comments in; themes, before-and-after evidence for your course changes, fair quotes and a page-limited tenure reflection draft out. |
 | [Research Map](https://research-map.hintwise.org/) ([code](https://github.com/pisan-labs/research-map)) | A school's faculty as a map where people with similar research sit close together; search a topic or paste a project idea to find possible advisors and collaborators. Live for UW Bothell STEM and UW Tacoma. |
 

@@ -921,8 +921,25 @@ function joinLines(text: string, edits: Edit[]): Edit[] {
     const lineStart = text.lastIndexOf('\n', e.from - 1) + 1;
     // A removal that starts on an earlier line counts too, when only blanks stand before it on its own line
     // (`\usepackage[` then `T1]{fontenc}\begin{document}`, R4b.1-7 b): its lines go, so the insertion takes the line.
-    const startsClean = (r: Edit) => r.from >= lineStart || !text.slice(text.lastIndexOf('\n', r.from - 1) + 1, r.from).trim();
-    const removals = edits.filter((r) => r.to > r.from && !r.text && r.to > lineStart && r.to <= e.from && startsClean(r)).sort((x, y) => x.from - y.from);
+    // What stands before it on its own line is read with the removals there made too, so two wrapped commands
+    // in a row (`\usepackage[`, `utf8]{inputenc}\usepackage[`, `T1]{fontenc}\begin{document}`) count (R4b.2-5 c).
+    const all = edits.filter((r) => r.to > r.from && !r.text);
+    const startsClean = (r: Edit, depth = 0): boolean => {
+      if (r.from >= lineStart) return true;
+      const ls = text.lastIndexOf('\n', r.from - 1) + 1;
+      if (!text.slice(ls, r.from).trim()) return true;
+      if (depth >= 4) return false;
+      const before = all.filter((q) => q !== r && q.to > ls && q.to <= r.from).sort((x, y) => x.from - y.from);
+      let left = '';
+      let k = ls;
+      for (const q of before) {
+        if (!startsClean(q, depth + 1)) return false;
+        if (q.from > k) left += text.slice(k, q.from);
+        k = Math.max(k, q.to);
+      }
+      return !(left + text.slice(k, r.from)).trim();
+    };
+    const removals = all.filter((r) => r.to > lineStart && r.to <= e.from && startsClean(r)).sort((x, y) => x.from - y.from);
     if (!removals.length) return e;
     let left = '';
     let k = lineStart;

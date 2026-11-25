@@ -943,11 +943,17 @@ export function scanDocument(project: Project, mainFile: string, index: StatusIn
 /** The main file's class when the line stops it: by its name and options, or a class the scan found it loads (R5a.F-3). */
 function refusedOf(ctx: Ctx): string | null {
   const name = ctx.mainClass?.name ?? '';
-  const local = ctx.filesRead.some((p) => p === `${name}.cls` || p.endsWith(`/${name}.cls`));
-  const own = ctx.mainClass ? stoppedClass(name, ctx.mainClass.options, local) : null;
+  const isLocal = (n: string) => ctx.filesRead.some((p) => p === `${n}.cls` || p.endsWith(`/${n}.cls`));
+  const own = ctx.mainClass ? stoppedClass(name, ctx.mainClass.options, isLocal(name)) : null;
   if (own) return own;
-  const found = ctx.findings.find((f) => f.kind === 'class' && f.package && Object.hasOwn(METADATA_STOPS, f.package));
-  return found?.package ?? null;
+  // Each class the scan found loaded is asked by the same rule as the main one, so a project's own
+  // `mybeamer.cls` that loads `ctexbeamer` is stopped too (R5b.3-4 a).
+  for (const f of ctx.findings) {
+    if (f.kind !== 'class' || !f.package) continue;
+    const hit = stoppedClass(f.package, [], isLocal(f.package));
+    if (hit) return hit;
+  }
+  return null;
 }
 
 /** The plain-words form of a finding's source comment. */

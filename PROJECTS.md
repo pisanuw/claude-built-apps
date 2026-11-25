@@ -1308,3 +1308,39 @@ Playwright walkthroughs. The seed inbox, Shopify and scheduled paths have run
 only against scripted fakes so far.
 Live: [delivery-canary.hintwise.org](https://delivery-canary.hintwise.org).
 See its [README](./delivery-canary/README.md).
+
+
+### [`tagging-doctor/`](./tagging-doctor)
+
+Tagging Doctor for LaTeX courses: for faculty in math, statistics, computer
+science, physics and engineering who write their notes and problem sets in
+LaTeX, and for the accessibility offices and instructional designers who must
+get them into tagged, accessible PDFs before the April 2027 ADA Title II
+deadline. The third weekly build (seven build days, 19 to 24 November 2026),
+built under the HintWise workflow, with a written spec, code reviews and
+acceptance checks by separate roles, on the shared platform. A scan in the browser reads a dropped zip or `.tex` file with its own
+zip reader (limits checked before anything is unpacked, student-record files
+and folders never read), follows `\input`, `\include`, `\subfile` and the
+project's own class and style files, and looks each class and package up in a
+converted copy of the LaTeX Project's tagging status list, so every blocker
+comes with its file, line, the Project's own words and a fix. Fix cards then
+build a copy in the browser: the `\DocumentMetadata` line for PDF/UA-2 in the
+document's language, LuaLaTeX and the pdfTeX-only packages removed, tested
+package swaps, and the alt texts the person approves (typed, or drafted from the
+figure's image and its surrounding text with their own Anthropic key or through
+the HintWise LLM gateway), with a unified diff that applies with `patch`.
+Signed in, the copy and the original are compiled with LuaLaTeX and checked
+with veraPDF against PDF/UA-2 by a checker mounted in backend-hub, which became
+a Docker image with TeX Live for it: a separate TeX user, no shell escape, no
+network for any tool a job runs, one job at a time, time and memory caps, and
+hostile fixtures that try to read other jobs, the environment and the network.
+Courses, saved scans, checks and approved alt texts live in schema
+`app_tagging_doctor` with row level security; approved texts come back on a new
+version of a project by each figure file's SHA-256, and a printable course
+report gives each project's verdict, latest check and alt-text coverage. 871
+vitest tests at 99% statement coverage, the checker's own tests and image tests
+on the hub's image, and a Playwright walkthrough with axe-core on every screen.
+The fixes do not make every document pass: the test lecture notes go from
+4,785 failed checks to 181, all of one clause that needs work by hand.
+Live: [tagging-doctor.hintwise.org](https://tagging-doctor.hintwise.org).
+See its [README](./tagging-doctor/README.md).

@@ -1,0 +1,35 @@
+# CI for the standalone mirror of this app in the pisan-labs org.
+# GitHub ignores this file inside the monorepo (only the root .github runs
+# there); it becomes active when the mirror workflow puts this folder at the
+# root of pisan-labs/tagging-doctor.
+#
+# The mirror holds this folder alone. The checker (tagging-doctor-worker/,
+# mounted in backend-hub/) stays in the monorepo, so here:
+# - the typecheck covers the app's own tsconfig, not image-test/, whose
+#   files import the checker's test harness;
+# - the three unit tests that read the checker's fixtures are skipped (they
+#   check for the folder), and the image tests (`npm run test:image`) are
+#   not run: they need backend-hub's Docker image.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc -p tsconfig.json --noEmit
+      - run: npm run coverage
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e

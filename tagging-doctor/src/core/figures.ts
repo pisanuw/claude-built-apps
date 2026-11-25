@@ -411,7 +411,8 @@ export function tikzReads(project: Project, source: string, mainDir: string, own
       out.push(found ?? `missing:${name}`);
       if (found && !seen.has(found) && depth < 4) {
         seen.add(found);
-        const t = project.text(found);
+        // Read without a warning: the scan's report is already shown (R5b.3-3).
+        const t = project.peekText(found);
         if (t !== null) visit(t, dirOf(found), depth + 1);
       }
     }

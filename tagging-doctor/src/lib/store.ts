@@ -77,6 +77,9 @@ export interface Db {
   remove(table: Table, id: string): Promise<void>;
 }
 
+/** The columns of a check the course report needs to find each project's latest (R5b.1-8 f). */
+export const JOB_TIME_COLUMNS = 'id, project_id, finished_at, created_at';
+
 /** The columns of a scan the course pages need: no findings (R2.1-6). */
 export const SCAN_SUMMARY_COLUMNS = 'id, project_id, created_at, data_as_of, summary';
 
@@ -274,10 +277,23 @@ export class CourseStore {
     return sortByCreated(await this.db.select<ScanSummaryRow>('scans', { project_id: projectIds }, SCAN_SUMMARY_COLUMNS));
   }
 
-  /** The checks of these projects (AC-52), oldest first. */
-  async jobsOf(projectIds: string[]): Promise<JobRow[]> {
+  /**
+   * The latest check of each of these projects (AC-52), oldest first: the
+   * times of every check, then the whole row of each project's latest only
+   * (R5b.1-8 f). Latest is by when it finished, else when it was saved, as
+   * the course report's `latestCheck` says.
+   */
+  async latestJobs(projectIds: string[]): Promise<JobRow[]> {
     if (!projectIds.length) return [];
-    return sortByCreated(await this.db.select<JobRow>('jobs', { project_id: projectIds }));
+    const times = await this.db.select<Pick<JobRow, 'id' | 'project_id' | 'finished_at' | 'created_at'>>('jobs', { project_id: projectIds }, JOB_TIME_COLUMNS);
+    const at = (j: Pick<JobRow, 'finished_at' | 'created_at'>) => j.finished_at ?? j.created_at;
+    const latest = new Map<string, (typeof times)[number]>();
+    for (const j of times) {
+      const cur = latest.get(j.project_id);
+      if (!cur || at(j) > at(cur) || (at(j) === at(cur) && j.created_at > cur.created_at)) latest.set(j.project_id, j);
+    }
+    const ids = [...latest.values()].map((j) => j.id);
+    return ids.length ? sortByCreated(await this.db.select<JobRow>('jobs', { id: ids })) : [];
   }
 
   /** The saved projects of a name and main file, in any course: where a new drop's alt texts may come from (AC-51). */

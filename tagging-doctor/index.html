@@ -13,6 +13,8 @@
       #app { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem; }
       .top-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
       .top-bar h1 { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: 1.6rem; color: var(--accent); }
+      /* A heading can be a long project name with no space: it wraps rather than widen the page (R6.1-2). */
+      h2, h3, h4 { overflow-wrap: anywhere; }
       h2 { font-size: 1.3rem; margin: 1.5rem 0 0.5rem; }
       h3 { font-size: 1.1rem; margin: 1.25rem 0 0.4rem; }
       .lede { font-size: 1.05rem; }
@@ -28,9 +30,11 @@
       .doc-list { list-style: none; padding: 0; display: grid; gap: 0.4rem; }
       .doc-list button { max-width: 100%; overflow-wrap: anywhere; text-align: left; }
       table { border-collapse: collapse; width: 100%; margin: 0.5rem 0; }
-      th, td { border: 1px solid var(--line); padding: 0.3rem 0.5rem; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+      /* A cell breaks between words; a table wider than the screen scrolls in its own region (AC-54). */
+      th, td { border: 1px solid var(--line); padding: 0.3rem 0.5rem; text-align: left; vertical-align: top; overflow-wrap: break-word; }
       caption { text-align: left; font-weight: 600; }
       .table-wrap { overflow-x: auto; }
+      .table-wrap:focus-visible { outline: 3px solid #1a4fa0; outline-offset: 2px; }
       ul.findings { list-style: none; padding: 0; }
       li.finding { border-left: 4px solid var(--line); padding: 0.25rem 0.75rem; margin: 0.6rem 0; }
       li.blocker { border-color: #b3261e; } li.warning { border-color: #8a5300; } li.unknown { border-color: #4a4a8a; } li.ok { border-color: #1e6b34; }
@@ -65,6 +69,7 @@
       li.figure-item.approved, li.figure-item.decorative, li.figure-item.has-alt { border-left-color: #1e6b34; }
       li.figure-item h4 { margin: 0.4rem 0; overflow-wrap: anywhere; }
       li.figure-item .where, li.figure-item .no-preview { margin: 0.2rem 0; }
+      li.figure-item .thumb-wait { width: min(12rem, 100%); height: 6rem; border: 1px dashed var(--line); }
       li.figure-item img.thumb { display: block; max-width: min(12rem, 100%); max-height: 9rem; object-fit: contain; border: 1px solid var(--line); background: #fff; }
       li.figure-item textarea { display: block; width: 100%; box-sizing: border-box; font: inherit; margin: 0.2rem 0; }
       li.figure-item .help.long { color: #8a4b00; font-weight: 600; }
@@ -83,11 +88,20 @@
       @media print {
         body.printing-report .top-bar, body.printing-report .no-print { display: none !important; }
         body.printing-report #app { max-width: none; padding: 0; }
+        .table-wrap { overflow: visible; }
+        th, td { padding: 0.2rem 0.35rem; font-size: 0.85rem; }
       }
     </style>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <!-- Drawn before the script runs, and what a reader without JavaScript gets; the script replaces it (AC-53, AC-57). -->
+      <header class="top-bar"><h1>Tagging Doctor</h1></header>
+      <main>
+        <p class="lede">Find out what stops your LaTeX course materials from producing a tagged PDF, file by file, before the April 2027 deadline.</p>
+        <noscript><p class="note">Tagging Doctor scans your files in your browser, so it needs JavaScript. Turn JavaScript on for this site and reload the page.</p></noscript>
+      </main>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

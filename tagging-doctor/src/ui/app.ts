@@ -22,10 +22,10 @@ import { mountCompile, KEPT, type CompileDeps } from './compile';
 import { forgetRestored, mountFixes, newFixesState, type FixesState } from './fixes';
 import { newChoice, type FiguresOpts } from './figures';
 import { listFigures, type FigureItem } from '../core/figures';
-import { dirOf } from '../core/latex';
 import { altCopyOf, altSync, figureKeys, restoreAlts, restoredWords, type FigureKey } from '../lib/alts';
 import type { CompareDeps, compareSlot as CompareSlot } from './compare';
 import { KEEP_HASH, renderCourse, renderCourseReport, renderCourses, renderKeep, renderNotFound, renderProject, renderSaveDialog, type PageCtx } from './pages';
+import { tableRegion } from './table-region';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -49,6 +49,11 @@ export interface Account {
   store(): CourseStore;
   /** The signed-in person's access token, for the checker (milestone 3b). */
   token?(): Promise<string | null>;
+  /**
+   * Set when the account is still loading as the page is drawn (AC-53): false
+   * once it is clear none came, and the page then offers no Save (R2.1-7).
+   */
+  loaded?: Promise<boolean>;
 }
 
 export interface AppDeps {
@@ -187,7 +192,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   let newestPanel: 'compile' | 'fixes' = 'compile';
   const fixesPanel = el('section', { id: 'fixes', class: 'fixes-panel', 'aria-labelledby': 'fixes-h' });
   fixesPanel.hidden = true;
-  let fixesRun: { cancel: () => void; say: (text: string) => void } | null = null;
+  let fixesRun: ReturnType<typeof mountFixes> | null = null;
   /** The document the fix panel is for, and each document's fix choices in this drop (milestone 4). */
   let fixesFor: string | null = null;
   let fixStates = new Map<string, FixesState>();
@@ -203,7 +208,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   const altChains = new Map<string, Promise<void>>();
   /** Finished jobs of this drop whose scan is not saved yet: saving keeps them (AC-27, "Save to keep this result"). */
   let unsavedJobs = new Map<string, { job: CheckerJob; kind: JobRecord['kind'] }[]>();
-  const account = deps.account;
+  let account = deps.account;
   let signedIn = false;
   /** The signed-in person's id; the dialog and the pages are redrawn only when it changes (R2.1-2). */
   let userId: string | null = null;
@@ -339,8 +344,10 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
         else if (remembered?.doc && mains.includes(remembered.doc)) scanOne(remembered.doc);
       }
       const secs = ((deps.now().getTime() - started) / 1000).toFixed(1);
+      // The verdict is in the polite status line too, so a screen reader hears the result (AC-55).
+      const one = scans.size === 1 ? [...scans.values()][0] : null;
       status.textContent = scans.size
-        ? `Scan finished in ${secs} s: ${scans.size === 1 ? 'one document' : `${scans.size} documents`}.`
+        ? `Scan finished in ${secs} s: ${one ? `one document, ${one.summary.verdict.replace(/^No /, 'no ')}` : `${scans.size} documents`}.`
         : `This zip holds ${mains.length} documents. Choose one, or scan all.`;
     } catch (e) {
       if (stale()) return;
@@ -469,7 +476,8 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       );
       const td = el('td');
       const b = el('button', { type: 'button', 'data-show': m }, m === shown ? 'Shown below' : 'Show details');
-      b.setAttribute('aria-label', `Show details of ${m}`);
+      // The name holds the visible label, so the button can be named by voice (R6.1-3).
+      b.setAttribute('aria-label', m === shown ? `Shown below: details of ${m}` : `Show details of ${m}`);
       b.addEventListener('click', guarded(() => scanOne(m)));
       td.append(b);
       tr.append(td);
@@ -482,7 +490,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     allEl.replaceChildren(
       el('h2', { id: 'all-h' }, 'All documents'),
       el('p', {}, `${total} of ${mains.length} documents have blockers.`),
-      wrapTable(table),
+      tableRegion(table),
       downloads(),
     );
     if (keepDialog) allEl.querySelector('.downloads')?.after(savePanel);
@@ -538,7 +546,8 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   // ---- Compile and check (milestone 3b) ---------------------------------------
 
   function openCompile(after: HTMLElement) {
-    if (!deps.compile || !account || !project || !shown) return;
+    const acc = account;
+    if (!deps.compile || !acc || !project || !shown) return;
     const main = shown;
     hideCompile();
     after.after(compilePanel);
@@ -547,7 +556,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     newestPanel = 'compile';
     compileRun = mountCompile(
       compilePanel,
-      { ...deps.compile, token: async () => (account.token ? account.token() : null), session: deps.session },
+      { ...deps.compile, token: async () => (acc.token ? acc.token() : null), session: deps.session },
       {
         project,
         mainFile: main,
@@ -618,8 +627,6 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       restoreAsked.add(asked);
       void restoreFor(main);
     }
-    const compare = deps.compare && deps.compile && account && signedIn ? deps.compare : null;
-    const compile = deps.compile;
     fixesRun = mountFixes(fixesPanel, {
       project,
       scan: scans.get(main) as DocumentScan,
@@ -628,18 +635,25 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
       onClose: hideFixes,
       figures: { ...deps.figures, signedIn: () => signedIn },
       onAltsChange: () => void syncAlts(main),
-      compareSlot:
-        compare && compile && account
-          ? compare.compareSlot({
-              checker: compile.checker,
-              token: async () => (account.token ? account.token() : null),
-              session: deps.session,
-              original: () => originals.get(main) ?? null,
-              rememberOriginal: (job) => void originals.set(main, job),
-              keep: (job, kind) => keepJob(main, job, kind),
-            } satisfies CompareDeps)
-          : undefined,
+      compareSlot: compareSlotFor(main),
     });
+  }
+
+  /** The compare part of the fix panel for `main`: only when the build has it and the person is signed in. */
+  function compareSlotFor(main: string) {
+    const compare = deps.compare && deps.compile && account && signedIn ? deps.compare : null;
+    const compile = deps.compile;
+    const acc = account;
+    return compare && compile && acc
+      ? compare.compareSlot({
+          checker: compile.checker,
+          token: async () => (acc.token ? acc.token() : null),
+          session: deps.session,
+          original: () => originals.get(main) ?? null,
+          rememberOriginal: (job) => void originals.set(main, job),
+          keep: (job, kind) => keepJob(main, job, kind),
+        } satisfies CompareDeps)
+      : undefined;
   }
 
   function hideFixes() {
@@ -662,7 +676,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     let s = figureSlots.get(main);
     if (!s) {
       const figures = listFigures(project as Project, scans.get(main) as DocumentScan);
-      s = figureKeys(project as Project, figures, undefined, dirOf(main)).then((keys) => ({ figures, keys }));
+      s = figureKeys(project as Project, figures).then((keys) => ({ figures, keys }));
       figureSlots.set(main, s);
     }
     return s;
@@ -929,6 +943,7 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     if (scannedAll) {
       for (const b of allEl.querySelectorAll<HTMLButtonElement>('button[data-show]')) {
         b.textContent = b.dataset.show === main ? 'Shown below' : 'Show details';
+        b.setAttribute('aria-label', b.dataset.show === main ? `Shown below: details of ${main}` : `Show details of ${b.dataset.show}`);
       }
     }
     const s = scans.get(main) as DocumentScan;
@@ -1060,6 +1075,13 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
     if (gen === routeGen) focusHeading();
   }
 
+  // An account that did not load is no account: Save goes, as for a build without one (R2.1-7, AC-53).
+  void account?.loaded?.then((ok) => {
+    if (ok) return;
+    account = undefined;
+    for (const b of root.querySelectorAll('button.save')) b.remove();
+    if (saveItems) hideSave();
+  });
   if (account) {
     account.mountSignIn($('signin'));
     let first = true;
@@ -1095,13 +1117,19 @@ export function mountApp(root: HTMLElement, deps: AppDeps) {
   if (typeof window !== 'undefined') window.addEventListener('hashchange', () => void route(location.hash));
   if (typeof location !== 'undefined' && location.hash) void route(location.hash);
 
-  return { handleFile, route };
-}
+  /**
+   * The compare's script, when it arrives after the page is drawn (AC-53, R6.1-5): an open fix
+   * panel gets it in its compare slot, for a signed-in person.
+   */
+  function setCompare(m: NonNullable<AppDeps['compare']>): void {
+    deps.compare = m;
+    // Added to the panel that is there, not drawn again, so a box being typed in and a Draft all
+    // going on are left alone; for a person who gets no compare nothing happens (R6.2-2).
+    const slot = fixesFor !== null ? compareSlotFor(fixesFor) : undefined;
+    if (slot) fixesRun?.addCompare(slot);
+  }
 
-function wrapTable(table: HTMLElement): HTMLElement {
-  const d = el('div', { class: 'table-wrap' });
-  d.append(table);
-  return d;
+  return { handleFile, route, setCompare };
 }
 
 /** The browser's download of a text file. */

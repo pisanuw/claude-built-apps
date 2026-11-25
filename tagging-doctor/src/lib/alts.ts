@@ -16,7 +16,6 @@
  * and is not saved.
  */
 import { altEdits, normalizeAlt, type AltDecision, type FigureItem } from '../core/figures';
-import { dirOf, resolvePath } from '../core/latex';
 import type { Project } from '../core/project';
 import type { AltCopy } from '../core/saved';
 import type { FigureChoice } from '../ui/figures';
@@ -79,35 +78,23 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string> {
   return [...d].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-/**
- * The project files a TikZ picture's source reads (`\\input`, `\\include`,
- * `\\includegraphics`, a pgfplots `table` or `file`), as they resolve from the
- * main file's folder or the picture's own, and the names it reads that are
- * not in the project (R5b.1-5).
- */
-export function tikzInputs(project: Pick<Project, 'has'>, source: string, mainDir: string, ownDir: string): string[] {
-  const out: string[] = [];
-  const re = /\\(?:input|include|includegraphics|pgfimage)\*?\s*(?:\[[^\]]*\]\s*)?\{([^{}]+)\}|\btable\s*(?:\[[^\]]*\]\s*)?\{([^{}]+)\}|\bfile\s*\{([^{}]+)\}/g;
-  for (const m of source.matchAll(re)) {
-    const name = (m[1] ?? m[2] ?? m[3]).trim();
-    if (!name || name.includes('\\') || name.includes('#')) continue;
-    let found: string | null = null;
-    for (const dir of [mainDir, ownDir]) {
-      for (const cand of [name, `${name}.tex`]) {
-        const r = resolvePath(dir, cand);
-        if (!found && r.kind === 'inside' && project.has(r.path)) found = r.path;
-      }
-    }
-    out.push(found ?? `missing:${name}`);
-  }
-  return out;
-}
-
 /** Each figure's slot and fingerprint, by figure id; figures with none are left out. */
-export async function figureKeys(project: Project, figures: FigureItem[], digest: Digest = sha256Hex, mainDir = ''): Promise<Map<string, FigureKey>> {
+export async function figureKeys(project: Project, figures: FigureItem[], digest: Digest = sha256Hex): Promise<Map<string, FigureKey>> {
   const out = new Map<string, FigureKey>();
   const seen = new Map<string, number>();
   const hashes = new Map<string, Promise<string | null>>();
+  // A file several pictures read is unpacked once (R6.2-4 d); null for one that cannot be read.
+  const read = new Map<string, Uint8Array | null>();
+  const bytesOnce = (path: string): Uint8Array | null => {
+    if (!read.has(path)) {
+      try {
+        read.set(path, project.bytes(path));
+      } catch {
+        read.set(path, null);
+      }
+    }
+    return read.get(path) ?? null;
+  };
   const fileHash = (path: string) => {
     let h = hashes.get(path);
     if (!h) {
@@ -130,16 +117,11 @@ export async function figureKeys(project: Project, figures: FigureItem[], digest
       if (f.source === undefined || f.inDefinition) continue;
       base = `${f.path}#tikz`;
       // Its own lines, and the bytes of each file they read, so a changed data file is a changed picture (R5b.1-5).
+      // The files are listFigures' `tikzReads`, the one reader of that rule (R5b.3-4 e).
       const parts: Uint8Array[] = [new TextEncoder().encode(f.source)];
-      for (const input of f.reads ?? tikzInputs(project, f.source, mainDir, dirOf(f.path))) {
+      for (const input of f.reads ?? []) {
         parts.push(new TextEncoder().encode(`\u0000${input}\u0000`));
-        if (!input.startsWith('missing:')) {
-          try {
-            parts.push(project.bytes(input));
-          } catch {
-            parts.push(new TextEncoder().encode('unreadable'));
-          }
-        }
+        if (!input.startsWith('missing:')) parts.push(bytesOnce(input) ?? new TextEncoder().encode('unreadable'));
       }
       hash = await digest(parts.length === 1 ? parts[0] : concat(parts));
     } else {
@@ -212,14 +194,21 @@ export function restoreAlts(
     used.add(row);
     match.set(id, row);
   };
+  // A file and fingerprint the first pass matched at its own slot: its uses are taken to be in place, so the
+  // second pass gives none of them another slot's row (R5b.3-2: three uses, one removed, two texts swapped).
+  const inPlace = new Set<string>();
   for (const f of figures) {
     const k = keys.get(f.id);
     const row = k && byPath.get(k.path);
-    if (k && row && row.figure_hash === k.hash && !used.has(row)) take(f.id, row);
+    if (k && row && row.figure_hash === k.hash && !used.has(row)) {
+      take(f.id, row);
+      inPlace.add(`${k.base}\u0000${k.hash}`);
+    }
   }
   for (const f of figures) {
     const k = keys.get(f.id);
     if (!k || match.has(f.id) || f.existing || !untouched(choices.get(f.id))) continue;
+    if (inPlace.has(`${k.base}\u0000${k.hash}`)) continue;
     const row = inSlotOrder.find((r) => !used.has(r) && baseOf(r.figure_path) === k.base && r.figure_hash === k.hash);
     if (row) take(f.id, row);
   }

@@ -60,7 +60,8 @@ describe('the scan screen', () => {
     const { app, q, qa } = setup();
     await app.handleFile(file('blockers.zip', zipFixture('blockers')));
     expect(q('#result-h').textContent).toBe('2 blockers found');
-    expect(q('#status').textContent).toMatch(/^Scan finished in \d+\.\d s: one document\.$/);
+    // AC-55: the verdict is announced with the time.
+    expect(q('#status').textContent).toMatch(/^Scan finished in \d+\.\d s: one document, 2 blockers found\.$/);
     const blockers = qa('li.finding.blocker');
     expect(blockers.map((li) => li.dataset.package)).toEqual(['tabu', 'caption']);
     expect(blockers[0].textContent).toContain('main.tex, line 3');

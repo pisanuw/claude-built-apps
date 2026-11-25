@@ -61,3 +61,4 @@ donation-receipts donation-receipts
 us-duty-price-sheet us-duty-price-sheet
 qualified-overtime-checker qualified-overtime-checker
 delivery-canary delivery-canary
+tagging-doctor tagging-doctor
