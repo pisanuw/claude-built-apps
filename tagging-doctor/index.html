@@ -10,7 +10,9 @@
       /* Keep body a column (or a plain block): the deploy adds a footer after #app. */
       :root { --ink: #1a1a1a; --muted: #4a4a4a; --line: #767676; --accent: #312e81; --bg: #fff; --soft: #f4f4f7; }
       body { margin: 0; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); }
-      #app { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem; }
+      /* At least a screen tall, so the deploy's footer (after #app) starts below the first screen and does not
+         move when the script draws the page under the static heading (AC-53, D-185). */
+      #app { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem; min-height: 100vh; }
       .top-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
       .top-bar h1 { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: 1.6rem; color: var(--accent); }
       /* A heading can be a long project name with no space: it wraps rather than widen the page (R6.1-2). */
@@ -46,7 +48,12 @@
       a { color: #1a4fa0; }
       p, li { overflow-wrap: anywhere; }
       .top-bar nav.pages { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; }
-      .top-bar .hw-signin { margin-left: auto; }
+      .top-bar .hw-signin, .top-bar #signin { margin-left: auto; }
+      /* The sign-in slot holds the place of its controls until their script arrives (D-185): two 40px bar buttons
+         8px apart, icon-only below 640px (src/lib/signin-styles.ts), so the top bar wraps as it will once they are in. */
+      .top-bar #signin { min-height: 40px; }
+      .top-bar #signin:empty { min-width: 18.5rem; }
+      @media (max-width: 639.98px) { .top-bar #signin:empty { min-width: 88px; } }
       .save-panel, .pending { border: 1px solid var(--line); border-radius: 0.75rem; padding: 0.5rem 1rem; margin: 0.75rem 0; background: var(--soft); }
       .save-panel h3 { margin-top: 0.5rem; }
       .field label { display: inline-block; min-width: 8rem; font-weight: 600; }
@@ -86,17 +93,29 @@
       .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
       .compare-slot:not(:empty) { border-top: 1px solid var(--line); margin-top: 0.75rem; }
       @media print {
+        #app { min-height: 0; }
         body.printing-report .top-bar, body.printing-report .no-print { display: none !important; }
         body.printing-report #app { max-width: none; padding: 0; }
         .table-wrap { overflow: visible; }
         th, td { padding: 0.2rem 0.35rem; font-size: 0.85rem; }
       }
     </style>
+    <noscript><style>.top-bar nav.pages, .top-bar #signin { display: none; }</style></noscript>
   </head>
   <body>
     <div id="app">
-      <!-- Drawn before the script runs, and what a reader without JavaScript gets; the script replaces it (AC-53, AC-57). -->
-      <header class="top-bar"><h1>Tagging Doctor</h1></header>
+      <!-- Drawn before the script runs, and what a reader without JavaScript gets; the script replaces it (AC-53, AC-57).
+           The top bar is the one the script draws (shellHtml in src/ui/app.ts; test/site.test.ts keeps them equal), so
+           nothing below it moves when the script runs (D-185). Without JavaScript its links lead nowhere and are hidden. -->
+      <header class="top-bar">
+        <h1>Tagging Doctor</h1>
+        <nav class="pages" aria-label="Pages">
+          <a href="#/">Scan</a>
+          <a href="#/courses" id="nav-courses" hidden>My courses</a>
+          <a href="#/what-we-keep">What we keep</a>
+        </nav>
+        <div id="signin"></div>
+      </header>
       <main>
         <p class="lede">Find out what stops your LaTeX course materials from producing a tagged PDF, file by file, before the April 2027 deadline.</p>
         <noscript><p class="note">Tagging Doctor scans your files in your browser, so it needs JavaScript. Turn JavaScript on for this site and reload the page.</p></noscript>

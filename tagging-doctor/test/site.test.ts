@@ -115,3 +115,46 @@ describe('AC-53, AC-57: the page before its script runs', () => {
     expect(app).toMatch(/<noscript>[\s\S]*needs JavaScript[\s\S]*<\/noscript>/);
   });
 });
+
+describe('AC-53 (D-185): nothing moves when the script draws the page', () => {
+  const html = read('index.html');
+  const squash = (s: string) => s.replace(/<!--[\s\S]*?-->/g, '').replace(/>\s+</g, '><').replace(/\s+/g, ' ').trim();
+  const header = (s: string) => /<header class="top-bar">[\s\S]*?<\/header>/.exec(s)?.[0] ?? '';
+  const styles = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1] ?? '';
+  const screenStyles = styles.slice(0, styles.indexOf('@media print'));
+  const printStyles = styles.slice(styles.indexOf('@media print'));
+
+  it('the static top bar is the one the script draws, so the lede under it stays where it was painted', async () => {
+    const { shellHtml } = await import('../src/ui/app');
+    const drawn = squash(header(shellHtml()));
+    expect(drawn).toContain('<nav class="pages" aria-label="Pages">');
+    expect(drawn).toContain('<div id="signin"></div>');
+    expect(squash(header(html))).toBe(drawn);
+  });
+
+  it('the page is at least a screen tall on screen, so the deploy footer after #app starts below the first screen', () => {
+    expect(screenStyles).toMatch(/#app \{[^}]*min-height: 100vh;[^}]*\}/);
+    // In print the page is as long as what it holds (the footer is not printed).
+    expect(printStyles).toMatch(/#app \{ min-height: 0; \}/);
+  });
+
+  it("the empty sign-in slot holds its controls' place: two bar buttons and the gap between them", async () => {
+    const { SIGN_IN_CSS } = await import('../src/lib/signin-styles');
+    const px = (re: RegExp, s: string) => Number(re.exec(s)?.[1]);
+    const height = px(/\.hw-signin-button \{[^}]*?\bheight: (\d+)px;/, SIGN_IN_CSS);
+    const gap = px(/\.hw-signin \{[^}]*?\bgap: (\d+)px;/, SIGN_IN_CSS);
+    const phone = /@media \(max-width: 639\.98px\) \{([\s\S]*)\}\s*$/.exec(SIGN_IN_CSS.trim())?.[1] ?? '';
+    const icon = px(/\.hw-signin-icon \{[^}]*?\bwidth: (\d+)px;/, phone);
+    expect([height, gap, icon]).toEqual([40, 8, 40]);
+    expect(screenStyles).toContain(`.top-bar #signin { min-height: ${height}px; }`);
+    expect(screenStyles).toContain(`@media (max-width: 639.98px) { .top-bar #signin:empty { min-width: ${2 * icon + gap}px; } }`);
+    // Above 640px the buttons carry their labels, whose width depends on the font: 295px in the session's Chromium.
+    expect(screenStyles).toContain('.top-bar #signin:empty { min-width: 18.5rem; }');
+    expect(screenStyles).toContain('.top-bar .hw-signin, .top-bar #signin { margin-left: auto; }');
+  });
+
+  it('without JavaScript the top bar shows only the heading: its links and sign-in need the script', () => {
+    const head = html.slice(0, html.indexOf('</head>'));
+    expect(head).toContain('<noscript><style>.top-bar nav.pages, .top-bar #signin { display: none; }</style></noscript>');
+  });
+});
