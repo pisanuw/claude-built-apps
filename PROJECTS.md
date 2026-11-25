@@ -1344,3 +1344,35 @@ The fixes do not make every document pass: the test lecture notes go from
 4,785 failed checks to 181, all of one clause that needs work by hand.
 Live: [tagging-doctor.hintwise.org](https://tagging-doctor.hintwise.org).
 See its [README](./tagging-doctor/README.md).
+
+### [`screen-reader-journeys`](https://github.com/pisan-labs/screen-reader-journeys)
+
+Screen Reader Journeys: walk a website the way a keyboard and screen reader
+user does, and write down what they would hear at every step. A journey is a
+short script of what a user does ("Home page: Tab order", or "open a shared
+STEM image, choose the Braille view, download the file, hear that it
+downloaded"), written against roles and accessible names rather than CSS
+selectors. A real Chromium runs it with the browser keyboard and records a
+transcript: each key press, the focused element's role, name and states from
+the accessibility tree, live-region announcements, and, in the virtual mode,
+the speech of an emulated screen reader (Guidepup Virtual Screen Reader). It
+flags focus with no name, focus inside `aria-hidden`, no visible focus
+indicator, keyboard traps and announcements that never come, and compares
+modes or two runs of the same site step by step. It was built to check the
+STEM Accessibility project's braille, tactile-graphic and sonification
+features; the Tab-order journey works on any public site. It lives in its own
+repository: a command-line tool with GitHub workflows (including real Orca and
+NVDA runs on GitHub's runners), and a hosted HintWise service. The service is
+a Vite and TypeScript dashboard on Netlify with the platform's sign-in, a
+worker on its own Render service (free plan) that runs the walker and virtual
+modes in a sandboxed Chromium for any public address (private, loopback and
+link-local addresses refused), and schema `app_screen_reader_journeys` with
+row level security; the worker holds no service-role key and reaches the
+database only through token-checked functions. Limits: 10 runs a day per
+person and 40 in all, three waiting or running per person, and a run stops
+after 15 minutes. The free host sleeps when idle and has 0.1 CPU, so the
+first run after a quiet spell can wait up to a minute and a run with several journeys or both
+modes can hit the time limit. Transcripts are evidence for a reviewer, not a
+replacement for testing with real screen readers and the people who use them.
+Live: [screen-reader-journeys.hintwise.org](https://screen-reader-journeys.hintwise.org).
+See its [README](https://github.com/pisan-labs/screen-reader-journeys#readme).
