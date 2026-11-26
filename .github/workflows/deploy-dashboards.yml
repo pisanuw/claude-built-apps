@@ -9,6 +9,13 @@
 # value. It refuses to deploy when DASHBOARD_PASSWORD is not set for
 # production, because the dashboard would then be open to anyone.
 # APP_EVENTS_REPORT_SECRET is set by supabase-admin.yml `report-secret on`.
+#
+# After the deploy it checks the gate signed out, with no secret: / goes to
+# the sign-in page (pisanuw/dashboards netlify-analytics/netlify/edge-functions/
+# auth.js, since 26 Nov 2026; HTTP Basic auth before), /login is the form and
+# refuses a wrong password without setting a cookie, and the API paths answer
+# 401. A ref from before the sign-in page still passes, with a warning, as long
+# as everything answers 401.
 name: Deploy dashboards
 
 on:
@@ -91,12 +98,53 @@ jobs:
           curl -fsS -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" "https://api.netlify.com/api/v1/sites/$NETLIFY_SITE_ID/deploys?per_page=1" \
             | jq -r '.[0] | "Latest deploy: \(.state), \(.created_at), \(.title // "")"'
           fail=0
-          for p in / /api/events /api/data; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE$p")
-            echo "$p without a password: $code"
+          legacy=0
+          T="$RUNNER_TEMP/gate"; mkdir -p "$T"
+          # Signed out, / is a redirect to /login or the sign-in form itself,
+          # never the dashboard. 401 with a Basic challenge is the gate from
+          # before the sign-in page (an older ref): still closed, so a warning.
+          out=$(curl -s -o "$T/home.html" -D "$T/home.h" -w '%{http_code} %{redirect_url}' "$BASE/")
+          code=${out%% *}; location=${out#* }
+          case "$code" in
+            301|302|303|307|308)
+              case "$location" in
+                "$BASE/login"*) echo "/ signed out: $code to the sign-in page";;
+                *) echo "::error::/ signed out redirects to $location, not to the sign-in page"; fail=1;;
+              esac;;
+            200)
+              if grep -q 'id="login-form"' "$T/home.html"; then echo "/ signed out: 200, the sign-in page"
+              else echo "::error::/ answered 200 signed out with something other than the sign-in page"; fail=1; fi;;
+            401)
+              if grep -qi '^www-authenticate: *basic' "$T/home.h"; then
+                legacy=1; echo "::warning::/ answers 401 with HTTP Basic auth: this ref predates the sign-in page"
+              else echo "::error::/ answered 401 signed out without the sign-in page"; fail=1; fi;;
+            *) echo "::error::/ signed out answered $code"; fail=1;;
+          esac
+          if [ "$legacy" = 0 ]; then
+            # The form a browser can save the password from, and no cookie for it.
+            code=$(curl -s -o "$T/login.html" -D "$T/login.h" -w '%{http_code}' "$BASE/login")
+            if [ "$code" = 200 ] && grep -q 'autocomplete="current-password"' "$T/login.html" && ! grep -qi '^set-cookie:' "$T/login.h"; then
+              echo "/login: 200, the sign-in form"
+            else echo "::error::/login answered $code without the sign-in form"; fail=1; fi
+            # A wrong password (random, not a secret) is refused and sets no session.
+            code=$(curl -s -o /dev/null -D "$T/wrong.h" -w '%{http_code}' --data-urlencode 'username=owner' \
+              --data-urlencode "password=not-the-password-$(openssl rand -hex 12)" --data-urlencode 'next=/' "$BASE/login")
+            if [ "$code" = 401 ] && ! grep -qi '^set-cookie: *__Host-session=[^;]' "$T/wrong.h"; then
+              echo "/login with a wrong password: 401, no session"
+            else echo "::error::/login answered $code to a wrong password"; fail=1; fi
+          fi
+          # Every API path is closed signed out, as JSON 401, and (once the sign-in
+          # page is live) with no Basic challenge that would bring the popup back.
+          for p in /api/data /api/events /api/sync /api/config /.netlify/functions/data; do
+            code=$(curl -s -o /dev/null -D "$T/api.h" -w '%{http_code}' "$BASE$p")
+            echo "$p signed out: $code"
             [ "$code" = 401 ] || fail=1
+            if [ "$legacy" = 0 ] && grep -qi '^www-authenticate: *basic' "$T/api.h"; then
+              echo "::error::$p still sends a Basic auth challenge"; fail=1
+            fi
           done
-          [ "$fail" = 0 ] || { echo "::error::$SITE answered without a password: check DASHBOARD_PASSWORD"; exit 1; }
+          rm -rf "$T"
+          [ "$fail" = 0 ] || { echo "::error::$SITE is not closed signed out: check DASHBOARD_PASSWORD and the deployed edge function"; exit 1; }
           code=$(curl -s -o /dev/null -w '%{http_code}' -H 'x-report-secret: not-the-secret' https://auth.hintwise.org/functions/v1/app-events-report)
           case "$code" in
             401) echo "app-events-report: secret set (wrong secret refused)";;
