@@ -21,6 +21,8 @@
 # touch it (or run the workflow manually) to ship UI changes.
 # Milestone 6 (polish and finish, 2026-11-24): this note is the touch that
 # ships it; no value below changes.
+# Fix after milestone 6's live check (2026-11-25, AC-53's layout shift, D-185):
+# this line is the touch that ships index.html's change; no value changes.
 
 provider: netlify
 projectName: tagging-doctor
