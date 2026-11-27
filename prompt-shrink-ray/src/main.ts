@@ -1,3 +1,5 @@
+// The light and dark mode switch (platform/src/theme), defined before the header is drawn.
+import './lib/hw-theme.js';
 import './ui/styles.css';
 import { compressPrompt } from './core/compress.js';
 import { toTemplateJson } from './core/exportTemplate.js';
@@ -15,7 +17,7 @@ const modelOptions = MODEL_PRICING.map((m) => `<option value="${m.id}">${m.label
 app.innerHTML = `
   <div class="wrap">
     <header class="site">
-      <h1>Prompt Shrink Ray</h1>
+      <div class="title-row"><h1>Prompt Shrink Ray</h1><hw-theme-toggle></hw-theme-toggle></div>
       <span class="tagline">Paste a prompt, get it compressed with a live token and cost estimate.</span>
     </header>
     <p class="privacy">
@@ -37,7 +39,7 @@ app.innerHTML = `
       <button id="export" type="button">Download JSON template</button>
     </div>
     <div class="editor">
-      <span class="label">Prompt</span>
+      <label class="label" for="input">Prompt</label>
       <textarea id="input" spellcheck="false" placeholder="Paste your prompt here&hellip;"></textarea>
     </div>
     <div id="result"></div>
