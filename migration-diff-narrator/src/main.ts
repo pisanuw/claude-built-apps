@@ -1,3 +1,5 @@
+// The light and dark mode switch (platform/src/theme), defined before the header is drawn.
+import './lib/hw-theme.js';
 import './ui/styles.css';
 import { analyze } from './core/analyze.js';
 import { toMarkdown } from './core/markdown.js';
@@ -10,7 +12,7 @@ if (!app) throw new Error('missing #app');
 app.innerHTML = `
   <div class="wrap">
     <header class="site">
-      <h1>Migration Diff Narrator</h1>
+      <div class="title-row"><h1>Migration Diff Narrator</h1><hw-theme-toggle></hw-theme-toggle></div>
       <span class="tagline">Paste two schema versions, get every change classified and narrated.</span>
     </header>
     <p class="privacy">
@@ -31,11 +33,11 @@ app.innerHTML = `
     </div>
     <div class="editors">
       <div class="editor">
-        <span class="label">Before</span>
+        <label class="label" for="before">Before</label>
         <textarea id="before" spellcheck="false" placeholder="Old schema version…"></textarea>
       </div>
       <div class="editor">
-        <span class="label">After</span>
+        <label class="label" for="after">After</label>
         <textarea id="after" spellcheck="false" placeholder="New schema version…"></textarea>
       </div>
     </div>
