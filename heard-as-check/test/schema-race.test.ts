@@ -1,5 +1,5 @@
 /**
- * R1.1-2 and R1.1-3 on a real Postgres with two connections (PGlite has one).
+ * R1.1-2, R1.1-3 and R1.2-1 on a real Postgres with two connections (PGlite has one).
  * Skipped unless HAC_PG_URL names a throwaway server, for example:
  *   docker run -d --rm --name hac-pg -e POSTGRES_PASSWORD=race -p 127.0.0.1:55432:5432 postgres:17.6
  *   HAC_PG_URL=postgres://postgres:race@127.0.0.1:55432/postgres npx vitest run test/schema-race.test.ts
@@ -36,7 +36,7 @@ const run = {
   verdict: 'Passes the validator, reads as intended', transcript_sha256: 'a'.repeat(64), transcript_lines: 1,
 };
 
-describe.skipIf(!URL_)('races on a real Postgres (R1.1-2, R1.1-3)', () => {
+describe.skipIf(!URL_)('races on a real Postgres (R1.1-2, R1.1-3, R1.2-1)', () => {
   const dbName = `hac_race_${randomUUID().replace(/-/g, '')}`;
   let admin: pg.Client;
   let c1: pg.Client;
@@ -161,5 +161,53 @@ describe.skipIf(!URL_)('races on a real Postgres (R1.1-2, R1.1-3)', () => {
     expect(outcome).toBe('no error');
     const base = await c1.query(`select id from ${S}.runs where document_id = $1 and is_baseline`, [d.id]);
     expect(base.rows.map((r) => r.id)).toEqual([z]);
+  });
+  /** A document with 50 runs: ids[0] is the baseline, ids[1] the oldest run that is not. */
+  const fiftyRuns = async (name: string) => {
+    const [d] = (await c1.query(`insert into ${S}.documents (user_id, name) values ($1, $2) returning id`, [U, name])).rows;
+    const ids: string[] = [];
+    for (let i = 0; i < 50; i++) ids.push((await c1.query(insertRun, [U, d.id, 'a'.repeat(64)])).rows[0].id as string);
+    return { doc: d.id as string, ids };
+  };
+  const insertRun = `insert into ${S}.runs (user_id, document_id, source, file_sha256, file_bytes, pages, pages_read, pdfjs_version, chromium_version, verdict, transcript_sha256, transcript_lines)
+     values ($1, $2, 'web', $3, 1, 1, 1, 'p', 'c', 'No tags found', $3, 1) returning id`;
+  const baselines = async (doc: string) => (await c1.query(`select id from ${S}.runs where document_id = $1 and is_baseline`, [doc])).rows.map((r) => r.id as string);
+
+  /** c1 does `remove` and holds it; c2 calls set_baseline(target) and waits; c1 commits. Returns c2's outcome. */
+  const raceSetBaseline = async (remove: (c: pg.Client) => Promise<unknown>, target: string) => {
+    await c1.query('begin');
+    await asUser(c1, U);
+    await remove(c1);
+    await c2.query('begin');
+    await asUser(c2, U);
+    const second = c2.query(`select ${S}.set_baseline($1)`, [target]);
+    await blocked();
+    await c1.query('commit');
+    const outcome = await failure(second);
+    await c2.query(outcome === 'no error' ? 'commit' : 'rollback');
+    return outcome;
+  };
+
+  it('R1.2-1: set_baseline of a run that a 51st run\'s trim deletes meanwhile is refused, and the old baseline stays', async () => {
+    const { doc, ids } = await fiftyRuns('trim-race');
+    const outcome = await raceSetBaseline((c) => c.query(insertRun, [U, doc, 'a'.repeat(64)]), ids[1]);
+    expect(outcome).toMatch(/^P0002 No such run/);
+    expect((await c1.query(`select count(*)::int as n from ${S}.runs where id = $1`, [ids[1]])).rows[0].n).toBe(0);
+    expect(await baselines(doc)).toEqual([ids[0]]);
+  });
+
+  it('R1.2-1: set_baseline of a run deleted meanwhile in another tab is refused, and the old baseline stays', async () => {
+    const { doc, ids } = await fiftyRuns('delete-race');
+    const outcome = await raceSetBaseline((c) => c.query(`delete from ${S}.runs where id = $1`, [ids[1]]), ids[1]);
+    expect(outcome).toMatch(/^P0002 No such run/);
+    expect(await baselines(doc)).toEqual([ids[0]]);
+  });
+
+  it('the nearest case the old code got right: set_baseline of a run that survives the trim succeeds', async () => {
+    const { doc, ids } = await fiftyRuns('trim-other');
+    const outcome = await raceSetBaseline((c) => c.query(insertRun, [U, doc, 'a'.repeat(64)]), ids[5]);
+    expect(outcome).toBe('no error');
+    expect(await baselines(doc)).toEqual([ids[5]]);
+    expect((await c1.query(`select count(*)::int as n from ${S}.runs where document_id = $1`, [doc])).rows[0].n).toBe(50);
   });
 });

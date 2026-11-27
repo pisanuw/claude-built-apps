@@ -293,6 +293,12 @@ begin
   -- The per-document lock that inserts take too: two calls at once run one
   -- after the other, so the second sees the first's baseline (R1.1-3).
   perform 1 from app_heard_as_check.documents d where d.id = doc for update;
+  -- The run may have gone while this call waited (a trim by a new run, a delete in
+  -- another tab): lock it, and refuse when it is gone, so the old baseline stays (R1.2-1).
+  perform 1 from app_heard_as_check.runs r where r.id = p_run_id for update;
+  if not found then
+    raise exception 'No such run.' using errcode = 'P0002', hint = 'run-not-found';
+  end if;
   -- Two statements, the old baseline first (S3-8).
   update app_heard_as_check.runs r set is_baseline = false where r.document_id = doc and r.is_baseline and r.id <> p_run_id;
   update app_heard_as_check.runs r set is_baseline = true where r.id = p_run_id and not r.is_baseline;

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * The light and dark mode switch and the colour tokens (platform/src/theme/README.md,
- * "The test an app copies"; SPEC open item S3-9, DECISIONS.md D-9). AC-75's scans
+ * "The test an app copies"; SPEC open item S3-9, DECISIONS.md D-3). AC-75's scans
  * of both themes come in milestone 7.
  */
 import { createHash } from 'node:crypto';
