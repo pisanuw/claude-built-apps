@@ -1,20 +1,76 @@
 :root {
-  --bg: #0d1117;
-  --panel: #161b22;
-  --panel-2: #1c2330;
-  --border: #2d333b;
-  --text: #e6edf3;
-  --muted: #8b949e;
-  --accent: #58a6ff;
-  --accent-2: #3fb950;
-  --danger: #f85149;
-  --warn: #d29922;
-  --heat-0: #1c2330;
-  --heat-1: #0e4429;
-  --heat-2: #006d32;
-  --heat-3: #26a641;
-  --heat-4: #39d353;
+  color-scheme: light;
+  --bg: #f6f8fa;
+  --panel: #ffffff;
+  --panel-2: #eef1f5;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --muted: #59636e;
+  --accent: #0969da;
+  --accent-2: #17742f;
+  --danger: #cf222e;
+  --warn: #875800;
+  /* Text on the accent (the chosen preview window). */
+  --on-accent: #ffffff;
+  /* Fields' edges, 3:1 on the card and the page (WCAG 1.4.11; --border was 1.36 to 1.49:1 in dark). */
+  --field-border: #6e7781;
+  /* The heatmap: an empty day, then four levels, each 3:1 on an empty day and on the card. */
+  --heat-0: #ebeef1;
+  --heat-1: #3b9556;
+  --heat-2: #2b8446;
+  --heat-3: #1d6b36;
+  --heat-4: #0f4f26;
   font-size: 16px;
+}
+
+/* Dark twice, for the switch (data-theme on <html>, set before the first paint) and for the device setting when
+   scripts do not run (platform/src/theme/README.md); test/theme.test.ts keeps the two the same. Both are for the
+   screen only: paper gets the light set. The dark set is the app's original palette, with fields' edges and the
+   heatmap's levels made 3:1 (#0e4429 was 1.10:1 on the card). */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2330;
+    --border: #2d333b;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --accent-2: #3fb950;
+    --danger: #f85149;
+    --warn: #d29922;
+    --on-accent: #04121f;
+    --field-border: #6e7681;
+    --heat-0: #1c2330;
+    --heat-1: #2e8b47;
+    --heat-2: #3aa655;
+    --heat-3: #52c46c;
+    --heat-4: #8ee39c;
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2330;
+    --border: #2d333b;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --accent-2: #3fb950;
+    --danger: #f85149;
+    --warn: #d29922;
+    --on-accent: #04121f;
+    --field-border: #6e7681;
+    --heat-0: #1c2330;
+    --heat-1: #2e8b47;
+    --heat-2: #3aa655;
+    --heat-3: #52c46c;
+    --heat-4: #8ee39c;
+  }
 }
 
 * {
@@ -46,10 +102,26 @@ header.hero {
   margin-bottom: 1.25rem;
 }
 
+header.hero .title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 header.hero h1 {
   margin: 0;
+  min-width: 0;
   font-size: 1.7rem;
   letter-spacing: -0.02em;
+}
+
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
+
+/* The heatmap and the table scroll sideways on a phone: each is a named region in the tab order. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 header.hero h1 .accent {
@@ -76,7 +148,7 @@ header.hero p {
   resize: vertical;
   background: var(--bg);
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   padding: 0.7rem 0.9rem;
   font-size: 1.05rem;
@@ -203,7 +275,7 @@ header.hero p {
 .control select {
   background: var(--bg);
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 6px;
   padding: 0.35rem 0.5rem;
   font-size: 0.85rem;
@@ -232,7 +304,7 @@ header.hero p {
 
 .seg button.on {
   background: var(--accent);
-  color: #04121f;
+  color: var(--on-accent);
   font-weight: 600;
 }
 
@@ -401,5 +473,17 @@ footer a {
   }
   .control select {
     max-width: 11rem;
+  }
+}
+
+/* Not on paper (last, so it wins). Paper leaves the chosen window's fill out, so it takes the ink and an underline. */
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
+
+  .seg button.on {
+    color: var(--text);
+    text-decoration: underline;
   }
 }
