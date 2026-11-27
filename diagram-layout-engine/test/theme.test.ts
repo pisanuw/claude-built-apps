@@ -347,6 +347,17 @@ describe('the switch in the header', () => {
   it('lets the keyboard reach the boxes that scroll, and names the routed diagram', () => {
     root.querySelector<HTMLButtonElement>('#tab-pipeline')!.click();
     const stage = (id: string): void => root.querySelector<HTMLButtonElement>(`[data-stage="${id}"]`)!.click();
+    // The Parse stage's tables are wider than a phone: each scrolls in its own box, so the page does not (it was
+    // 398 px wide at 320 and 375; batch 7 review R1-3).
+    stage('parse');
+    const tables = root.querySelectorAll('.tables > .table-scroll');
+    expect(tables).toHaveLength(2);
+    expectRegion(tables[0], 'Nodes');
+    expectRegion(tables[1], 'Edges');
+    for (const t of tables) expect(t.querySelectorAll(':scope > table')).toHaveLength(1);
+    expect(rules('.table-scroll')).toMatch(/overflow-x:\s*auto/);
+    expect(rules('.table-scroll')).toMatch(/min-width:\s*0/);
+    expect(rules('.tables')).toMatch(/grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
     stage('acyclic');
     expectRegion(root.querySelector('.sch-wrap'), 'Schematic');
     expect(root.querySelector('svg.sch')!.getAttribute('aria-label')).toMatch(/^Layout schematic/);
