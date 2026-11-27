@@ -82,23 +82,27 @@ body {
   padding: 20px 16px 56px;
 }
 
+/* The title and tagline wrap inside .site-title; the light and dark mode switch
+   is the header's other item, so it stays at the right of the first row at every width. */
 header.site {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   gap: 14px;
-  flex-wrap: wrap;
   margin-bottom: 6px;
+}
+
+.site-title {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  min-width: 0;
 }
 
 header.site h1 {
   font-size: 22px;
   margin: 0;
-}
-
-/* The light and dark mode switch, at the right of the header. */
-header.site hw-theme-toggle {
-  margin-left: auto;
-  align-self: center;
 }
 
 /* Hold the switch's place until hw-theme.js draws it. */
@@ -512,12 +516,6 @@ footer.site a {
 }
 
 @media (max-width: 520px) {
-  /* The switch stays beside the title; the tagline takes the next row. */
-  header.site .tagline {
-    order: 1;
-    flex-basis: 100%;
-  }
-
   .bar {
     grid-template-columns: 100px 1fr 26px;
   }

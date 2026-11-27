@@ -100,7 +100,7 @@ export function standaloneReport(result: ScanResult, css: string, generatedAt: D
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agent Blast Radius report</title><style>${css}</style></head>
-<body><div class="wrap"><header class="site"><h1>Agent Blast Radius report</h1><span class="tagline">Generated ${escapeHtml(generatedAt.toISOString())} from ${result.files.length} file${result.files.length === 1 ? '' : 's'}. Secrets are masked.</span></header>
+<body><div class="wrap"><header class="site"><div class="site-title"><h1>Agent Blast Radius report</h1><span class="tagline">Generated ${escapeHtml(generatedAt.toISOString())} from ${result.files.length} file${result.files.length === 1 ? '' : 's'}. Secrets are masked.</span></div></header>
 ${renderResults(result)}
 <footer class="site">Scores reflect declared configuration only; a tool's own code can do more or less than its config suggests.</footer></div></body></html>
 `;

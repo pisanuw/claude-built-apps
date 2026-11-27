@@ -144,6 +144,24 @@ describe('the switch in the header', () => {
     expect(button().getAttribute('aria-label')).toBe('Switch to dark mode');
   });
 
+  it("keeps the switch on the title's row at every width: only the title and tagline wrap", () => {
+    // The header has two items, the title group and the switch, and does not wrap; the
+    // title and tagline wrap inside their group (at 521 to 548 px the switch used to drop
+    // onto a row of its own).
+    const header = root.querySelector('header.site')!;
+    expect([...header.children].map((c) => c.className || c.tagName)).toEqual(['site-title', 'HW-THEME-TOGGLE']);
+    expect(header.querySelector('.site-title h1')).not.toBeNull();
+    expect(header.querySelector('.site-title .tagline')).not.toBeNull();
+    const rule = (selector: string): string => css.match(new RegExp(`(?:^|\\})\\s*${selector}\\s*\\{([^}]*)\\}`))![1];
+    expect(rule('header\\.site')).toContain('display: flex;');
+    expect(rule('header\\.site')).toContain('align-items: flex-start;');
+    expect(rule('header\\.site')).not.toContain('flex-wrap');
+    expect(rule('\\.site-title')).toContain('flex-wrap: wrap;');
+    expect(rule('\\.site-title')).toContain('flex: 1 1 auto;');
+    // No rule elsewhere moves a header item onto another row.
+    expect(css).not.toMatch(/header\.site \.tagline\s*\{[^}]*(order|flex-basis)/);
+  });
+
   it('switches the page at once and remembers the choice', () => {
     button().click();
     expect(document.documentElement.dataset.theme).toBe('dark');

@@ -16,8 +16,10 @@ if (!app) throw new Error('missing #app');
 app.innerHTML = `
   <div class="wrap">
     <header class="site">
-      <h1>Agent Blast Radius</h1>
-      <span class="tagline">What can your AI tools actually touch?</span>
+      <div class="site-title">
+        <h1>Agent Blast Radius</h1>
+        <span class="tagline">What can your AI tools actually touch?</span>
+      </div>
       <hw-theme-toggle></hw-theme-toggle>
     </header>
     <p class="privacy">
