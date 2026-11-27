@@ -1,18 +1,93 @@
 :root {
-  --bg: #0f1220;
-  --panel: #191d33;
-  --panel-2: #21273f;
-  --ink: #e8ebf5;
-  --muted: #9aa3c0;
-  --border: #2c3352;
-  --accent: #7c9cff;
-  --accent-ink: #0f1220;
-  --high: #ff6b6b;
-  --medium: #ffb454;
-  --low: #6bd6c0;
-  --info: #8ab4ff;
+  color-scheme: light;
+  --bg: #f5f6fb;
+  --panel: #ffffff;
+  --panel-2: #eef0f8;
+  --ink: #171a2e;
+  --muted: #565e7a;
+  --border: #d6dae8;
+  --accent: #3b5bdb;
+  --accent-ink: #ffffff;
+  --high: #c92a2a;
+  --medium: #8a5000;
+  --low: #0b7a66;
+  --info: #2f5fc4;
+  /* The header's gradient, a button's hover, the primary button's hover, the source field's ground, a field's name. */
+  --head-from: #e8ecfb;
+  --head-to: #f5f6fb;
+  --hover-2: #e3e7f4;
+  --primary-hover: #2f4ec4;
+  --code-bg: #fafbfe;
+  --strong: #2c3a8c;
+  /* Fields' edges: 3:1 on what they sit on (WCAG 1.4.11; --border was 1.19 to 1.55:1 in dark). */
+  --field-border: #7a8199;
+  --sev-high-bg: rgba(201, 42, 42, 0.1);
+  --sev-medium-bg: rgba(138, 80, 0, 0.1);
+  --sev-low-bg: rgba(11, 122, 102, 0.1);
+  --sev-info-bg: rgba(47, 95, 196, 0.1);
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Dark twice, for the switch (data-theme on <html>, set before the first paint) and for the device setting when
+   scripts do not run (platform/src/theme/README.md); test/theme.test.ts keeps the two the same. Both are for the
+   screen only: paper gets the light set. The dark set is the app's original palette. */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0f1220;
+    --panel: #191d33;
+    --panel-2: #21273f;
+    --ink: #e8ebf5;
+    --muted: #9aa3c0;
+    --border: #2c3352;
+    --accent: #7c9cff;
+    --accent-ink: #0f1220;
+    --high: #ff6b6b;
+    --medium: #ffb454;
+    --low: #6bd6c0;
+    --info: #8ab4ff;
+    --head-from: #1a2140;
+    --head-to: #12152a;
+    --hover-2: #2a3152;
+    --primary-hover: #93acff;
+    --code-bg: #0c0f1c;
+    --strong: #cdd6ff;
+    --field-border: #6c7696;
+    --sev-high-bg: rgba(255, 107, 107, 0.16);
+    --sev-medium-bg: rgba(255, 180, 84, 0.16);
+    --sev-low-bg: rgba(107, 214, 192, 0.16);
+    --sev-info-bg: rgba(138, 180, 255, 0.16);
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0f1220;
+    --panel: #191d33;
+    --panel-2: #21273f;
+    --ink: #e8ebf5;
+    --muted: #9aa3c0;
+    --border: #2c3352;
+    --accent: #7c9cff;
+    --accent-ink: #0f1220;
+    --high: #ff6b6b;
+    --medium: #ffb454;
+    --low: #6bd6c0;
+    --info: #8ab4ff;
+    --head-from: #1a2140;
+    --head-to: #12152a;
+    --hover-2: #2a3152;
+    --primary-hover: #93acff;
+    --code-bg: #0c0f1c;
+    --strong: #cdd6ff;
+    --field-border: #6c7696;
+    --sev-high-bg: rgba(255, 107, 107, 0.16);
+    --sev-medium-bg: rgba(255, 180, 84, 0.16);
+    --sev-low-bg: rgba(107, 214, 192, 0.16);
+    --sev-info-bg: rgba(138, 180, 255, 0.16);
+  }
 }
 
 * { box-sizing: border-box; }
@@ -28,11 +103,13 @@ body {
 .wrap { width: min(960px, 92vw); margin: 0 auto; }
 
 .site-head {
-  background: linear-gradient(160deg, #1a2140, #12152a 70%);
+  background: linear-gradient(160deg, var(--head-from), var(--head-to) 70%);
   border-bottom: 1px solid var(--border);
   padding: 2.2rem 0 1.6rem;
 }
-.site-head h1 { margin: 0 0 0.4rem; font-size: 1.9rem; }
+.site-head .title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 0.4rem; }
+.site-head h1 { margin: 0; font-size: 1.9rem; min-width: 0; }
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
 .tagline { margin: 0; color: var(--muted); max-width: 62ch; }
 
 main.wrap { padding: 1.6rem 0 3rem; }
@@ -56,7 +133,7 @@ main.wrap { padding: 1.6rem 0 3rem; }
 .field select {
   background: var(--panel-2);
   color: var(--ink);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   padding: 0.4rem 0.6rem;
   font-size: 0.9rem;
@@ -76,20 +153,20 @@ button:active { transform: translateY(1px); }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .sample-btn { background: var(--panel-2); color: var(--ink); }
-.sample-btn:hover:not(:disabled) { background: #2a3152; }
+.sample-btn:hover:not(:disabled) { background: var(--hover-2); }
 .ghost { background: transparent; color: var(--muted); margin-left: auto; }
 .primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
-.primary:hover:not(:disabled) { background: #93acff; }
+.primary:hover:not(:disabled) { background: var(--primary-hover); }
 .secondary { background: var(--panel-2); color: var(--ink); }
-.secondary:hover:not(:disabled) { background: #2a3152; }
+.secondary:hover:not(:disabled) { background: var(--hover-2); }
 
 textarea {
   width: 100%;
   min-height: 260px;
   resize: vertical;
-  background: #0c0f1c;
+  background: var(--code-bg);
   color: var(--ink);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 10px;
   padding: 0.9rem;
   font-family: var(--mono);
@@ -97,7 +174,7 @@ textarea {
   line-height: 1.5;
   tab-size: 2;
 }
-textarea:focus, .field select:focus, button:focus-visible {
+textarea:focus, .field select:focus, :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
@@ -138,7 +215,7 @@ section h2 { font-size: 1.15rem; margin: 0 0 0.6rem; border-bottom: 1px solid va
 .rel-list, .field-list { margin: 0; padding-left: 1.2rem; }
 .rel-list li, .field-list li { margin: 0.2rem 0; font-size: 0.92rem; }
 .field-list code, .finding-loc { font-family: var(--mono); }
-.field-list strong, .rel-list strong { color: #cdd6ff; }
+.field-list strong, .rel-list strong { color: var(--strong); }
 
 .finding-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
 .finding {
@@ -155,10 +232,10 @@ section h2 { font-size: 1.15rem; margin: 0 0 0.6rem; border-bottom: 1px solid va
 .finding-head { display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; }
 .finding-msg { margin: 0.35rem 0 0; font-size: 0.92rem; }
 .sev { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; border-radius: 4px; padding: 0.1rem 0.4rem; }
-.sev-high { background: rgba(255, 107, 107, 0.16); color: var(--high); }
-.sev-medium { background: rgba(255, 180, 84, 0.16); color: var(--medium); }
-.sev-low { background: rgba(107, 214, 192, 0.16); color: var(--low); }
-.sev-info { background: rgba(138, 180, 255, 0.16); color: var(--info); }
+.sev-high { background: var(--sev-high-bg); color: var(--high); }
+.sev-medium { background: var(--sev-medium-bg); color: var(--medium); }
+.sev-low { background: var(--sev-low-bg); color: var(--low); }
+.sev-info { background: var(--sev-info-bg); color: var(--info); }
 .finding-loc { background: var(--panel-2); border-radius: 4px; padding: 0.05rem 0.35rem; font-size: 0.82rem; }
 .finding-rule { color: var(--muted); font-size: 0.76rem; margin-left: auto; }
 
@@ -170,4 +247,10 @@ section h2 { font-size: 1.15rem; margin: 0 0 0.6rem; border-bottom: 1px solid va
 @media (max-width: 560px) {
   .ghost { margin-left: 0; }
   .finding-rule { margin-left: 0; }
+}
+
+/* Not on paper (last, so it wins). Paper leaves the primary button's fill out, so its label takes the ink. */
+@media print {
+  hw-theme-toggle { display: none !important; }
+  .primary { color: var(--ink); }
 }

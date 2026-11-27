@@ -46,7 +46,8 @@ export function renderCard(s: Session, deps: CardDeps): HTMLElement {
   }
   card.append(time);
 
-  card.append(el('h3', undefined, s.title));
+  const h3 = el('h3', undefined, s.title);
+  card.append(h3);
 
   const badges = el('div', 'badges');
   const track = deps.trackNames.get(s.track);
@@ -56,8 +57,7 @@ export function renderCard(s: Session, deps: CardDeps): HTMLElement {
     badges.append(chip);
   }
   if (s.kind !== 'talks') {
-    const kind = el('span', 'badge', KIND_LABEL[s.kind]);
-    kind.style.background = '#64748b';
+    const kind = el('span', 'badge kind', KIND_LABEL[s.kind]);
     badges.append(kind);
   }
   badges.append(el('span', 'badge room', s.room));
@@ -70,13 +70,25 @@ export function renderCard(s: Session, deps: CardDeps): HTMLElement {
 
   if (s.description) {
     const desc = el('p', 'desc', s.description);
+    desc.id = `desc-${s.id}`;
     desc.hidden = true;
     card.append(desc);
+    // The title is a disclosure button, so a keyboard user can open the description too; a click anywhere on the
+    // card still does.
+    const toggle = el('button', 'title-btn', s.title);
+    toggle.type = 'button';
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-controls', desc.id);
+    h3.replaceChildren(toggle);
+    const flip = (): void => {
+      desc.hidden = !desc.hidden;
+      toggle.setAttribute('aria-expanded', String(!desc.hidden));
+    };
     card.addEventListener('click', (ev) => {
       if ((ev.target as HTMLElement).closest('.star')) return;
-      desc.hidden = !desc.hidden;
+      flip();
     });
-    card.style.cursor = 'pointer';
+    card.classList.add('has-desc');
   }
 
   const star = el('button', 'star', deps.isStarred(s.id) ? '★' : '☆');

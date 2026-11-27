@@ -216,4 +216,7 @@ pre.code { background: var(--code-bg); border: 1px solid var(--line); border-rad
 /* Not on paper. */
 @media print {
   hw-theme-toggle { display: none !important; }
+  /* Paper leaves fills out (batch 5 review R1-2): a filled control's white label takes the ink, and the current one is underlined. */
+  nav[role='tablist'] button[aria-selected='true'], button { color: var(--ink); }
+  nav[role='tablist'] button[aria-selected='true'] { text-decoration: underline; }
 }

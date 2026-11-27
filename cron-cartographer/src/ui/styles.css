@@ -387,6 +387,12 @@ header.hero p {
 .hm-cell.l3 { background: var(--heat-3); }
 .hm-cell.l4 { background: var(--heat-4); }
 
+/* The day with keyboard focus: the ink, so it reads apart from the chosen day's accent outline. */
+.hm-cell:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
+}
+
 .hm-cell.selected {
   outline: 2px solid var(--accent);
   outline-offset: 0;

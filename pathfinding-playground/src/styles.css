@@ -1,27 +1,107 @@
-/* Pathfinding Playground: a surveyor's sheet for search algorithms.
-   Token values mirror src/ui/palette.js; keep the two in sync. */
+/* Pathfinding Playground: a surveyor's sheet for search algorithms. */
 
+/* The light set. src/ui/palette.js reads these for the canvas when it draws. */
 :root {
+  color-scheme: light;
   --paper: #f4f8fb;
   --paper-deep: #e8eff5;
   --line: #c9d8e4;
   --line-major: #b3c8d8;
+  /* The body's fine grid lines. */
+  --line-minor: rgba(179, 200, 216, 0.35);
   --ink: #14304a;
   --ink-soft: #3e5c77;
+  /* The frontier's fill, and the verdict's edge. */
   --amber: #e89b14;
+  /* A highlight behind ink (the verdict, the current log line, a hovered button), and the label on an ink fill. */
   --amber-soft: #ffe2a8;
+  /* Amber as text, focus ring and slider: --amber was 1.98 to 2.25:1 there. */
+  --amber-ink: #8a5200;
   --wash: #a9c4db;
-  --route: #d2492a;
+  /* The final path, the goal and "no route": #d2492a was 3.83:1 as text on the page. */
+  --route: #b5381c;
   --green: #1e7a5a;
   --sand: #d9bc8c;
+  --sand-line: #b08d54;
   --card: #fbfdfe;
+  --primary-hover: #0e2438;
+  --swatch-edge: rgba(20, 48, 74, 0.35);
+  /* The canvas's search washes and the cost figures drawn on them. */
+  --visited: rgba(169, 196, 219, 0.62);
+  --frontier: rgba(232, 155, 20, 0.8);
+  --cost-visited: rgba(20, 48, 74, 0.75);
+  --cost-frontier: #5c3a00;
 
   --font-display: 'Zilla Slab', 'Georgia', serif;
   --font-body: 'IBM Plex Sans', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
 
   --shadow-sheet: 3px 4px 0 rgba(20, 48, 74, 0.12);
+  --shadow-toast: 0 4px 14px rgba(20, 48, 74, 0.35);
   --radius: 4px;
+}
+
+/* Dark twice, for the switch (data-theme on <html>, set before the first paint) and for the device setting when
+   scripts do not run (platform/src/theme/README.md); tests/theme.test.js keeps the two the same. Both are for the
+   screen only: paper gets the light set. The ink is pale here, so walls are pale lines on a dark sheet. */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --paper: #0f1c28;
+    --paper-deep: #0a141d;
+    --line: #22374a;
+    --line-major: #1f3346;
+    --line-minor: rgba(31, 51, 70, 0.5);
+    --ink: #e2ecf4;
+    --ink-soft: #9fb6ca;
+    --amber: #f0a52a;
+    --amber-soft: #3d2c0c;
+    --amber-ink: #f2b04a;
+    --wash: #3f6c94;
+    --route: #ff8060;
+    --green: #4cc495;
+    --sand: #5a4628;
+    --sand-line: #8f7044;
+    --card: #142331;
+    --primary-hover: #ffffff;
+    --swatch-edge: rgba(226, 236, 244, 0.4);
+    --visited: rgba(63, 108, 148, 0.62);
+    --frontier: rgba(240, 165, 42, 0.8);
+    --cost-visited: rgba(226, 236, 244, 0.85);
+    --cost-frontier: #2a1a00;
+    --shadow-sheet: 3px 4px 0 rgba(0, 0, 0, 0.45);
+    --shadow-toast: 0 4px 14px rgba(0, 0, 0, 0.55);
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #0f1c28;
+    --paper-deep: #0a141d;
+    --line: #22374a;
+    --line-major: #1f3346;
+    --line-minor: rgba(31, 51, 70, 0.5);
+    --ink: #e2ecf4;
+    --ink-soft: #9fb6ca;
+    --amber: #f0a52a;
+    --amber-soft: #3d2c0c;
+    --amber-ink: #f2b04a;
+    --wash: #3f6c94;
+    --route: #ff8060;
+    --green: #4cc495;
+    --sand: #5a4628;
+    --sand-line: #8f7044;
+    --card: #142331;
+    --primary-hover: #ffffff;
+    --swatch-edge: rgba(226, 236, 244, 0.4);
+    --visited: rgba(63, 108, 148, 0.62);
+    --frontier: rgba(240, 165, 42, 0.8);
+    --cost-visited: rgba(226, 236, 244, 0.85);
+    --cost-frontier: #2a1a00;
+    --shadow-sheet: 3px 4px 0 rgba(0, 0, 0, 0.45);
+    --shadow-toast: 0 4px 14px rgba(0, 0, 0, 0.55);
+  }
 }
 
 * { box-sizing: border-box; }
@@ -35,8 +115,8 @@ body {
   background-image:
     linear-gradient(var(--line-major) 1px, transparent 1px),
     linear-gradient(90deg, var(--line-major) 1px, transparent 1px),
-    linear-gradient(rgba(179, 200, 216, 0.35) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(179, 200, 216, 0.35) 1px, transparent 1px);
+    linear-gradient(var(--line-minor) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line-minor) 1px, transparent 1px);
   background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
   font-size: 15px;
   line-height: 1.45;
@@ -48,11 +128,12 @@ body {
   padding: 20px 22px 40px;
 }
 
-a { color: var(--ink); text-decoration-color: var(--amber); text-underline-offset: 2px; }
+a { color: var(--ink); text-decoration-color: var(--amber-ink); text-underline-offset: 2px; }
 a:hover { color: var(--route); }
 
+/* --amber was 1.98 to 2.25:1 as a ring. */
 :focus-visible {
-  outline: 2px solid var(--amber);
+  outline: 2px solid var(--amber-ink);
   outline-offset: 2px;
 }
 
@@ -62,14 +143,26 @@ a:hover { color: var(--route); }
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 16px;
+  gap: 6px 16px;
   flex-wrap: wrap;
   border-bottom: 2px solid var(--ink);
   padding-bottom: 14px;
   margin-bottom: 18px;
 }
 
+/* The title and the switch: the header's first line, the switch at its end. */
+.masthead .title-row {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
+
 .masthead__title {
+  min-width: 0;
   font-family: var(--font-display);
   font-weight: 700;
   font-size: clamp(1.7rem, 3.4vw, 2.5rem);
@@ -79,7 +172,7 @@ a:hover { color: var(--route); }
 }
 
 .masthead__sub {
-  margin: 6px 0 0;
+  margin: 0;
   color: var(--ink-soft);
   font-size: 0.95rem;
   max-width: 46ch;
@@ -161,7 +254,7 @@ a:hover { color: var(--route); }
   font-weight: 600;
   padding: 9px 12px;
 }
-.btn--primary:hover { background: #0e2438; color: var(--amber-soft); }
+.btn--primary:hover { background: var(--primary-hover); color: var(--amber-soft); }
 
 .btn--ghost { border-color: var(--ink-soft); color: var(--ink-soft); }
 .btn--small { padding: 5px 8px; font-size: 0.72rem; }
@@ -189,7 +282,7 @@ a:hover { color: var(--route); }
   letter-spacing: 0.03em;
 }
 
-select, input[type='range'] { width: 100%; accent-color: var(--amber); }
+select, input[type='range'] { width: 100%; accent-color: var(--amber-ink); }
 
 select {
   font-family: var(--font-mono);
@@ -228,13 +321,13 @@ select {
   height: 14px;
   border-radius: 3px;
   display: inline-block;
-  border: 1px solid rgba(20, 48, 74, 0.35);
+  border: 1px solid var(--swatch-edge);
   flex: none;
 }
 .swatch--start { background: var(--green); border-radius: 50%; }
 .swatch--goal { background: radial-gradient(circle, var(--route) 30%, var(--card) 34%, var(--card) 58%, var(--route) 62%); border-radius: 50%; }
 .swatch--wall { background: var(--ink); }
-.swatch--mud { background: repeating-linear-gradient(45deg, var(--sand), var(--sand) 3px, #b08d54 3px, #b08d54 4px); }
+.swatch--mud { background: repeating-linear-gradient(45deg, var(--sand), var(--sand) 3px, var(--sand-line) 3px, var(--sand-line) 4px); }
 .swatch--frontier { background: var(--amber); }
 .swatch--visited { background: var(--wash); }
 .swatch--path { background: var(--route); }
@@ -242,7 +335,8 @@ select {
 /* ---------- canvas sheets ---------- */
 
 .panels { display: grid; gap: 14px; }
-.panels--compare { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+/* min(): a column was 340px at any width, so a phone scrolled sideways. */
+.panels--compare { grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); }
 
 .panel { display: grid; gap: 8px; min-width: 0; }
 
@@ -367,7 +461,7 @@ select {
   left: 0;
   width: 44px;
   text-align: right;
-  color: var(--amber);
+  color: var(--amber-ink);
   font-weight: 600;
   border-right: 1px solid var(--line);
   padding-right: 8px;
@@ -458,7 +552,7 @@ select {
   font-size: 0.78rem;
   padding: 10px 16px;
   border-radius: var(--radius);
-  box-shadow: 0 4px 14px rgba(20, 48, 74, 0.35);
+  box-shadow: var(--shadow-toast);
   max-width: min(90vw, 520px);
   z-index: 20;
 }
@@ -474,4 +568,31 @@ select {
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
+}
+
+/* Not on paper (last, so it wins). Paper leaves fills out, so labels on the ink fill take the ink (hovered too: the
+   pointer may rest on the button) and the current drawing tool is underlined; the legend's swatches, the key to the
+   map, keep their fills. */
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
+
+  .btn--primary,
+  .btn--primary:hover,
+  .seg__btn[aria-pressed='true'],
+  .toast {
+    color: var(--ink);
+  }
+
+  .seg__btn[aria-pressed='true'] {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+  }
+
+  .swatch {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
 }

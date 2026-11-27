@@ -212,12 +212,13 @@ export default function App() {
   return (
     <div className="app">
       <header className="masthead">
-        <div className="masthead__brand">
+        <div className="title-row">
           <h1 className="masthead__title">Pathfinding Playground</h1>
-          <p className="masthead__sub">
-            Draw a map. Watch five search algorithms think, one expansion at a time.
-          </p>
+          <hw-theme-toggle></hw-theme-toggle>
         </div>
+        <p className="masthead__sub">
+          Draw a map. Watch five search algorithms think, one expansion at a time.
+        </p>
         <div className="masthead__actions">
           <button type="button" className="btn" onClick={share}>Copy share link</button>
           <a className="btn btn--ghost" href={REPO_URL} target="_blank" rel="noreferrer">Source</a>

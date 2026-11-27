@@ -43,10 +43,8 @@ interface WorkerResponse {
 export function mountApp(root: HTMLElement): void {
   root.innerHTML = `
     <header class="top">
-      <div class="brand">
-        <h1>🔎 Type Witness</h1>
-        <p class="tagline">Paste TypeScript. Watch the compiler think, one expression at a time.</p>
-      </div>
+      <div class="title-row"><h1>🔎 Type Witness</h1><hw-theme-toggle></hw-theme-toggle></div>
+      <p class="tagline">Paste TypeScript. Watch the compiler think, one expression at a time.</p>
       <div class="toolbar">
         <label class="picker">Example
           <select id="example-picker">
@@ -69,7 +67,7 @@ export function mountApp(root: HTMLElement): void {
           <h2>Witness view</h2>
           <span class="hint">hover any expression for its type · click to jump to its step</span>
         </div>
-        <pre id="witness" class="witness"></pre>
+        <pre id="witness" class="witness" tabindex="0" role="region" aria-label="Witness view"></pre>
       </section>
       <section class="pane story-pane">
         <div class="pane-head">
@@ -84,7 +82,7 @@ export function mountApp(root: HTMLElement): void {
           <span id="step-counter" class="counter"></span>
         </div>
         <div id="current-card" class="card" hidden></div>
-        <ol id="step-list" class="steps" aria-label="All inference steps"></ol>
+        <div class="steps-scroll" tabindex="0" role="region" aria-label="All inference steps"><ol id="step-list" class="steps"></ol></div>
       </section>
     </main>
     <div id="tooltip" class="tooltip" hidden></div>
@@ -296,7 +294,11 @@ export function mountApp(root: HTMLElement): void {
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.target === editor) return;
+    // The element the key was pressed on: a key in a shadow root (the light and dark mode switch's button)
+    // reaches the document retargeted to its host (platform/src/theme/README.md, "Key shortcuts"). Fields (the
+    // editor, the step slider, the example list) and the scroll regions keep their arrow keys.
+    const t = (e.composedPath()[0] ?? e.target) as HTMLElement | null;
+    if (t?.closest?.('textarea, input, select, [role="region"]')) return;
     if (e.key === 'ArrowLeft') {
       stopPlaying();
       setCurrent(currentIndex - 1);

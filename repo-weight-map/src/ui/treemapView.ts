@@ -24,6 +24,11 @@ export function drawTreemap(svg: SVGSVGElement, node: TreeNode, total: number, w
     svg.append(t);
     return;
   }
+  // The drawn names sit in their own group above the cells, hidden from assistive technology: each cell is a
+  // button named by its whole label, and a name drawn inside it (clipped, or a folder's contents) would not match.
+  const labels = document.createElementNS(SVG_NS, 'g');
+  labels.classList.add('labels');
+  labels.setAttribute('aria-hidden', 'true');
   for (const { item, rect } of squarify(kids, (n) => n.size, outer)) {
     const g = document.createElementNS(SVG_NS, 'g');
     g.classList.add('cell', item.kind);
@@ -32,8 +37,7 @@ export function drawTreemap(svg: SVGSVGElement, node: TreeNode, total: number, w
     g.append(rectEl(rect, color, item.kind === 'dir' ? 0.28 : 0.85));
     const label = `${item.name}  ${formatBytes(item.size)}`;
     if (rect.w > 46 && rect.h > 18) {
-      const t = text(rect.x + 5, rect.y + 14, clip(label, rect.w / 7), 'label');
-      g.append(t);
+      labels.append(text(rect.x + 5, rect.y + 14, clip(label, rect.w / 7), 'label'));
     }
     const tip = document.createElementNS(SVG_NS, 'title');
     tip.textContent = `${item.path.replace('\u0000rest', '/…') || '/'}\n${formatBytes(item.size)} (${formatPct(item.size, total)}), ${item.fileCount.toLocaleString()} file${item.fileCount === 1 ? '' : 's'}\n${CATEGORY_LABEL[item.category]}`;
@@ -51,9 +55,9 @@ export function drawTreemap(svg: SVGSVGElement, node: TreeNode, total: number, w
         it.textContent = `${inner.item.path.replace('\u0000rest', '/…')}\n${formatBytes(inner.item.size)} (${formatPct(inner.item.size, total)})\n${CATEGORY_LABEL[inner.item.category]}`;
         r.append(it);
         if (ir.w > 60 && ir.h > 16) {
-          const t = text(ir.x + 4, ir.y + 12, clip(inner.item.name, ir.w / 6.5), 'label inner');
-          g.append(r, t);
-        } else g.append(r);
+          labels.append(text(ir.x + 4, ir.y + 12, clip(inner.item.name, ir.w / 6.5), 'label inner'));
+        }
+        g.append(r);
       }
     }
     if (!isRest) {
@@ -71,6 +75,7 @@ export function drawTreemap(svg: SVGSVGElement, node: TreeNode, total: number, w
     }
     svg.append(g);
   }
+  svg.append(labels);
 }
 
 function rectEl(r: Rect, fill: string, opacity: number): SVGRectElement {

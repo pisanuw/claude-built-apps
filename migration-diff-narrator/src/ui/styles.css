@@ -1,17 +1,68 @@
 :root {
-  --bg: #0f1420;
-  --panel: #171e2e;
-  --panel-edge: #232d44;
-  --text: #e8ecf4;
-  --muted: #93a0b8;
-  --accent: #6ea8fe;
-  --safe: #2ea06a;
-  --safe-bg: #12291e;
-  --caution: #d7a021;
-  --caution-bg: #2b2410;
-  --breaking: #e05656;
-  --breaking-bg: #2e1717;
+  color-scheme: light;
+  --bg: #f4f6fa;
+  --panel: #ffffff;
+  --panel-edge: #d6dce6;
+  --text: #172033;
+  --muted: #56627a;
+  --accent: #1f62c9;
+  /* Text on the accent (the primary button, the toast). */
+  --on-accent: #ffffff;
+  --safe: #157a4a;
+  --safe-bg: #e3f4ea;
+  --caution: #845600;
+  --caution-bg: #fbf0d4;
+  --breaking: #c22f2f;
+  --breaking-bg: #fbe4e4;
+  --code-bg: #f1f4f9;
+  /* Fields' edges: 3:1 on what they sit on (WCAG 1.4.11; --panel-edge was 1.21 to 1.34:1 in dark). */
+  --field-border: #7a8599;
   --mono: 'SF Mono', ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace;
+}
+
+/* Dark twice, for the switch (data-theme on <html>, set before the first paint) and for the device setting when
+   scripts do not run (platform/src/theme/README.md); test/theme.test.ts keeps the two the same. Both are for the
+   screen only: paper gets the light set. The dark set is the app's original palette. */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0f1420;
+    --panel: #171e2e;
+    --panel-edge: #232d44;
+    --text: #e8ecf4;
+    --muted: #93a0b8;
+    --accent: #6ea8fe;
+    --on-accent: #0b1020;
+    --safe: #2ea06a;
+    --safe-bg: #12291e;
+    --caution: #d7a021;
+    --caution-bg: #2b2410;
+    --breaking: #e86464;
+    --breaking-bg: #2e1717;
+    --code-bg: #0d1220;
+    --field-border: #64718a;
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0f1420;
+    --panel: #171e2e;
+    --panel-edge: #232d44;
+    --text: #e8ecf4;
+    --muted: #93a0b8;
+    --accent: #6ea8fe;
+    --on-accent: #0b1020;
+    --safe: #2ea06a;
+    --safe-bg: #12291e;
+    --caution: #d7a021;
+    --caution-bg: #2b2410;
+    --breaking: #e86464;
+    --breaking-bg: #2e1717;
+    --code-bg: #0d1220;
+    --field-border: #64718a;
+  }
 }
 
 * {
@@ -39,9 +90,26 @@ header.site {
   margin-bottom: 6px;
 }
 
+/* The title row takes the header's whole first line, so the switch is never alone on one. */
+header.site .title-row {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 header.site h1 {
   font-size: 24px;
   margin: 0;
+  min-width: 0;
+}
+
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 header.site .tagline {
@@ -72,7 +140,7 @@ select,
 button {
   background: var(--panel);
   color: var(--text);
-  border: 1px solid var(--panel-edge);
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   padding: 7px 12px;
   font-size: 14px;
@@ -87,7 +155,7 @@ select:hover {
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #0b1020;
+  color: var(--on-accent);
   font-weight: 600;
 }
 
@@ -122,7 +190,7 @@ textarea {
   resize: vertical;
   background: var(--panel);
   color: var(--text);
-  border: 1px solid var(--panel-edge);
+  border: 1px solid var(--field-border);
   border-radius: 10px;
   padding: 12px;
   font-family: var(--mono);
@@ -181,8 +249,11 @@ textarea:focus {
   color: var(--safe);
 }
 
+/* A count of zero: outlined in the muted colour, not faded (at 45% opacity it was under 4.5:1). */
 .chip-zero {
-  opacity: 0.45;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: inset 0 0 0 1px var(--panel-edge);
 }
 
 .warnings {
@@ -276,7 +347,7 @@ textarea:focus {
 }
 
 .card-delta code {
-  background: #0d1220;
+  background: var(--code-bg);
   border: 1px solid var(--panel-edge);
   border-radius: 6px;
   padding: 2px 8px;
@@ -320,7 +391,7 @@ footer.site a {
   left: 50%;
   transform: translateX(-50%);
   background: var(--accent);
-  color: #0b1020;
+  color: var(--on-accent);
   font-weight: 600;
   border-radius: 8px;
   padding: 9px 16px;
@@ -331,4 +402,15 @@ footer.site a {
 
 .toast.show {
   opacity: 1;
+}
+
+/* Not on paper (last, so it wins). Paper leaves the primary button's fill out, so its label takes the ink. */
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
+
+  button.primary {
+    color: var(--text);
+  }
 }

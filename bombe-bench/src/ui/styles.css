@@ -724,4 +724,24 @@ footer.about a {
   hw-theme-toggle {
     display: none !important;
   }
+
+  /* Paper leaves fills out (batch 5 review R1-2): a filled control's white label takes the ink, and the current one is underlined. */
+  .tabs button.active,
+  button.primary,
+  .chip.on {
+    color: var(--text);
+  }
+
+  .tabs button.active,
+  .chip.on {
+    text-decoration: underline;
+  }
+
+  /* Fills that are content keep their fill on paper. */
+  .tape mark,
+  .lamp.lit,
+  .cell.clash {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
 }

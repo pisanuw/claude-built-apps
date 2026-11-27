@@ -16,12 +16,13 @@ export default function LogPanel({ title, lines, cursor, compact = false }) {
   }, [cursor, lines]);
 
   return (
-    <section className={`log${compact ? ' log--compact' : ''}`} aria-label={`${title} narration`}>
+    <section className={`log${compact ? ' log--compact' : ''}`}>
       <header className="log__head">
         <span className="log__title">{title}</span>
         <span className="log__count">{cursor}/{lines.length} steps</span>
       </header>
-      <div className="log__body" ref={bodyRef}>
+      {/* It scrolls, so it takes focus: a keyboard user can scroll it with the arrow keys. */}
+      <div className="log__body" ref={bodyRef} tabIndex={0} role="region" aria-label={`${title} narration`}>
         {cursor === 0 && (
           <p className="log__empty">Press Run and the narration of every expansion appears here, derived directly from the algorithm state. No model calls, no cost, works offline.</p>
         )}

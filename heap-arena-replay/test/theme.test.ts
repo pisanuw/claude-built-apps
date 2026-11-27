@@ -304,6 +304,28 @@ describe('the switch in the header', () => {
     expect(onPage.defaultPrevented).toBe(true);
   });
 
+  it('leaves the step keys to a scroll region, so it scrolls sideways and keeps the focus (batch 5 review R1-1)', () => {
+    tab('replay');
+    const label = (): string => root.querySelector('.steplabel')!.textContent!;
+    const region = (): HTMLElement => root.querySelector<HTMLElement>('.tablewrap[role="region"]')!;
+    expect(region().getAttribute('aria-label')).toBe('Operations');
+    const before = label();
+    for (const key of ['ArrowRight', 'ArrowLeft', 'Home', 'End']) {
+      const inRegion = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      // A key on a cell inside the region counts too.
+      (region().querySelector('td') ?? region()).dispatchEvent(inRegion);
+      expect(inRegion.defaultPrevented, key).toBe(false);
+      expect(label(), key).toBe(before);
+    }
+    // The page itself, and the replay's own buttons, keep the shortcut.
+    const onPage = new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true });
+    document.body.dispatchEvent(onPage);
+    expect(onPage.defaultPrevented).toBe(true);
+    expect(label()).not.toBe(before);
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true }));
+    expect(label()).toBe(before);
+  });
+
   it('gives every text field its edge from --field-border (back on --border fails)', () => {
     for (const key of ['replay', 'quiz', 'diff']) {
       tab(key);
@@ -349,6 +371,34 @@ describe('the switch in the header', () => {
       expect(l.hasAttribute('stroke')).toBe(false);
     }
     for (let i = 0; i < 8; i += 1) expect(rules(`svg.strip .c${i}`)).toMatch(new RegExp(`stroke:\\s*var\\(--series-${i}\\);\\s*fill:\\s*var\\(--series-${i}\\)`));
+  });
+});
+
+describe('on paper (batch 5 review R1-2)', () => {
+  // Paper leaves CSS fills out, so a white label on a fill would print pale grey (about 2.3:1).
+  const print = [...css.matchAll(PRINT)].map((m) => m[1]).join('\n');
+  const printRules = (selector: string): string =>
+    [...print.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, s]) => s.split(',').some((x) => x.trim() === selector)).map((m) => m[2]).join(';');
+  const CONTROLS = [".tab.active", "button.primary"];
+  const CURRENT = [".tab.active"];
+  const CONTENT: string[] = [];
+
+  it('prints a filled control\'s label in the ink, the current one underlined, and keeps the fills that are content', () => {
+    for (const sel of CONTROLS) expect(printRules(sel), sel).toMatch(/(?:^|;)\s*color:\s*var\(--text\)/);
+    for (const sel of CURRENT) expect(printRules(sel), sel).toMatch(/text-decoration:\s*underline/);
+    for (const sel of CONTENT) expect(printRules(sel), sel).toMatch(/print-color-adjust:\s*exact;\s*-webkit-print-color-adjust:\s*exact/);
+    // One print block, at the end, so it wins over the screen rules of the same specificity.
+    expect(css.match(/@media print/g)).toHaveLength(1);
+    expect(css.slice(css.indexOf('@media print')).match(PRINT)![0].length).toBe(css.slice(css.indexOf('@media print')).trimEnd().length);
+  });
+
+  it('lists every screen rule that puts a label colour for a fill on one, so a new one has to be added', () => {
+    const screen = css.replace(PRINT, '').replace(SCREEN_ATTR, '').replace(SCREEN_DEVICE, '').replace(/:root\s*\{[^}]*\}/g, '');
+    const filled = [...screen.matchAll(/([^{}@]+)\{([^{}]*)\}/g)]
+      .filter(([, , body]) => /(?:^|;)\s*color:\s*var\((?:--accent-text)\)/.test(body) && /background(?:-color)?:\s*var\(/.test(body))
+      .flatMap(([, s]) => s.split(',').map((x) => x.trim().replace(/\s+/g, ' ')));
+    expect(filled.length).toBeGreaterThan(0);
+    for (const sel of filled) expect([...CONTROLS, ...CONTENT], sel).toContain(sel);
   });
 });
 

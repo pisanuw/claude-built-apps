@@ -281,7 +281,7 @@ function renderRound(): void {
     el(
       'p',
       'round-brief',
-      `${puzzle.defects.length === 1 ? 'One defect is' : `${puzzle.defects.length} defects are`} planted in this snippet. Click every line you would flag in review, then submit.`,
+      `${puzzle.defects.length === 1 ? 'One defect is' : `${puzzle.defects.length} defects are`} planted in this snippet. Flag every line you would raise in review (click it, or Tab to it and press Enter or Space), then submit.`,
     ),
   );
 
@@ -290,9 +290,18 @@ function renderRound(): void {
   puzzle.code.forEach((text, i) => {
     const line = el('div', 'code-line');
     line.dataset.line = String(i + 1);
+    // A toggle button, so a keyboard user can flag it too; its name is its number and its code.
+    line.tabIndex = 0;
+    line.setAttribute('role', 'button');
+    line.setAttribute('aria-pressed', 'false');
     line.append(el('span', 'line-no', String(i + 1)));
     line.append(el('span', 'line-text', text.length > 0 ? text : ' '));
     line.addEventListener('click', () => toggleLine(i + 1, line));
+    line.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault(); // Space would scroll the page
+      toggleLine(i + 1, line);
+    });
     pre.append(line);
   });
   code.append(pre);
@@ -300,6 +309,7 @@ function renderRound(): void {
 
   const actions = el('div', 'round-actions');
   const count = el('span', 'flag-count');
+  count.setAttribute('aria-live', 'polite');
   actions.append(count);
   const submit = el('button', 'primary', 'Submit review');
   submit.addEventListener('click', () => submitRound());
@@ -323,6 +333,7 @@ function toggleLine(line: number, node: HTMLElement): void {
     round.annotations.add(line);
     node.classList.add('flagged');
   }
+  node.setAttribute('aria-pressed', String(round.annotations.has(line)));
   updateFlagCount();
 }
 

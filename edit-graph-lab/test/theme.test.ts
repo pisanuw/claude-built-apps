@@ -90,7 +90,7 @@ describe('the palette', () => {
     const darkNames = names(/:root\[data-theme="dark"\]\s*\{([^}]*)\}/);
     // Each dark token is one the light theme sets too; a colour the dark set leaves out keeps its light value on purpose.
     for (const n of darkNames) expect(names(/:root\s*\{([^}]*)\}/), n).toContain(n);
-    expect(Object.keys(light)).toHaveLength(18);
+    expect(Object.keys(light)).toHaveLength(24);
     expect(block(/:root\s*\{([^}]*)\}/)).toContain('color-scheme: light;');
     expect(block(/:root\[data-theme="dark"\]\s*\{([^}]*)\}/)).toContain('color-scheme: dark;');
   });
@@ -123,6 +123,18 @@ describe('the palette', () => {
       for (const bg of ["--card"]) expect(ratio(rgb(t['--hover']), rgb(t[bg])), `${theme}: --hover on ${bg}`).toBeGreaterThanOrEqual(3);
       // and the solution path.
       for (const bg of ["--card"]) expect(ratio(rgb(t['--solution']), rgb(t[bg])), `${theme}: --solution on ${bg}`).toBeGreaterThanOrEqual(3);
+      // Myers' paths, step by step (the hsl(... 48%) set in script was 1.71 to 4.4:1 in light): d = 0,
+      for (const bg of ["--card"]) expect(ratio(rgb(t['--step-0']), rgb(t[bg])), `${theme}: --step-0 on ${bg}`).toBeGreaterThanOrEqual(3);
+      // then
+      for (const bg of ["--card"]) expect(ratio(rgb(t['--step-1']), rgb(t[bg])), `${theme}: --step-1 on ${bg}`).toBeGreaterThanOrEqual(3);
+      // then
+      for (const bg of ["--card"]) expect(ratio(rgb(t['--step-2']), rgb(t[bg])), `${theme}: --step-2 on ${bg}`).toBeGreaterThanOrEqual(3);
+      // then
+      for (const bg of ["--card"]) expect(ratio(rgb(t['--step-3']), rgb(t[bg])), `${theme}: --step-3 on ${bg}`).toBeGreaterThanOrEqual(3);
+      // then
+      for (const bg of ["--card"]) expect(ratio(rgb(t['--step-4']), rgb(t[bg])), `${theme}: --step-4 on ${bg}`).toBeGreaterThanOrEqual(3);
+      // to d = D.
+      for (const bg of ["--card"]) expect(ratio(rgb(t['--step-5']), rgb(t[bg])), `${theme}: --step-5 on ${bg}`).toBeGreaterThanOrEqual(3);
       // The focus ring.
       for (const bg of ["--card", "--bg"]) expect(ratio(rgb(t['--accent']), rgb(t[bg])), `${theme}: --accent on ${bg}`).toBeGreaterThanOrEqual(3);
     }
@@ -278,6 +290,22 @@ describe('the switch in the header', () => {
     expect(rules('select')).toMatch(/max-width:\s*100%/);
   });
 
+  it("draws Myers' paths with the step tokens, not colours set in script (batch 5 review R1-3)", () => {
+    [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Jump to end')!.click();
+    const groups = [...root.querySelectorAll('svg .snakes > g')];
+    expect(groups.length).toBeGreaterThan(5);
+    const tones = new Set<string>();
+    for (const g of groups) {
+      expect(g.getAttribute('class')).toMatch(/^tone-[0-5]$/);
+      tones.add(g.getAttribute('class')!);
+      // No colour, and no opacity that would take a tone under 3:1.
+      for (const n of [g, ...g.querySelectorAll('*')]) for (const attr of ['stroke', 'fill', 'opacity']) expect(n.getAttribute(attr) ?? 'none', attr).toMatch(/^none$/);
+    }
+    // The default example (D = 5) uses every tone, blue to orange.
+    expect([...tones].sort()).toEqual(['tone-0', 'tone-1', 'tone-2', 'tone-3', 'tone-4', 'tone-5']);
+    for (let i = 0; i < 6; i++) expect(rules(`.graph .snakes .tone-${i}`)).toBe(` stroke: var(--step-${i}); fill: var(--step-${i}); `);
+  });
+
   it('makes the V array and the LCS table named regions in the tab order, with the focus ring', () => {
     expectRegion(root.querySelector('.vtable'), 'V array');
     tab('compare');
@@ -303,6 +331,34 @@ describe('the diff colours on their tints', () => {
         expect(ratio(rgb(get(fg)), mix(c, rgb(get('--card')), a)), `${fg} on ${tint}`).toBeGreaterThanOrEqual(4.5);
       }
     }
+  });
+});
+
+describe('on paper (batch 5 review R1-2)', () => {
+  // Paper leaves CSS fills out, so a white label on a fill would print pale grey (about 2.3:1).
+  const print = [...css.matchAll(PRINT)].map((m) => m[1]).join('\n');
+  const printRules = (selector: string): string =>
+    [...print.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, s]) => s.split(',').some((x) => x.trim() === selector)).map((m) => m[2]).join(';');
+  const CONTROLS = ["button", ".tab[aria-selected=\"true\"]"];
+  const CURRENT = [".tab[aria-selected=\"true\"]"];
+  const CONTENT: string[] = ["table.lcs td.kept"];
+
+  it('prints a filled control\'s label in the ink, the current one underlined, and keeps the fills that are content', () => {
+    for (const sel of CONTROLS) expect(printRules(sel), sel).toMatch(/(?:^|;)\s*color:\s*var\(--fg\)/);
+    for (const sel of CURRENT) expect(printRules(sel), sel).toMatch(/text-decoration:\s*underline/);
+    for (const sel of CONTENT) expect(printRules(sel), sel).toMatch(/print-color-adjust:\s*exact;\s*-webkit-print-color-adjust:\s*exact/);
+    // One print block, at the end, so it wins over the screen rules of the same specificity.
+    expect(css.match(/@media print/g)).toHaveLength(1);
+    expect(css.slice(css.indexOf('@media print')).match(PRINT)![0].length).toBe(css.slice(css.indexOf('@media print')).trimEnd().length);
+  });
+
+  it('lists every screen rule that puts a label colour for a fill on one, so a new one has to be added', () => {
+    const screen = css.replace(PRINT, '').replace(SCREEN_ATTR, '').replace(SCREEN_DEVICE, '').replace(/:root\s*\{[^}]*\}/g, '');
+    const filled = [...screen.matchAll(/([^{}@]+)\{([^{}]*)\}/g)]
+      .filter(([, , body]) => /(?:^|;)\s*color:\s*var\((?:--accent-fg)\)/.test(body) && /background(?:-color)?:\s*var\(/.test(body))
+      .flatMap(([, s]) => s.split(',').map((x) => x.trim().replace(/\s+/g, ' ')));
+    expect(filled.length).toBeGreaterThan(0);
+    for (const sel of filled) expect([...CONTROLS, ...CONTENT], sel).toContain(sel);
   });
 });
 

@@ -55,6 +55,11 @@ function wallDateLabel(w: WallTime): string {
   return `${DOW_SHORT[new Date(Date.UTC(w.year, w.month - 1, w.day)).getUTCDay()]} ${w.year}-${pad2(w.month)}-${pad2(w.day)}`;
 }
 
+function dayWall(date: string): WallTime {
+  const [year, month, day] = date.split('-').map(Number);
+  return { year, month, day, hour: 0, minute: 0 };
+}
+
 function relativeLabel(utcMs: number, nowMs: number): string {
   const diffMin = Math.round((utcMs - nowMs) / 60000);
   if (diffMin < 1) return 'now';
@@ -179,6 +184,8 @@ export function mountApp(root: HTMLElement): void {
   const stats = el('div', 'stats');
   const heatmapScroll = region('heatmap-scroll', 'Firing heatmap, one square a day');
   const dayDetail = el('div', 'day-detail');
+  // Says the day's fire times when the keyboard (or the mouse) moves to a day.
+  dayDetail.setAttribute('aria-live', 'polite');
   mapCard.append(el('h2', 'section', 'Firing heatmap'), stats, heatmapScroll, dayDetail);
 
   const nextCard = el('div', 'card');
@@ -244,11 +251,16 @@ export function mountApp(root: HTMLElement): void {
     return `l${level}`;
   }
 
+  // What the live region shows now, so the same day (or the hint, as the schedule is retyped) is not said again.
+  let shownDetail = '';
   function renderDetail(day: DayCell | null): void {
+    const key = day ? `${day.date} ${day.count} ${state.displayZone}` : 'hint';
+    if (key === shownDetail) return;
+    shownDetail = key;
     dayDetail.replaceChildren();
     if (!day) {
       dayDetail.append(
-        el('span', 'muted', 'Hover or click a day to see its exact fire times.'),
+        el('span', 'muted', 'Hover or click a day, or Tab to the days and use the arrow keys, to see its exact fire times.'),
       );
       return;
     }
@@ -273,10 +285,27 @@ export function mountApp(root: HTMLElement): void {
     const body = el('div', 'hm-body');
     const dows = el('div', 'hm-dows');
     for (let i = 0; i < 7; i++) dows.append(el('span', undefined, i % 2 === 1 ? DOW_SHORT[i] : ''));
+    // The days are a list box: one day is in the tab order, the arrow keys move between days (up and down a day,
+    // left and right a week), and the day with focus shows its fire times. Enter or Space chooses it, like a click.
     const grid = el('div', 'hm-grid');
+    grid.setAttribute('role', 'listbox');
+    grid.setAttribute('aria-label', 'Days');
 
     const firstWeekday = result.days[0]?.weekday ?? 0;
-    for (let i = 0; i < firstWeekday; i++) grid.append(el('div', 'hm-cell pad'));
+    for (let i = 0; i < firstWeekday; i++) {
+      const pad = el('div', 'hm-cell pad');
+      pad.setAttribute('aria-hidden', 'true');
+      grid.append(pad);
+    }
+    const cells: HTMLDivElement[] = [];
+    const choose = (cell: HTMLDivElement, day: DayCell): void => {
+      selectedDate = day.date;
+      for (const c of cells) {
+        c.classList.toggle('selected', c === cell);
+        c.setAttribute('aria-selected', String(c === cell));
+      }
+      renderDetail(day);
+    };
 
     const byDate = new Map(result.days.map((d) => [d.date, d]));
     let column = 0;
@@ -286,14 +315,15 @@ export function mountApp(root: HTMLElement): void {
       const cell = el('div', `hm-cell ${levelClass(day.count, result.maxPerDay)}`.trim());
       cell.dataset.date = day.date;
       cell.title = `${day.date}: ${day.count} firing${day.count === 1 ? '' : 's'}`;
+      cell.setAttribute('role', 'option');
+      cell.setAttribute('aria-label', `${wallDateLabel(dayWall(day.date))}: ${day.count === 0 ? 'no firings' : day.count === 1 ? '1 firing' : `${day.count} firings`}`);
+      cell.setAttribute('aria-selected', String(day.date === selectedDate));
+      cell.tabIndex = -1;
       cell.addEventListener('mouseenter', () => renderDetail(day));
-      cell.addEventListener('click', () => {
-        selectedDate = day.date;
-        grid.querySelectorAll('.hm-cell.selected').forEach((c) => c.classList.remove('selected'));
-        cell.classList.add('selected');
-        renderDetail(day);
-      });
+      cell.addEventListener('focus', () => renderDetail(day));
+      cell.addEventListener('click', () => choose(cell, day));
       if (day.date === selectedDate) cell.classList.add('selected');
+      cells.push(cell);
       grid.append(cell);
       column = Math.floor(cellIndex / 7);
       if (columnMonths[column] === undefined) {
@@ -303,6 +333,28 @@ export function mountApp(root: HTMLElement): void {
     }
     grid.addEventListener('mouseleave', () => {
       renderDetail(selectedDate !== null ? (byDate.get(selectedDate) ?? null) : null);
+    });
+    // The day in the tab order: the chosen one, else the first that fires, else the first.
+    let start = result.days.findIndex((d) => d.date === selectedDate);
+    if (start < 0) start = Math.max(0, result.days.findIndex((d) => d.count > 0));
+    if (cells[start]) cells[start].tabIndex = 0;
+    grid.addEventListener('keydown', (e) => {
+      const at = cells.indexOf(e.target as HTMLDivElement);
+      if (at < 0) return;
+      const step: Record<string, number> = { ArrowDown: 1, ArrowUp: -1, ArrowRight: 7, ArrowLeft: -7 };
+      let next = at;
+      if (e.key in step) next = Math.max(0, Math.min(cells.length - 1, at + step[e.key]));
+      else if (e.key === 'Home') next = 0;
+      else if (e.key === 'End') next = cells.length - 1;
+      else if (e.key === 'Enter' || e.key === ' ') {
+        choose(cells[at], result.days[at]);
+        e.preventDefault();
+        return;
+      } else return;
+      e.preventDefault();
+      cells[at].tabIndex = -1;
+      cells[next].tabIndex = 0;
+      cells[next].focus();
     });
 
     let prevLabel = '';
@@ -403,6 +455,7 @@ export function mountApp(root: HTMLElement): void {
       stats.replaceChildren('');
       heatmapScroll.replaceChildren();
       dayDetail.replaceChildren();
+      shownDetail = '';
       nextScroll.replaceChildren();
       return;
     }

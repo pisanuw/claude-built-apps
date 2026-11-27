@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { myers } from '../src/core/myers';
 import { tokenize } from '../src/core/script';
 import { hunks } from '../src/core/unified';
-import { cellSize, explainSnake, label, offGrid, segmentPoints, stepHue } from '../src/core/view';
+import { cellSize, explainSnake, label, offGrid, segmentPoints, STEP_TONES, stepTone } from '../src/core/view';
 
 const chars = (s: string) => tokenize(s, 'char');
 
@@ -45,10 +45,14 @@ describe('view helpers', () => {
     expect(pts.at(-1)).toEqual({ x: 6, y: 6 });
   });
 
-  it('picks hues and cell sizes within bounds', () => {
-    expect(stepHue(0, 5)).toBe(210);
-    expect(stepHue(5, 5)).toBe(30);
-    expect(stepHue(0, 0)).toBe(210);
+  it('picks step tones and cell sizes within bounds', () => {
+    expect(STEP_TONES).toBe(6);
+    expect(stepTone(0, 5)).toBe(0);
+    expect(stepTone(5, 5)).toBe(5);
+    expect(stepTone(2, 4)).toBe(3);
+    expect(stepTone(9, 4)).toBe(5);
+    expect(stepTone(0, 0)).toBe(0);
+    expect(stepTone(1, 1)).toBe(5);
     expect(cellSize(7, 6, 600)).toBe(44);
     expect(cellSize(150, 10, 600)).toBe(4);
     expect(cellSize(0, 0, 100)).toBe(44);

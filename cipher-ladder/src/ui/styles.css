@@ -188,4 +188,7 @@ footer { margin-top: 30px; color: var(--muted); font-size: 0.85rem; }
 /* Not on paper. */
 @media print {
   hw-theme-toggle { display: none !important; }
+  /* Paper leaves fills out (batch 5 review R1-2): a filled control's white label takes the ink, and the current one is underlined. */
+  nav.views button[aria-current="page"], button.primary { color: var(--ink); }
+  nav.views button[aria-current="page"] { text-decoration: underline; }
 }

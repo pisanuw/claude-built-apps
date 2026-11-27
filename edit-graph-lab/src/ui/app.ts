@@ -6,7 +6,7 @@ import { myers, type MyersResult } from '../core/myers';
 import { MAX_TOKENS, pathOf, tokenize, type Mode, type Point, type Script } from '../core/script';
 import { decodeState, encodeState } from '../core/share';
 import { hunks, segments, type Hunk } from '../core/unified';
-import { cellSize, explainSnake, label, offGrid, segmentPoints, stepHue } from '../core/view';
+import { cellSize, explainSnake, label, offGrid, segmentPoints, stepTone } from '../core/view';
 import { el, svg } from './dom';
 
 /** Above this many tokens per side the graph is skipped (the Compare tab still works). */
@@ -249,12 +249,13 @@ export function mountApp(root: HTMLElement): void {
     // Furthest-reaching d-paths up to the current step.
     const paths = svg('g', { class: 'snakes', 'clip-path': 'url(#grid-clip)' });
     for (const s of r.steps.slice(0, step + 1).flatMap((st) => st.snakes)) {
-      const colour = `hsl(${stepHue(s.d, r.d)} 70% 48%)`;
+      // The colour is a token (.tone-N in the stylesheet), so it follows the theme. Earlier steps are thinner, not
+      // fainter: at 65% opacity no tone kept 3:1 on the light card.
       const width = s.d === step ? 3 : 1.6;
-      const g = svg('g', { stroke: colour, 'stroke-width': String(width), opacity: s.d === step ? '1' : '0.65' });
+      const g = svg('g', { class: `tone-${stepTone(s.d, r.d)}`, 'stroke-width': String(width) });
       if (s.d > 0) g.append(svg('line', { x1: String(X(s.from.x)), y1: String(Y(s.from.y)), x2: String(X(s.mid.x)), y2: String(Y(s.mid.y)) }));
       if (s.to.x > s.mid.x) g.append(svg('line', { x1: String(X(s.mid.x)), y1: String(Y(s.mid.y)), x2: String(X(s.to.x)), y2: String(Y(s.to.y)) }));
-      g.append(svg('circle', { cx: String(X(s.to.x)), cy: String(Y(s.to.y)), r: String(Math.max(2, Math.min(5, c / 6))), fill: colour, stroke: 'none' }, svg('title', {}, `d = ${s.d}, k = ${s.k}: (${s.to.x}, ${s.to.y})`)));
+      g.append(svg('circle', { cx: String(X(s.to.x)), cy: String(Y(s.to.y)), r: String(Math.max(2, Math.min(5, c / 6))), stroke: 'none' }, svg('title', {}, `d = ${s.d}, k = ${s.k}: (${s.to.x}, ${s.to.y})`)));
       paths.append(g);
     }
     root.append(paths);

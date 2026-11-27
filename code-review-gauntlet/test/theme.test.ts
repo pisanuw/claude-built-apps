@@ -273,6 +273,48 @@ describe('the switch in the header', () => {
     press('Back to menu');
   });
 
+  it('lets a keyboard user flag a line: each is a toggle button, Enter and Space press it', () => {
+    root().querySelector<HTMLButtonElement>('button.tier-novice')!.click();
+    const lines = [...root().querySelectorAll<HTMLElement>('.code-panel .code-line')];
+    expect(lines.length).toBeGreaterThan(3);
+    for (const line of lines) {
+      expect(line.getAttribute('role')).toBe('button');
+      expect(line.tabIndex).toBe(0);
+      expect(line.getAttribute('aria-pressed')).toBe('false');
+      // Its name is its visible number and code.
+      expect(line.hasAttribute('aria-label')).toBe(false);
+    }
+    const count = root().querySelector('.flag-count')!;
+    expect(count.getAttribute('aria-live')).toBe('polite');
+    const key = (line: HTMLElement, k: string): KeyboardEvent => {
+      const e = new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true });
+      line.dispatchEvent(e);
+      return e;
+    };
+    expect(key(lines[1], 'Enter').defaultPrevented).toBe(true);
+    expect(lines[1].classList.contains('flagged')).toBe(true);
+    expect(lines[1].getAttribute('aria-pressed')).toBe('true');
+    expect(count.textContent).toBe('1 line flagged');
+    expect(key(lines[2], ' ').defaultPrevented).toBe(true);
+    expect(count.textContent).toBe('2 lines flagged');
+    expect(key(lines[1], ' ').defaultPrevented).toBe(true);
+    expect(lines[1].getAttribute('aria-pressed')).toBe('false');
+    expect(count.textContent).toBe('1 line flagged');
+    // Other keys are left alone (Tab moves on, arrows scroll the panel).
+    expect(key(lines[3], 'ArrowRight').defaultPrevented).toBe(false);
+    expect(key(lines[3], 'a').defaultPrevented).toBe(false);
+    expect(lines[3].getAttribute('aria-pressed')).toBe('false');
+    // A click still flags, and the result marks the flagged line a false flag or a find.
+    lines[3].click();
+    expect(lines[3].getAttribute('aria-pressed')).toBe('true');
+    press('Submit review');
+    expect(root().querySelectorAll('.code-panel .code-line.was-false, .code-panel .code-line.was-found').length).toBeGreaterThan(0);
+    // On the result, the lines are not buttons any more.
+    expect(root().querySelector('.code-panel .code-line[role="button"]')).toBeNull();
+    expect(rules('.code-line:focus-visible')).toMatch(/outline-offset:\s*-3px/);
+    press('Back to menu');
+  });
+
   it('puts the seconds beside the timer bar, not over its fill (2.14:1 there in dark)', () => {
     root().querySelector<HTMLButtonElement>('button.tier-novice')!.click();
     const timer = root().querySelector('.timer')!;
