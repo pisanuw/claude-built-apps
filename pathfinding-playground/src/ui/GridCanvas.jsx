@@ -154,6 +154,28 @@ export default function GridCanvas({
           const c = k % grid.cols;
           ctx.fillRect(c * cell, r * cell, cell, cell);
         }
+        // Visited cells also take a fine hatch falling left to right (mud's
+        // rises), so they do not rely on the wash's colour alone: it is
+        // 1.37:1 (light) and 1.97:1 (dark) on the sheet, the hatch 4.78:1 and
+        // 4.17:1 on the wash.
+        if (view.visited.size) {
+          ctx.save();
+          ctx.beginPath();
+          for (const k of view.visited.keys()) {
+            if (view.frontier.has(k)) continue;
+            ctx.rect((k % grid.cols) * cell, Math.floor(k / grid.cols) * cell, cell, cell);
+          }
+          ctx.clip();
+          ctx.strokeStyle = P.inkSoft;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          for (let o = -H; o < W; o += 6) {
+            ctx.moveTo(o, 0);
+            ctx.lineTo(o + H, H);
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
         for (const k of view.frontier.keys()) {
           const r = Math.floor(k / grid.cols);
           const c = k % grid.cols;
@@ -213,21 +235,33 @@ export default function GridCanvas({
 
       // Cost overlays.
       if (showCosts && view && cell >= 18) {
-        ctx.font = `${Math.max(8, Math.floor(cell * 0.36))}px "IBM Plex Mono", monospace`;
+        const size = Math.max(8, Math.floor(cell * 0.36));
+        ctx.font = `${size}px "IBM Plex Mono", monospace`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        const figures = (map, color) => {
-          ctx.fillStyle = color;
+        // On a visited cell the figure sits on the wash alone: a box of the
+        // wash, laid the same way, covers the hatch behind it.
+        const figures = (map, color, backed) => {
           for (const [k, info] of map) {
             const r = Math.floor(k / grid.cols);
             const c = k % grid.cols;
             const v = info.f ?? info.g;
             if (v == null) continue;
-            ctx.fillText(String(v), c * cell + cell / 2, r * cell + cell / 2 + 0.5);
+            const x = c * cell + cell / 2;
+            const y = r * cell + cell / 2 + 0.5;
+            if (backed && !view.frontier.has(k)) {
+              const w = ctx.measureText(String(v)).width + 2;
+              for (const fill of [P.paper, P.visited]) {
+                ctx.fillStyle = fill;
+                ctx.fillRect(x - w / 2, y - size / 2 - 1, w, size + 2);
+              }
+            }
+            ctx.fillStyle = color;
+            ctx.fillText(String(v), x, y);
           }
         };
-        figures(view.visited, P.costVisited);
-        figures(view.frontier, P.costFrontier);
+        figures(view.visited, P.costVisited, true);
+        figures(view.frontier, P.costFrontier, false);
       }
 
       // Start pin: a filled survey point. Goal pin: a bullseye.
