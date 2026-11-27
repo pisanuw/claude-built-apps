@@ -3,6 +3,8 @@
  * the public Supabase values, memory stores otherwise (`vite preview`, the
  * Playwright walkthrough).
  */
+// The light and dark mode switch (platform/src/theme), defined before the header is drawn.
+import './lib/hw-theme.js';
 import './styles.css';
 import { currentToken, mountSignIn, onAuth } from './lib/auth';
 import { getSupabase, hasSupabase } from './lib/supabase';

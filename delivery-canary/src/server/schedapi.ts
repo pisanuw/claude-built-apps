@@ -13,6 +13,7 @@
  *   the shop id under DELIVERY_CANARY_KEY, so it stops only that shop's
  *   email and nobody can make one.
  */
+import { createHash } from 'node:crypto';
 import { VARIANT_RE } from '../core/canary';
 import type { Cadence } from '../core/schedule';
 import { esc } from './mail';
@@ -104,17 +105,37 @@ export async function handleSchedule(method: string, bodyText: string | null, to
   }
 }
 
-const PAGE_CSP = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+/**
+ * The shared light and dark mode switch on this page too (platform/src/theme/README.md, "A plain HTML
+ * site"): the head snippet, copied unchanged (test/theme.test.ts pins it), sets data-theme before the first
+ * paint, and /hw-theme.js (public/, a pinned copy) draws <hw-theme-toggle> in the header.
+ */
+export const THEME_INIT_SNIPPET = `<script>(function(){var t;try{t=localStorage.getItem('hw-theme')}catch{}if(t!=='light'&&t!=='dark')t=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)})();</script>`;
+const THEME_INIT_CSP = `'sha256-${createHash('sha256').update(THEME_INIT_SNIPPET.slice('<script>'.length, -'</script>'.length)).digest('base64')}'`;
+const PAGE_CSP = `default-src 'none'; script-src 'self' ${THEME_INIT_CSP}; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'`;
 export const UNSUB_HEADERS = { 'content-security-policy': PAGE_CSP, 'referrer-policy': 'no-referrer' };
+
+/** Light on :root; dark for a dark choice, or a dark device with no choice; paper always light, without the switch. */
+const LIGHT = '--ink:#1f1f1f;--bg:#ffffff;--accent:#312e81;--on-accent:#ffffff';
+const DARK = '--ink:#e3e3e3;--bg:#131314;--accent:#a5b4fc;--on-accent:#131314';
+const PAGE_STYLE =
+  `:root{color-scheme:light;${LIGHT}}` +
+  `@media screen{:root[data-theme="dark"]{color-scheme:dark;${DARK}}}` +
+  `@media screen and (prefers-color-scheme: dark){:root:not([data-theme="light"]){color-scheme:dark;${DARK}}}` +
+  `body{font-family:system-ui,sans-serif;max-width:34rem;margin:3rem auto;padding:0 1rem;line-height:1.5;color:var(--ink);background:var(--bg)}` +
+  `.title-row{display:flex;align-items:center;justify-content:space-between;gap:12px}` +
+  `.title-row h1{min-width:0;margin:0.67em 0;overflow-wrap:anywhere}` +
+  `hw-theme-toggle:not([hidden]){display:inline-flex;flex:none;width:var(--hw-theme-toggle-size, 44px);height:var(--hw-theme-toggle-size, 44px)}` +
+  `button{font:inherit;padding:.6rem 1.1rem;border-radius:.4rem;border:1px solid var(--accent);background:var(--accent);color:var(--on-accent);cursor:pointer}` +
+  `a{color:var(--accent)}` +
+  `@media print{hw-theme-toggle{display:none !important}}`;
 
 function page(title: string, body: string): string {
   return (
-    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">` +
+    `<!doctype html><html lang="en"><head><meta charset="utf-8">${THEME_INIT_SNIPPET}<meta name="viewport" content="width=device-width, initial-scale=1">` +
     `<meta name="robots" content="noindex"><title>${esc(title)} · Delivery Canary</title>` +
-    `<style>body{font-family:system-ui,sans-serif;max-width:34rem;margin:3rem auto;padding:0 1rem;line-height:1.5;color:#1f1f1f;background:#fff}` +
-    `button{font:inherit;padding:.6rem 1.1rem;border-radius:.4rem;border:1px solid #312E81;background:#312E81;color:#fff;cursor:pointer}` +
-    `a{color:#312E81}@media (prefers-color-scheme: dark){body{background:#131314;color:#e3e3e3}a{color:#a5b4fc}}</style></head>` +
-    `<body><main><h1>${esc(title)}</h1>${body}</main></body></html>`
+    `<style>${PAGE_STYLE}</style><script defer src="/hw-theme.js"></script></head>` +
+    `<body><header><div class="title-row"><h1>${esc(title)}</h1><hw-theme-toggle></hw-theme-toggle></div></header><main>${body}</main></body></html>`
   );
 }
 

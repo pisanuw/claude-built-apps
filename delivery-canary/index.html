@@ -3,6 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Light and dark mode: sets data-theme before the first paint (platform/src/theme/README.md; test/theme.test.ts pins it) -->
+    <script>(function(){var t;try{t=localStorage.getItem('hw-theme')}catch{}if(t!=='light'&&t!=='dark')t=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)})();</script>
     <title>Delivery Canary: is your download email reaching buyers?</title>
     <meta name="description" content="For Shopify shops that sell digital files: check that your download email reaches the Gmail inbox, not Promotions or Spam, and that its link still opens the right file." />
     <!-- Google Sans Medium for the sign-in bar's labels only ("Sign in with
@@ -18,10 +20,11 @@
     <div id="app">
       <main>
       <header class="top">
-        <div>
+        <div class="top-bar">
           <h1>Delivery Canary</h1>
-          <p class="tagline">Does your download email reach the inbox, and does its link still open the right file? Check one in a minute.</p>
+          <hw-theme-toggle></hw-theme-toggle>
         </div>
+        <p class="tagline">Does your download email reach the inbox, and does its link still open the right file? Check one in a minute.</p>
       </header>
       <section class="card" aria-labelledby="shell-h">
         <h2 id="shell-h">For shops that sell digital files on Shopify</h2>
