@@ -418,9 +418,14 @@ const doc = (title: string, kids: SNode[], extra: Partial<FixtureDoc> = {}): Fix
 export const HEBREW_LINE = 'שלום עולם';
 
 /** big-tree's paragraph count: both trees together just under the 200,000-node cap (set from the spike, DECISIONS.md). */
-export const BIG_TREE_PARAGRAPHS = 28_000;
+export const BIG_TREE_PARAGRAPHS = 4_100;
 /** stress.pdf's figure size: 60 pages and just under 10 MB in all. */
 export const STRESS_IMAGE = { width: 230, height: 230 };
+
+/** big-tree with `n` paragraphs (the spike tries several sizes). */
+export function bigTreeDoc(n: number): FixtureDoc {
+  return doc('Big tree', [H(1, 'Big tree'), ...Array.from({ length: n }, (_, i): SNode => P(`p${i}`))], { layout: { size: 2, lead: 1.25, columns: 12 } });
+}
 
 export interface Fixture {
   name: string;
@@ -493,15 +498,7 @@ export const FIXTURES: Fixture[] = [
   {
     name: 'big-tree',
     mustPass: false,
-    doc: () =>
-      doc(
-        'Big tree',
-        [
-          H(1, 'Big tree'),
-          ...Array.from({ length: BIG_TREE_PARAGRAPHS }, (_, i): SNode => P(`p${i}`)),
-        ],
-        { layout: { size: 2, lead: 1.25, columns: 12 } },
-      ),
+    doc: () => bigTreeDoc(BIG_TREE_PARAGRAPHS),
   },
   {
     name: 'rtl-reversed',

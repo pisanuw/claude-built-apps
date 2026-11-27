@@ -1,0 +1,92 @@
+{
+  "basic": {
+    "sha256": "9a0074eb9f6d20b9b9f183ab878b7c688255bc0ee49d921b7e5a57b0191158d0",
+    "bytes": 27252,
+    "pages": 1,
+    "mustPass": true,
+    "profile": "PDF/UA-1",
+    "verapdf": "1.30.4",
+    "compliant": true,
+    "failedRules": 0,
+    "failedClauses": []
+  },
+  "roles": {
+    "sha256": "9a19120ab7a789ed19117a6f1d53f1ff1381201ea89c5d69e09bee168b55e6a9",
+    "bytes": 48870,
+    "pages": 1,
+    "mustPass": false,
+    "profile": "PDF/UA-1",
+    "verapdf": "1.30.4",
+    "compliant": false,
+    "failedRules": 1,
+    "failedClauses": [
+      "7.3-1"
+    ]
+  },
+  "five-pages": {
+    "sha256": "800d38f4428d9f085d78c9f3e20f7e1028916b18a0662725345e492ff42b0538",
+    "bytes": 119694,
+    "pages": 5,
+    "mustPass": true,
+    "profile": "PDF/UA-1",
+    "verapdf": "1.30.4",
+    "compliant": true,
+    "failedRules": 0,
+    "failedClauses": []
+  },
+  "stress": {
+    "sha256": "2766f93f93e51cc0c262fd2886ea7515f7710d5483699832b6edec98ebf186ef",
+    "bytes": 9840359,
+    "pages": 60,
+    "mustPass": true,
+    "profile": "PDF/UA-1",
+    "verapdf": "1.30.4",
+    "compliant": true,
+    "failedRules": 0,
+    "failedClauses": []
+  },
+  "big-tree": {
+    "sha256": "732d35dff9eef4575f3bfb9a68bb61b5f8527854cdb393cf28b979a1f9ef1408",
+    "bytes": 686672,
+    "pages": 2,
+    "mustPass": false,
+    "profile": "PDF/UA-1",
+    "verapdf": "1.30.4",
+    "compliant": true,
+    "failedRules": 0,
+    "failedClauses": []
+  },
+  "rtl-reversed": {
+    "sha256": "3222580ce79bdabde40e4a4721af1d694900bc4bca5c6f8952bf4a43e5ce94de",
+    "bytes": 7502,
+    "pages": 1,
+    "mustPass": true,
+    "profile": "PDF/UA-1",
+    "verapdf": "1.30.4",
+    "compliant": true,
+    "failedRules": 0,
+    "failedClauses": []
+  },
+  "good-rtl": {
+    "sha256": "119c11ef5c0cbfb1d3f3617914c447ff8de13896f0817183f5f74bf852282a9f",
+    "bytes": 7621,
+    "pages": 1,
+    "mustPass": true,
+    "profile": "PDF/UA-1",
+    "verapdf": "1.30.4",
+    "compliant": true,
+    "failedRules": 0,
+    "failedClauses": []
+  },
+  "control-rowspan": {
+    "sha256": "5238c40972f30c5fc90c0eb5f86bc0de27147dcd90c720545caf338fc352514f",
+    "bytes": 8103,
+    "pages": 1,
+    "mustPass": true,
+    "profile": "PDF/UA-1",
+    "verapdf": "1.30.4",
+    "compliant": true,
+    "failedRules": 0,
+    "failedClauses": []
+  }
+}
