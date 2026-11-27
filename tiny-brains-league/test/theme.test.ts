@@ -6,6 +6,8 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HOUSE_BOTS, brainBot } from '../src/core/bots';
 import { runLadder } from '../src/core/ladder';
 import { compileBrain, type BrainFile } from '../src/core/net';
+import { newBoard, play } from '../src/core/connect4';
+import { boardSvg } from '../src/ui/board';
 import { mountApp } from '../src/ui/app';
 import { state } from '../src/ui/state';
 
@@ -125,8 +127,9 @@ describe('the palette', () => {
       // The head-to-head scores sit on up to 35% of --good over the panel (the dark accent was 2.86:1 there).
       const cell = mix(rgb(t['--good']), rgb(t['--panel']), 0.35);
       for (const fg of ['--ink', '--cell-link']) expect(ratio(rgb(t[fg]), cell), `${theme}: ${fg} on the strongest cell`).toBeGreaterThanOrEqual(4.5);
-      // The last move's ring on the board (the discs and the holes are the game's own look).
-      for (const fg of ['--mark']) expect(ratio(rgb(t[fg]), rgb(t['--board'])), `${theme}: ${fg} on the board`).toBeGreaterThanOrEqual(3);
+      // The replay's winning and must-block dots sit in an empty hole, not on the board's blue
+      // (the discs and the holes are the game's own look; white dots were 1.08:1 on the light hole).
+      expect(ratio(rgb(t['--mark']), rgb(t['--hole'])), `${theme}: the dots on an empty hole`).toBeGreaterThanOrEqual(3);
     }
   });
 
@@ -158,6 +161,18 @@ describe('the palette', () => {
       }
     }
     expect(found).toEqual([]);
+  });
+
+  it("draws the replay's dots in --mark, inside a column's next empty hole", () => {
+    expect(rules('.mark')).toMatch(/stroke:\s*var\(--mark\)/);
+    expect(rules('.disc.empty')).toMatch(/fill:\s*var\(--hole\)/);
+    const b = newBoard();
+    play(b, 3);
+    const svg = boardSvg(b, { marks: [3, 6] });
+    const holes = [...svg.querySelectorAll('circle.disc.empty')].map((c) => `${c.getAttribute('cx')},${c.getAttribute('cy')}`);
+    const dots = [...svg.querySelectorAll('circle.mark')];
+    expect(dots).toHaveLength(2);
+    for (const d of dots) expect(holes).toContain(`${d.getAttribute('cx')},${d.getAttribute('cy')}`);
   });
 
   it("colours the head-to-head scores with --cell-link", () => {
