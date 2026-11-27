@@ -48,7 +48,8 @@ export function scatter(
   const root = svg('svg', {
     viewBox: `0 0 ${W} ${H}`,
     class: 'chart',
-    role: 'img',
+    // A group, not an image: its points are buttons, and an image's children are not read (axe nested-interactive).
+    role: 'group',
     'aria-label': `Scatter of ${opts.xLabel} against tests passed`,
   });
   for (let x = x0; x <= x1 + 1e-9; x += step) {
