@@ -1,6 +1,7 @@
 /* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
    before the first paint) and for the device setting when scripts do not run
-   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same. */
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same.
+   Both are for screens only, so a printout uses the light set. */
 :root {
   color-scheme: light;
   --bg: #f4f5f2;
@@ -21,26 +22,28 @@
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --field-border: #7a847a;
 }
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #111416;
-  --card: #1a1e21;
-  --fg: #e6e8ea;
-  --muted: #9aa2ab;
-  --border: #2c3236;
-  --accent: #4fc2ad;
-  --accent-fg: #0d1112;
-  --accent-soft: rgba(79, 194, 173, 0.13);
-  --good: #4cc27f;
-  --warn: #f0b04a;
-  --bad: #ff6b60;
-  --warn-soft: rgba(240, 176, 74, 0.12);
-  --bad-soft: rgba(255, 107, 96, 0.12);
-  --code-bg: #14181a;
-  --focus-line: rgba(240, 176, 74, 0.18);
-  --field-border: #737d84;
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #111416;
+    --card: #1a1e21;
+    --fg: #e6e8ea;
+    --muted: #9aa2ab;
+    --border: #2c3236;
+    --accent: #4fc2ad;
+    --accent-fg: #0d1112;
+    --accent-soft: rgba(79, 194, 173, 0.13);
+    --good: #4cc27f;
+    --warn: #f0b04a;
+    --bad: #ff6b60;
+    --warn-soft: rgba(240, 176, 74, 0.12);
+    --bad-soft: rgba(255, 107, 96, 0.12);
+    --code-bg: #14181a;
+    --focus-line: rgba(240, 176, 74, 0.18);
+    --field-border: #737d84;
+  }
 }
-@media (prefers-color-scheme: dark) {
+@media screen and (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: #111416;
@@ -568,4 +571,9 @@ ol.steps li {
 .guide p,
 .guide li {
   max-width: 78ch;
+}
+
+/* Print: the light set (the dark blocks above are for screens only), without the switch. */
+@media print {
+  hw-theme-toggle { display: none !important; }
 }
