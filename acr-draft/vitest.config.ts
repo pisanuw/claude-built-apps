@@ -12,7 +12,7 @@ export default defineConfig({
       // main.ts only mounts the app. frame.ts renders a page in an iframe and
       // needs a real layout engine; it is checked in a real browser, and the
       // parts it calls (prepareHtml, scanFromAxe) are unit tested.
-      exclude: ['src/main.ts', 'src/ui/frame.ts'],
+      exclude: ['src/main.ts', 'src/**/*.d.ts', 'src/ui/frame.ts'],
       thresholds: { statements: 85, branches: 85, functions: 85, lines: 85 },
     },
   },

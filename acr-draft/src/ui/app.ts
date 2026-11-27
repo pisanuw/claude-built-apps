@@ -121,7 +121,7 @@ export function mount(root: HTMLElement, opts: MountOptions = {}): App {
     h(
       'header',
       {},
-      h('h1', {}, 'ACR Draft'),
+      h('div', { class: 'title-row' }, h('h1', {}, 'ACR Draft'), h('hw-theme-toggle')),
       h('p', { class: 'lede' }, 'An honest accessibility conformance report (ACR, the filled-in VPAT®) for your web product: automated scans plus a guided manual review, exported to Word.'),
       h('p', { class: 'privacy' }, 'Everything stays in this browser tab. Nothing you enter is uploaded.'),
       h(
