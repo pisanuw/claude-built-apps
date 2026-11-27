@@ -146,15 +146,16 @@ export default function App() {
     <>
       <header className="masthead">
         <div className="wrap">
+          <p className="eyebrow">8 vision types · WCAG contrast · OKLab · runs entirely in your browser</p>
+          <div className="title-row">
+            <h1>Game Palette Inspector</h1>
+            <hw-theme-toggle></hw-theme-toggle>
+          </div>
           <div className="masthead__top">
-            <div>
-              <p className="eyebrow">8 vision types · WCAG contrast · OKLab · runs entirely in your browser</p>
-              <h1>Game Palette Inspector</h1>
-              <p className="masthead__tagline">
-                Around 1 in 12 male players sees your palette differently. Load your colors or a
-                screenshot, see where they collapse, and fix them without losing your art style.
-              </p>
-            </div>
+            <p className="masthead__tagline">
+              Around 1 in 12 male players sees your palette differently. Load your colors or a
+              screenshot, see where they collapse, and fix them without losing your art style.
+            </p>
             <div className="masthead__actions no-print">
               <button className="btn" onClick={copyLink}>
                 {copied ? '✓ Link copied' : 'Copy share link'}

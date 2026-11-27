@@ -18,6 +18,7 @@ Idea source: [Daily Project Ideas](https://studio.hintwise.org/), 2026-06-19, We
 - **Confusion report**: pairs that are clearly distinct with typical vision but collapse under a specific deficiency, measured perceptually in OKLab, with the worst-case vision type named.
 - **Fix studio**: one-click replacements that reach the contrast target against the background by shifting only OKLCH lightness, so hue (your art direction) is preserved. Each candidate is checked against the rest of the palette: a replacement is offered only if it pushes no pair into a worse confusion band (under 0.10 or 0.04) under typical vision or any of the eight simulated types, and drops no passing contrast pair below the target. The tool is honest about impossibility: 7:1 is unreachable against worst-case mid-tone backgrounds, and in the Red/green trap every 4.5:1 lightness of the red lands on the green's luminance (achromatopsia) or past it (protanopia), so it says so instead of inventing a color.
 - **Export**: PNG report (canvas rendered), print-to-PDF (light, ink-friendly stylesheet), and shareable URLs (the palette lives in the location hash).
+- **Light and dark mode**: the switch at the end of the title row (the shared HintWise one) chooses a light or dark neutral gray; with no choice the device setting decides. The palette under inspection, the screenshots and the PNG report are content and look the same in both; print always uses the light set.
 
 ## Quick start
 
@@ -26,7 +27,7 @@ Run these from this directory (`game-palette-inspector/`), not the repo root.
 ```bash
 npm install
 npm run dev       # local dev server
-npm test          # color-engine unit tests (node --test, no framework)
+npm test          # color-engine unit tests (node --test), then the light and dark mode switch's test (vitest, jsdom)
 npm run build     # production build in dist/
 ```
 
