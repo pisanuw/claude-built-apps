@@ -325,7 +325,7 @@ export function mountApp(root: HTMLElement): void {
   const header = el(
     'header',
     {},
-    el('h1', {}, 'Pluck Lab'),
+    el('div', { class: 'title-row' }, el('h1', {}, 'Pluck Lab'), el('hw-theme-toggle', {})),
     el(
       'p',
       { class: 'lede' },
@@ -439,6 +439,7 @@ export function mountApp(root: HTMLElement): void {
   const waveCanvas = el('canvas', { class: 'view short', 'aria-label': 'Output waveform' });
   const readout = el('p', { class: 'readout' });
   const speed = select<number>(SPEEDS, () => settings.speed, (v) => update({ speed: v }));
+  speed.root.setAttribute('aria-label', 'Playback speed');
   const pauseBtn = el('button', { type: 'button', class: 'small' }, 'Pause');
   pauseBtn.addEventListener('click', () => {
     paused = !paused;
@@ -528,7 +529,8 @@ export function mountApp(root: HTMLElement): void {
 
   // Panels
   const panelTabs = el('div', { class: 'panel-tabs', role: 'tablist' });
-  const panelBody = el('div', { class: 'panel-body' });
+  // It scrolls sideways (the tables), so it takes focus; renderPanel names it after the panel shown.
+  const panelBody = el('div', { class: 'panel-body', tabindex: '0', role: 'region' });
   const panels = el('section', { class: 'card panels' }, panelTabs, panelBody);
   const PANELS: [Panel, string][] = [
     ['filter', 'Filter code'],
@@ -537,7 +539,7 @@ export function mountApp(root: HTMLElement): void {
     ['strum', 'Strum timing'],
   ];
 
-  const presetSelect = el('select', {});
+  const presetSelect = el('select', { 'aria-label': 'Load a filter preset' });
   presetSelect.append(el('option', { value: '' }, 'Load a preset...'));
   for (const p of FILTER_PRESETS) presetSelect.append(el('option', { value: p.id }, p.name));
   presetSelect.addEventListener('change', () => {
@@ -565,6 +567,7 @@ export function mountApp(root: HTMLElement): void {
   }
 
   function renderPanel(): void {
+    panelBody.setAttribute('aria-label', PANELS.find(([id]) => id === settings.panel)?.[1] ?? 'Panel');
     panelTabs.replaceChildren(
       ...PANELS.map(([id, name]) => {
         const b = el('button', { type: 'button', role: 'tab', class: `tab wide${settings.panel === id ? ' active' : ''}` }, name);
@@ -718,51 +721,53 @@ export function mountApp(root: HTMLElement): void {
   }
 
   function drawResponse(): void {
-    requestAnimationFrame(() => {
-      const { g, w, h } = prepare(responseCanvas);
-      if (!report.linear || report.randomized) {
-        g.fillStyle = css('--muted');
-        g.font = '13px system-ui, sans-serif';
-        g.fillText('No fixed response: this filter is nonlinear or random.', 12, h / 2);
-        return;
-      }
-      const top = Math.max(1.05, report.maxGain * 1.05);
-      const nyq = sampleRate / 2;
-      const pad = 34;
-      const X = (hz: number) => pad + ((w - pad - 8) * hz) / nyq;
-      const Y = (gain: number) => h - 18 - ((h - 26) * Math.min(gain, top)) / top;
-      g.font = '11px system-ui, sans-serif';
+    requestAnimationFrame(paintResponse);
+  }
+
+  function paintResponse(): void {
+    const { g, w, h } = prepare(responseCanvas);
+    if (!report.linear || report.randomized) {
       g.fillStyle = css('--muted');
-      g.strokeStyle = css('--border');
+      g.font = '13px system-ui, sans-serif';
+      g.fillText('No fixed response: this filter is nonlinear or random.', 12, h / 2);
+      return;
+    }
+    const top = Math.max(1.05, report.maxGain * 1.05);
+    const nyq = sampleRate / 2;
+    const pad = 34;
+    const X = (hz: number) => pad + ((w - pad - 8) * hz) / nyq;
+    const Y = (gain: number) => h - 18 - ((h - 26) * Math.min(gain, top)) / top;
+    g.font = '11px system-ui, sans-serif';
+    g.fillStyle = css('--muted');
+    g.strokeStyle = css('--border');
+    g.beginPath();
+    g.moveTo(pad, Y(1));
+    g.lineTo(w - 8, Y(1));
+    g.stroke();
+    g.fillText('1.0', 4, Y(1) + 4);
+    g.fillText('0', 4, Y(0) + 4);
+    g.fillText(`${(nyq / 1000).toFixed(1)} kHz`, w - 52, h - 4);
+    g.fillText('0 Hz', pad, h - 4);
+    const f0 = mirror.plan?.actualFrequency ?? OPEN_STRINGS[settings.focus]!.freq;
+    g.setLineDash([3, 4]);
+    for (let k = 1; k * f0 < nyq && k <= 40; k++) {
       g.beginPath();
-      g.moveTo(pad, Y(1));
-      g.lineTo(w - 8, Y(1));
+      g.moveTo(X(k * f0), Y(0));
+      g.lineTo(X(k * f0), Y(top));
       g.stroke();
-      g.fillText('1.0', 4, Y(1) + 4);
-      g.fillText('0', 4, Y(0) + 4);
-      g.fillText(`${(nyq / 1000).toFixed(1)} kHz`, w - 52, h - 4);
-      g.fillText('0 Hz', pad, h - 4);
-      const f0 = mirror.plan?.actualFrequency ?? OPEN_STRINGS[settings.focus]!.freq;
-      g.setLineDash([3, 4]);
-      for (let k = 1; k * f0 < nyq && k <= 40; k++) {
-        g.beginPath();
-        g.moveTo(X(k * f0), Y(0));
-        g.lineTo(X(k * f0), Y(top));
-        g.stroke();
-      }
-      g.setLineDash([]);
-      g.strokeStyle = css('--accent');
-      g.lineWidth = 2;
-      g.beginPath();
-      report.response.forEach((p, i) => {
-        const x = X(p.f * sampleRate);
-        const y = Y(p.gain);
-        if (i === 0) g.moveTo(x, y);
-        else g.lineTo(x, y);
-      });
-      g.stroke();
-      g.lineWidth = 1;
+    }
+    g.setLineDash([]);
+    g.strokeStyle = css('--accent');
+    g.lineWidth = 2;
+    g.beginPath();
+    report.response.forEach((p, i) => {
+      const x = X(p.f * sampleRate);
+      const y = Y(p.gain);
+      if (i === 0) g.moveTo(x, y);
+      else g.lineTo(x, y);
     });
+    g.stroke();
+    g.lineWidth = 1;
   }
 
   function refreshControls(): void {
@@ -926,10 +931,13 @@ export function mountApp(root: HTMLElement): void {
   // ---------------------------------------------------------------- keyboard
 
   document.addEventListener('keydown', (e) => {
-    const target = e.target as HTMLElement;
-    if (target.closest('textarea, input, select') || e.ctrlKey || e.metaKey || e.altKey) return;
+    // The real target: a key in a shadow root (the theme switch's) arrives here retargeted to its host.
+    const target = (e.composedPath()[0] ?? e.target) as HTMLElement;
+    if (target.closest?.('textarea, input, select') || e.ctrlKey || e.metaKey || e.altKey) return;
     const action = keyAction(e.key);
     if (!action) return;
+    // Space mutes, but on a focused button, link or scroll box it is that control's own key.
+    if (e.key === ' ' && target.closest?.('button, a[href], summary, [role="button"], [role="tab"], [role="region"]')) return;
     e.preventDefault();
     if (e.repeat) return;
     if (action.kind === 'chord') {
@@ -958,5 +966,19 @@ export function mountApp(root: HTMLElement): void {
   refreshControls();
   renderPanel();
   window.addEventListener('resize', () => renderPanel());
+
+  // The charts read the colour tokens as they draw. The delay line, harmonics and waveform are drawn every frame;
+  // the panel's chart is drawn again when the theme changes. On the way into print and back all of them are drawn
+  // at once: print takes the light set, but a canvas keeps the pixels it drew on screen, and the next frame would
+  // come after the printout (matchMedia('print') changes with the print colours in place).
+  document.addEventListener('hw-themechange', () => renderPanel());
+  const redrawAll = (): void => {
+    drawBuffer();
+    drawHarmonics();
+    drawWave();
+    if (responseCanvas.isConnected) paintResponse();
+    if (strumCanvas.isConnected) drawStrum();
+  };
+  if (typeof window.matchMedia === 'function') window.matchMedia('print').addEventListener?.('change', redrawAll);
   requestAnimationFrame(frame);
 }
