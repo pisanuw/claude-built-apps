@@ -184,7 +184,8 @@ export function clocksView(): HTMLElement {
     logControls,
     stats,
     anomalies,
-    h('div', { class: 'table-scroll' }, logTable),
+    // Focusable, so a keyboard can scroll the log when it is wider than the screen.
+    h('div', { class: 'table-scroll', tabindex: '0', role: 'region', 'aria-label': 'Event log' }, logTable),
   );
 }
 
