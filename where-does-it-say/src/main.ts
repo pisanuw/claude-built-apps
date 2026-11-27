@@ -1,6 +1,8 @@
 // The light and dark mode switch (platform/src/theme), defined before the header is drawn.
 import './lib/hw-theme.js';
-import css from './ui/styles.css?inline';
+// The stylesheet as a file, so Vite links it in the head after the theme snippet: the first paint already has
+// the stored theme. Added by the script (?inline) it came after a first paint in the device's colours.
+import './ui/styles.css';
 import { answer, type Answer, type Quote } from './core/answer.js';
 import { formatFromName, locationLabel, titleFromName, type DocFormat, type ParsedDoc } from './core/docs.js';
 import {
@@ -20,10 +22,6 @@ import { LONG_LINK, MAX_DOC_CHARS, MAX_DOCS, decodePack, encodePack, packId, par
 import { SAMPLE_PACK, SAMPLE_QUESTIONS } from './core/sample.js';
 import { buildIndex, type Index } from './core/search.js';
 import { extractQuotes, verifyQuote, type Verdict } from './core/verify.js';
-
-const style = document.createElement('style');
-style.textContent = css;
-document.head.append(style);
 
 const app = document.getElementById('app');
 if (!app) throw new Error('missing #app');

@@ -33,7 +33,17 @@ describe('the copies of the shared switch', () => {
     const main = readFileSync('src/main.ts', 'utf8');
     const at = main.indexOf("import './lib/hw-theme.js';");
     expect(at).toBeGreaterThan(-1);
-    expect(at).toBeLessThan(main.indexOf("import css from './ui/styles.css?inline';"));
+    expect(at).toBeLessThan(main.indexOf("import './ui/styles.css';"));
+  });
+
+  it('loads the stylesheet in the head, after the snippet, not from the script (no flash of the device theme)', () => {
+    // Vite links a stylesheet that main.ts imports as a file into the head, after the snippet, so the first
+    // paint has the stored theme. One that the script adds (?inline into a <style>) comes after a first paint
+    // in the device's colours, and the head test above then passes only because the head has no stylesheet.
+    const main = readFileSync('src/main.ts', 'utf8');
+    expect(main).toMatch(/^import '\.\/ui\/styles\.css';$/m);
+    expect(main).not.toMatch(/\.css\?inline/);
+    expect(main).not.toMatch(/createElement\(\s*['"]style['"]/);
   });
 });
 
