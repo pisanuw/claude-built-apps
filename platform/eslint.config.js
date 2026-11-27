@@ -26,6 +26,20 @@ export default tseslint.config(
     },
   },
   {
+    // The theme switch's scripts run in the browser as classic scripts
+    // (apps copy them unchanged; theme-init.js is inlined in <head>).
+    files: ['src/theme/hw-theme.js', 'src/theme/theme-init.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'script',
+      globals: { ...globals.browser },
+    },
+    rules: {
+      // The empty catch is the point: a blocked localStorage falls back to the device setting.
+      'no-empty': ['error', { allowEmptyCatch: true }],
+    },
+  },
+  {
     // The edge function runs on Deno: Deno globals, fetch and Response are
     // available there; imports use npm: specifiers and .ts extensions.
     files: ['supabase/functions/**/*.ts'],
