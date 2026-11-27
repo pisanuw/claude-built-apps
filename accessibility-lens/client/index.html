@@ -3,6 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Light and dark mode: sets data-theme before the first paint (platform/src/theme/README.md; test/theme.test.tsx pins it) -->
+    <script>(function(){var t;try{t=localStorage.getItem('hw-theme')}catch{}if(t!=='light'&&t!=='dark')t=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)})();</script>
     <title>Accessibility Lens: see your page through four kinds of eyes</title>
     <meta
       name="description"

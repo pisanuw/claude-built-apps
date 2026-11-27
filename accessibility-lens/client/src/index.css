@@ -3,8 +3,66 @@
 @tailwind utilities;
 
 @layer base {
+  /* Colours, as "R G B" for Tailwind (tailwind.config.js). Light here; dark
+     twice, for the switch (data-theme on <html>) and for the device setting
+     when scripts do not run (platform/src/theme/README.md). Both meet WCAG AA
+     contrast; test/theme.test.tsx keeps the two dark blocks the same. */
   :root {
     color-scheme: light;
+    --al-paper: 244 241 234;
+    --al-panel: 251 250 246;
+    --al-ink: 24 20 16;
+    --al-muted: 92 85 75;
+    --al-line: 226 220 207;
+    --al-accent: 18 92 77;
+    --al-accent-soft: 44 122 104;
+    --al-critical: 154 27 18;
+    --al-serious: 168 85 16;
+    --al-moderate: 122 90 10;
+    --al-minor: 63 98 18;
+    --al-shadow: 24 20 16;
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --al-paper: 21 18 15;
+    --al-panel: 30 26 22;
+    --al-ink: 241 236 226;
+    --al-muted: 179 170 156;
+    --al-line: 59 53 45;
+    --al-accent: 92 196 170;
+    --al-accent-soft: 134 214 193;
+    --al-critical: 255 143 128;
+    --al-serious: 242 167 102;
+    --al-moderate: 224 192 99;
+    --al-minor: 169 212 116;
+    --al-shadow: 0 0 0;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --al-paper: 21 18 15;
+      --al-panel: 30 26 22;
+      --al-ink: 241 236 226;
+      --al-muted: 179 170 156;
+      --al-line: 59 53 45;
+      --al-accent: 92 196 170;
+      --al-accent-soft: 134 214 193;
+      --al-critical: 255 143 128;
+      --al-serious: 242 167 102;
+      --al-moderate: 224 192 99;
+      --al-minor: 169 212 116;
+      --al-shadow: 0 0 0;
+    }
+  }
+
+  /* Hold the switch's place until hw-theme.js draws it. */
+  hw-theme-toggle {
+    display: inline-flex;
+    flex: none;
+    width: 44px;
+    height: 44px;
   }
 
   html {
@@ -25,14 +83,14 @@
 
   body {
     @apply bg-paper text-ink font-body antialiased;
-    background-image: radial-gradient(circle at 1px 1px, rgba(24, 20, 16, 0.04) 1px, transparent 0);
+    background-image: radial-gradient(circle at 1px 1px, rgb(var(--al-ink) / 0.04) 1px, transparent 0);
     background-size: 28px 28px;
   }
 
   /* A visible, high-contrast focus ring everywhere. The tool must practice
      what it preaches. */
   :where(a, button, input, select, textarea, [tabindex]):focus-visible {
-    outline: 3px solid theme('colors.accent');
+    outline: 3px solid rgb(var(--al-accent));
     outline-offset: 2px;
     border-radius: 2px;
   }
