@@ -57,7 +57,7 @@ export function ladderView(): HTMLElement {
     drawSetup();
   }
 
-  function standingsTable(rows: Standing[], effCol: boolean): HTMLElement {
+  function standingsTable(rows: Standing[], effCol: boolean, name: string): HTMLElement {
     const t = h('table', {}, h('thead', {}, h('tr', {}, ...['#', 'Bot', 'Params', 'Elo', 'W', 'D', 'L', effCol ? 'Elo/1k params' : ''].filter(Boolean).map((x) => h('th', { scope: 'col' }, x)))));
     const body = h('tbody', {});
     rows.forEach((s, i) =>
@@ -66,7 +66,8 @@ export function ladderView(): HTMLElement {
       ),
     );
     t.append(body);
-    return h('div', { class: 'table-wrap' }, t);
+    // It scrolls sideways on a phone, with nothing focusable inside: a named region the keyboard can reach.
+    return h('div', { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': name }, t);
   }
 
   function drawResults(): void {
@@ -98,9 +99,9 @@ export function ladderView(): HTMLElement {
     matrix.append(mb);
     results.append(
       h('h2', {}, 'Ratings'),
-      standingsTable(L.standings, true),
+      standingsTable(L.standings, true, 'Ratings'),
       h('h2', {}, 'Efficiency board'),
-      eff.length ? standingsTable(eff, true) : h('p', { class: 'muted' }, 'No brain is rated above Random yet.'),
+      eff.length ? standingsTable(eff, true, 'Efficiency board') : h('p', { class: 'muted' }, 'No brain is rated above Random yet.'),
       h('h2', {}, 'Head to head'),
       h('p', { class: 'muted small' }, 'Points for the row bot. Click a cell to list its games.'),
       h('div', { class: 'table-wrap' }, matrix),

@@ -37,7 +37,7 @@ export function mountApp(root: HTMLElement): void {
 
   root.innerHTML = `
     <header class="top">
-      <h1>Outguess Me</h1>
+      <div class="title-row"><h1>Outguess Me</h1><hw-theme-toggle></hw-theme-toggle></div>
       <p class="lede">Press <kbd>F</kbd> or <kbd>J</kbd> as unpredictably as you can. Before every press the oracle
       seals its guess with a SHA-256 hash, then reveals it. A coin would be right half the time. It will do better.</p>
       <p class="lede muted">There is no clock: take as long as you like over each press. Speed does not count, only your choices do.</p>
@@ -69,7 +69,7 @@ export function mountApp(root: HTMLElement): void {
         <div><span class="label">Sealed guess for your next press</span><code id="hash">press Start</code></div>
         <div id="reveal" class="reveal"></div>
       </div>
-      <div id="strip" class="strip" aria-label="Recent presses, red where the oracle guessed right, green where you escaped"></div>
+      <div id="strip" class="strip" role="group" aria-label="Recent presses, red where the oracle guessed right, green where you escaped"></div>
       <div class="chart" id="chart"></div>
       <p class="legend">Presses: <span class="sw hitsw"></span>oracle right <span class="sw misssw"></span>you escaped. Chart: <span class="sw run"></span>hit rate so far <span class="sw roll"></span>last 20 presses <span class="sw band"></span>where a coin-flipping oracle lands 95% of the time</p>
     </section>

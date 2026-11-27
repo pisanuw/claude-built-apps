@@ -34,10 +34,11 @@ export function guideView(): HTMLElement {
       h('h2', {}, 'The interface'),
       h('p', {}, `Input: ${INPUTS} numbers from the point of view of the side to move. Entries 0–41 are 1 where you have a piece, entries 42–83 are 1 where your opponent has one. Cell i is row ⌊i/7⌋ (0 is the bottom row), column i mod 7. Output: ${OUTPUTS} logits, one per column. Hidden layers use the file's activation (relu or tanh); the last layer is linear. The runtime plays the legal column with the highest logit, the lowest column on ties, so play is deterministic.`),
       h('p', {}, 'Rules the ladder enforces: 1 to 4 layers, every weight finite and within ±1000, the first layer takes 84 inputs, the last gives 7, file under 1 MB. Illegal moves cannot happen (illegal columns are masked) and a malformed file is rejected with every problem listed.'),
-      h('pre', {}, h('code', {}, EXAMPLE)),
+      // Code blocks scroll sideways on a phone: named regions the keyboard can reach.
+      h('pre', { tabindex: '0', role: 'region', 'aria-label': 'An example brain file' }, h('code', {}, EXAMPLE)),
       h('h2', {}, 'Training on your own machine'),
       h('p', {}, 'The Python runtime below has the same board, encoding and move rule as the ladder, a validator, a save helper and a quick check against a random mover. A parity fixture in the repository confirms it gives the same logits as the browser runtime.'),
-      h('pre', {}, h('code', {}, 'python tiny_brains.py check my-brain.json')),
+      h('pre', { tabindex: '0', role: 'region', 'aria-label': 'Checking a brain file' }, h('code', {}, 'python tiny_brains.py check my-brain.json')),
       h('div', { class: 'actions' }, h('button', { type: 'button', onclick: () => download('tiny_brains.py', pyRuntime, 'text/x-python') }, 'Download tiny_brains.py')),
       h('h2', {}, 'How the ladder is scored'),
       h('p', {}, 'Every pair plays each fixed two-ply opening twice, swapping colours, so first-move advantage cancels out. House bots break ties between equal moves with a seeded random number generator, so a rerun gives the same games. Ratings are a Bradley-Terry maximum-likelihood fit converted to the Elo scale (draws count half), with one virtual win and one virtual loss against a 1500 phantom to keep perfect records finite, then shifted so Random is 1000.'),

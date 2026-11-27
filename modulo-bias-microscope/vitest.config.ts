@@ -11,7 +11,7 @@ export default defineConfig({
       include: ['src/**/*.ts'],
       // The DOM glue and the worker shim are exercised in a real browser; the
       // enumerator, statistics, grader and job runner they drive are covered here.
-      exclude: ['src/main.ts', 'src/worker.ts', 'src/ui/**'],
+      exclude: ['src/main.ts', 'src/worker.ts', 'src/ui/**', 'src/**/*.d.ts'],
       thresholds: { statements: 85, branches: 85, functions: 85, lines: 85 },
     },
   },

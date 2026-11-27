@@ -52,8 +52,9 @@ export function button(label: string, onClick: () => void, cls = ''): HTMLButton
   return b;
 }
 
-export function select(options: [value: string, label: string][], value: string, onChange: (v: string) => void): HTMLSelectElement {
-  const s = el('select');
+/** A select with its accessible name (there is no visible label beside most of them). */
+export function select(options: [value: string, label: string][], value: string, onChange: (v: string) => void, name: string): HTMLSelectElement {
+  const s = el('select', { 'aria-label': name });
   for (const [v, label] of options) s.append(el('option', { value: v }, label));
   s.value = value;
   s.addEventListener('change', () => onChange(s.value));

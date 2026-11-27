@@ -1,4 +1,9 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
+   before the first paint) and for the device setting when scripts do not run
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same.
+   Both are for the screen only: paper gets the light set. */
 :root {
+  color-scheme: light;
   --bg: #f4f4f6;
   --card: #ffffff;
   --fg: #1a1c1a;
@@ -10,11 +15,19 @@
   --good: #1d7a46;
   --bad: #b3261e;
   --code-bg: #f6f7f4;
+  /* 3:1 against the card and the page (WCAG 1.4.11); --border is for dividers. */
+  --field-border: #8a8c88;
+  /* The class profile's levels. */
+  --lv-strong: #cfe8d9;
+  --lv-shaky: #f6e7b8;
+  --lv-gap: #f2c9c4;
+  --lv-none: transparent;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #111311;
     --card: #1a1d1a;
     --fg: #e6e9e4;
@@ -26,6 +39,31 @@
     --good: #5cc98b;
     --bad: #ff6b60;
     --code-bg: #141714;
+    --field-border: #686b68;
+    --lv-strong: #1f4a33;
+    --lv-shaky: #54461a;
+    --lv-gap: #5c2622;
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111311;
+    --card: #1a1d1a;
+    --fg: #e6e9e4;
+    --muted: #a0a69e;
+    --border: #313631;
+    --accent: #7fd3a6;
+    --accent-fg: #0d2016;
+    --accent-soft: rgba(127, 211, 166, 0.14);
+    --good: #5cc98b;
+    --bad: #ff6b60;
+    --code-bg: #141714;
+    --field-border: #686b68;
+    --lv-strong: #1f4a33;
+    --lv-shaky: #54461a;
+    --lv-gap: #5c2622;
   }
 }
 
@@ -47,8 +85,25 @@ body {
 }
 
 h1 {
-  margin: 0 0 4px;
+  margin: 0;
   font-size: 28px;
+}
+
+/* The title and the light and dark mode switch, on one row. */
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 4px;
+}
+
+/* Hold the switch's place until hw-theme.js draws it. */
+hw-theme-toggle:not([hidden]) {
+  display: inline-flex;
+  flex: none;
+  width: var(--hw-theme-toggle-size, 44px);
+  height: var(--hw-theme-toggle-size, 44px);
 }
 
 h2 {
@@ -106,6 +161,7 @@ label {
   font-size: 14px;
 }
 
+/* Fields: 3:1 against the card and the page (WCAG 1.4.11); buttons set their own border colour below. */
 select,
 input,
 textarea,
@@ -113,7 +169,7 @@ button {
   font: inherit;
   color: var(--fg);
   background: var(--card);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 6px;
   padding: 5px 8px;
 }
@@ -208,21 +264,6 @@ a {
   cursor: pointer;
 }
 
-
-:root {
-  --lv-strong: #cfe8d9;
-  --lv-shaky: #f6e7b8;
-  --lv-gap: #f2c9c4;
-  --lv-none: transparent;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --lv-strong: #1f4a33;
-    --lv-shaky: #54461a;
-    --lv-gap: #5c2622;
-  }
-}
 
 .wide {
   margin-top: 16px;
@@ -368,6 +409,9 @@ label.file input {
   body {
     background: #fff;
     color: #000;
+  }
+  hw-theme-toggle {
+    display: none !important;
   }
   header,
   footer,

@@ -59,33 +59,33 @@ export class FaultPicker {
     const parts: HTMLElement[] = [];
     const kinds: [string, string][] = Object.entries(KIND_TITLES);
     if (this.allowNone) kinds.unshift(['none', 'No fault (healthy board)']);
-    parts.push(select(kinds, this.st.kind, (v) => this.set('kind', v as FaultKind | 'none')));
+    parts.push(select(kinds, this.st.kind, (v) => this.set('kind', v as FaultKind | 'none'), 'Kind of fault'));
     const num = (n: number) => `${n}`;
     switch (this.st.kind) {
       case 'stuck':
         parts.push(
-          select(NETS.map((n, i) => [num(i), n.name]), num(this.st.net), (v) => this.set('net', Number(v))),
-          select([['0', 'stuck at 0'], ['1', 'stuck at 1']], num(this.st.value), (v) => this.set('value', v === '1' ? 1 : 0)),
+          select(NETS.map((n, i) => [num(i), n.name]), num(this.st.net), (v) => this.set('net', Number(v)), 'Net'),
+          select([['0', 'stuck at 0'], ['1', 'stuck at 1']], num(this.st.value), (v) => this.set('value', v === '1' ? 1 : 0), 'Stuck at'),
         );
         break;
       case 'open':
-        parts.push(select(PINS.map((p, i) => [num(i), `${p.id} (${p.dir})`]), num(this.st.pin), (v) => this.set('pin', Number(v))));
+        parts.push(select(PINS.map((p, i) => [num(i), `${p.id} (${p.dir})`]), num(this.st.pin), (v) => this.set('pin', Number(v)), 'Pin'));
         break;
       case 'short':
         parts.push(
-          select(SHORT_PAIRS.map(([a, b], i) => [num(i), `${NETS[a].name} + ${NETS[b].name}`]), num(this.st.short), (v) => this.set('short', Number(v))),
+          select(SHORT_PAIRS.map(([a, b], i) => [num(i), `${NETS[a].name} + ${NETS[b].name}`]), num(this.st.short), (v) => this.set('short', Number(v)), 'Shorted nets'),
         );
         break;
       case 'dead':
-        parts.push(select(CHIP_IDS.map((c) => [c, c]), this.st.chip, (v) => this.set('chip', v as ChipId)));
+        parts.push(select(CHIP_IDS.map((c) => [c, c]), this.st.chip, (v) => this.set('chip', v as ChipId), 'Chip'));
         break;
       case 'rom':
         parts.push(
-          select(USED_OPCODES.map((op) => [num(op), MNEMONIC_OF[op]]), num(this.st.op), (v) => this.set('op', Number(v))),
-          select(Array.from({ length: STEPS }, (_, s) => [num(s), `T${s}`]), num(this.st.step), (v) => this.set('step', Number(v))),
-          select([['0', 'CF=0'], ['1', 'CF=1']], num(this.st.cf), (v) => this.set('cf', Number(v))),
-          select([['0', 'ZF=0'], ['1', 'ZF=1']], num(this.st.zf), (v) => this.set('zf', Number(v))),
-          select(CONTROL_LINES.map((l, i) => [num(i), `bit ${l}`]), num(this.st.bit), (v) => this.set('bit', Number(v))),
+          select(USED_OPCODES.map((op) => [num(op), MNEMONIC_OF[op]]), num(this.st.op), (v) => this.set('op', Number(v)), 'Instruction'),
+          select(Array.from({ length: STEPS }, (_, s) => [num(s), `T${s}`]), num(this.st.step), (v) => this.set('step', Number(v)), 'Microcode step'),
+          select([['0', 'CF=0'], ['1', 'CF=1']], num(this.st.cf), (v) => this.set('cf', Number(v)), 'Carry flag'),
+          select([['0', 'ZF=0'], ['1', 'ZF=1']], num(this.st.zf), (v) => this.set('zf', Number(v)), 'Zero flag'),
+          select(CONTROL_LINES.map((l, i) => [num(i), `bit ${l}`]), num(this.st.bit), (v) => this.set('bit', Number(v)), 'Control bit'),
         );
         break;
       case 'none':

@@ -3,6 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Light and dark mode: sets data-theme before the first paint (platform/src/theme/README.md; test/theme.test.ts pins it) -->
+    <script>(function(){var t;try{t=localStorage.getItem('hw-theme')}catch{}if(t!=='light'&&t!=='dark')t=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)})();</script>
     <title>Student Journey Check</title>
     <meta name="description" content="A test student walks through your Tutor LMS course site (login, dashboard, lesson video, quiz, certificate, checkout price) and tells you in plain words what your real students would get stuck on. Try it on a demo academy, then on your own site." />
     <meta name="color-scheme" content="light dark" />

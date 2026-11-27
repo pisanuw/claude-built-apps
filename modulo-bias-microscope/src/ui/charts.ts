@@ -79,7 +79,8 @@ export function heatmap(m: PositionMatrix): HTMLElement {
       const e = m.expected[pos][i];
       const rel = e > 0 ? (p - e) / e : p > 0 ? 1 : 0;
       const a = Math.min(1, Math.abs(rel) * 4);
-      const style = rel === 0 ? '' : `background: color-mix(in srgb, var(${rel > 0 ? '--over' : '--under'}) ${Math.round(a * 70)}%, transparent)`;
+      // --heat-max (styles.css) is the strongest tint: lower in dark mode, so the cell's text keeps 4.5:1.
+      const style = rel === 0 ? '' : `background: color-mix(in srgb, var(${rel > 0 ? '--over' : '--under'}) calc(${a.toFixed(3)} * var(--heat-max)), transparent)`;
       tr.append(h('td', { style, title: `P(item ${m.items[i]} at position ${pos}) = ${pctLabel(p)}, target ${pctLabel(e)}` }, pctLabel(p)));
     });
     body.append(tr);
@@ -88,7 +89,7 @@ export function heatmap(m: PositionMatrix): HTMLElement {
   return h(
     'figure',
     { class: 'chart' },
-    h('div', { class: 'table-scroll' }, table),
+    h('div', { class: 'table-scroll', tabindex: '0', role: 'region', 'aria-label': 'Where each item ends up' }, table),
     h('figcaption', {}, 'Where each item ends up. A fair shuffle is flat; warm cells are too likely, cool cells too rare.'),
   );
 }

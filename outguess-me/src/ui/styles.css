@@ -1,4 +1,9 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
+   before the first paint) and for the device setting when scripts do not run
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same.
+   Both are for the screen only: paper gets the light set. */
 :root {
+  color-scheme: light;
   --bg: #f5f4ef;
   --card: #ffffff;
   --fg: #1c1e23;
@@ -9,16 +14,22 @@
   --accent-fg: #ffffff;
   --good: #1d7a46;
   --bad: #b3261e;
-  --hit: #d9483b;
-  --miss: #2f8f5b;
+  /* Behind the strip's white letters: 4.5:1 (#d9483b and #2f8f5b were 4.25 and 4.04). */
+  --hit: #d04539;
+  --miss: #2c8555;
+  --on-mark: #ffffff;
   --band: rgba(91, 63, 196, 0.13);
   --run: #d9483b;
-  --roll: #e8a33a;
-  --exp: #b8b4aa;
+  /* Chart lines and bars: 3:1 on the card (#e8a33a and #b8b4aa were 2.16 and 2.07). */
+  --roll: #b7812e;
+  --exp: #908c85;
+  /* 3:1 against the card and the page (WCAG 1.4.11); --border is for dividers. */
+  --field-border: #8d8b85;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #121317;
     --card: #1b1d23;
     --fg: #e7e8eb;
@@ -34,7 +45,33 @@
     --band: rgba(160, 139, 255, 0.16);
     --run: #ff6b60;
     --roll: #f0b04a;
-    --exp: #5d606a;
+    --exp: #6b6e77;
+    --on-mark: #121317;
+    --field-border: #686a70;
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121317;
+    --card: #1b1d23;
+    --fg: #e7e8eb;
+    --muted: #9ca1ab;
+    --border: #2d3039;
+    --grid: #2a2d35;
+    --accent: #a08bff;
+    --accent-fg: #121317;
+    --good: #4cc27f;
+    --bad: #ff6b60;
+    --hit: #ff6b60;
+    --miss: #4cc27f;
+    --band: rgba(160, 139, 255, 0.16);
+    --run: #ff6b60;
+    --roll: #f0b04a;
+    --exp: #6b6e77;
+    --on-mark: #121317;
+    --field-border: #686a70;
   }
 }
 
@@ -57,8 +94,29 @@ body {
 
 h1 {
   font-size: 2rem;
-  margin: 8px 0 4px;
+  margin: 0;
   letter-spacing: -0.02em;
+}
+/* The title and the light and dark mode switch, on one row. */
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0 4px;
+}
+/* Hold the switch's place until hw-theme.js draws it. */
+hw-theme-toggle:not([hidden]) {
+  display: inline-flex;
+  flex: none;
+  width: var(--hw-theme-toggle-size, 44px);
+  height: var(--hw-theme-toggle-size, 44px);
+}
+/* Not on paper. */
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
 }
 h2 {
   font-size: 1.2rem;
@@ -205,13 +263,13 @@ button.primary {
 @keyframes caught {
   from {
     background: var(--hit);
-    color: #fff;
+    color: var(--on-mark);
   }
 }
 @keyframes escaped {
   from {
     background: var(--miss);
-    color: #fff;
+    color: var(--on-mark);
   }
 }
 
@@ -257,7 +315,7 @@ details summary {
   width: 18px;
   text-align: center;
   border-radius: 3px;
-  color: #fff;
+  color: var(--on-mark);
 }
 .strip .hit {
   background: var(--hit);
@@ -344,7 +402,7 @@ textarea {
   font: 0.9rem ui-monospace, monospace;
   background: var(--bg);
   color: var(--fg);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   padding: 8px;
 }

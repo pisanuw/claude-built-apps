@@ -37,7 +37,7 @@ export class InstructorView {
       el('div', { class: 'row' }, select((Object.keys(TIERS) as Tier[]).map((t) => [t, TIERS[t].title]), this.tier, (v) => {
         this.tier = v as Tier;
         this.render();
-      }), el('label', { class: 'small' }, 'seed ', seedInput), button('New seed', () => {
+      }, 'Tier'), el('label', { class: 'small' }, 'seed ', seedInput), button('New seed', () => {
         this.seed = Math.floor(Math.random() * 1e6);
         this.render();
       }, 'small')),
@@ -93,7 +93,7 @@ export class InstructorView {
 }
 
 function linkRow(url: string): HTMLElement {
-  const input = el('input', { type: 'text', readonly: '', value: url, class: 'mono link' });
+  const input = el('input', { type: 'text', readonly: '', value: url, class: 'mono link', 'aria-label': 'Challenge link' });
   const copy = button('Copy', () => {
     void navigator.clipboard?.writeText(url);
     copy.textContent = 'Copied';

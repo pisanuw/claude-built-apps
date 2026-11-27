@@ -4,6 +4,8 @@
  * (deploy/target.yml). Without it (tests, `vite preview`, the Playwright
  * walkthrough) the page runs with the browser store only.
  */
+// The light and dark mode switch (platform/src/theme), defined before the header is drawn.
+import './lib/hw-theme.js';
 import './styles.css';
 import { mountSignIn, onAuth } from './lib/auth';
 import { getSupabase, hasSupabase } from './lib/supabase';

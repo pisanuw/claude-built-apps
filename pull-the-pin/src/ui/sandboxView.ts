@@ -99,9 +99,9 @@ export class SandboxView {
           this.choice = v;
           if (v !== 'custom') this.source = TEST_PROGRAMS[Number(v)].source;
           this.run();
-        }), button('Run', () => this.run(), 'primary')),
+        }, 'Test program'), button('Run', () => this.run(), 'primary')),
       );
-      const ta = el('textarea', { rows: '9', spellcheck: 'false', class: 'mono' });
+      const ta = el('textarea', { rows: '9', spellcheck: 'false', class: 'mono', 'aria-label': 'Program source' });
       ta.value = this.source;
       ta.readOnly = this.choice !== 'custom';
       ta.addEventListener('input', () => (this.source = ta.value));

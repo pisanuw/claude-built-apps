@@ -82,7 +82,7 @@ export function mountApp(root: HTMLElement): void {
     h(
       'header',
       { class: 'site-header' },
-      h('h1', {}, h('span', { class: 'logo', 'aria-hidden': 'true' }, '%'), 'Modulo Bias Microscope'),
+      h('div', { class: 'title-row' }, h('h1', {}, h('span', { class: 'logo', 'aria-hidden': 'true' }, '%'), 'Modulo Bias Microscope'), h('hw-theme-toggle')),
       h(
         'p',
         { class: 'lede' },
@@ -119,7 +119,7 @@ export function mountApp(root: HTMLElement): void {
 
   // ---- gallery -----------------------------------------------------------
   const explain = h('div', { class: 'explain' });
-  const chips = h('div', { class: 'chips', role: 'list' });
+  const chips = h('div', { class: 'chips', role: 'group', 'aria-label': 'Classic randomness bugs' });
   const renderGallery = (): void => {
     clear(chips);
     for (const g of GALLERY) {
@@ -128,7 +128,6 @@ export function mountApp(root: HTMLElement): void {
           'button',
           {
             type: 'button',
-            role: 'listitem',
             class: st.gallery?.id === g.id ? 'chip active' : 'chip',
             'aria-pressed': String(st.gallery?.id === g.id),
             onclick: () => {
@@ -513,7 +512,7 @@ function exactView(dist: ExactDistribution, r: ExactReport, st: State): HTMLElem
       'details',
       { class: 'table-wrap', open: r.rows.length <= 40 },
       h('summary', {}, `Every outcome (${r.rows.length.toLocaleString('en-US')})`),
-      h('div', { class: 'table-scroll' }, table),
+      h('div', { class: 'table-scroll', tabindex: '0', role: 'region', 'aria-label': 'Every outcome, exact' }, table),
       r.rows.length > TABLE_ROWS ? h('p', { class: 'muted' }, `First ${TABLE_ROWS} rows shown.`) : null,
     ),
   );
@@ -595,7 +594,7 @@ function statView(sample: StatSample, chi: ChiSquare, st: State): HTMLElement[] 
       h('summary', {}, `Every outcome (${bars.length.toLocaleString('en-US')})`),
       h(
         'div',
-        { class: 'table-scroll' },
+        { class: 'table-scroll', tabindex: '0', role: 'region', 'aria-label': 'Every outcome, counted' },
         h(
           'table',
           { class: 'grid-table' },

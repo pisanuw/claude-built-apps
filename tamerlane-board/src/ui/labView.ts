@@ -181,7 +181,8 @@ export function labView(): HTMLElement {
       h('p', {}, h('strong', {}, `${spec.piece.name}: ${s.score} / ${s.games} points`), ` (${s.wins} won, ${s.draws} drawn, ${s.losses} lost). `, running ? 'Running…' : s.verdict),
       h(
         'div',
-        { class: 'table-scroll' },
+        // Six columns scroll sideways on a phone, with nothing focusable inside: a named region the keyboard can reach.
+        { class: 'table-scroll', tabindex: '0', role: 'region', 'aria-label': 'Balance test games' },
         h(
           'table',
           {},

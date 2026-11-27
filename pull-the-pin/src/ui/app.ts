@@ -25,7 +25,7 @@ export function mountApp(root: HTMLElement): void {
     el(
       'header',
       {},
-      el('h1', {}, 'Pull the Pin'),
+      el('div', { class: 'title-row' }, el('h1', {}, 'Pull the Pin'), el('hw-theme-toggle')),
       el('p', { class: 'muted' }, 'A tiny 8-bit computer, simulated pin by pin, with one thing broken. Run test programs, spend probes on a logic analyzer, and name the faulty chip, pin or line.'),
       nav,
     ),
