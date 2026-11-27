@@ -25,7 +25,7 @@ export interface TerminalDeps {
 
 const HELP = `
   <header>
-    <h1>Terminal sign-in</h1>
+    <div class="title-row"><h1>Terminal sign-in</h1><hw-theme-toggle></hw-theme-toggle></div>
     <p class="lede">For the <a href="/">Lewis Structure Alt Text</a> command-line tool. It signs your terminal in to HintWise, so the tool can write alt text with your HintWise allowance.</p>
   </header>`;
 

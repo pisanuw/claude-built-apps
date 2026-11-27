@@ -30,6 +30,7 @@ const SHELL = `
   <header>
     <div class="top-bar">
       <h1>Lewis Structure Alt Text</h1>
+      <hw-theme-toggle></hw-theme-toggle>
       <div id="signin" role="region" aria-label="Account"></div>
     </div>
     <p class="lede">Give it an image of a Lewis structure or a related chemistry figure. It writes alt text for screen reader users that describes what is drawn, without giving away answers students are meant to work out.</p>

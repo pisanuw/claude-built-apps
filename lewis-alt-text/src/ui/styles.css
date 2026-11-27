@@ -1,4 +1,8 @@
 /* Keep body a block (or column) layout: the deploy adds the HintWise footer after #app. */
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
+   before the first paint) and for the device setting when scripts do not run
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same.
+   Both are for the screen only: paper gets the light set. */
 :root {
   --bg: #f7f7f5;
   --card: #ffffff;
@@ -13,10 +17,13 @@
   --err-bg: #fde8e8;
   --err-border: #b3261e;
   --note-bg: #eef0fb;
-  color-scheme: light dark;
+  /* 3:1 against the cards and the page (WCAG 1.4.11); --border is for dividers. */
+  --field-border: #84847f;
+  color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #161616;
     --card: #222222;
     --text: #eeeeee;
@@ -30,6 +37,26 @@
     --err-bg: #3d1717;
     --err-border: #ff8a80;
     --note-bg: #1e2147;
+    --field-border: #757575;
+  }
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #161616;
+    --card: #222222;
+    --text: #eeeeee;
+    --muted: #b8b8b8;
+    --border: #444444;
+    --accent: #a5b4fc;
+    --accent-text: #111111;
+    --focus: #fbbf24;
+    --warn-bg: #3a2f10;
+    --warn-border: #d6a72a;
+    --err-bg: #3d1717;
+    --err-border: #ff8a80;
+    --note-bg: #1e2147;
+    --field-border: #757575;
   }
 }
 * { box-sizing: border-box; }
@@ -40,17 +67,31 @@ h1 { font-size: 1.7rem; margin: 0 0 4px; }
 .top-bar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
 .top-bar h1 { flex: 1 1 auto; min-width: 0; margin: 0; overflow-wrap: anywhere; }
 .top-bar #signin[hidden] { display: none; }
+/* The light and dark mode switch: after the title, before sign-in (beyankontrol.com's order); its place is held until hw-theme.js draws it. */
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
+/* The terminal page's header: the title and the switch on one row. */
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.title-row h1 { min-width: 0; margin: 0; overflow-wrap: anywhere; }
 /* The sign-in panel in this page's colours, light or dark. */
 .hw-signin-panel { background: var(--card); color: var(--text); border-color: var(--border); }
 /* Google's dark-theme buttons on the dark page (branding guidelines: fill #131314, stroke #8E918F, text #E3E3E3), as in qualified-overtime-checker. */
-@media (prefers-color-scheme: dark) {
-  .hw-signin .hw-signin-button { background: #131314; border-color: #8e918f; color: #e3e3e3; }
+@media screen {
+  :root[data-theme="dark"] .hw-signin .hw-signin-button { background: #131314; border-color: #8e918f; color: #e3e3e3; }
   /* Google's dark asset, not the light G's white square. */
-  .hw-signin-google-logo .hw-g-light { display: none; }
-  .hw-signin-google-logo .hw-g-dark { display: block; }
-  .hw-signin-panel input[type='email'] { background: #131314; color: #e3e3e3; border-color: #8e918f; }
+  :root[data-theme="dark"] .hw-signin-google-logo .hw-g-light { display: none; }
+  :root[data-theme="dark"] .hw-signin-google-logo .hw-g-dark { display: block; }
+  :root[data-theme="dark"] .hw-signin-panel input[type='email'] { background: #131314; color: #e3e3e3; border-color: #8e918f; }
   /* The button's own ring (#0B57D0) is under 3:1 on the dark page: use the page's. */
-  .hw-signin .hw-signin-button:focus-visible { outline-color: var(--focus); }
+  :root[data-theme="dark"] .hw-signin .hw-signin-button:focus-visible { outline-color: var(--focus); }
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .hw-signin .hw-signin-button { background: #131314; border-color: #8e918f; color: #e3e3e3; }
+  /* Google's dark asset, not the light G's white square. */
+  :root:not([data-theme="light"]) .hw-signin-google-logo .hw-g-light { display: none; }
+  :root:not([data-theme="light"]) .hw-signin-google-logo .hw-g-dark { display: block; }
+  :root:not([data-theme="light"]) .hw-signin-panel input[type='email'] { background: #131314; color: #e3e3e3; border-color: #8e918f; }
+  /* The button's own ring (#0B57D0) is under 3:1 on the dark page: use the page's. */
+  :root:not([data-theme="light"]) .hw-signin .hw-signin-button:focus-visible { outline-color: var(--focus); }
 }
 h2 { font-size: 1.15rem; margin: 0 0 12px; }
 h3 { font-size: 1rem; margin: 0 0 6px; }
@@ -62,15 +103,18 @@ label { display: block; margin: 12px 0 4px; font-weight: 600; }
 label.inline, fieldset label { font-weight: normal; margin: 6px 0; }
 fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 legend { font-weight: 600; padding: 0; margin-bottom: 4px; }
-select, textarea, input[type="password"], input[type="email"] { width: 100%; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
+/* Fields: 3:1 against the cards and the page (WCAG 1.4.11); --border is for dividers. */
+select, textarea, input[type="password"], input[type="email"] { width: 100%; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--field-border); border-radius: 6px; padding: 8px; }
 textarea#alt { background: var(--card); }
 button { font: inherit; font-weight: 600; background: var(--accent); color: var(--accent-text); border: 0; border-radius: 6px; padding: 10px 18px; cursor: pointer; }
 button.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); padding: 6px 12px; }
 button[disabled] { opacity: 0.6; cursor: progress; }
 button#copy { padding: 6px 14px; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
-.drop { border: 2px dashed var(--border); border-radius: 10px; padding: 20px; text-align: center; cursor: pointer; }
+/* The drop zone is a control (role=button): its edge is 3:1 too. */
+.drop { border: 2px dashed var(--field-border); border-radius: 10px; padding: 20px; text-align: center; cursor: pointer; }
 .drop.over { border-color: var(--accent); }
+/* The uploaded figure on white, as it is drawn (content: the same in both themes). */
 .drop img { max-width: 100%; max-height: 320px; display: block; margin: 0 auto 12px; background: #fff; border-radius: 4px; }
 .drop p { margin: 0; }
 .link { color: var(--accent); text-decoration: underline; }
@@ -83,3 +127,7 @@ button#copy { padding: 6px 14px; }
 .notice ul { margin: 0; padding-left: 20px; }
 pre { white-space: pre-wrap; font-size: 0.85rem; background: var(--bg); padding: 10px; border-radius: 6px; overflow-x: auto; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* Not on paper. */
+@media print {
+  hw-theme-toggle { display: none !important; }
+}
