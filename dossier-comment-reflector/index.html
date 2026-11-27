@@ -3,6 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Light and dark mode: sets data-theme before the first paint (platform/src/theme/README.md; test/theme.test.ts pins it) -->
+    <script>(function(){var t;try{t=localStorage.getItem('hw-theme')}catch{}if(t!=='light'&&t!=='dark')t=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)})();</script>
     <title>Dossier Comment Reflector</title>
     <meta name="description" content="For faculty going up for promotion or tenure: turn years of student course-evaluation comments into themes, before-and-after evidence for your course changes, balanced quotes and a page-limited teaching reflection draft. Runs entirely in your browser." />
     <meta name="color-scheme" content="light dark" />

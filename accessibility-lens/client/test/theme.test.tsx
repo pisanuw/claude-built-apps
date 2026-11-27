@@ -84,6 +84,19 @@ describe('the dark palette', () => {
     }
   });
 
+  it('prints with the light set and without the switch: both dark blocks are for screens only', () => {
+    // Paper is white (browsers leave backgrounds out), so the dark set's pale text would not read there.
+    const plain = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    const screenAttr = /@media\s+screen\s*\{\s*:root\[data-theme="dark"\]\s*\{[^}]*\}\s*\}/;
+    const screenDevice = /@media\s+screen\s+and\s+\(prefers-color-scheme:\s*dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)\s*\{[^}]*\}\s*\}/;
+    expect(plain).toMatch(screenAttr);
+    expect(plain).toMatch(screenDevice);
+    // No other rule follows the theme or the device setting, which print would then follow too.
+    expect(plain.replace(screenAttr, '').replace(screenDevice, '')).not.toMatch(/data-theme|prefers-color-scheme/);
+    const print = [...plain.matchAll(/@media\s+print\s*\{((?:[^{}]*\{[^{}]*\})*[^{}]*)\}/g)].map((m) => m[1]).join('\n');
+    expect(print).toMatch(/(?:^|[\s,}])hw-theme-toggle\s*\{\s*display:\s*none\s*!important;?\s*\}/);
+  });
+
   it("gives the switch's outline 3:1 against the header, in both themes", () => {
     // hw-theme.js draws the outline as a share of the text colour over what is behind it.
     const share = Number(file('src/lib/hw-theme.js').match(/border-color:var\(--hw-theme-toggle-border,color-mix\(in srgb,currentColor (\d+)%/)![1]) / 100;

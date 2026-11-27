@@ -1,6 +1,7 @@
 /* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
    before the first paint) and for the device setting when scripts do not run
-   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same. */
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same.
+   Both are for screens only, so a printout uses the light set. */
 :root {
   color-scheme: light;
   --bg: #f5f7fa;
@@ -23,29 +24,31 @@
   --removed-bg: #fbe9e7;
   --field-border: #4b5666;
 }
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #10141a;
-  --panel: #19202a;
-  --ink: #e5e9f0;
-  --muted: #a6b0bf;
-  --line: #323c4b;
-  --accent: #8cc4ef;
-  --accent-ink: #0b1a26;
-  --link: #8cc4ef;
-  --bad: #ff9a8f;
-  --bad-bg: #3b1d1a;
-  --good: #85d19a;
-  --good-bg: #16301f;
-  --warn: #ffc46b;
-  --warn-bg: #3a2a10;
-  --neutral-bg: #262d39;
-  --code-bg: #222a36;
-  --added-bg: #16301f;
-  --removed-bg: #3b1d1a;
-  --field-border: #a6b0bf;
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #10141a;
+    --panel: #19202a;
+    --ink: #e5e9f0;
+    --muted: #a6b0bf;
+    --line: #323c4b;
+    --accent: #8cc4ef;
+    --accent-ink: #0b1a26;
+    --link: #8cc4ef;
+    --bad: #ff9a8f;
+    --bad-bg: #3b1d1a;
+    --good: #85d19a;
+    --good-bg: #16301f;
+    --warn: #ffc46b;
+    --warn-bg: #3a2a10;
+    --neutral-bg: #262d39;
+    --code-bg: #222a36;
+    --added-bg: #16301f;
+    --removed-bg: #3b1d1a;
+    --field-border: #a6b0bf;
+  }
 }
-@media (prefers-color-scheme: dark) {
+@media screen and (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: #10141a;
@@ -170,3 +173,8 @@ ul.diff li.removed { background: var(--removed-bg); text-decoration: line-throug
 ul.diff li.removed::before { content: '− '; font-weight: 700; }
 .pv { font-size: 0.9rem; }
 .report-frame { width: 100%; height: 900px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+
+/* Print: the light set (the dark blocks above are for screens only), without the switch. */
+@media print {
+  hw-theme-toggle { display: none !important; }
+}

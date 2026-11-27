@@ -97,9 +97,13 @@ describe('README.md', () => {
     expect(readme).toContain(THEME_INIT_CSP);
     expect(readme).toContain(HW_THEME_SHA256);
   });
-  it('gives the CSS pattern the guide asks for', () => {
-    expect(readme).toContain(':root[data-theme="dark"]');
-    expect(readme).toContain('@media (prefers-color-scheme: dark)');
-    expect(readme).toContain(':root:not([data-theme="light"])');
+  it('gives the CSS pattern the guide asks for: dark on screens only, and print without the switch', () => {
+    const tokens = readme.slice(readme.indexOf('## Colours: the token pattern'));
+    const css = tokens.slice(tokens.indexOf('```css') + 6, tokens.indexOf('```', tokens.indexOf('```css') + 6));
+    expect(css).toMatch(/@media screen \{\s*:root\[data-theme="dark"\] \{/);
+    expect(css).toMatch(/@media screen and \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme="light"\]\) \{/);
+    expect(css).toMatch(/@media print \{\s*hw-theme-toggle \{ display: none !important; \}/);
+    // No dark block that print would follow too.
+    expect(css).not.toMatch(/@media \(prefers-color-scheme: dark\)|^:root\[data-theme="dark"\]/m);
   });
 });

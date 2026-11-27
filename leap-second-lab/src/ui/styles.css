@@ -1,3 +1,7 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
+   before the first paint) and for the device setting when scripts do not run
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same.
+   Both are for screens only, so a printout uses the light set. */
 :root {
   --bg: #f7f6f2;
   --panel: #ffffff;
@@ -6,9 +10,9 @@
   --line: #d9dce3;
   --accent: #b45309;
   --accent-ink: #ffffff;
-  --good: #15803d;
+  --good: #157c3b;
   --bad: #b91c1c;
-  --warn: #a16207;
+  --warn: #9c5f06;
   --bad-bg: #fde8e8;
   --good-bg: #e7f6ec;
   --warn-bg: #fdf3dc;
@@ -23,10 +27,11 @@
   --band: rgba(180, 83, 9, 0.09);
   --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
   color-scheme: light;
+  --field-border: #82868f;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+@media screen {
+  :root[data-theme="dark"] {
     --bg: #12151c;
     --panel: #1b2029;
     --ink: #e6e8ee;
@@ -50,6 +55,35 @@
     --c-mono: #4ade80;
     --band: rgba(245, 158, 11, 0.12);
     color-scheme: dark;
+    --field-border: #6b7486;
+  }
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12151c;
+    --panel: #1b2029;
+    --ink: #e6e8ee;
+    --muted: #9aa3b5;
+    --line: #2f3644;
+    --accent: #f59e0b;
+    --accent-ink: #1b1306;
+    --good: #4ade80;
+    --bad: #f87171;
+    --warn: #fbbf24;
+    --bad-bg: #3a1d1f;
+    --good-bg: #16301f;
+    --warn-bg: #33290f;
+    --c-tai: #60a5fa;
+    --c-gps: #2dd4bf;
+    --c-ut1: #f59e0b;
+    --c-unix: #9ca3af;
+    --c-step: #f87171;
+    --c-smear: #a78bfa;
+    --c-sls: #22d3ee;
+    --c-mono: #4ade80;
+    --band: rgba(245, 158, 11, 0.12);
+    color-scheme: dark;
+    --field-border: #6b7486;
   }
 }
 
@@ -69,6 +103,11 @@ body {
 
 .site-header { padding: 20px 0 8px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
 .site-header h1 { margin: 0 0 12px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
+/* The title and the light and dark mode switch, on one row. */
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; }
+.site-header .title-row h1 { margin: 0; }
+/* Hold the switch's place until hw-theme.js draws it. */
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
 .clock-face { font-family: var(--mono); font-size: 2.2rem; letter-spacing: 0.04em; color: var(--accent); }
 .tagline { font-size: 1.05rem; font-weight: 500; color: var(--muted); }
 
@@ -88,13 +127,14 @@ button {
 button.secondary, button.small { background: var(--panel); color: var(--ink); border-color: var(--line); }
 button.small { padding: 3px 10px; font-size: 0.9rem; }
 button:hover { filter: brightness(1.06); }
-button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible, .table-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 input, select, textarea {
   font: inherit;
   color: var(--ink);
   background: var(--panel);
-  border: 1px solid var(--line);
+  /* 3:1 against the page and the cards (WCAG 1.4.11); --line is for dividers. */
+  border: 1px solid var(--field-border);
   border-radius: 6px;
   padding: 5px 8px;
   max-width: 100%;
@@ -191,4 +231,9 @@ caption { text-align: left; color: var(--muted); padding: 4px 0; }
   .clock-face { font-size: 1.8rem; }
   .conversions { grid-template-columns: 1fr; }
   .conversions dt { margin-top: 6px; }
+}
+
+/* Print: the light set (the dark blocks above are for screens only), without the switch. */
+@media print {
+  hw-theme-toggle { display: none !important; }
 }

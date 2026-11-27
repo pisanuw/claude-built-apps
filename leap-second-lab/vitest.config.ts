@@ -10,7 +10,7 @@ export default defineConfig({
       include: ['src/**/*.ts'],
       // The DOM glue is exercised in a real browser, not by unit tests; the
       // simulator, fault model and diagnosis it drives are covered here.
-      exclude: ['src/main.ts', 'src/ui/**'],
+      exclude: ['src/main.ts', 'src/**/*.d.ts', 'src/ui/**'],
       thresholds: { statements: 85, branches: 85, functions: 85, lines: 85 },
     },
   },

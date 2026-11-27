@@ -114,7 +114,7 @@ export async function mountProfessor(root: HTMLElement): Promise<void> {
 
   root.innerHTML = `
     <header class="top">
-      <h1>Letter Ledger</h1>
+      <div class="title-row"><h1>Letter Ledger</h1><hw-theme-toggle></hw-theme-toggle></div>
       <p class="lede">Recommendation letters without the inbox: one request link with your policy and a FERPA release, a deadline dashboard, notes you keep on students during the term, and a fact outline when it is time to write. Everything stays in this browser.</p>
     </header>
     <section class="card demo-bar" aria-labelledby="demo-h">

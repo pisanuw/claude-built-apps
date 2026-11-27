@@ -146,7 +146,8 @@ export function receiptsView(ctx: Ctx): HTMLElement {
           h('p', { class: 'hint' }, 'Every number ever issued, including void ones, for your auditor.'),
           h(
             'div',
-            { class: 'scroll' },
+            // Focusable, so a keyboard can scroll the table when it is wider than the screen.
+            { class: 'scroll', tabindex: 0, role: 'region', 'aria-label': 'Receipt register' },
             h(
               'table',
               { class: 'list' },
@@ -290,7 +291,7 @@ export function statementsView(ctx: Ctx): HTMLElement {
           previewPanel(ctx),
           h(
             'div',
-            { class: 'scroll' },
+            { class: 'scroll', tabindex: 0, role: 'region', 'aria-label': 'Statements by donor' },
             h(
               'table',
               { class: 'list' },

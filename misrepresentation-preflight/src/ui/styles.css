@@ -1,4 +1,9 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
+   before the first paint) and for the device setting when scripts do not run
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same.
+   Both are for screens only, so a printout uses the light set. */
 :root {
+  color-scheme: light;
   --bg: #f5f3ee;
   --panel: #ffffff;
   --ink: #1d2428;
@@ -6,7 +11,7 @@
   --line: #d9d5cb;
   --accent: #134e4a;
   --accent-ink: #ffffff;
-  --focus: #d97706;
+  --focus: #c46a04;
   --high: #9f1d2c;
   --high-bg: #fbe8ea;
   --medium: #7a4b00;
@@ -15,9 +20,11 @@
   --low-bg: #e8eef6;
   --good: #1d6b3a;
   --quote-bg: #f0ede5;
+  --field-border: #878174;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #121618;
     --panel: #1b2124;
     --ink: #e6ebec;
@@ -33,6 +40,30 @@
     --low-bg: #1e2a3a;
     --good: #86d39e;
     --quote-bg: #252c30;
+    --focus: #d97706;
+    --field-border: #707c82;
+  }
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121618;
+    --panel: #1b2124;
+    --ink: #e6ebec;
+    --muted: #a3adb3;
+    --line: #343d42;
+    --accent: #7dd3c8;
+    --accent-ink: #0c2421;
+    --high: #ff9aa5;
+    --high-bg: #3a1d22;
+    --medium: #f3c56b;
+    --medium-bg: #35301b;
+    --low: #a9c4ea;
+    --low-bg: #1e2a3a;
+    --good: #86d39e;
+    --quote-bg: #252c30;
+    --focus: #d97706;
+    --field-border: #707c82;
   }
 }
 * { box-sizing: border-box; }
@@ -48,6 +79,11 @@ body {
   padding: 24px 16px 48px;
 }
 h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 8px; }
+/* The title and the light and dark mode switch, on one row. */
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 8px; }
+.title-row h1 { margin: 0; }
+/* Hold the switch's place until hw-theme.js draws it. */
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
 h2 { font-size: 1.35rem; margin: 0 0 12px; }
 h3 { font-size: 1.1rem; margin: 24px 0 10px; }
 h4 { font-size: 1.02rem; margin: 6px 0; }
@@ -69,7 +105,8 @@ input[type='text'], input[type='file'] {
   font: inherit;
   color: inherit;
   background: var(--bg);
-  border: 1px solid var(--line);
+  /* 3:1 against the page and the panels (WCAG 1.4.11); --line is for dividers. */
+  border: 1px solid var(--field-border);
   border-radius: 6px;
   padding: 8px 10px;
 }
@@ -142,6 +179,8 @@ tbody th { font-weight: 600; white-space: nowrap; }
   .panel { padding: 16px; }
 }
 @media print {
+  /* The switch is for the screen. */
+  hw-theme-toggle { display: none !important; }
   body { background: #fff; color: #000; }
   .demo, #site-form, .log, .actions, .progress { display: none !important; }
   details.facts { display: block; }

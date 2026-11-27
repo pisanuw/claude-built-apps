@@ -108,7 +108,7 @@ export function mount(root: HTMLElement, opts: MountOptions = {}): App {
     h(
       'header',
       {},
-      h('h1', {}, 'Dossier Comment Reflector'),
+      h('div', { class: 'title-row' }, h('h1', {}, 'Dossier Comment Reflector'), h('hw-theme-toggle')),
       h(
         'p',
         { class: 'lede' },
@@ -337,7 +337,8 @@ export function mount(root: HTMLElement, opts: MountOptions = {}): App {
       h('p', {}, `${project.comments.length} comments from ${a.courses.length} course${a.courses.length === 1 ? '' : 's'} over ${a.terms.length} term${a.terms.length === 1 ? '' : 's'}.`),
       h(
         'div',
-        { class: 'table-wrap' },
+        // Focusable, so a keyboard can scroll a table that is wider than the screen.
+        { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': 'Comment batches' },
         h(
           'table',
           { id: 'batches' },
@@ -410,7 +411,7 @@ export function mount(root: HTMLElement, opts: MountOptions = {}): App {
         h('summary', {}, 'First rows of the file'),
         h(
           'div',
-          { class: 'table-wrap' },
+          { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': `First rows of ${name}` },
           h('table', {}, h('thead', {}, h('tr', {}, ...p.headers.map((hd) => h('th', { scope: 'col' }, hd)))), h('tbody', {}, ...sample.map((r) => h('tr', {}, ...p.headers.map((_, i) => h('td', {}, (r[i] ?? '').slice(0, 120))))))),
         ),
       ),
@@ -576,7 +577,7 @@ export function mount(root: HTMLElement, opts: MountOptions = {}): App {
         ),
       ),
     );
-    out.push(rows.length ? h('div', { class: 'table-wrap' }, table) : h('p', { class: 'empty' }, 'None of these comments matched a theme. Add your own theme below.'));
+    out.push(rows.length ? h('div', { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': 'Themes by term' }, table) : h('p', { class: 'empty' }, 'None of these comments matched a theme. Add your own theme below.'));
 
     const theme = a.themes.find((t) => t.id === openTheme);
     if (theme) {
@@ -673,7 +674,7 @@ export function mount(root: HTMLElement, opts: MountOptions = {}): App {
     const side = (n: number, of: number) => (of ? `${n} of ${of} (${pct(n, of)}%)` : '–');
     return h(
       'div',
-      { class: 'table-wrap' },
+      { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': `${change.course}: before and from ${change.term}` },
       h(
         'table',
         { class: 'impact' },

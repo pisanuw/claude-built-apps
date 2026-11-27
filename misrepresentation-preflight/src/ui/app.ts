@@ -151,7 +151,7 @@ export function mount(root: HTMLElement, deps: Deps = {}): App {
     h(
       'header',
       { class: 'intro' },
-      h('h1', {}, 'Misrepresentation Preflight'),
+      h('div', { class: 'title-row' }, h('h1', {}, 'Misrepresentation Preflight'), h('hw-theme-toggle')),
       h('p', { class: 'lede' }, 'Google suspended your Shopping account for “Misrepresentation” and won’t say why? Before you spend your next review request, see every place your store tells shoppers two different things.'),
       h(
         'ul',

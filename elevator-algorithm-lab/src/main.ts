@@ -1,3 +1,5 @@
+// The light and dark mode switch (platform/src/theme), defined before the header is drawn.
+import './lib/hw-theme.js';
 import './ui/styles.css';
 import { PolicyError, compilePolicy, policyHash } from './core/compile';
 import {
@@ -80,12 +82,12 @@ const CUSTOM_ID = '__custom__';
 // ---------------------------------------------------------------------------
 // Scenario panel
 
-const scenarioSelect = h('select', { onchange: () => selectScenario(scenarioSelect.value) });
+const scenarioSelect = h('select', { 'aria-label': 'Scenario', onchange: () => selectScenario(scenarioSelect.value) });
 const scenarioDesc = h('p', { class: 'scenario-desc' });
 const scenarioFacts = h('div', { class: 'facts' });
 const scenarioJson = h('textarea', { rows: '10', spellcheck: 'false', 'aria-label': 'Scenario JSON' });
 const scenarioError = h('div', { class: 'error' });
-const requestList = h('details', {}, h('summary', {}, 'Request list'), h('pre', {}));
+const requestList = h('details', {}, h('summary', {}, 'Request list'), h('pre', { tabindex: '0', role: 'region', 'aria-label': 'Request list' }));
 const hiddenNote = h('p', { class: 'warn hidden' }, 'Hidden grading scenario: the request list and generator are not shown. Scores still count.');
 
 function fillScenarioSelect(): void {
@@ -383,7 +385,8 @@ const vizPanel = h(
   h('div', { class: 'playbar' }, playButton, slider, speedSelect, timeLabel),
   vizGrid,
   h('h3', {}, 'Metrics'),
-  h('div', { class: 'table-wrap' }, metricsTable),
+  // Focusable, so a keyboard can scroll a table that is wider than the screen.
+  h('div', { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': 'Metrics' }, metricsTable),
   h(
     'p',
     { class: 'muted' },
@@ -519,7 +522,7 @@ function renderBoard(): void {
   );
 }
 
-const importInput = h('input', { type: 'file', accept: 'application/json', class: 'hidden' });
+const importInput = h('input', { type: 'file', accept: 'application/json', class: 'hidden', 'aria-label': 'Leaderboard JSON file' });
 importInput.addEventListener('change', async () => {
   const file = importInput.files?.[0];
   if (!file) return;
@@ -534,7 +537,7 @@ const boardPanel = h(
   { class: 'panel' },
   h('h2', {}, 'Class leaderboard'),
   boardNote,
-  h('div', { class: 'table-wrap' }, boardTable),
+  h('div', { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': 'Class leaderboard' }, boardTable),
   h(
     'div',
     { class: 'row', style: 'margin-top:8px' },
@@ -589,7 +592,7 @@ const apiPanel = h(
     ['hallCalls', 'people waiting: [{ floor, direction, count, since, seq }], grouped by floor and direction. Calls on this car’s own floor that it could not take just now (going the other way) are left out.'],
   ].map(([k, v]) => h('li', {}, h('code', {}, k), ` ${v}`))),
   h('h3', {}, 'Helpers (prepended to your code)'),
-  h('pre', {}, PRELUDE.trim()),
+  h('pre', { tabindex: '0', role: 'region', 'aria-label': 'Helpers prepended to your code' }, PRELUDE.trim()),
   h('h3', {}, 'Rules of the building'),
   h('ul', {},
     h('li', {}, 'One tick moves a car one floor. A stop where anyone boards or alights keeps the doors open for the scenario’s door time (0 on disks).'),
@@ -628,7 +631,7 @@ document.getElementById('app')!.replaceChildren(
   h(
     'header',
     {},
-    h('h1', {}, 'Elevator Algorithm Lab'),
+    h('div', { class: 'title-row' }, h('h1', {}, 'Elevator Algorithm Lab'), h('hw-theme-toggle')),
     h('p', {}, 'Write a dispatch policy, run it against seeded traffic, and flip to the disk view: FCFS, SSTF, SCAN and LOOK were elevator algorithms all along.'),
     h('div', { class: 'toolbar' }, apiButton, h('button', { onclick: () => void share() }, 'Share link'), shareStatus),
   ),

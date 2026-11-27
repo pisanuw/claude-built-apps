@@ -125,7 +125,8 @@ export function mountApp(root: HTMLElement): void {
   const nextBtn = el('button', { type: 'button', class: 'secondary', 'aria-label': 'Next step' }, '▶');
   const playBtn = el('button', { type: 'button', class: 'secondary' }, 'Play');
   const stepLabel = el('span', { class: 'muted' });
-  const treeBox = el('div', { class: 'tree' });
+  // Focusable, so a keyboard can scroll a tree that is wider than the screen.
+  const treeBox = el('div', { class: 'tree', tabindex: '0', role: 'region', 'aria-label': 'Process tree' });
   const eventLine = el('p', { class: 'event' });
   const outSoFar = el('pre', { class: 'output' });
   const legend = el(
@@ -210,7 +211,7 @@ export function mountApp(root: HTMLElement): void {
     el(
       'header',
       {},
-      el('h1', {}, 'Fork Count'),
+      el('div', { class: 'title-row' }, el('h1', {}, 'Fork Count'), el('hw-theme-toggle')),
       el(
         'p',
         { class: 'lede' },

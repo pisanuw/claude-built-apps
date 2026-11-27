@@ -1,4 +1,9 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
+   before the first paint) and for the device setting when scripts do not run
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same.
+   Both are for screens only, so a printout uses the light set. */
 :root {
+  color-scheme: light;
   --bg: #f5f7f6;
   --panel: #ffffff;
   --ink: #1b2528;
@@ -13,9 +18,11 @@
   --good: #1d6b3a;
   --good-bg: #e5f3ea;
   --code-bg: #e9eeee;
+  --field-border: #788789;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #111719;
     --panel: #1a2225;
     --ink: #e4ecee;
@@ -30,12 +37,38 @@
     --good: #85cf9f;
     --good-bg: #17301f;
     --code-bg: #263033;
+    --field-border: #6b7f84;
+  }
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111719;
+    --panel: #1a2225;
+    --ink: #e4ecee;
+    --muted: #9fb1b6;
+    --line: #34413f;
+    --accent: #6cc3dc;
+    --accent-ink: #0b1d23;
+    --bad: #ff8f84;
+    --bad-bg: #3b1f1c;
+    --mid: #f2c879;
+    --mid-bg: #3a3018;
+    --good: #85cf9f;
+    --good-bg: #17301f;
+    --code-bg: #263033;
+    --field-border: #6b7f84;
   }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
 #app { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
 header h1 { margin: 0 0 6px; font-size: 2rem; letter-spacing: -0.01em; }
+/* The title and the light and dark mode switch, on one row. */
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 6px; }
+.title-row h1 { margin: 0; }
+/* Hold the switch's place until hw-theme.js draws it. */
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
 .lede { font-size: 1.1rem; margin: 0 0 8px; }
 .privacy { color: var(--good); font-weight: 600; margin: 0 0 16px; }
 h2 { margin: 32px 0 10px; font-size: 1.35rem; }
@@ -52,14 +85,15 @@ legend { font-weight: 600; padding: 0 4px; }
 details { margin: 8px 0; }
 summary { cursor: pointer; font-weight: 600; }
 ol li { margin: 4px 0; }
-.zone { display: flex; flex-direction: column; gap: 4px; border: 2px dashed var(--line); border-radius: 12px; padding: 14px; background: var(--panel); cursor: pointer; margin-top: 10px; }
+.zone { display: flex; flex-direction: column; gap: 4px; border: 2px dashed var(--field-border); border-radius: 12px; padding: 14px; background: var(--panel); cursor: pointer; margin-top: 10px; }
 .zone:hover, .zone.over, .zone:focus-within { border-color: var(--accent); }
 .zone.loaded { border-style: solid; border-color: var(--good); }
 .zone .status { font-size: 0.9rem; overflow-wrap: anywhere; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .source-form { display: flex; flex-direction: column; gap: 4px; }
 .source-form label { font-weight: 600; font-size: 0.92rem; margin-top: 6px; }
-input[type='url'], input[type='search'], textarea, select { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; width: 100%; }
+/* Fields and the drop zones: 3:1 against the page and the panels (WCAG 1.4.11); --line is for dividers. */
+input[type='url'], input[type='search'], textarea, select { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--field-border); border-radius: 8px; padding: 7px 10px; width: 100%; }
 select { width: auto; padding: 4px 8px; }
 textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; }
 .source-form button { align-self: flex-start; margin-top: 8px; }
@@ -112,6 +146,10 @@ tr[hidden] { display: none; }
 .fine { color: var(--muted); font-size: 0.85rem; }
 .print-only { display: none; }
 @media print {
+  /* The switch is for the screen. */
+  hw-theme-toggle { display: none !important; }
+  /* Badges are white text on their colour: keep the colour on paper. */
+  .badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body { background: #fff; color: #000; }
   header .privacy, main > section:not(.results), .no-print, select { display: none !important; }
   .print-only { display: block; }

@@ -234,7 +234,7 @@ export function mount(root: HTMLElement, now: () => Date = () => new Date()): Ap
     h(
       'header',
       {},
-      h('h1', {}, 'Health Page Tracker Watch'),
+      h('div', { class: 'title-row' }, h('h1', {}, 'Health Page Tracker Watch'), h('hw-theme-toggle')),
       h('p', { class: 'lede' }, 'Which outside tools on your booking, intake and service pages send visitor information to other companies? See every one, what it receives, whether its maker signs a Business Associate Agreement (BAA), and what is new since last month.'),
       h('p', { class: 'privacy' }, 'Everything runs in this browser tab. Nothing you add here is uploaded.'),
     ),

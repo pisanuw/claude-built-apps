@@ -36,7 +36,12 @@ export function mountApp(root: HTMLElement): void {
     h(
       'header',
       { class: 'site-header' },
-      h('h1', {}, h('span', { class: 'clock-face', 'aria-hidden': 'true' }, '23:59:60'), h('span', { class: 'tagline' }, 'A lab for the second that breaks software')),
+      h(
+        'div',
+        { class: 'title-row' },
+        h('h1', {}, h('span', { class: 'clock-face', 'aria-hidden': 'true' }, '23:59:60'), h('span', { class: 'tagline' }, 'A lab for the second that breaks software')),
+        h('hw-theme-toggle'),
+      ),
       h('nav', { role: 'tablist', 'aria-label': 'Sections' }, ...buttons),
     ),
     main,
