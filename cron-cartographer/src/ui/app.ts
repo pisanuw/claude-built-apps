@@ -42,6 +42,15 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+/** A box that scrolls sideways on a phone: in the tab order, with a name. */
+function region(className: string, label: string): HTMLDivElement {
+  const box = el('div', className);
+  box.tabIndex = 0;
+  box.setAttribute('role', 'region');
+  box.setAttribute('aria-label', label);
+  return box;
+}
+
 function wallDateLabel(w: WallTime): string {
   return `${DOW_SHORT[new Date(Date.UTC(w.year, w.month - 1, w.day)).getUTCDay()]} ${w.year}-${pad2(w.month)}-${pad2(w.day)}`;
 }
@@ -77,7 +86,9 @@ export function mountApp(root: HTMLElement): void {
     undefined,
     'Paste a cron expression, an RRULE, a GitHub Actions schedule, or plain English, and see exactly when it fires on a calendar heatmap, in any time zone. Everything runs in your browser.',
   );
-  hero.append(h1, tagline);
+  const titleRow = el('div', 'title-row');
+  titleRow.append(h1, document.createElement('hw-theme-toggle'));
+  hero.append(titleRow, tagline);
 
   const inputCard = el('div', 'card input-row');
   const textarea = el('textarea');
@@ -166,12 +177,12 @@ export function mountApp(root: HTMLElement): void {
 
   const mapCard = el('div', 'card');
   const stats = el('div', 'stats');
-  const heatmapScroll = el('div', 'heatmap-scroll');
+  const heatmapScroll = region('heatmap-scroll', 'Firing heatmap, one square a day');
   const dayDetail = el('div', 'day-detail');
   mapCard.append(el('h2', 'section', 'Firing heatmap'), stats, heatmapScroll, dayDetail);
 
   const nextCard = el('div', 'card');
-  const nextScroll = el('div', 'next-scroll');
+  const nextScroll = region('next-scroll', 'Next firings');
   nextCard.append(el('h2', 'section', 'Next firings'), nextScroll);
 
   const footer = el('footer');
@@ -376,6 +387,8 @@ export function mountApp(root: HTMLElement): void {
   function updateControls(): void {
     for (const [days, b] of horizonButtons) {
       b.classList.toggle('on', days === state.horizonDays);
+      // The fill shows which window is chosen; this says it to a screen reader.
+      b.setAttribute('aria-pressed', String(days === state.horizonDays));
     }
     scheduleZoneSel.select.value = state.scheduleZone;
     displayZoneSel.select.value = state.displayZone;

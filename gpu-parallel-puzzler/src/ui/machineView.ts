@@ -15,7 +15,7 @@ export function machineView(): HTMLElement {
     h('h3', {}, 'Kernel language'),
     h(
       'pre',
-      { class: 'code' },
+      { class: 'code', tabindex: '0', role: 'region', 'aria-label': 'Kernel language' },
       `let i = blockIdx.x * blockDim.x + threadIdx.x;   // per-thread variable
 if (i < n) { out[i] = a[i] + b[i]; }              // global arrays, by name
 shared s[256];                                    // per-block shared array
@@ -42,7 +42,7 @@ let y = c ? x : 0;                                // select: no branch, no diver
     h('h3', {}, 'Cost model'),
     h(
       'div',
-      { class: 'table-scroll' },
+      { class: 'table-scroll', tabindex: '0', role: 'region', 'aria-label': 'Cost model' },
       h(
         'table',
         {},

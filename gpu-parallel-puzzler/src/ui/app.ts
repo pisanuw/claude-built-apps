@@ -30,7 +30,13 @@ export function mountApp(root: HTMLElement): void {
     h(
       'header',
       { class: 'site-header' },
-      h('h1', {}, h('span', { class: 'chip-logo', 'aria-hidden': 'true' }, ...Array.from({ length: 8 }, () => h('i', {}))), h('span', {}, 'GPU Parallel Puzzler'), h('span', { class: 'tagline' }, 'Twelve kernels on a simulated GPU')),
+      // The light and dark mode switch at the end of the title's row (platform/src/theme).
+      h(
+        'div',
+        { class: 'title-row' },
+        h('h1', {}, h('span', { class: 'chip-logo', 'aria-hidden': 'true' }, ...Array.from({ length: 8 }, () => h('i', {}))), h('span', {}, 'GPU Parallel Puzzler'), h('span', { class: 'tagline' }, 'Twelve kernels on a simulated GPU')),
+        h('hw-theme-toggle', {}),
+      ),
       h('nav', { role: 'tablist', 'aria-label': 'Sections' }, ...buttons),
     ),
     main,

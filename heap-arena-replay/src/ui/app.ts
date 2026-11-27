@@ -87,7 +87,8 @@ function download(name: string, data: string | Uint8Array, type: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-const COLORS = ['#1c7ed6', '#e8590c', '#2f9e44', '#9c36b5', '#e03131', '#0c8599', '#f08c00', '#5c5f66'];
+// The series colours are the stylesheet's --series-0 to --series-7 tokens, so the charts follow the theme.
+const COLORS = Array.from({ length: 8 }, (_, i) => `var(--series-${i})`);
 
 export function mountApp(root: HTMLElement): void {
   const shared = decodeShare(location.hash);
@@ -131,7 +132,8 @@ export function mountApp(root: HTMLElement): void {
   const header = h(
     'header',
     { class: 'top' },
-    h('h1', {}, 'Heap Arena Replay'),
+    // The light and dark mode switch at the end of the title's row (platform/src/theme).
+    h('div', { class: 'title-row' }, h('h1', {}, 'Heap Arena Replay'), h('hw-theme-toggle', {})),
     h('span', { class: 'tag' }, 'malloc, free and realloc on a word-accurate heap, one op at a time'),
     nav,
     h('a', { class: 'ext', href: 'https://github.com/pisanuw/Claude-capstone/tree/main/heap-arena-replay', target: '_blank', rel: 'noopener' }, 'Source'),
@@ -408,7 +410,9 @@ export function mountApp(root: HTMLElement): void {
   }
 
   document.addEventListener('keydown', (e) => {
-    const t = e.target as HTMLElement | null;
+    // The element the key was pressed on: a key in a shadow root (the light and dark mode switch's button)
+    // reaches the document retargeted to its host (platform/src/theme/README.md, "Key shortcuts").
+    const t = (e.composedPath()[0] ?? e.target) as HTMLElement | null;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
     if (e.key === 'ArrowRight') seek(state.step + 1);
     else if (e.key === 'ArrowLeft') seek(state.step - 1);
@@ -531,7 +535,7 @@ export function mountApp(root: HTMLElement): void {
       { label: 'external fragmentation', color: COLORS[1], values: run.steps.map((s) => s.metrics.externalFragmentation) },
       { label: 'internal fragmentation', color: COLORS[2], values: run.steps.map((s) => s.metrics.internalFragmentation), dashed: true },
     ];
-    chartBox.replaceChildren(h('h3', {}, 'Over the trace'), renderChart(series, { yMax: 1, format: pct, marker: state.step - 1, onSeek: (i) => seek(i + 1) }), legend(series));
+    chartBox.replaceChildren(h('h3', {}, 'Over the trace'), renderChart(series, { label: 'Utilization and fragmentation over the trace', yMax: 1, format: pct, marker: state.step - 1, onSeek: (i) => seek(i + 1) }), legend(series));
     const rows = run.steps.map((s) => {
       const e = s.event;
       const res = e.kind === 'free' ? (e.error ? 'error' : e.merged > 1 ? `merged ${e.merged}` : 'freed') : e.result === null ? 'NULL' : hex(e.result);
@@ -550,7 +554,7 @@ export function mountApp(root: HTMLElement): void {
     });
     opsBox.replaceChildren(
       h('h3', {}, 'Operations'),
-      h('div', { class: 'tablewrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, '#'), h('th', {}, 'op'), h('th', {}, 'result'), h('th', {}, 'block'), h('th', {}, 'examined'), h('th', {}, 'util'), h('th', {}, ''))), h('tbody', {}, ...rows))),
+      h('div', { class: 'tablewrap', tabindex: '0', role: 'region', 'aria-label': 'Operations' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, '#'), h('th', {}, 'op'), h('th', {}, 'result'), h('th', {}, 'block'), h('th', {}, 'examined'), h('th', {}, 'util'), h('th', {}, ''))), h('tbody', {}, ...rows))),
     );
     const cur = opsBox.querySelector('tr.current') as HTMLElement | null;
     const wrap = opsBox.querySelector('.tablewrap') as HTMLElement | null;
@@ -599,7 +603,7 @@ export function mountApp(root: HTMLElement): void {
       else shown = '·';
       rows.push(h('tr', { class: r.includes('free') ? 'freeword' : '' }, h('td', { class: 'mono' }, hex(a)), h('td', { class: 'mono' }, shown), h('td', {}, r)));
     }
-    wordsBox.replaceChildren(h('h3', {}, 'Words'), h('div', { class: 'tablewrap tall' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'address'), h('th', {}, 'value'), h('th', {}, 'meaning'))), h('tbody', {}, ...rows))));
+    wordsBox.replaceChildren(h('h3', {}, 'Words'), h('div', { class: 'tablewrap tall', tabindex: '0', role: 'region', 'aria-label': 'Words' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'address'), h('th', {}, 'value'), h('th', {}, 'meaning'))), h('tbody', {}, ...rows))));
   }
 
   // ---- compare ---------------------------------------------------------------------
@@ -664,8 +668,8 @@ export function mountApp(root: HTMLElement): void {
       return h('div', { class: 'ministrip' }, h('h4', {}, pc.label, ' ', h('span', { class: 'muted' }, res)), renderStrip(v.blocks, run.cfg, { bytesPerRow: state.bytesPerRow, showLinks: false, event: e, rover: v.rover, freeLists: v.freeLists, compact: true }));
     });
     compareBox.replaceChildren(
-      h('div', { class: 'tablewrap' }, h('table', {}, h('thead', {}, head), h('tbody', {}, ...rows))),
-      h('div', { class: 'charts3' }, h('div', {}, h('h4', {}, 'Utilization'), renderChart(util, { yMax: 1, format: pct, marker: state.step - 1, onSeek: (i) => seek(i + 1) })), h('div', {}, h('h4', {}, 'External fragmentation'), renderChart(frag, { yMax: 1, format: pct, marker: state.step - 1, onSeek: (i) => seek(i + 1) })), h('div', {}, h('h4', {}, 'Blocks examined (cumulative)'), renderChart(exam, { format: (v) => String(Math.round(v)), marker: state.step - 1, onSeek: (i) => seek(i + 1) }))),
+      h('div', { class: 'tablewrap', tabindex: '0', role: 'region', 'aria-label': 'Placement policies compared' }, h('table', {}, h('thead', {}, head), h('tbody', {}, ...rows))),
+      h('div', { class: 'charts3' }, h('div', {}, h('h4', {}, 'Utilization'), renderChart(util, { label: 'Utilization, by policy', yMax: 1, format: pct, marker: state.step - 1, onSeek: (i) => seek(i + 1) })), h('div', {}, h('h4', {}, 'External fragmentation'), renderChart(frag, { label: 'External fragmentation, by policy', yMax: 1, format: pct, marker: state.step - 1, onSeek: (i) => seek(i + 1) })), h('div', {}, h('h4', {}, 'Blocks examined (cumulative)'), renderChart(exam, { label: 'Blocks examined (cumulative), by policy', format: (v) => String(Math.round(v)), marker: state.step - 1, onSeek: (i) => seek(i + 1) }))),
       h('p', { class: 'muted small' }, state.step === 0 ? 'Initial heap.' : `After op ${state.step}: ${describeOp(state.run.steps[state.step - 1].op)}. Use the Replay slider or arrow keys to move.`),
       ...strips,
     );
@@ -735,7 +739,7 @@ export function mountApp(root: HTMLElement): void {
         'article',
         { class: 'card' },
         h('h4', {}, `Question ${q.n}`, ' ', h('span', { class: 'muted small' }, QUESTION_TYPES.find((t) => t.key === q.type)?.label ?? '')),
-        h('pre', { class: 'ctx' }, q.context),
+        h('pre', { class: 'ctx', tabindex: '0', role: 'region', 'aria-label': 'The trace so far' }, q.context),
         h('p', {}, q.prompt),
         h('div', { class: 'row' }, input, h('button', { type: 'button', onclick: check }, 'Check'), verdict, h('button', { type: 'button', class: 'tiny', onclick: () => (reveal.hidden = !reveal.hidden) }, 'Reveal'), h('button', { type: 'button', class: 'tiny', onclick: () => showStep(q.step) }, 'Show heap before this op')),
         reveal,
@@ -830,7 +834,7 @@ export function mountApp(root: HTMLElement): void {
     diffBox.replaceChildren(
       verdict,
       h('p', { class: 'muted small' }, `${d.matched} of ${d.compared} addresses match. Click a row to see both heaps after that op.`),
-      h('div', { class: 'tablewrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, '#'), h('th', {}, 'op'), h('th', {}, 'reference'), h('th', {}, 'yours'), h('th', {}, 'status'))), h('tbody', {}, ...rows))),
+      h('div', { class: 'tablewrap', tabindex: '0', role: 'region', 'aria-label': 'Your trace against the reference' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, '#'), h('th', {}, 'op'), h('th', {}, 'reference'), h('th', {}, 'yours'), h('th', {}, 'status'))), h('tbody', {}, ...rows))),
       h('h4', {}, `Reference heap after op ${state.diffStep + 1}`),
       renderStrip(refStep.blocks, refStep.cfg, { bytesPerRow: state.bytesPerRow, showLinks: false, event: refStep.event, rover: refStep.rover, freeLists: refStep.freeLists, compact: true }),
       h('h4', {}, `Your live blocks after op ${state.diffStep + 1} (payload ranges from your addresses)`),
@@ -858,7 +862,7 @@ export function mountApp(root: HTMLElement): void {
       h('h3', {}, 'Realloc'),
       h('p', {}, 'Shrinks in place when the new size fits (releasing the tail if it can form a block), absorbs the next block when it is free and big enough, and otherwise allocates, copies and frees.'),
       h('h3', {}, 'Trace format'),
-      h('pre', { class: 'ctx' }, 'a 0 24        # p0 = malloc(24)\nf 0           # free(p0)\nr 1 48        # p1 = realloc(p1, 48)\na 2 16 -> 0x10  # with the address your allocator returned (diff mode)'),
+      h('pre', { class: 'ctx', tabindex: '0', role: 'region', 'aria-label': 'Trace format' }, 'a 0 24        # p0 = malloc(24)\nf 0           # free(p0)\nr 1 48        # p1 = realloc(p1, 48)\na 2 16 -> 0x10  # with the address your allocator returned (diff mode)'),
       h('p', {}, 'Malloc-lab trace files (with their four header lines) paste straight in. Addresses are byte offsets from the start of the heap.'),
       h('h3', {}, 'Keys'),
       h('p', {}, 'Left and right arrows step, Home and End jump, and the charts seek on click.'),

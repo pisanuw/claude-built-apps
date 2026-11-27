@@ -1,13 +1,122 @@
 :root {
+  color-scheme: light;
   --bg: #f1f5f9;
   --panel: #ffffff;
   --ink: #0f172a;
-  --muted: #64748b;
+  /* 4.5:1 on the page too (#64748b was 4.34:1 there). */
+  --muted: #5b6b80;
   --line: #cbd5e1;
+  --line-soft: #e2e8f0;
   --accent: #2563eb;
+  --accent-soft: #eff6ff;
+  --on-accent: #ffffff;
+  /* The severity badges' fills, under white text (#d97706 was 3.19:1). */
   --high: #dc2626;
-  --medium: #d97706;
+  --medium: #b45309;
   --low: #64748b;
+  --on-badge: #ffffff;
+  /* A failed request's name in the waterfall. */
+  --danger-text: #c81e1e;
+  --error-bg: #fef2f2;
+  --error-edge: #fecaca;
+  --error-ink: #991b1b;
+  --fix-bg: #f0fdf4;
+  --fix-edge: #bbf7d0;
+  /* The drop zone's dashed edge: 3:1 on the page and the panel (--line was 1.48:1). */
+  --drop-border: #7c8798;
+  /* The waterfall: gridlines, every other row, a highlighted row. */
+  --wf-grid: #e2e8f0;
+  --wf-alt: #f8fafc;
+  --wf-hl: rgba(253, 230, 138, 0.45);
+  /* The waterfall's phases and resource types: 3:1 on its rows, plain and highlighted. */
+  --c-sky: #0277b5;
+  --c-amber: #b45309;
+  --c-violet: #9333ea;
+  --c-green: #15803d;
+  --c-pink: #c026d3;
+  --c-rose: #e11d48;
+  --c-blue: #2563eb;
+  --c-teal: #0f766e;
+  --c-slate: #6b7789;
+}
+
+/* Dark twice, for the switch (data-theme on <html>, set before the first paint) and for the device setting when
+   scripts do not run (platform/src/theme/README.md); test/theme.test.ts keeps the two the same. Both are for the
+   screen only: paper gets the light set. */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0b1220;
+    --panel: #131c2e;
+    --ink: #e2e8f0;
+    --muted: #94a3b8;
+    --line: #334155;
+    --line-soft: #1e293b;
+    --accent: #60a5fa;
+    --accent-soft: #172554;
+    --on-accent: #0b1220;
+    --high: #b91c1c;
+    --medium: #a14a0b;
+    --low: #475569;
+    --on-badge: #ffffff;
+    --danger-text: #fca5a5;
+    --error-bg: #2a1215;
+    --error-edge: #7f1d1d;
+    --error-ink: #fca5a5;
+    --fix-bg: #0f2a1a;
+    --fix-edge: #166534;
+    --drop-border: #64748b;
+    --wf-grid: #243041;
+    --wf-alt: #172033;
+    --wf-hl: rgba(250, 204, 21, 0.16);
+    --c-sky: #38bdf8;
+    --c-amber: #f59e0b;
+    --c-violet: #c084fc;
+    --c-green: #4ade80;
+    --c-pink: #f0abfc;
+    --c-rose: #fb7185;
+    --c-blue: #60a5fa;
+    --c-teal: #2dd4bf;
+    --c-slate: #94a3b8;
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0b1220;
+    --panel: #131c2e;
+    --ink: #e2e8f0;
+    --muted: #94a3b8;
+    --line: #334155;
+    --line-soft: #1e293b;
+    --accent: #60a5fa;
+    --accent-soft: #172554;
+    --on-accent: #0b1220;
+    --high: #b91c1c;
+    --medium: #a14a0b;
+    --low: #475569;
+    --on-badge: #ffffff;
+    --danger-text: #fca5a5;
+    --error-bg: #2a1215;
+    --error-edge: #7f1d1d;
+    --error-ink: #fca5a5;
+    --fix-bg: #0f2a1a;
+    --fix-edge: #166534;
+    --drop-border: #64748b;
+    --wf-grid: #243041;
+    --wf-alt: #172033;
+    --wf-hl: rgba(250, 204, 21, 0.16);
+    --c-sky: #38bdf8;
+    --c-amber: #f59e0b;
+    --c-violet: #c084fc;
+    --c-green: #4ade80;
+    --c-pink: #f0abfc;
+    --c-rose: #fb7185;
+    --c-blue: #60a5fa;
+    --c-teal: #2dd4bf;
+    --c-slate: #94a3b8;
+  }
 }
 
 * {
@@ -27,9 +136,24 @@ body {
   padding: 1.5rem 1rem 3rem;
 }
 
+header .title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 header h1 {
   font-size: 1.6rem;
   margin: 0.5rem 0 0.25rem;
+  min-width: 0;
+}
+
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 header .tagline {
@@ -46,7 +170,7 @@ header .tagline {
 }
 
 .dropzone {
-  border: 2px dashed var(--line);
+  border: 2px dashed var(--drop-border);
   border-radius: 12px;
   background: var(--panel);
   padding: 2.5rem 1rem;
@@ -57,7 +181,7 @@ header .tagline {
 
 .dropzone.dragover {
   border-color: var(--accent);
-  background: #eff6ff;
+  background: var(--accent-soft);
 }
 
 .dropzone p {
@@ -74,6 +198,7 @@ button {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
+  color: var(--ink);
   padding: 0.45rem 0.9rem;
   cursor: pointer;
 }
@@ -81,7 +206,7 @@ button {
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 button:hover {
@@ -97,9 +222,9 @@ button:hover {
 }
 
 .error {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #991b1b;
+  background: var(--error-bg);
+  border: 1px solid var(--error-edge);
+  color: var(--error-ink);
   border-radius: 8px;
   padding: 0.75rem 1rem;
   margin: 1rem 0;
@@ -153,6 +278,8 @@ button:hover {
 
 .finding summary {
   display: flex;
+  /* At 320 px a finding's impact went past the page's edge (350 px); it wraps to its own line now. */
+  flex-wrap: wrap;
   gap: 0.6rem;
   align-items: baseline;
   padding: 0.65rem 0.9rem;
@@ -166,7 +293,7 @@ button:hover {
 
 .finding .body {
   padding: 0 0.9rem 0.9rem;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--line-soft);
 }
 
 .badge {
@@ -174,7 +301,7 @@ button:hover {
   font-weight: 700;
   padding: 0.15rem 0.45rem;
   border-radius: 6px;
-  color: #fff;
+  color: var(--on-badge);
   text-transform: uppercase;
   flex-shrink: 0;
 }
@@ -191,8 +318,8 @@ button:hover {
 }
 
 .finding .fix {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
+  background: var(--fix-bg);
+  border: 1px solid var(--fix-edge);
   border-radius: 8px;
   padding: 0.5rem 0.75rem;
   margin: 0.6rem 0;
@@ -237,6 +364,25 @@ button:hover {
   background: var(--panel);
 }
 
+/* The waterfall's drawing, coloured here so it follows the theme (src/core/waterfall.ts sets the classes). */
+.wf-grid { stroke: var(--wf-grid); }
+.wf-tick { fill: var(--muted); }
+.wf-alt { fill: var(--wf-alt); }
+.wf-hl { fill: var(--wf-hl); }
+.wf-label { fill: var(--ink); }
+.wf-label.failed { fill: var(--danger-text); }
+
+/* One class per phase and per resource type: the fill in the waterfall, the background of a swatch. */
+.p-dns, .t-document { fill: var(--c-sky); background: var(--c-sky); }
+.p-connect, .t-script { fill: var(--c-amber); background: var(--c-amber); }
+.t-stylesheet { fill: var(--c-violet); background: var(--c-violet); }
+.p-send, .t-image { fill: var(--c-green); background: var(--c-green); }
+.t-font { fill: var(--c-pink); background: var(--c-pink); }
+.p-wait, .t-xhr { fill: var(--c-rose); background: var(--c-rose); }
+.p-receive { fill: var(--c-blue); background: var(--c-blue); }
+.t-media { fill: var(--c-teal); background: var(--c-teal); }
+.p-blocked, .p-cached, .t-other { fill: var(--c-slate); background: var(--c-slate); }
+
 .legend {
   display: flex;
   gap: 1rem;
@@ -272,4 +418,21 @@ footer {
 
 footer a {
   color: var(--accent);
+}
+
+/* Not on paper (last, so it wins). The badges keep their fill, which carries their white text. */
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
+
+  .badge {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Paper leaves a primary button's fill out, so its white text takes the ink. */
+  button.primary {
+    color: var(--ink);
+  }
 }

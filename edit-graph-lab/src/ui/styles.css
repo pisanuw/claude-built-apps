@@ -1,4 +1,8 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set before the first paint) and
+   for the device setting when scripts do not run (platform/src/theme/README.md). test/theme.test.ts keeps the
+   two the same. Both are for the screen only: paper gets the light set. */
 :root {
+  color-scheme: light;
   --bg: #f3f4f1;
   --card: #ffffff;
   --fg: #1a1c1a;
@@ -11,10 +15,24 @@
   --bad: #b3261e;
   --code-bg: #f6f7f4;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --ins-bg: rgba(29, 122, 70, 0.14);
+  --ins-fg: #14592f;
+  --del-bg: rgba(179, 38, 30, 0.12);
+  --del-fg: #8c1d17;
+  /* A differing hunk's badge text: 4.5:1 (#c77700 was 3.46:1). */
+  --warn: #9a5c00;
+  --lattice: #e1e4de;
+  /* The match diagonals and the hovered path: 3:1 on the card (#9aa39a and #f2b705 were 2.60 and 1.82:1). */
+  --match: #858d85;
+  --solution: #1a1c1a;
+  --hover: #b08200;
+  /* Fields' and buttons' edges: 3:1 on the cards and the page (WCAG 1.4.11); --border (1.40:1) is for dividers. */
+  --field-border: #848a82;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #111311;
     --card: #1a1d1a;
     --fg: #e6e9e4;
@@ -26,6 +44,42 @@
     --good: #5cc98b;
     --bad: #ff6b60;
     --code-bg: #141714;
+    --ins-bg: rgba(92, 201, 139, 0.16);
+    --ins-fg: #8fe0b0;
+    --del-bg: rgba(255, 107, 96, 0.15);
+    --del-fg: #ffa39b;
+    --warn: #f0a540;
+    --lattice: #2a2f2a;
+    --match: #6d766d;
+    --solution: #f3f5f1;
+    --hover: #ffd34d;
+    --field-border: #6e756c;
+  }
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111311;
+    --card: #1a1d1a;
+    --fg: #e6e9e4;
+    --muted: #a0a69e;
+    --border: #313631;
+    --accent: #7fcca4;
+    --accent-fg: #0f1a14;
+    --accent-soft: rgba(127, 204, 164, 0.13);
+    --good: #5cc98b;
+    --bad: #ff6b60;
+    --code-bg: #141714;
+    --ins-bg: rgba(92, 201, 139, 0.16);
+    --ins-fg: #8fe0b0;
+    --del-bg: rgba(255, 107, 96, 0.15);
+    --del-fg: #ffa39b;
+    --warn: #f0a540;
+    --lattice: #2a2f2a;
+    --match: #6d766d;
+    --solution: #f3f5f1;
+    --hover: #ffd34d;
+    --field-border: #6e756c;
   }
 }
 
@@ -49,6 +103,27 @@ body {
 h1 {
   margin: 0 0 4px;
   font-size: 28px;
+}
+
+/* The title, and the light and dark mode switch at the end of its row (its place held until hw-theme.js draws it). */
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 4px;
+}
+
+.title-row h1 {
+  margin: 0;
+  min-width: 0;
+}
+
+hw-theme-toggle:not([hidden]) {
+  display: inline-flex;
+  flex: none;
+  width: var(--hw-theme-toggle-size, 44px);
+  height: var(--hw-theme-toggle-size, 44px);
 }
 
 h2 {
@@ -113,9 +188,13 @@ button {
   font: inherit;
   color: var(--fg);
   background: var(--card);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 6px;
   padding: 5px 8px;
+}
+
+select {
+  max-width: 100%;
 }
 
 input[type="number"] {
@@ -237,32 +316,6 @@ a {
 
 /* ---------- edit graph lab ---------- */
 
-:root {
-  --ins-bg: rgba(29, 122, 70, 0.14);
-  --ins-fg: #14592f;
-  --del-bg: rgba(179, 38, 30, 0.12);
-  --del-fg: #8c1d17;
-  --warn: #c77700;
-  --lattice: #e1e4de;
-  --match: #9aa39a;
-  --solution: #1a1c1a;
-  --hover: #f2b705;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ins-bg: rgba(92, 201, 139, 0.16);
-    --ins-fg: #8fe0b0;
-    --del-bg: rgba(255, 107, 96, 0.15);
-    --del-fg: #ffa39b;
-    --warn: #f0a540;
-    --lattice: #2a2f2a;
-    --match: #5a625a;
-    --solution: #f3f5f1;
-    --hover: #ffd34d;
-  }
-}
-
 .pair {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -375,6 +428,12 @@ svg.graph {
 .vtable,
 .scrollx {
   overflow-x: auto;
+}
+
+.vtable:focus-visible,
+.scrollx:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .vtable table,
@@ -543,4 +602,11 @@ pre.hunk:focus-visible {
 
 footer {
   margin-top: 24px;
+}
+
+/* Not on paper. */
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
 }

@@ -56,7 +56,8 @@ The copies are not the app's code. Keep them out of its lint, format and coverag
 
    ```ts
    import './lib/hw-theme.js';
-   import './styles.css'; // a file: Vite links it in the head, after the snippet
+   // The stylesheet as a file: Vite links it in the head, after the snippet.
+   import './styles.css';
    ```
 
    Import the stylesheet as a file, not `?inline` into a `<style>` the script adds: until the script runs, such a page has no CSS, so the browser paints its own canvas in the device's colours and a stored choice that differs flashes (where-does-it-say and agent-blast-radius did, batch 4 review R1-1). The head-order check in the test below passes when the head has no stylesheet at all, so the test also checks the import. A report the app exports can still embed the `?inline` string.

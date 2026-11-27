@@ -1,17 +1,118 @@
 :root {
-  --bg: #0d1117;
-  --panel: #161b22;
-  --panel-2: #1c2330;
-  --border: #2d3648;
-  --text: #e6edf3;
-  --muted: #8b98a9;
-  --accent: #58a6ff;
-  --good: #3fb950;
-  --bad: #f85149;
-  --warn: #d29922;
-  --flag: #b58900;
+  color-scheme: light;
+  --bg: #f6f8fa;
+  --panel: #ffffff;
+  --panel-2: #eef1f5;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --muted: #59636e;
+  --accent: #0969da;
+  --good: #17742f;
+  --bad: #cf222e;
+  --warn: #875800;
+  --flag: #875800;
+  --focus: #0969da;
+  /* The primary buttons, with their own text colour. */
+  --primary: #0969da;
+  --primary-hover: #0757b8;
+  --on-primary: #ffffff;
+  --daily-edge: #b6c8e6;
+  --daily-tint: #eaf1fc;
+  /* Line numbers: 4.5:1 on the code and on every line tint. */
+  --line-no: #636c76;
+  --grade-s: #875800;
+  --cat-logic: #4f46e5;
+  --cat-null-safety: #0369a1;
+  --cat-security: #be123c;
+  --cat-performance: #92400e;
+  --cat-style: #047857;
+  /* Tints over the code panel. */
+  --line-hover: rgba(9, 105, 218, 0.06);
+  --flag-bg: rgba(212, 167, 44, 0.24);
+  --found-bg: rgba(26, 127, 55, 0.12);
+  --missed-bg: rgba(207, 34, 46, 0.1);
+  --false-bg: rgba(154, 103, 0, 0.1);
+  --radar-fill: rgba(9, 105, 218, 0.18);
+  --grade-s-glow: rgba(212, 167, 44, 0.4);
   --mono: 'SF Mono', 'Cascadia Code', Consolas, Menlo, monospace;
   --sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Dark twice, for the switch (data-theme on <html>, set before the first paint) and for the device setting when
+   scripts do not run (platform/src/theme/README.md); test/theme.test.ts keeps the two the same. Both are for the
+   screen only: paper gets the light set. The dark set is the app's original palette. */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2330;
+    --border: #2d3648;
+    --text: #e6edf3;
+    --muted: #8b98a9;
+    --accent: #58a6ff;
+    --good: #3fb950;
+    --bad: #f85149;
+    --warn: #d29922;
+    --flag: #d29922;
+    --focus: #58a6ff;
+    --primary: #1f6feb;
+    --primary-hover: #1858c4;
+    --on-primary: #ffffff;
+    --daily-edge: #3b4b6b;
+    --daily-tint: #16213a;
+    --line-no: #98a1ab;
+    --grade-s: #ffd700;
+    --cat-logic: #a5b4fc;
+    --cat-null-safety: #7dd3fc;
+    --cat-security: #fda4af;
+    --cat-performance: #fcd34d;
+    --cat-style: #a7f3d0;
+    --line-hover: rgba(88, 166, 255, 0.08);
+    --flag-bg: rgba(181, 137, 0, 0.22);
+    --found-bg: rgba(63, 185, 80, 0.16);
+    --missed-bg: rgba(248, 81, 73, 0.16);
+    --false-bg: rgba(210, 153, 34, 0.14);
+    --radar-fill: rgba(88, 166, 255, 0.25);
+    --grade-s-glow: rgba(255, 215, 0, 0.25);
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2330;
+    --border: #2d3648;
+    --text: #e6edf3;
+    --muted: #8b98a9;
+    --accent: #58a6ff;
+    --good: #3fb950;
+    --bad: #f85149;
+    --warn: #d29922;
+    --flag: #d29922;
+    --focus: #58a6ff;
+    --primary: #1f6feb;
+    --primary-hover: #1858c4;
+    --on-primary: #ffffff;
+    --daily-edge: #3b4b6b;
+    --daily-tint: #16213a;
+    --line-no: #98a1ab;
+    --grade-s: #ffd700;
+    --cat-logic: #a5b4fc;
+    --cat-null-safety: #7dd3fc;
+    --cat-security: #fda4af;
+    --cat-performance: #fcd34d;
+    --cat-style: #a7f3d0;
+    --line-hover: rgba(88, 166, 255, 0.08);
+    --flag-bg: rgba(181, 137, 0, 0.22);
+    --found-bg: rgba(63, 185, 80, 0.16);
+    --missed-bg: rgba(248, 81, 73, 0.16);
+    --false-bg: rgba(210, 153, 34, 0.14);
+    --radar-fill: rgba(88, 166, 255, 0.25);
+    --grade-s-glow: rgba(255, 215, 0, 0.25);
+  }
 }
 
 * {
@@ -32,10 +133,31 @@ body {
   padding: 24px 16px 48px;
 }
 
+.masthead .title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .masthead h1 {
   margin: 8px 0 4px;
+  min-width: 0;
   font-size: 2rem;
   letter-spacing: -0.02em;
+}
+
+/* During a round and on its result, the name is smaller, so the code stays near the top. */
+.masthead.compact h1 {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+}
+
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .tagline {
@@ -78,8 +200,8 @@ body {
 }
 
 .mode-card.daily {
-  border-color: #3b4b6b;
-  background: linear-gradient(160deg, #16213a 0%, var(--panel) 70%);
+  border-color: var(--daily-edge);
+  background: linear-gradient(160deg, var(--daily-tint) 0%, var(--panel) 70%);
 }
 
 .streak {
@@ -102,13 +224,14 @@ button:hover {
 }
 
 button.primary {
-  background: #1f6feb;
-  border-color: #1f6feb;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
   font-weight: 600;
 }
 
 button.primary:hover {
-  background: #388bfd;
+  background: var(--primary-hover);
 }
 
 button.primary.done {
@@ -209,7 +332,7 @@ button.ghost {
 }
 
 .radar-data {
-  fill: rgba(88, 166, 255, 0.25);
+  fill: var(--radar-fill);
   stroke: var(--accent);
   stroke-width: 2;
 }
@@ -264,10 +387,17 @@ button.ghost {
 }
 
 .timer {
-  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex: 1;
   min-width: 160px;
   max-width: 320px;
+}
+
+/* The seconds sit beside the bar, not over it: on the fill they were 2.2:1 (dark) and 3.9:1 (light). */
+.timer-track {
+  flex: 1;
   height: 22px;
   background: var(--panel-2);
   border: 1px solid var(--border);
@@ -286,14 +416,13 @@ button.ghost {
 }
 
 .timer-text {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
+  flex: none;
+  min-width: 3ch;
+  text-align: right;
   font-size: 0.8rem;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
   color: var(--text);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
 .round-title {
@@ -333,7 +462,7 @@ button.ghost {
 }
 
 .code-line:hover {
-  background: rgba(88, 166, 255, 0.08);
+  background: var(--line-hover);
 }
 
 .line-no {
@@ -341,12 +470,12 @@ button.ghost {
   flex-shrink: 0;
   text-align: right;
   margin-right: 16px;
-  color: #4d5a6e;
+  color: var(--line-no);
   user-select: none;
 }
 
 .code-line.flagged {
-  background: rgba(181, 137, 0, 0.22);
+  background: var(--flag-bg);
   box-shadow: inset 3px 0 0 var(--flag);
 }
 
@@ -355,19 +484,19 @@ button.ghost {
 }
 
 .code-line.was-found {
-  background: rgba(63, 185, 80, 0.16);
+  background: var(--found-bg);
   box-shadow: inset 3px 0 0 var(--good);
   cursor: default;
 }
 
 .code-line.was-missed {
-  background: rgba(248, 81, 73, 0.16);
+  background: var(--missed-bg);
   box-shadow: inset 3px 0 0 var(--bad);
   cursor: default;
 }
 
 .code-line.was-false {
-  background: rgba(210, 153, 34, 0.14);
+  background: var(--false-bg);
   box-shadow: inset 3px 0 0 var(--warn);
   cursor: default;
 }
@@ -412,8 +541,8 @@ button.ghost {
 }
 
 .grade-S .grade {
-  color: #ffd700;
-  box-shadow: 0 0 24px rgba(255, 215, 0, 0.25);
+  color: var(--grade-s);
+  box-shadow: 0 0 24px var(--grade-s-glow);
 }
 
 .grade-A .grade {
@@ -504,23 +633,23 @@ button.ghost {
 }
 
 .cat-logic {
-  color: #a5b4fc;
+  color: var(--cat-logic);
 }
 
 .cat-null-safety {
-  color: #7dd3fc;
+  color: var(--cat-null-safety);
 }
 
 .cat-security {
-  color: #fda4af;
+  color: var(--cat-security);
 }
 
 .cat-performance {
-  color: #fcd34d;
+  color: var(--cat-performance);
 }
 
 .cat-style {
-  color: #a7f3d0;
+  color: var(--cat-style);
 }
 
 /* footer */
@@ -533,4 +662,15 @@ button.ghost {
 
 .footer a {
   color: var(--accent);
+}
+
+/* Not on paper (last, so it wins). Paper leaves the primary buttons' fill out, so their white text takes the ink. */
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
+
+  button.primary {
+    color: var(--text);
+  }
 }

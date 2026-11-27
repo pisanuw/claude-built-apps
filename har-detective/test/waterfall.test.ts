@@ -22,14 +22,17 @@ describe('waterfallSvg', () => {
     expect(svg).toContain('</svg>');
     expect((svg.match(/<title>/g) ?? []).length).toBe(2);
     expect(svg).toContain('/app.js');
-    // dns + connect + wait + receive segments for the first row.
-    expect(svg).toContain('#0ea5e9'); // dns color appears (also document dot)
-    expect(svg).toContain('#e11d48'); // wait
+    // dns + connect + wait + receive segments for the first row, and each row's type dot.
+    for (const cls of ['p-dns', 'p-connect', 'p-wait', 'p-receive', 't-document', 't-script']) expect(svg).toContain(`class="${cls}"`);
+    // Colours come from the page's stylesheet, so the waterfall follows the theme.
+    expect(svg).not.toMatch(/(?:fill|stroke)="#/);
   });
 
   it('marks failed requests in red text', () => {
-    const entries = makeEntries([{ url: 'https://a.test/api/x', status: 500 }]);
-    expect(waterfallSvg(entries)).toContain('#dc2626');
+    const entries = makeEntries([{ url: 'https://a.test/api/x', status: 500 }, { url: 'https://a.test/ok' }]);
+    const svg = waterfallSvg(entries);
+    expect(svg.match(/class="wf-label failed"/g)).toHaveLength(1);
+    expect(svg.match(/class="wf-label"/g)).toHaveLength(1);
   });
 
   it('escapes markup in URLs', () => {
@@ -48,7 +51,8 @@ describe('waterfallSvg', () => {
     expect(filtered).not.toContain('/a.js');
     expect(filtered).toContain('/api/x');
     const highlighted = waterfallSvg(entries, { highlight: new Set([1]) });
-    expect(highlighted).toContain('#fde68a');
+    expect(highlighted).toContain('class="wf-hl"');
+    expect(filtered).not.toContain('class="wf-hl"');
   });
 
   it('caps rows and reports the omission count', () => {
@@ -63,6 +67,6 @@ describe('waterfallSvg', () => {
     const entries = makeEntries([
       { url: 'https://a.test/cached.js', fromCache: true, time: 0, phases: { send: 0, wait: 0, receive: 0 } },
     ]);
-    expect(waterfallSvg(entries)).toContain('width="2"');
+    expect(waterfallSvg(entries)).toContain('width="2" height="12" class="p-cached"');
   });
 });

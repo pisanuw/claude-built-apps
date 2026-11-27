@@ -52,7 +52,7 @@ export function rubricMarkdown(): string {
 export function instructorView(): HTMLElement {
   const nameInput = h('input', { type: 'text', value: loadName(), placeholder: 'Your name or student ID', 'aria-label': 'Name for the export', oninput: () => saveName(nameInput.value) });
   const status = h('p', { class: 'muted small', role: 'status' });
-  const classTable = h('div', { class: 'table-scroll' });
+  const classTable = h('div', { class: 'table-scroll', tabindex: '0', role: 'region', 'aria-label': 'Class results' });
 
   function exportJson(): void {
     const name = nameInput.value.trim();
@@ -124,7 +124,7 @@ export function instructorView(): HTMLElement {
       h('h3', {}, 'Rubric'),
       h(
         'div',
-        { class: 'table-scroll' },
+        { class: 'table-scroll', tabindex: '0', role: 'region', 'aria-label': 'Rubric' },
         h(
           'table',
           {},
