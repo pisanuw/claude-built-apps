@@ -10,6 +10,8 @@ export interface Series {
 }
 
 export interface ChartOptions {
+  /** The chart's accessible name (it is an image to assistive technology). */
+  label?: string;
   yMax?: number;
   /** Format for axis labels and the legend readout. */
   format?: (v: number) => string;
@@ -35,7 +37,7 @@ export function renderChart(series: Series[], opts: ChartOptions = {}): SVGSVGEl
   const n = Math.max(1, ...series.map((s) => s.values.length));
   const yMax = opts.yMax ?? Math.max(1e-9, ...series.flatMap((s) => s.values));
   const fmt = opts.format ?? ((v: number) => v.toFixed(2));
-  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart', role: 'img' });
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart', role: 'img', 'aria-label': opts.label ?? 'Chart' });
   const x = (i: number) => L + (n === 1 ? 0 : (i / (n - 1)) * (W - L - R));
   const y = (v: number) => T + (1 - v / yMax) * (H - T - B);
   for (let k = 0; k <= 4; k += 1) {
@@ -48,7 +50,9 @@ export function renderChart(series: Series[], opts: ChartOptions = {}): SVGSVGEl
   for (const s of series) {
     if (s.values.length === 0) continue;
     const d = s.values.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
-    const p = el('path', { d, class: 'series', stroke: s.color });
+    const p = el('path', { d, class: 'series' });
+    // A style, not the stroke attribute: the colour can be a var(--series-n) token.
+    p.style.stroke = s.color;
     if (s.dashed) p.setAttribute('stroke-dasharray', '4 3');
     p.appendChild(el('title', {}, s.label));
     svg.appendChild(p);

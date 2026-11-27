@@ -1,5 +1,8 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set before the first paint) and
+   for the device setting when scripts do not run (platform/src/theme/README.md). test/theme.test.ts keeps the
+   two the same. Both are for the screen only: paper gets the light set. */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --bg: #f3f4f1;
   --panel: #ffffff;
   --border: #d5d8d0;
@@ -9,7 +12,8 @@
   --accent-text: #ffffff;
   --ok: #1f7a3d;
   --bad: #c0392b;
-  --warn: #b7640a;
+  /* 4.5:1 on the panel (#b7640a was 4.34:1). */
+  --warn: #a35708;
   --cell: #f7f8f5;
   --cell-line: #dfe3da;
   --hdr-alloc: #2b5f9e;
@@ -21,15 +25,28 @@
   --freespace: #d9f0dd;
   --ptr: #b98ad6;
   --sys: #c9ccc4;
-  --examined: #e8740c;
+  /* The examined block's dashed outline: 3:1 on the cells (#e8740c was 2.84:1). */
+  --examined: #c45f08;
   --result: #1c7ed6;
   --split: #2f9e44;
   --freed: #e03131;
+  /* The free lists' colours (their heads are 8 px text): 4.5:1 on the panel and the cells in both themes. */
+  --series-0: #1a6dbd;
+  --series-1: #c24a08;
+  --series-2: #237a35;
+  --series-3: #9c36b5;
+  --series-4: #c92a2a;
+  --series-5: #0a7280;
+  --series-6: #9e5a00;
+  --series-7: #5c5f66;
+  /* Fields' and buttons' edges: 3:1 on the page and the panels (WCAG 1.4.11); --border is for dividers. */
+  --field-border: #858a80;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #15171a;
     --panel: #1e2126;
     --border: #353a42;
@@ -45,12 +62,58 @@
     --hdr-alloc: #5b93d6;
     --ftr-alloc: #4b7fbd;
     --payload: #2d4663;
-    --padding: #8a6d1e;
+    /* A block's label sits on its padding and pointer words: #8a6d1e and #8f63b5 left it 3.97 and 3.68:1. */
+    --padding: #765b1c;
     --hdr-free: #5fb57f;
     --ftr-free: #4f9c6f;
     --freespace: #284435;
-    --ptr: #8f63b5;
+    --ptr: #73509a;
     --sys: #4a4f57;
+    --series-0: #5ba4ec;
+    --series-1: #f07b3a;
+    --series-2: #4fbf65;
+    --series-3: #c784de;
+    --series-4: #ff6b6b;
+    --series-5: #2fb3c7;
+    --series-6: #f08c00;
+    --series-7: #a3a7ae;
+    --field-border: #6e7580;
+  }
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #15171a;
+    --panel: #1e2126;
+    --border: #353a42;
+    --text: #e6e8e3;
+    --muted: #9aa198;
+    --accent: #7db3ea;
+    --accent-text: #0f1a26;
+    --ok: #5dc77f;
+    --bad: #ff7b6b;
+    --warn: #f0a24a;
+    --cell: #22262c;
+    --cell-line: #30353d;
+    --hdr-alloc: #5b93d6;
+    --ftr-alloc: #4b7fbd;
+    --payload: #2d4663;
+    /* A block's label sits on its padding and pointer words: #8a6d1e and #8f63b5 left it 3.97 and 3.68:1. */
+    --padding: #765b1c;
+    --hdr-free: #5fb57f;
+    --ftr-free: #4f9c6f;
+    --freespace: #284435;
+    --ptr: #73509a;
+    --sys: #4a4f57;
+    --series-0: #5ba4ec;
+    --series-1: #f07b3a;
+    --series-2: #4fbf65;
+    --series-3: #c784de;
+    --series-4: #ff6b6b;
+    --series-5: #2fb3c7;
+    --series-6: #f08c00;
+    --series-7: #a3a7ae;
+    --field-border: #6e7580;
   }
 }
 
@@ -86,9 +149,27 @@ header.top {
   background: var(--panel);
 }
 
+/* The title and the light and dark mode switch take the header's first line; the tagline, tabs and link follow. */
+header.top .title-row {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 header.top h1 {
   font-size: 18px;
   margin: 0;
+  min-width: 0;
+}
+
+/* The switch's place is held until hw-theme.js draws it. */
+hw-theme-toggle:not([hidden]) {
+  display: inline-flex;
+  flex: none;
+  width: var(--hw-theme-toggle-size, 44px);
+  height: var(--hw-theme-toggle-size, 44px);
 }
 
 header.top .tag {
@@ -103,6 +184,7 @@ header.top .ext {
 
 nav.tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
 }
 
@@ -201,7 +283,7 @@ button {
   font: inherit;
   color: var(--text);
   background: var(--bg);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 6px;
   padding: 4px 8px;
 }
@@ -447,36 +529,36 @@ svg.strip .tip {
 }
 
 svg.strip .c0 {
-  stroke: #1c7ed6;
-  fill: #1c7ed6;
+  stroke: var(--series-0);
+  fill: var(--series-0);
 }
 svg.strip .c1 {
-  stroke: #e8590c;
-  fill: #e8590c;
+  stroke: var(--series-1);
+  fill: var(--series-1);
 }
 svg.strip .c2 {
-  stroke: #2f9e44;
-  fill: #2f9e44;
+  stroke: var(--series-2);
+  fill: var(--series-2);
 }
 svg.strip .c3 {
-  stroke: #9c36b5;
-  fill: #9c36b5;
+  stroke: var(--series-3);
+  fill: var(--series-3);
 }
 svg.strip .c4 {
-  stroke: #e03131;
-  fill: #e03131;
+  stroke: var(--series-4);
+  fill: var(--series-4);
 }
 svg.strip .c5 {
-  stroke: #0c8599;
-  fill: #0c8599;
+  stroke: var(--series-5);
+  fill: var(--series-5);
 }
 svg.strip .c6 {
-  stroke: #f08c00;
-  fill: #f08c00;
+  stroke: var(--series-6);
+  fill: var(--series-6);
 }
 svg.strip .c7 {
-  stroke: #5c5f66;
-  fill: #5c5f66;
+  stroke: var(--series-7);
+  fill: var(--series-7);
 }
 
 svg.strip path.link {
@@ -664,6 +746,12 @@ i.sw {
   border-radius: 8px;
 }
 
+.tablewrap:focus-visible,
+pre.ctx:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .tablewrap.tall {
   max-height: 520px;
 }
@@ -774,4 +862,11 @@ pre.ctx {
 
 .panel ul {
   padding-left: 20px;
+}
+
+/* Not on paper. */
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
 }
