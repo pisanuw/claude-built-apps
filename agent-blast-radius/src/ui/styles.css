@@ -1,6 +1,7 @@
 /* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
    before the first paint) and for the device setting when scripts do not run
-   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same. */
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same.
+   Both are for screens only, so a printout uses the light set. */
 :root {
   color-scheme: light;
   --bg: #f6f7f9;
@@ -22,27 +23,29 @@
   --field-border: #7b8496;
   --on-accent: #ffffff;
 }
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #0f1420;
-  --panel: #171e2e;
-  --panel-edge: #273149;
-  --text: #e8ecf4;
-  --muted: #93a0b8;
-  --accent: #6ea8fe;
-  --low: #4cc38a;
-  --low-bg: #12291e;
-  --medium: #e3b341;
-  --medium-bg: #2b2410;
-  --high: #f0883e;
-  --high-bg: #33200f;
-  --critical: #ff6b6b;
-  --critical-bg: #351619;
-  --code-bg: #0f1522;
-  --field-border: #6b7790;
-  --on-accent: #0f1420;
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0f1420;
+    --panel: #171e2e;
+    --panel-edge: #273149;
+    --text: #e8ecf4;
+    --muted: #93a0b8;
+    --accent: #6ea8fe;
+    --low: #4cc38a;
+    --low-bg: #12291e;
+    --medium: #e3b341;
+    --medium-bg: #2b2410;
+    --high: #f0883e;
+    --high-bg: #33200f;
+    --critical: #ff6b6b;
+    --critical-bg: #351619;
+    --code-bg: #0f1522;
+    --field-border: #6b7790;
+    --on-accent: #0f1420;
+  }
 }
-@media (prefers-color-scheme: dark) {
+@media screen and (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: #0f1420;
@@ -524,4 +527,9 @@ footer.site a {
     width: 50px;
     height: 50px;
   }
+}
+
+/* Print: the light set (the dark blocks above are for screens only), without the switch. */
+@media print {
+  hw-theme-toggle { display: none !important; }
 }
