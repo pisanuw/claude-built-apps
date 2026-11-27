@@ -34,6 +34,17 @@ describe('the copies of the shared switch', () => {
     expect(main.indexOf("import './lib/hw-theme.js';")).toBeGreaterThan(-1);
     expect(main.indexOf("import './lib/hw-theme.js';")).toBeLessThan(main.indexOf('app.innerHTML'));
   });
+
+  it('loads the stylesheet in the head, after the snippet, not from the script (no flash of the device theme)', () => {
+    // Vite links a stylesheet that main.ts imports as a file into the head, after the snippet, so the first
+    // paint has the stored theme. One that the script adds (a <style> from ?inline) comes after a first paint
+    // in the device's colours, and the head test above then passes only because the head has no stylesheet.
+    // The ?inline string is still used, for the downloaded report.
+    const main = readFileSync('src/main.ts', 'utf8');
+    expect(main).toMatch(/^import '\.\/ui\/styles\.css';$/m);
+    expect(main).not.toMatch(/createElement\(\s*['"]style['"]/);
+    expect(main).not.toMatch(/document\.head\.(append|appendChild|prepend|insertBefore)\(/);
+  });
 });
 
 describe('the palette', () => {
