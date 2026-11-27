@@ -31,9 +31,12 @@ export function segmentPoints(script: Script, opStart: number, opEnd: number): P
   return pathOf(script).slice(opStart, opEnd + 1);
 }
 
-/** Distinct, theme-friendly hue for edit count d out of total. */
-export function stepHue(d: number, total: number): number {
-  return Math.round(210 - (Math.min(d, total) / Math.max(1, total)) * 180);
+/** How many step tones the stylesheet defines (--step-0 to --step-5, blue to orange, in each theme). */
+export const STEP_TONES = 6;
+
+/** The tone for edit count d out of total: 0 for d = 0, the last one for d = total. */
+export function stepTone(d: number, total: number): number {
+  return Math.round((Math.min(d, total) / Math.max(1, total)) * (STEP_TONES - 1));
 }
 
 /** Cell size for an N x M graph inside a box `room` pixels wide. */

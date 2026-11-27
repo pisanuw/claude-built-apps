@@ -90,7 +90,7 @@ describe('the palette', () => {
     const darkNames = names(/:root\[data-theme="dark"\]\s*\{([^}]*)\}/);
     // Each dark token is one the light theme sets too; a colour the dark set leaves out keeps its light value on purpose.
     for (const n of darkNames) expect(names(/:root\s*\{([^}]*)\}/), n).toContain(n);
-    expect(Object.keys(light)).toHaveLength(18);
+    expect(Object.keys(light)).toHaveLength(24);
     expect(block(/:root\s*\{([^}]*)\}/)).toContain('color-scheme: light;');
     expect(block(/:root\[data-theme="dark"\]\s*\{([^}]*)\}/)).toContain('color-scheme: dark;');
   });
@@ -123,6 +123,18 @@ describe('the palette', () => {
       for (const bg of ["--card"]) expect(ratio(rgb(t['--hover']), rgb(t[bg])), `${theme}: --hover on ${bg}`).toBeGreaterThanOrEqual(3);
       // and the solution path.
       for (const bg of ["--card"]) expect(ratio(rgb(t['--solution']), rgb(t[bg])), `${theme}: --solution on ${bg}`).toBeGreaterThanOrEqual(3);
+      // Myers' paths, step by step (the hsl(... 48%) set in script was 1.71 to 4.4:1 in light): d = 0,
+      for (const bg of ["--card"]) expect(ratio(rgb(t['--step-0']), rgb(t[bg])), `${theme}: --step-0 on ${bg}`).toBeGreaterThanOrEqual(3);
+      // then
+      for (const bg of ["--card"]) expect(ratio(rgb(t['--step-1']), rgb(t[bg])), `${theme}: --step-1 on ${bg}`).toBeGreaterThanOrEqual(3);
+      // then
+      for (const bg of ["--card"]) expect(ratio(rgb(t['--step-2']), rgb(t[bg])), `${theme}: --step-2 on ${bg}`).toBeGreaterThanOrEqual(3);
+      // then
+      for (const bg of ["--card"]) expect(ratio(rgb(t['--step-3']), rgb(t[bg])), `${theme}: --step-3 on ${bg}`).toBeGreaterThanOrEqual(3);
+      // then
+      for (const bg of ["--card"]) expect(ratio(rgb(t['--step-4']), rgb(t[bg])), `${theme}: --step-4 on ${bg}`).toBeGreaterThanOrEqual(3);
+      // to d = D.
+      for (const bg of ["--card"]) expect(ratio(rgb(t['--step-5']), rgb(t[bg])), `${theme}: --step-5 on ${bg}`).toBeGreaterThanOrEqual(3);
       // The focus ring.
       for (const bg of ["--card", "--bg"]) expect(ratio(rgb(t['--accent']), rgb(t[bg])), `${theme}: --accent on ${bg}`).toBeGreaterThanOrEqual(3);
     }
@@ -276,6 +288,22 @@ describe('the switch in the header', () => {
     }
     // The example list was 296 px wide and widened the page to 329 px at 320.
     expect(rules('select')).toMatch(/max-width:\s*100%/);
+  });
+
+  it("draws Myers' paths with the step tokens, not colours set in script (batch 5 review R1-3)", () => {
+    [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Jump to end')!.click();
+    const groups = [...root.querySelectorAll('svg .snakes > g')];
+    expect(groups.length).toBeGreaterThan(5);
+    const tones = new Set<string>();
+    for (const g of groups) {
+      expect(g.getAttribute('class')).toMatch(/^tone-[0-5]$/);
+      tones.add(g.getAttribute('class')!);
+      // No colour, and no opacity that would take a tone under 3:1.
+      for (const n of [g, ...g.querySelectorAll('*')]) for (const attr of ['stroke', 'fill', 'opacity']) expect(n.getAttribute(attr) ?? 'none', attr).toMatch(/^none$/);
+    }
+    // The default example (D = 5) uses every tone, blue to orange.
+    expect([...tones].sort()).toEqual(['tone-0', 'tone-1', 'tone-2', 'tone-3', 'tone-4', 'tone-5']);
+    for (let i = 0; i < 6; i++) expect(rules(`.graph .snakes .tone-${i}`)).toBe(` stroke: var(--step-${i}); fill: var(--step-${i}); `);
   });
 
   it('makes the V array and the LCS table named regions in the tab order, with the focus ring', () => {

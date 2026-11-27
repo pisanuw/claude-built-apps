@@ -26,6 +26,13 @@
   --match: #858d85;
   --solution: #1a1c1a;
   --hover: #b08200;
+  /* Myers' furthest-reaching paths, step d = 0 (blue) to D (orange): 3:1 on the card (the hsl(... 48%) set in script was 1.71 to 4.4:1). */
+  --step-0: #1f5fc2;
+  --step-1: #0b6f7a;
+  --step-2: #17773a;
+  --step-3: #4f6e0a;
+  --step-4: #7a6000;
+  --step-5: #b14e0a;
   /* Fields' and buttons' edges: 3:1 on the cards and the page (WCAG 1.4.11); --border (1.40:1) is for dividers. */
   --field-border: #848a82;
 }
@@ -53,6 +60,12 @@
     --match: #6d766d;
     --solution: #f3f5f1;
     --hover: #ffd34d;
+    --step-0: #5b9bf0;
+    --step-1: #2fc2cc;
+    --step-2: #43c46a;
+    --step-3: #a3c93a;
+    --step-4: #d9b72a;
+    --step-5: #f08a3c;
     --field-border: #6e756c;
   }
 }
@@ -79,6 +92,12 @@
     --match: #6d766d;
     --solution: #f3f5f1;
     --hover: #ffd34d;
+    --step-0: #5b9bf0;
+    --step-1: #2fc2cc;
+    --step-2: #43c46a;
+    --step-3: #a3c93a;
+    --step-4: #d9b72a;
+    --step-5: #f08a3c;
     --field-border: #6e756c;
   }
 }
@@ -397,6 +416,14 @@ svg.graph {
   fill: var(--muted);
   font: 11px var(--mono);
 }
+
+/* Each step's paths and end dots (src/core/view.ts stepTone picks the tone). */
+.graph .snakes .tone-0 { stroke: var(--step-0); fill: var(--step-0); }
+.graph .snakes .tone-1 { stroke: var(--step-1); fill: var(--step-1); }
+.graph .snakes .tone-2 { stroke: var(--step-2); fill: var(--step-2); }
+.graph .snakes .tone-3 { stroke: var(--step-3); fill: var(--step-3); }
+.graph .snakes .tone-4 { stroke: var(--step-4); fill: var(--step-4); }
+.graph .snakes .tone-5 { stroke: var(--step-5); fill: var(--step-5); }
 
 .graph .snakes line {
   stroke-linecap: round;
