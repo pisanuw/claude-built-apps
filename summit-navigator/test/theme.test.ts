@@ -280,6 +280,35 @@ describe('the switch in the header', () => {
     expect(rules('.star')).toMatch(/color:\s*var\(--star-off\)/);
   });
 
+  it("lets a keyboard user open a session's description: its title is a disclosure button", () => {
+    const toggles = [...root().querySelectorAll<HTMLButtonElement>('.card h3 > button.title-btn')];
+    expect(toggles.length).toBeGreaterThan(0);
+    // Every card with a description has one, and only those.
+    expect(toggles.length).toBe(root().querySelectorAll('.card .desc').length);
+    const t = toggles[0];
+    const desc = document.getElementById(t.getAttribute('aria-controls')!)!;
+    expect(desc.classList.contains('desc')).toBe(true);
+    expect(t.type).toBe('button');
+    expect(t.getAttribute('aria-expanded')).toBe('false');
+    expect(desc.hidden).toBe(true);
+    // Enter and Space on a button fire its click.
+    t.click();
+    expect(t.getAttribute('aria-expanded')).toBe('true');
+    expect(desc.hidden).toBe(false);
+    t.click();
+    expect(t.getAttribute('aria-expanded')).toBe('false');
+    expect(desc.hidden).toBe(true);
+    // A click elsewhere on the card still opens it; starring redraws the list, with the description closed.
+    const card = t.closest('.card')!;
+    card.querySelector<HTMLElement>('.time')!.click();
+    expect(t.getAttribute('aria-expanded')).toBe('true');
+    card.querySelector<HTMLButtonElement>('.star')!.click();
+    const again = root().querySelector<HTMLButtonElement>(`[aria-controls="${desc.id}"]`)!;
+    expect(again.getAttribute('aria-expanded')).toBe('false');
+    again.closest('.card')!.querySelector<HTMLButtonElement>('.star')!.click();
+    expect(rules('.title-btn')).toMatch(/color:\s*inherit/);
+  });
+
   it("prints the header's text in the ink, underlines the chosen day, and keeps the badges' fill", () => {
     const print = [...css.matchAll(PRINT)].map((m) => m[1]).join('\n');
     expect(print).toMatch(/\.hdr, \.hdr-btn, \.daytab\[aria-selected='true'\] \{ color: var\(--ink\); \}/);
