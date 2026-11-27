@@ -255,6 +255,19 @@ describe('the switch in the header', () => {
     expect(fields.map((f) => f.labels?.[0]?.textContent)).toEqual(['Format', 'Before', 'After']);
   });
 
+  it('keeps the focus ring on each field: no rule takes the outline away (batch 6 review R1-2)', () => {
+    // textarea:focus { outline: none } outranked the :focus-visible ring, which left a 1 px border change from
+    // --field-border to --accent, 1.55:1 apart in light and 2.04:1 in dark.
+    expect(rules(':focus-visible')).toMatch(/outline:\s*2px solid var\(--accent\)/);
+    const fields = [...root().querySelectorAll<HTMLTextAreaElement | HTMLSelectElement>(FIELDS)];
+    expect(fields.map((f) => f.id)).toEqual(['kind', 'before', 'after']);
+    for (const field of fields) {
+      field.focus();
+      expect(document.activeElement).toBe(field);
+      expect(rulesFor(field), field.id).not.toMatch(/outline(?:-style)?:\s*(?:none|0)\b/);
+    }
+  });
+
   it('shows a zero count outlined in the muted colour, not faded (at 45% opacity it was under 4.5:1)', () => {
     root().querySelector<HTMLButtonElement>('#sample-ts')!.click();
     const rule = rules('.chip-zero');
