@@ -224,6 +224,21 @@ hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--h
 
 .row { display: flex; flex-wrap: wrap; gap: 6px; }
 
+.rail__hint { margin: 0; font-size: 0.74rem; color: var(--ink-soft); }
+
+/* Read by screen readers, not shown: the map's key help and what its cursor is on. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ---------- buttons & inputs ---------- */
 
 .btn {
@@ -327,9 +342,11 @@ select {
 .swatch--start { background: var(--green); border-radius: 50%; }
 .swatch--goal { background: radial-gradient(circle, var(--route) 30%, var(--card) 34%, var(--card) 58%, var(--route) 62%); border-radius: 50%; }
 .swatch--wall { background: var(--ink); }
-.swatch--mud { background: repeating-linear-gradient(45deg, var(--sand), var(--sand) 3px, var(--sand-line) 3px, var(--sand-line) 4px); }
-.swatch--frontier { background: var(--amber); }
-.swatch--visited { background: var(--wash); }
+/* -45deg: the hatch rises left to right, as on the map. */
+.swatch--mud { background: repeating-linear-gradient(-45deg, var(--sand), var(--sand) 3px, var(--sand-line) 3px, var(--sand-line) 4px); }
+/* As the map draws them: the washes over the sheet, the visited cells hatched. */
+.swatch--frontier { background: linear-gradient(var(--frontier), var(--frontier)), var(--paper); }
+.swatch--visited { background: repeating-linear-gradient(45deg, transparent 0 3px, var(--ink-soft) 3px 4px), linear-gradient(var(--visited), var(--visited)), var(--paper); }
 .swatch--path { background: var(--route); }
 
 /* ---------- canvas sheets ---------- */

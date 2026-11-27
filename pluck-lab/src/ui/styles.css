@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --bg: #f6f4f0;
   --card: #ffffff;
   --fg: #1d1b18;
@@ -10,12 +11,21 @@
   --good: #1d7a46;
   --bad: #b3261e;
   --warn: #7c3aed;
+  /* The charts' ground, which the canvases read as they draw, with --muted, --border, --accent, --good, --warn and
+     --fg. */
   --code-bg: #f8f6f2;
+  /* Fields', the plain buttons', the chords' and the tabs' edges: 3:1 on the card and the page (--border was 1.31
+     to 1.50:1). */
+  --field-border: #8c8477;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+/* Dark twice, for the switch (data-theme on <html>, set before the first paint) and for the device setting when
+   scripts do not run (platform/src/theme/README.md); test/theme.test.ts keeps the two the same. Both are for the
+   screen only: paper gets the light set. This is the app's dark palette, which followed the device before. */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #14120f;
     --card: #1d1a16;
     --fg: #ebe6de;
@@ -28,6 +38,26 @@
     --bad: #ff6b60;
     --warn: #b794f6;
     --code-bg: #171511;
+    --field-border: #736b5f;
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #14120f;
+    --card: #1d1a16;
+    --fg: #ebe6de;
+    --muted: #a8a094;
+    --border: #39332b;
+    --accent: #f59e0b;
+    --accent-fg: #1d1407;
+    --accent-soft: rgba(245, 158, 11, 0.16);
+    --good: #5cc98b;
+    --bad: #ff6b60;
+    --warn: #b794f6;
+    --code-bg: #171511;
+    --field-border: #736b5f;
   }
 }
 
@@ -49,9 +79,20 @@ body {
 }
 
 h1 {
-  margin: 0 0 4px;
+  margin: 0;
   font-size: 28px;
+  min-width: 0;
 }
+
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
 
 h2 {
   margin: 0 0 10px;
@@ -129,7 +170,7 @@ button {
 button.quiet {
   background: transparent;
   color: var(--fg);
-  border-color: var(--border);
+  border-color: var(--field-border);
 }
 
 button.small {
@@ -173,7 +214,7 @@ kbd {
   gap: 2px;
   background: transparent;
   color: var(--fg);
-  border-color: var(--border);
+  border-color: var(--field-border);
   padding: 6px 4px;
 }
 
@@ -234,7 +275,8 @@ kbd {
 
 .slider {
   display: grid;
-  grid-template-columns: 140px 1fr 56px;
+  /* minmax(0, 1fr): a range field's own width held the track open, and the page scrolled sideways at 320px. */
+  grid-template-columns: 140px minmax(0, 1fr) 56px;
   gap: 8px;
   align-items: center;
   font-size: 13px;
@@ -266,7 +308,7 @@ textarea {
   font-size: 13px;
   background: var(--card);
   color: var(--fg);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 6px;
   padding: 4px 6px;
 }
@@ -325,7 +367,7 @@ textarea {
 .tab {
   background: transparent;
   color: var(--fg);
-  border-color: var(--border);
+  border-color: var(--field-border);
   min-width: 34px;
 }
 
@@ -463,7 +505,7 @@ footer a {
   }
 
   .slider {
-    grid-template-columns: 110px 1fr 52px;
+    grid-template-columns: 110px minmax(0, 1fr) 52px;
   }
 
   .string {
@@ -472,5 +514,30 @@ footer a {
 
   .string button.quiet {
     display: none;
+  }
+}
+
+/* Not on paper (last, so it wins). Paper leaves fills out: labels on the accent (the buttons, the current tab)
+   take the ink, the current tab underlined; the bars keep their fills. */
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
+
+  button,
+  .tab.active {
+    color: var(--fg);
+  }
+
+  .tab.active {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+  }
+
+  .bar-track,
+  .bar {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 }

@@ -214,7 +214,7 @@ export function mountApp(root: HTMLElement): void {
   );
 
   root.append(
-    h('header', { class: 'site-header' }, h('h1', {}, 'Poincaré Paint'), h('p', { class: 'tagline' }, 'Draw once, and the hyperbolic plane repeats it forever. Drag to slide the plane: the disk has no centre and its rim is infinitely far away.')),
+    h('header', { class: 'site-header' }, h('div', { class: 'title-row' }, h('h1', {}, 'Poincaré Paint'), h('hw-theme-toggle')), h('p', { class: 'tagline' }, 'Draw once, and the hyperbolic plane repeats it forever. Drag to slide the plane: the disk has no centre and its rim is infinitely far away.')),
     h('main', { class: 'layout' }, h('div', { class: 'stage-col' }, stage, h('p', { class: 'readout' }, 'Cursor: ', cursorOut, ' · ', countOut), status), panel),
     h(
       'section',
@@ -668,7 +668,8 @@ export function mountApp(root: HTMLElement): void {
   });
   window.addEventListener('keydown', (ev) => {
     if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z') {
-      const target = ev.target as HTMLElement;
+      // The real target: a key in a shadow root (the theme switch's) arrives retargeted to its host.
+      const target = (ev.composedPath()[0] ?? ev.target) as HTMLElement;
       if (target.tagName === 'INPUT' && (target as HTMLInputElement).type !== 'range') return;
       ev.preventDefault();
       if (ev.shiftKey) redo();
@@ -760,6 +761,11 @@ export function mountApp(root: HTMLElement): void {
   updateFacts();
   updateMeasureText();
   new ResizeObserver(() => resize()).observe(stage);
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => requestRender());
+  // The disk reads the colour tokens as it draws: draw it again when the theme changes (the switch, or the device
+  // setting with nothing stored), and at once on the way into print and back. Print takes the light set, but a
+  // canvas keeps the pixels it drew on screen; matchMedia('print') changes with the print colours in place, and the
+  // next animation frame would come after the printout.
+  document.addEventListener('hw-themechange', () => requestRender());
+  if (typeof window.matchMedia === 'function') window.matchMedia('print').addEventListener?.('change', () => render());
   resize();
 }

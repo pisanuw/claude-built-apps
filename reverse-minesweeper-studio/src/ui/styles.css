@@ -1,33 +1,105 @@
 :root {
+  color-scheme: light;
   --bg: #f6f7f9;
   --panel: #ffffff;
   --ink: #1b1f24;
   --muted: #5c6670;
   --line: #d9dee4;
-  --accent: #1f6feb;
+  /* #1f6feb was 4.32:1 as a link on the page. */
+  --accent: #1b63d8;
+  /* Text on the accent (the current tab and brush, the primary button): white was 3.20:1 on the dark accent. */
   --accent-ink: #ffffff;
   --good: #1a7f37;
   --bad: #c62828;
   --warn: #9a6300;
   --stuck: #f2b134;
   --sealed: #f7d98b;
+  /* Fields' and buttons' edges: 3:1 on the panel and the page (--line was 1.26 to 1.45:1). */
+  --field-border: #80878f;
+  /* The board, which src/ui/render.ts reads as it draws: a hidden tile, the gaps between tiles, a suggested
+     edit, a cell the replay just opened, and the numbers 1 to 8, 4.5:1 on an open tile, tinted or not
+     (2, 3, 6 and 8 were 3.76 to 4.34:1 on the old tint, which was 0.22 of the accent). */
+  --tile-hidden: #c9d0d8;
+  --board-grid: #f6f7f9;
+  --suggest: #8250df;
+  --fresh: rgba(27, 99, 216, 0.18);
+  --num-1: #1f4fd6;
+  --num-2: #15692d;
+  --num-3: #b02020;
+  --num-4: #1b2a8c;
+  --num-5: #8b1a1a;
+  --num-6: #0b6767;
+  --num-7: #1b1f24;
+  --num-8: #4f5862;
   --sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
+
+/* Dark twice, for the switch (data-theme on <html>, set before the first paint) and for the device setting when
+   scripts do not run (platform/src/theme/README.md); test/theme.test.ts keeps the two the same. Both are for the
+   screen only: paper gets the light set. This is the app's dark palette, which followed the device before; the
+   tint is lighter (the numbers were 3.55 to 3.88:1 on it at 0.35). */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #0f1216;
     --panel: #171b21;
     --ink: #e6e9ee;
     --muted: #98a2ad;
     --line: #2b323b;
     --accent: #4c8dff;
+    --accent-ink: #0f1216;
     --good: #3fb950;
     --bad: #ff6b6b;
     --warn: #e3b341;
     --stuck: #e3b341;
     --sealed: #8a6d1f;
+    --field-border: #68717d;
+    --tile-hidden: #2a313a;
+    --board-grid: #0b0d10;
+    --suggest: #c297ff;
+    --fresh: rgba(76, 141, 255, 0.2);
+    --num-1: #6ea8ff;
+    --num-2: #3fb950;
+    --num-3: #ff6b6b;
+    --num-4: #a5a8ff;
+    --num-5: #ff9e64;
+    --num-6: #4fd1c5;
+    --num-7: #e6e9ee;
+    --num-8: #98a2ad;
   }
 }
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0f1216;
+    --panel: #171b21;
+    --ink: #e6e9ee;
+    --muted: #98a2ad;
+    --line: #2b323b;
+    --accent: #4c8dff;
+    --accent-ink: #0f1216;
+    --good: #3fb950;
+    --bad: #ff6b6b;
+    --warn: #e3b341;
+    --stuck: #e3b341;
+    --sealed: #8a6d1f;
+    --field-border: #68717d;
+    --tile-hidden: #2a313a;
+    --board-grid: #0b0d10;
+    --suggest: #c297ff;
+    --fresh: rgba(76, 141, 255, 0.2);
+    --num-1: #6ea8ff;
+    --num-2: #3fb950;
+    --num-3: #ff6b6b;
+    --num-4: #a5a8ff;
+    --num-5: #ff9e64;
+    --num-6: #4fd1c5;
+    --num-7: #e6e9ee;
+    --num-8: #98a2ad;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -50,7 +122,7 @@ input {
 button,
 select {
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   padding: 8px 12px;
   min-height: 40px;
@@ -86,7 +158,15 @@ header {
 header h1 {
   margin: 0;
   font-size: 1.5rem;
+  min-width: 0;
 }
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
 header p {
   margin: 4px 0 10px;
   color: var(--muted);
@@ -277,7 +357,7 @@ canvas {
   flex: 1;
   min-width: 0;
   background: var(--bg);
-  border: 1px solid var(--line);
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   padding: 6px 8px;
   font-size: 12px;
@@ -289,4 +369,29 @@ footer {
   color: var(--muted);
   font-size: 13px;
   padding-bottom: 24px;
+}
+
+/* Not on paper (last, so it wins). Paper leaves fills out: labels on the accent take the ink, the current tab
+   and brush underlined; the difficulty meter and the legend's chips keep their fills. */
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
+
+  button.active,
+  button.primary {
+    color: var(--ink);
+  }
+
+  button.active {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+  }
+
+  .meter span,
+  .chip {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
 }

@@ -45,7 +45,8 @@ export function mountApp(root: HTMLElement): void {
   // ---------- header and presets ----------
   const blurb = el('p', { class: 'preset-blurb' });
   const presetButtons = PRESETS.map((p) => {
-    const b = el('button', { class: 'tab', type: 'button', 'aria-selected': 'false' }, p.title);
+    // A toggle in a group: aria-selected is for tabs and options, not plain buttons (axe: aria-allowed-attr).
+    const b = el('button', { class: 'tab', type: 'button', 'aria-pressed': 'false' }, p.title);
     b.addEventListener('click', () => {
       config = copy(p.config);
       activePreset = p.id;
@@ -400,7 +401,7 @@ export function mountApp(root: HTMLElement): void {
   const sweepBtn = el('button', { type: 'button' }, 'Run sweep on the current network');
   const lagChart = el('canvas', { class: 'chart', 'aria-label': 'Input lag against input delay' });
   const costChart = el('canvas', { class: 'chart', 'aria-label': 'Cost against input delay' });
-  const sweepTable = el('div', { class: 'scrollx' });
+  const sweepTable = el('div', { class: 'scrollx', tabindex: '0', role: 'region', 'aria-label': 'Sweep results' });
   const sweepNote = el('p', { class: 'small muted' });
   let sweep: SweepPoint[] | null = null;
 
@@ -527,11 +528,15 @@ export function mountApp(root: HTMLElement): void {
 
   // ---------- layout ----------
   root.replaceChildren(
-    el('h1', {}, 'Lockstep Lab'),
     el(
-      'p',
-      { class: 'lede' },
-      'RTS games keep thousands of units in sync by sending only player inputs and running the same simulation on every machine. That only works if the simulation is perfectly deterministic. Run simulated clients side by side over a fake network, switch on a source of nondeterminism, and watch the per-tick state hashes split. Then compare input-delay lockstep with rollback, and fix broken step functions until they survive 10,000 ticks.',
+      'header',
+      {},
+      el('div', { class: 'title-row' }, el('h1', {}, 'Lockstep Lab'), el('hw-theme-toggle', {})),
+      el(
+        'p',
+        { class: 'lede' },
+        'RTS games keep thousands of units in sync by sending only player inputs and running the same simulation on every machine. That only works if the simulation is perfectly deterministic. Run simulated clients side by side over a fake network, switch on a source of nondeterminism, and watch the per-tick state hashes split. Then compare input-delay lockstep with rollback, and fix broken step functions until they survive 10,000 ticks.',
+      ),
     ),
     el('section', { class: 'card' }, el('h2', {}, 'Scenarios'), el('div', { class: 'presets' }, ...presetButtons.map((x) => x.b)), blurb),
     el('section', { class: 'card' }, el('div', { class: 'controls' }, netcode, network, nondet, match)),
@@ -597,7 +602,7 @@ export function mountApp(root: HTMLElement): void {
 
   function restart(): void {
     session = new Session(copy(config));
-    for (const { p, b } of presetButtons) b.setAttribute('aria-selected', String(p.id === activePreset));
+    for (const { p, b } of presetButtons) b.setAttribute('aria-pressed', String(p.id === activePreset));
     const preset = PRESETS.find((p) => p.id === activePreset);
     blurb.textContent = preset ? preset.blurb : 'Custom settings.';
     buildPanes();
@@ -654,6 +659,16 @@ export function mountApp(root: HTMLElement): void {
     renderAll(true);
     renderSweep();
   });
+
+  // The canvases read the colour tokens as they draw: draw them all again when the theme changes, and at once on
+  // the way into print and back. Print takes the light set, but a canvas keeps the pixels it drew on screen, and
+  // the next frame would come after the printout (matchMedia('print') changes with the print colours in place).
+  const redraw = (): void => {
+    renderAll(true);
+    renderSweep();
+  };
+  document.addEventListener('hw-themechange', redraw);
+  if (typeof window.matchMedia === 'function') window.matchMedia('print').addEventListener?.('change', redraw);
 
   loadExercise();
   restart();

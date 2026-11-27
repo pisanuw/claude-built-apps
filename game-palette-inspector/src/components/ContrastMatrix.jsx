@@ -29,7 +29,8 @@ export default function ContrastMatrix({ colors, bgIndex, target, onTarget }) {
         the target against whatever they sit on, not just against the background.
       </p>
 
-      <div className="matrix-scroll">
+      {/* It scrolls sideways on a narrow screen, so the keyboard can reach it: a named region that takes focus. */}
+      <div className="matrix-scroll" tabIndex={0} role="region" aria-label="Contrast matrix">
         <table className="matrix">
           <thead>
             <tr>

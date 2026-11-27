@@ -1,3 +1,4 @@
+import './lib/hw-theme.js';
 import './ui/styles.css';
 import { App } from './ui/app';
 

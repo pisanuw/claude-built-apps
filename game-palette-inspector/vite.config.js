@@ -6,4 +6,6 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   base: './',
   plugins: [react()],
+  // Vitest runs the switch's test (tests/theme.test.js); the colour engine's tests stay on node --test (*.test.mjs).
+  test: { include: ['tests/**/*.test.js'] },
 });

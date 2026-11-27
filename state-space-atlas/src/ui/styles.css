@@ -1,39 +1,86 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --bg: #f6f7fb;
   --panel: #ffffff;
   --border: #d9dee7;
   --text: #16202e;
   --muted: #5b6676;
-  --accent: #2f6fed;
+  /* #2f6fed was 4.25:1 as a link on the page; white on the dark accent was 3.16:1. */
+  --accent: #2560d6;
   --accent-text: #ffffff;
-  --ok: #1f9d55;
-  --warn: #c77a0a;
-  --bad: #d23f4a;
+  /* As text and as a badge's fill under --on-status: #1f9d55, #c77a0a and #d23f4a were 3.26 to 4.62:1 in light,
+     and the dark --bad 3.79:1 on the panel. */
+  --ok: #167a3d;
+  --warn: #945b00;
+  --bad: #c0313c;
+  --on-status: #ffffff;
+  /* Fields' and buttons' edges: 3:1 on the panel and the page (--border was 1.26 to 1.43:1). */
+  --field-border: #808998;
+  /* The atlas is a night map in both themes; its words are pale on it (they were --text, 1.10:1 in light). */
   --atlas-bg: #0f1623;
   --atlas-edge: rgba(150, 170, 200, 0.2);
+  --atlas-text: #e5e7eb;
   --c-frontier: #f2a93b;
   --c-expanded: #4c8dff;
   --c-path: #ff4d6d;
   --c-dead: #6b7280;
+  /* A state's preview, which src/ui/preview.ts reads as it draws: a tile in its home cell, and its number, which
+     was white on the green, 2.61:1. */
   --preview-bg: #eef1f6;
   --preview-line: #9aa5b1;
   --preview-tile: #ffffff;
+  --preview-home: #2bb673;
+  --preview-home-text: #0b1017;
+  --tooltip-shadow: rgba(0, 0, 0, 0.25);
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+/* Dark twice, for the switch (data-theme on <html>, set before the first paint) and for the device setting when
+   scripts do not run (platform/src/theme/README.md); test/theme.test.ts keeps the two the same. Both are for the
+   screen only: paper gets the light set. This is the app's dark palette, which followed the device before. */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #0b1017;
     --panel: #121a26;
     --border: #243040;
     --text: #e6e9ef;
     --muted: #97a3b4;
     --accent: #5b8cff;
+    --accent-text: #0b1017;
+    --ok: #1f9d55;
+    --warn: #c77a0a;
+    --bad: #ff6b72;
+    --on-status: #0b1017;
+    --field-border: #647287;
     --atlas-bg: #070b12;
     --preview-bg: #1b2433;
     --preview-line: #4b5a6e;
     --preview-tile: #243043;
+    --tooltip-shadow: rgba(0, 0, 0, 0.5);
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0b1017;
+    --panel: #121a26;
+    --border: #243040;
+    --text: #e6e9ef;
+    --muted: #97a3b4;
+    --accent: #5b8cff;
+    --accent-text: #0b1017;
+    --ok: #1f9d55;
+    --warn: #c77a0a;
+    --bad: #ff6b72;
+    --on-status: #0b1017;
+    --field-border: #647287;
+    --atlas-bg: #070b12;
+    --preview-bg: #1b2433;
+    --preview-line: #4b5a6e;
+    --preview-tile: #243043;
+    --tooltip-shadow: rgba(0, 0, 0, 0.5);
   }
 }
 
@@ -72,7 +119,19 @@ header.top {
 header.top h1 {
   font-size: 18px;
   margin: 0;
+  min-width: 0;
 }
+
+/* The title and the switch: the wrapping header's first line, the switch at its end. */
+header.top .title-row {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
 
 header.top .tagline {
   color: var(--muted);
@@ -144,7 +203,7 @@ button {
   font: inherit;
   color: var(--text);
   background: var(--bg);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 6px;
   padding: 6px 8px;
   width: 100%;
@@ -341,7 +400,7 @@ progress {
   gap: 8px;
   align-items: center;
   font-size: 12px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 6px 20px var(--tooltip-shadow);
 }
 
 .tooltip[hidden] {
@@ -408,7 +467,7 @@ progress {
   font-weight: 600;
   padding: 1px 6px;
   border-radius: 10px;
-  color: #fff;
+  color: var(--on-status);
 }
 
 .badge.ok {
@@ -481,4 +540,23 @@ footer.foot {
 
 footer.foot a {
   color: var(--accent);
+}
+
+/* Not on paper (last, so it wins). Paper leaves fills out: the primary buttons' labels take the ink; the badges
+   and the legend's keys keep their fills. */
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
+
+  button.primary {
+    color: var(--text);
+  }
+
+  .badge,
+  .legend .sw,
+  .legend .ramp {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
 }

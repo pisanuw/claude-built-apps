@@ -196,8 +196,8 @@ textarea {
   tab-size: 2;
 }
 
+/* The :focus-visible ring shows here too; the edge also turns the accent. */
 textarea:focus {
-  outline: none;
   border-color: var(--accent);
 }
 

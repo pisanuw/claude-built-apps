@@ -73,9 +73,10 @@ function measurerFor(theme: string): TextMeasurer {
   return m;
 }
 
+/** The diagram theme in effect: Auto follows the page's light or dark mode (the switch, else the device). */
 const resolvedTheme = (): string => {
   if (state.theme !== 'auto') return state.theme;
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  return window.hintwise?.theme?.get() ?? (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
 };
 
 // ------------------------------------------------------------ shell
@@ -95,10 +96,12 @@ function shell(): string {
     `<label class="opt"><span>${label}</span><select id="${id}">${options(list, value)}</select></label>`;
   return `
   <header class="top">
-    <div class="brand">
+    <div class="brand title-row">
       <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect x="11" y="3" width="10" height="7" rx="2"/><rect x="3" y="22" width="10" height="7" rx="2"/><rect x="19" y="22" width="10" height="7" rx="2"/><path d="M16 10v5M8 22v-3.5h16V22" fill="none"/></svg>
-      <div><h1>Diagram Layout Engine</h1><p>Mermaid flowcharts, laid out from scratch with the Sugiyama pipeline</p></div>
+      <h1>Diagram Layout Engine</h1>
+      <hw-theme-toggle></hw-theme-toggle>
     </div>
+    <p class="tagline">Mermaid flowcharts, laid out from scratch with the Sugiyama pipeline</p>
     <nav class="tabs" role="tablist" aria-label="Views">
       ${tab('editor', 'Editor')}${tab('diff', 'Diff')}${tab('pipeline', 'Pipeline')}${tab('bench', 'Benchmark')}${tab('guide', 'Guide')}
     </nav>
@@ -139,7 +142,7 @@ function shell(): string {
           <div class="group">
             <button class="icon" id="z-fit" title="Fit (double-click the canvas)" aria-label="Fit to view">${ICON.fit}</button>
             <button class="icon" id="z-out" aria-label="Zoom out">${ICON.minus}</button>
-            <button class="zoom" id="z-100" aria-label="Actual size">100%</button>
+            <button class="zoom" id="z-100" aria-label="Zoom 100%: reset to actual size">100%</button>
             <button class="icon" id="z-in" aria-label="Zoom in">${ICON.plus}</button>
           </div>
           <div class="group">
@@ -316,7 +319,12 @@ function nodeInfo(id: string): void {
 function wireCanvas(): void {
   const canvas = $('#canvas');
   vp = new Viewport(canvas);
-  vp.onZoom = (s) => ($('#z-100').textContent = `${Math.round(s * 100)}%`);
+  // The name holds the zoom it shows (axe: label-content-name-mismatch) and says what a press does.
+  vp.onZoom = (s) => {
+    const pct = `${Math.round(s * 100)}%`;
+    $('#z-100').textContent = pct;
+    $('#z-100').setAttribute('aria-label', `Zoom ${pct}: reset to actual size`);
+  };
   const clearHl = (): void => {
     canvas.classList.remove('hl-on');
     canvas.querySelectorAll('.dle-hl').forEach((el) => el.classList.remove('dle-hl'));
@@ -590,7 +598,7 @@ function renderPipelineTab(): void {
     return;
   }
   const layout = layoutChart(res.chart, { ...state.options, record: true }, measurerFor(state.theme));
-  const svg = renderSvg(layout, { theme: state.theme, idPrefix: 'pl', classDefs: res.chart.classDefs });
+  const svg = renderSvg(layout, { theme: state.theme, idPrefix: 'pl', classDefs: res.chart.classDefs, title: 'The routed diagram' });
   renderPipeline(root, res.chart, layout, state.options, svg, pipelineUi, renderPipelineTab);
 }
 
@@ -662,7 +670,9 @@ export async function start(root: HTMLElement): Promise<void> {
     next.focus();
     showTab(next.dataset.tab as Tab);
   });
-  window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', () => {
+  // A diagram on Auto follows the page's mode through its CSS (src/core/themes.ts); draw it again when the mode
+  // changes, as it was on a change of the device setting.
+  document.addEventListener('hw-themechange', () => {
     if (state.theme === 'auto' && state.tab === 'editor') renderEditor(true);
   });
   showTab(initialTab);

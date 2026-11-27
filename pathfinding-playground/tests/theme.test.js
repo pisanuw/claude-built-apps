@@ -157,6 +157,18 @@ describe('the palette', () => {
     }
   });
 
+  it("hatches the visited wash in --ink-soft at 3:1, a cue that does not rest on the wash's own contrast (batch 6 review R1-1)", () => {
+    // The wash is 1.37:1 (light) and 1.97:1 (dark) on the sheet, and 1.35:1 and 2.90:1 from the frontier; a wash
+    // at 3:1 would take the path under 3:1 on it.
+    for (const [theme, t, w] of [['light', light, lightTints], ['dark', dark, darkTints]]) {
+      const visited = over(w['--visited'], rgb(t['--paper']));
+      expect(ratio(rgb(t['--ink-soft']), visited), `${theme}: hatch on visited`).toBeGreaterThanOrEqual(3);
+    }
+    // The legend's swatches show the washes as the map lays them, over the sheet, and the hatch.
+    expect(rules('.swatch--visited')).toMatch(/repeating-linear-gradient\(45deg,[^;]*var\(--ink-soft\)[^;]*var\(--visited\)[^;]*var\(--paper\)/);
+    expect(rules('.swatch--frontier')).toMatch(/var\(--frontier\)[^;]*var\(--paper\)/);
+  });
+
   it("gives the switch's outline 3:1 against the header, in both themes", () => {
     // hw-theme.js draws the outline as a share of the text colour over what is behind it.
     const share = Number(readFileSync('src/lib/hw-theme.js', 'utf8').match(/currentColor (\d+)%/)[1]) / 100;
@@ -204,18 +216,36 @@ const rulesFor = (el) =>
 const rules = (selector) =>
   [...css.matchAll(/([^{}@]+)\{([^{}]*)\}/g)].filter(([, s]) => s.split(',').some((x) => x.trim() === selector)).map((m) => m[2]).join(';');
 
-// jsdom has no canvas: a 2D context that counts what is drawn and keeps the colours it is given.
-const drawn = { calls: 0, colours: [] };
+// jsdom has no canvas: a 2D context that counts what is drawn, and keeps the colours it is given and, in order,
+// the calls and colours of a drawing (`ops`).
+const drawn = { calls: 0, colours: [], ops: [] };
 const fakeContext = new Proxy(
   {},
   {
-    get: (_t, key) => (key === 'getImageData' ? () => ({ data: [] }) : () => void drawn.calls++),
+    get: (_t, key) =>
+      key === 'measureText'
+        ? () => ({ width: 12 })
+        : () => {
+            drawn.calls++;
+            drawn.ops.push(key);
+          },
     set: (_t, key, value) => {
-      if (key === 'fillStyle' || key === 'strokeStyle') drawn.colours.push(value);
+      if (key === 'fillStyle' || key === 'strokeStyle') {
+        drawn.colours.push(value);
+        drawn.ops.push(`${key}=${value}`);
+      }
       return true;
     },
   },
 );
+/** The drawing the theme change event makes now. */
+const redrawOps = () => {
+  drawn.ops = [];
+  document.dispatchEvent(new CustomEvent('hw-themechange', { detail: { theme: 'light' } }));
+  return drawn.ops;
+};
+/** True when `seq` appears in `ops`, in order, one call after another. */
+const runs = (ops, seq) => ops.some((_, i) => seq.every((x, j) => ops[i + j] === x));
 
 // Stands in for matchMedia (jsdom has none) and keeps the print query's change listeners.
 const onPrint = new Set();
@@ -244,6 +274,8 @@ describe('the switch in the header', () => {
       },
     );
     HTMLCanvasElement.prototype.getContext = () => fakeContext;
+    // jsdom lays nothing out: a sheet 800 px wide gives the Medium map cells of 23 px, enough for the figures.
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 800 });
     localStorage.clear();
     document.body.innerHTML = '<div id="root"></div>';
     root = document.getElementById('root');
@@ -253,6 +285,7 @@ describe('the switch in the header', () => {
     });
   });
   afterAll(() => {
+    delete HTMLElement.prototype.clientWidth;
     HTMLCanvasElement.prototype.getContext = realGetContext;
     vi.unstubAllGlobals();
   });
@@ -322,6 +355,28 @@ describe('the switch in the header', () => {
       document.documentElement.style.removeProperty('--paper');
       document.documentElement.style.removeProperty('--visited');
     }
+  });
+
+  it('hatches the visited cells, and sets the figures on them on a box of the wash (batch 6 review R1-1)', () => {
+    press('+ step');
+    press('+ step');
+    const ops = redrawOps();
+    // Clipped to the visited cells, lines in --ink-soft (the hover outline is its only other use, and no pointer is
+    // over the map here).
+    expect(runs(ops, ['clip', 'strokeStyle=#3e5c77', 'beginPath'])).toBe(true);
+    expect(ops.indexOf('clip')).toBeLessThan(ops.indexOf('stroke', ops.indexOf('clip')));
+    act(() => {
+      [...root.querySelectorAll('label.check')].find((l) => l.textContent.includes('cell costs')).querySelector('input').click();
+    });
+    const withFigures = redrawOps();
+    // The box is the sheet, then the wash over it, then the figure in --cost-visited.
+    const box = ['fillStyle=#f4f8fb', 'fillRect', 'fillStyle=rgba(169, 196, 219, 0.62)', 'fillRect', 'fillStyle=rgba(20, 48, 74, 0.75)', 'fillText'];
+    expect(runs(withFigures, box)).toBe(true);
+    // The frontier's figures sit straight on their fill.
+    expect(runs(withFigures, ['fillStyle=#5c3a00', 'fillText'])).toBe(true);
+    act(() => {
+      [...root.querySelectorAll('label.check')].find((l) => l.textContent.includes('cell costs')).querySelector('input').click();
+    });
   });
 
   it('draws the map again at once on the way into print and back, so a dark choice prints in the light colours', () => {

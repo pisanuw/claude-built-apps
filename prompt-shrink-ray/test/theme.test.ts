@@ -254,6 +254,19 @@ describe('the switch in the header', () => {
     expect(fields.map((f) => f.labels?.[0]?.textContent)).toEqual(['Aggressiveness', 'Price model', 'Prompt']);
   });
 
+  it('keeps the focus ring on each field: no rule takes the outline away (batch 6 review R1-2)', () => {
+    // textarea:focus { outline: none } outranked the :focus-visible ring, which left a 1 px border change from
+    // --field-border to --accent, 1.55:1 apart in light and 2.04:1 in dark.
+    expect(rules(':focus-visible')).toMatch(/outline:\s*2px solid var\(--accent\)/);
+    const fields = [...root().querySelectorAll<HTMLTextAreaElement | HTMLSelectElement>(FIELDS)];
+    expect(fields.map((f) => f.id)).toEqual(['level', 'model', 'input']);
+    for (const field of fields) {
+      field.focus();
+      expect(document.activeElement).toBe(field);
+      expect(rulesFor(field), field.id).not.toMatch(/outline(?:-style)?:\s*(?:none|0)\b/);
+    }
+  });
+
   it('marks a section no rule touched with a dashed edge, not by fading it, and colours the section chips from tokens', () => {
     root().querySelector<HTMLButtonElement>('#sample')!.click();
     expect(rules('.rule-none')).not.toMatch(/opacity/);

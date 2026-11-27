@@ -180,11 +180,20 @@ function block(selector: string, vars: Record<string, string>): string {
 
 /**
  * CSS declaring the theme variables on `selector`. 'auto' gives the light
- * theme with a dark override under prefers-color-scheme.
+ * theme with the dark one on screen when the page's switch says dark
+ * (data-theme on the root), or when the device prefers dark and the switch
+ * has not chosen light, as the page's own colours do. Paper keeps the light
+ * theme. In an exported SVG the root is the <svg>, which has no data-theme,
+ * so there it follows the device.
  */
 export function themeCss(themeId: string, selector: string): string {
   if (themeId === 'auto') {
-    return `${block(selector, themeById('light').vars)}@media (prefers-color-scheme: dark){${block(selector, themeById('dark').vars)}}`;
+    const dark = themeById('dark').vars;
+    return (
+      block(selector, themeById('light').vars) +
+      `@media screen{${block(`:root[data-theme="dark"] ${selector}`, dark)}}` +
+      `@media screen and (prefers-color-scheme: dark){${block(`:root:not([data-theme="light"]) ${selector}`, dark)}}`
+    );
   }
   return block(selector, themeById(themeId).vars);
 }

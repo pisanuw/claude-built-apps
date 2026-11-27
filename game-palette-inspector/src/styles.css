@@ -1,31 +1,88 @@
 /* Game Palette Inspector
-   Design notes: color-evaluation tools live on neutral dark gray so the
-   swatches read true (the same reason grading suites and image editors do).
-   The interface accent is a protan/deutan-safe cyan, and no meaning in this
-   UI is carried by color alone; the tool practices what it measures. */
+   Design notes: color-evaluation tools live on neutral gray so the swatches
+   read true (the same reason grading suites and image editors do): a light
+   neutral gray, or the dark one this app was built on, by the light and dark
+   mode switch. The interface accent is a protan/deutan-safe cyan, and no
+   meaning in this UI is carried by color alone; the tool practices what it
+   measures. The palette being inspected is content and never changes with
+   the theme. */
 
+/* Light: the neutral grays of the print stylesheet this app had, on a page a
+   step darker than its cards. */
 :root {
-  --bg: #17181c;
-  --surface: #1e2026;
-  --surface-2: #24272e;
-  --line: #31343d;
-  --line-soft: #282b32;
-  --text: #e9ebee;
-  --muted: #9aa1ac;
-  --faint: #6d7480;
-  --accent: #4cc2ff;
-  --accent-ink: #0a2a3d;
-  --ok: #57c9a2;
-  --bad: #ff8d6b;
+  color-scheme: light;
+  --bg: #eef0f3;
+  --surface: #ffffff;
+  --surface-2: #f2f3f5;
+  --line: #c9ccd2;
+  --line-soft: #dfe1e5;
+  --text: #16181c;
+  --muted: #4a505a;
+  --faint: #5c636e;
+  --accent: #0b6795;
+  --accent-ink: #ffffff;
+  --accent-hover: #095a82;
+  --accent-wash: rgba(11, 103, 149, 0.06);
+  --ok: #1b7a55;
+  --bad: #b23c17;
+  --warn: #8a5d00;
+  /* Fields' and buttons' edges: 3:1 on the cards and the page (--line is 1.5:1, for dividers). */
+  --field-border: #787e88;
   --radius: 10px;
   --display: 'Chakra Petch', 'Avenir Next Condensed', sans-serif;
   --body: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
-* { box-sizing: border-box; }
+/* Dark twice, for the switch (data-theme on <html>, set before the first paint) and for the device setting when
+   scripts do not run (platform/src/theme/README.md); tests/theme.test.js keeps the two the same. Both are for the
+   screen only: paper gets the light set. These are the colours the app had, with --faint raised from 3.18 to
+   3.77:1 to 4.53 to 5.38:1 and the edges' and the warning's colours made tokens. */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #17181c;
+    --surface: #1e2026;
+    --surface-2: #24272e;
+    --line: #31343d;
+    --line-soft: #282b32;
+    --text: #e9ebee;
+    --muted: #9aa1ac;
+    --faint: #878e9a;
+    --accent: #4cc2ff;
+    --accent-ink: #0a2a3d;
+    --accent-hover: #6fd0ff;
+    --accent-wash: rgba(76, 194, 255, 0.06);
+    --ok: #57c9a2;
+    --bad: #ff8d6b;
+    --warn: #d8b45a;
+    --field-border: #737a86;
+  }
+}
 
-html { color-scheme: dark; }
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #17181c;
+    --surface: #1e2026;
+    --surface-2: #24272e;
+    --line: #31343d;
+    --line-soft: #282b32;
+    --text: #e9ebee;
+    --muted: #9aa1ac;
+    --faint: #878e9a;
+    --accent: #4cc2ff;
+    --accent-ink: #0a2a3d;
+    --accent-hover: #6fd0ff;
+    --accent-wash: rgba(76, 194, 255, 0.06);
+    --ok: #57c9a2;
+    --bad: #ff8d6b;
+    --warn: #d8b45a;
+    --field-border: #737a86;
+  }
+}
+
+* { box-sizing: border-box; }
 
 body {
   margin: 0;
@@ -69,6 +126,17 @@ button {
   border-bottom: 1px solid var(--line-soft);
 }
 
+/* The title and the switch: a line of their own, the switch at its end. */
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
+
+/* The tagline and the actions share the next line. */
 .masthead__top {
   display: flex;
   align-items: flex-end;
@@ -94,6 +162,7 @@ button {
   letter-spacing: 0.01em;
   text-transform: uppercase;
   margin: 0;
+  min-width: 0;
 }
 
 .masthead__tagline {
@@ -187,7 +256,7 @@ button {
   gap: 7px;
   padding: 8px 14px;
   border-radius: 8px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--field-border);
   background: var(--surface);
   color: var(--text);
   font-size: 13.5px;
@@ -204,7 +273,7 @@ button {
   font-weight: 600;
 }
 
-.btn--primary:hover { background: #6fd0ff; border-color: #6fd0ff; }
+.btn--primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 
 .btn--ghost { border-color: transparent; background: transparent; color: var(--muted); }
 .btn--ghost:hover { color: var(--text); background: var(--surface); border-color: var(--line); }
@@ -216,7 +285,7 @@ button {
   font-size: 13.5px;
   color: var(--text);
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   padding: 8px 10px;
 }
@@ -281,14 +350,15 @@ select.field { font-family: var(--body); }
   font-family: var(--mono);
   font-size: 12.5px;
   background: transparent;
-  border: 1px solid transparent;
+  /* Its only edge: a text field needs one at 3:1 (it showed none until hovered). */
+  border: 1px solid var(--field-border);
   border-radius: 6px;
   color: var(--text);
   padding: 4px 6px;
 }
 
-.chip__hex:hover { border-color: var(--line); }
-.chip__hex:focus { border-color: var(--accent); outline: none; }
+/* The focus ring (:focus-visible) shows too: outline: none here hid it. */
+.chip__hex:focus { border-color: var(--accent); }
 .chip__hex--invalid { border-color: var(--bad); color: var(--bad); }
 
 .chip__row { display: flex; justify-content: space-between; gap: 6px; }
@@ -349,7 +419,7 @@ select.field { font-family: var(--body); }
   transition: border-color 120ms ease, background 120ms ease;
 }
 
-.dropzone--over { border-color: var(--accent); background: rgba(76, 194, 255, 0.06); }
+.dropzone--over { border-color: var(--accent); background: var(--accent-wash); }
 
 .dropzone__thumb {
   height: 56px;
@@ -497,7 +567,7 @@ select.field { font-family: var(--body); }
 }
 
 .tag--critical { border-color: var(--bad); color: var(--bad); }
-.tag--warning { border-color: #d8b45a; color: #d8b45a; }
+.tag--warning { border-color: var(--warn); color: var(--warn); }
 .tag--ok { border-color: var(--ok); color: var(--ok); }
 
 .fix-swap { display: flex; align-items: center; gap: 8px; }
@@ -550,14 +620,15 @@ select.field { font-family: var(--body); }
 /* Print: a light, ink-friendly report                                 */
 /* ------------------------------------------------------------------ */
 
+/* The light set applies on paper (the dark blocks are screen-only). */
 @media print {
-  html { color-scheme: light; }
-  body { background: #ffffff; color: #16181c; font-size: 12px; }
-  :root { --text: #16181c; --muted: #4a505a; --faint: #6a7078; --surface: #ffffff; --surface-2: #f2f3f5; --line: #c9ccd2; --line-soft: #dfe1e5; }
+  hw-theme-toggle { display: none !important; }
+  body { background: var(--surface); font-size: 12px; }
   .masthead__actions, .bench-tools, .dropzone, .bench-add, .chip__row,
   .section__head .field, .fix-swap .btn, .no-print { display: none !important; }
   .chip__hex { border: none; }
-  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* Nothing is printed halfway through a transition (from the dark set to the light one). */
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; transition: none !important; }
   .section { break-inside: avoid; padding: 18px 0 4px; }
   a { color: inherit; text-decoration: none; }
 }
