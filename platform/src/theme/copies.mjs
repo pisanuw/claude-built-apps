@@ -8,10 +8,18 @@
  * Checked:
  *   - every file named hw-theme.js: its sha256 is HW_THEME_SHA256;
  *   - every file named hw-theme-init.js: its sha256 is THEME_INIT_CSP's;
- *   - every inline <script> in an .html file that mentions hw-theme: it is
+ *   - every inline script element that holds the quoted storage key, in an
+ *     .html file or written out in a source file (.js, .mjs, .cjs, .jsx,
+ *     .ts, .tsx, .mts, .cts: a layout, or a page a function renders): it is
  *     the head snippet, byte for byte (its hash is THEME_INIT_CSP).
- * Skipped: node_modules, dist, coverage, build output, dot folders, and the
- * source folder itself (platform/).
+ * An inline script is taken for the snippet by the quoted key, so app code
+ * that listens for the change event or writes the button's tag is not.
+ * (A source file's comments are read too: do not write a script element
+ * around the quoted key in one.)
+ * Skipped: node_modules, dist, coverage, build, out, test-results,
+ * playwright-report and dot folders at any depth; the source folder itself
+ * (platform/ at the top); in source files, tests (*.test.*, *.spec.*) and
+ * type declarations (*.d.ts), which hold sample snippets on purpose.
  */
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -19,9 +27,16 @@ import path from 'node:path';
 import { HW_THEME_SHA256, THEME_INIT_CSP } from './snippet.mjs';
 
 const SKIP = new Set(['node_modules', 'dist', 'coverage', 'build', 'out', 'test-results', 'playwright-report']);
+const SOURCE = /\.(?:[cm]?js|jsx|[cm]?ts|tsx)$/;
+const NOT_SOURCE = /\.d\.[cm]?ts$|\.(?:test|spec)\.[^.]+$/;
+/** The storage key, quoted: 'hw-theme' (or a renamed 'hw-theme-…'), not 'hw-themechange', 'hw-theme-toggle' or a file name. */
+const KEY = /(['"`])hw-theme(?!change|-toggle)[\w-]*\1/;
 
 export const sha256hex = (data) => createHash('sha256').update(data).digest('hex');
 export const cspHash = (text) => `'sha256-${createHash('sha256').update(text).digest('base64')}'`;
+
+/** True for a source file whose <script> literals are checked. */
+export const isSourceFile = (name) => SOURCE.test(name) && !NOT_SOURCE.test(name);
 
 /** Files under root worth checking, as paths relative to root. `skipTop` names top-level folders to leave out. */
 export function themeFiles(root, { skipTop = ['platform'] } = {}) {
@@ -31,17 +46,17 @@ export function themeFiles(root, { skipTop = ['platform'] } = {}) {
       if (name.startsWith('.') || SKIP.has(name) || (top && skipTop.includes(name))) continue;
       const file = path.join(dir, name);
       if (statSync(file).isDirectory()) walk(file, false);
-      else if (name === 'hw-theme.js' || name === 'hw-theme-init.js' || name.endsWith('.html')) out.push(path.relative(root, file));
+      else if (name === 'hw-theme.js' || name === 'hw-theme-init.js' || name.endsWith('.html') || isSourceFile(name)) out.push(path.relative(root, file));
     }
   };
   walk(root, true);
   return out;
 }
 
-/** The contents of inline <script> elements that mention hw-theme. */
+/** The contents of inline <script> elements (no src) that hold the storage key. */
 export function inlineSnippets(html) {
   return [...html.matchAll(/<script(\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
-    .filter(([, attrs = '', body]) => !/\ssrc\s*=/.test(attrs) && body.includes('hw-theme'))
+    .filter(([, attrs = '', body]) => !/\ssrc\s*=/.test(attrs) && KEY.test(body))
     .map(([, , body]) => body);
 }
 

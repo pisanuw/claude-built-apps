@@ -26,8 +26,8 @@ Every HintWise app has one (owner, 27 Nov 2026; `docs/new-app-guide.md`, "Light 
 - **The icons are built with `createElementNS`**, not `innerHTML`, so the script also works under Trusted Types.
 - **Two pieces, not one:** the attribute must be set before the first paint, which needs a tiny blocking script in `<head>`; the button can load with the app. Putting the whole runtime in `<head>` would block the first paint on a bigger file.
 - **Copied and checked, not injected by the deploy:** the button belongs in each app's own header, and an app's tests and local preview must show what ships. What keeps a copy current:
-  - **In this repository**, `platform/test/theme-copies.test.ts` compares every `hw-theme.js`, `hw-theme-init.js` and inline head snippet outside `node_modules`, `dist` and `platform/` with the files here (`copies.mjs`). The platform CI job runs on every push, so a change here fails CI until every app's copy in the same pull request is updated. An app's own test compares its copy with the file here too.
-  - **In an app's own repository**, this repository's CI cannot see the copy. The app's test pins the values below, and `node scripts/theme-audit.mjs` (read-only, for Keeper's weekly run) fetches each own-repo app's live page and reports a stale copy.
+  - **In this repository**, `platform/test/theme-copies.test.ts` compares every copy with the files here (`copies.mjs`): each `hw-theme.js` and `hw-theme-init.js`, and each inline head snippet, in an `.html` file or written out as a `<script>` element in a source file (`.js`, `.mjs`, `.cjs`, `.jsx`, `.ts`, `.tsx`: a layout, or a page a function renders). A script is taken for the snippet when it holds the quoted storage key `'hw-theme'`, so app code that listens for `hw-themechange` or writes `<hw-theme-toggle>` is not. It skips `node_modules`, `dist`, `coverage`, `build`, `out`, `test-results`, `playwright-report` and dot folders at any depth, `platform/` at the top, and tests (`*.test.*`, `*.spec.*`) and `*.d.ts` files. The platform CI job runs on every push, so a change here fails CI until every app's copy in the same pull request is updated. An app's own test compares its copy with the file here too.
+  - **In an app's own repository**, this repository's CI cannot see the copy. The app's test pins the values below, and `node scripts/theme-audit.mjs` (read-only) fetches each own-repo app's live page and reports a stale copy. It covers the footer audit's list (`OWN_REPO_APPS` in `scripts/footer-audit.mjs`) and `EXTRA_APPS` in `scripts/theme-audit.mjs`: Screen Reader Journeys, MyUni, MeetMe, the ideas site (studio), Chess TD's server pages (td.hintwise.org) and RankedVote. pisan-analytics is left out: it answers 401 without its password. A copy bundled into an app's JavaScript (`import './lib/hw-theme.js'`) is not visible from outside; that app's own test pins it. The audit is not yet part of Keeper's weekly run (a rule change for PManager).
 
 ## The values
 
@@ -145,7 +145,7 @@ Define every colour once as a custom property, light on `:root`, dark twice: for
 - Keep the two dark blocks identical (the app's test below compares them).
 - **The switch's outline** is 60% of the header's text colour over the header's background; check it is at least 3:1 in both themes (as accessibility-lens's and PasteMD's tests do). With a pale text colour on a pale header, set `--hw-theme-toggle-border` to a stronger colour.
 - Both themes meet contrast: 4.5:1 for text, 3:1 for large text and for the parts of controls that identify them; no serious issue in an accessibility-lens scan of each.
-- **Field borders are 3:1** against what the field sits on, in both themes (WCAG 1.4.11): a text field's border is often its only edge. Give inputs and textareas their own token (`--field-border`); the light grey used for dividers and cards is usually about 1.5:1 and too faint for that. Put the pair in the app's contrast test.
+- **Field borders are 3:1** against what the field sits on, in both themes (WCAG 1.4.11): a text field's border is often its only edge. Give inputs, textareas and selects their own token (`--field-border`); the light grey used for dividers and cards is usually about 1.5:1 and too faint for that. Put the pair in the app's contrast test, and test that the fields use the token: render the page and check that every text field takes its border from `--field-border` (the test below; with Tailwind, that each field's border colour class is the field colour, as in accessibility-lens). A test of the token's value alone passes when a field goes back to the divider colour.
 - A light accent usually needs dark text on it in dark mode (`--on-accent`), and a red used for text and for a button's fill usually needs two tokens.
 - Colours that are content (a palette being inspected, a screenshot, a sample page) do not change with the theme.
 - **A canvas or other drawn colours:** read the tokens with `getComputedStyle(document.documentElement).getPropertyValue('--text')` and redraw on `document.addEventListener('hw-themechange', redraw)`. Replace any `matchMedia('(prefers-color-scheme: dark)')` in scripts with `window.hintwise?.theme?.get()` or `document.documentElement.dataset.theme`.
@@ -153,15 +153,16 @@ Define every colour once as a custom property, light on `:root`, dark twice: for
 
 ## The test an app copies
 
-Vitest with jsdom (adjust the paths). It pins both copies and checks the button is in the header and switches the page. Read files by path from the package folder, where vitest runs: under jsdom, `new URL(..., import.meta.url)` is jsdom's URL, which `readFileSync` does not take. accessibility-lens's `client/test/theme.test.tsx` is a worked copy; it also checks the palette's contrast.
+Vitest with jsdom (adjust the paths, the token names and the render step). It pins both copies, checks the button is in the header and switches the page, checks the palette's contrast in both themes (text, the field borders, the switch's outline), that every text field uses `--field-border`, and that no colour is written outside the token blocks except the content colours it lists. Read files by path from the package folder, where vitest runs: under jsdom, `new URL(..., import.meta.url)` is jsdom's URL, which `readFileSync` does not take. accessibility-lens's `client/test/theme.test.tsx` is a worked copy for React and Tailwind; `acr-draft/test/theme.test.ts` for a vanilla Vite app.
 
 ```ts
 // test/theme.test.ts
+// @vitest-environment jsdom
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 
-const sha = (s: string | Buffer, enc: 'hex' | 'base64') => createHash('sha256').update(s).digest(enc);
+const sha = (s: string | Uint8Array, enc: 'hex' | 'base64') => createHash('sha256').update(s).digest(enc);
 
 // In this repository: compare with the source, so a platform change fails here until the copy is updated.
 const SOURCE = '../platform/src/theme/'; // from the app's package folder; '../../platform/...' one level deeper
@@ -171,6 +172,7 @@ const THEME_INIT_CSP = `'sha256-${sha(readFileSync(`${SOURCE}theme-init.js`), 'b
 // const HW_THEME_SHA256 = '8e78682bb6c0f0a30c20687122363ec3a5bf020df14faaa5235a99d065d71d9c';
 // const THEME_INIT_CSP = "'sha256-GhyjaPQKUCt6Zif2GMbTG7M6cUY6iW77/obk7CBvquk='";
 const html = readFileSync('index.html', 'utf8');
+const css = readFileSync('src/styles.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 
 describe('the light and dark mode switch', () => {
   it('hw-theme.js is the platform copy, unchanged', () => {
@@ -185,17 +187,74 @@ describe('the light and dark mode switch', () => {
     expect(stylesheet === -1 || head.indexOf(m![0]) < stylesheet).toBe(true);
   });
   it('the two dark blocks in the stylesheet are the same', () => {
-    const css = readFileSync('src/styles.css', 'utf8');
     const block = (re: RegExp) => css.match(re)?.[1].replace(/\s+/g, ' ').trim();
     const attr = block(/:root\[data-theme="dark"\]\s*\{([^}]*)\}/);
     const media = block(/:root:not\(\[data-theme="light"\]\)\s*\{([^}]*)\}/);
     expect(attr).toBeTruthy();
     expect(media).toBe(attr);
   });
+
+  describe('the palette', () => {
+    // Tokens written as #rrggbb: light on :root, dark on :root[data-theme="dark"].
+    const tokens = (re: RegExp): Record<string, string> =>
+      Object.fromEntries([...(css.match(re)?.[1] ?? '').matchAll(/(--[\w-]+):\s*(#[0-9a-f]{6})\b/gi)].map((m) => [m[1], m[2]]));
+    const light = tokens(/:root\s*\{([^}]*)\}/);
+    const dark = { ...light, ...tokens(/:root\[data-theme="dark"\]\s*\{([^}]*)\}/) };
+    const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    const lum = (c: number[]) => {
+      const [r, g, b] = c.map((v) => v / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const ratio = (a: number[], b: number[]) => {
+      const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    // hw-theme.js draws its outline as a share of the text colour over what is behind it.
+    const share = Number(readFileSync('src/lib/hw-theme.js', 'utf8').match(/currentColor (\d+)%/)![1]) / 100;
+
+    it('meets contrast in both themes: text, field borders and the switch\'s outline', () => {
+      for (const [theme, t] of [['light', light], ['dark', dark]] as const) {
+        const pairs: [string, string, number][] = [
+          ['--text', '--bg', 4.5],
+          ['--text', '--surface', 4.5],
+          ['--muted', '--surface', 4.5],
+          ['--on-accent', '--accent', 4.5],
+          ['--field-border', '--surface', 3],
+          ['--field-border', '--bg', 3],
+        ];
+        for (const [fg, bg, min] of pairs) expect(ratio(rgb(t[fg]), rgb(t[bg])), `${theme}: ${fg} on ${bg}`).toBeGreaterThanOrEqual(min);
+        // The header here has --text on --bg.
+        const [text, bg] = [rgb(t['--text']), rgb(t['--bg'])];
+        const outline = text.map((v, i) => share * v + (1 - share) * bg[i]);
+        expect(ratio(outline, bg), `${theme}: the switch's outline`).toBeGreaterThanOrEqual(3);
+      }
+    });
+
+    it('writes no colour outside the token blocks, except the content colours listed', () => {
+      // Exact selector and colour pairs that stay the same in both themes (a printed report, a sample).
+      const ALLOWED: [string, string][] = [];
+      const rest = css
+        .replace(/@media\s*\(prefers-color-scheme:\s*dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)\s*\{[^}]*\}\s*\}/g, '')
+        .replace(/:root(\[data-theme="dark"\])?\s*\{[^}]*\}/g, '');
+      const COLOUR =
+        /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(|(?<![\w-])(?:white|black|red|green|blue|gray|grey|silver|yellow|orange|purple|pink|navy|teal|maroon)(?![\w-])/gi;
+      const found: string[] = [];
+      for (const [, selectors, body] of rest.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        for (const colour of body.match(COLOUR) ?? []) {
+          for (const selector of selectors.split(',').map((x) => x.trim())) {
+            if (!ALLOWED.some(([s, c]) => s === selector && c === colour.toLowerCase())) found.push(`${selector}: ${colour}`);
+          }
+        }
+      }
+      expect(found).toEqual([]);
+    });
+  });
+
   describe('in the page', () => {
     beforeAll(async () => {
       await import('../src/lib/hw-theme.js');
-      // render the app or its header here, the way the app's other tests do
+      // render the app or its header here, the way the app's other tests do,
+      // in a state that shows its text fields
     });
     it('the header has the button, and a click switches the page and is remembered', () => {
       const toggle = document.querySelector('header hw-theme-toggle')!;
@@ -206,6 +265,30 @@ describe('the light and dark mode switch', () => {
       expect(after).not.toBe(before);
       expect(localStorage.getItem('hw-theme')).toBe(after);
       expect(button.getAttribute('aria-label')).toBe(after === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+    });
+    it('every text field takes its border from --field-border', () => {
+      // The stylesheet's rules that give an element a border colour.
+      const borders = [...css.replace(/@[a-z-]+[^;{}]*;/g, '').matchAll(/([^{}@]+)\{([^{}]*)\}/g)].flatMap(([, selector, body]) =>
+        [...body.matchAll(/(?:^|;)\s*border(?:-(?:top|right|bottom|left|block|inline)(?:-(?:start|end))?)?(?:-color)?\s*:([^;]+)/g)].map(
+          (d) => ({ selector: selector.trim(), value: d[1].trim() }),
+        ),
+      );
+      const matches = (el: Element, selector: string) => {
+        try {
+          return el.matches(selector);
+        } catch {
+          return false; // ::placeholder and other selectors jsdom does not take
+        }
+      };
+      const fields = document.querySelectorAll(
+        'textarea, select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"])',
+      );
+      expect(fields.length).toBeGreaterThan(0);
+      for (const field of fields) {
+        const own = borders.filter((b) => matches(field, b.selector));
+        expect(own.length, field.outerHTML).toBeGreaterThan(0);
+        for (const b of own) expect(b.value, `${b.selector} on ${field.outerHTML}`).toContain('var(--field-border)');
+      }
     });
   });
 });
