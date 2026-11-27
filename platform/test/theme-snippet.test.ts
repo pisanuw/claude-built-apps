@@ -106,4 +106,17 @@ describe('README.md', () => {
     // No dark block that print would follow too.
     expect(css).not.toMatch(/@media \(prefers-color-scheme: dark\)|^:root\[data-theme="dark"\]/m);
   });
+  it("gives a Vite app's step 1 an import that its own copy-me test accepts, and that test still refuses ?inline", () => {
+    const step = readme.slice(readme.indexOf('### A Vite + TypeScript app'), readme.indexOf('2. Paste the head snippet'));
+    const start = step.indexOf('```ts') + 5;
+    const example = step.slice(start, step.indexOf('```', start)).replace(/^ {3}/gm, '');
+    const test = readme.slice(readme.indexOf('## The test an app copies'));
+    const check = test.match(/it\('the stylesheet is linked in the head, not added by the script'[\s\S]*?\n {2}\}\);/)?.[0] ?? '';
+    const pattern = check.match(/expect\(main\)\.toMatch\((\/.*\/m?)\);/)?.[1];
+    expect(pattern).toBeTruthy();
+    const re = new RegExp(pattern!.slice(1, pattern!.lastIndexOf('/')), pattern!.slice(pattern!.lastIndexOf('/') + 1));
+    expect(re.test(example)).toBe(true);
+    expect(re.test("import css from './styles.css?inline';")).toBe(false);
+    expect(check).toMatch(/not\.toMatch\(\/createElement/);
+  });
 });
