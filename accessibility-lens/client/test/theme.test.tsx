@@ -58,16 +58,17 @@ describe('the dark palette', () => {
     expect(dark).toContain('color-scheme: dark;');
   });
 
+  const rgb = (s: string, name: string): number[] => s.match(new RegExp(`--al-${name}: (\\d+) (\\d+) (\\d+);`))!.slice(1).map(Number);
+  const lum = (c: number[]): number => {
+    const [r, g, b] = c.map((v) => v / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const ratio = (a: number[], b: number[]): number => {
+    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+  };
+
   it('meets WCAG AA for text on both backgrounds, and 3:1 for field borders, in both themes', () => {
-    const rgb = (s: string, name: string): number[] => s.match(new RegExp(`--al-${name}: (\\d+) (\\d+) (\\d+);`))!.slice(1).map(Number);
-    const lum = (c: number[]): number => {
-      const [r, g, b] = c.map((v) => v / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
-      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    };
-    const ratio = (a: number[], b: number[]): number => {
-      const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
-      return (hi + 0.05) / (lo + 0.05);
-    };
     for (const theme of [light, dark]) {
       for (const bg of ['paper', 'panel']) {
         for (const fg of ['ink', 'muted', 'accent', 'accent-soft', 'critical', 'serious', 'moderate', 'minor']) {
@@ -80,6 +81,19 @@ describe('the dark palette', () => {
       for (const bg of ['paper', 'panel']) {
         expect(ratio(rgb(theme, 'field'), rgb(theme, bg)), `field on ${bg}`).toBeGreaterThanOrEqual(3);
       }
+    }
+  });
+
+  it("gives the switch's outline 3:1 against the header, in both themes", () => {
+    // hw-theme.js draws the outline as a share of the text colour over what is behind it.
+    const share = Number(file('src/lib/hw-theme.js').match(/border-color:var\(--hw-theme-toggle-border,color-mix\(in srgb,currentColor (\d+)%/)![1]) / 100;
+    expect(share).toBeGreaterThan(0);
+    for (const theme of [light, dark]) {
+      // The header is bg-panel with text-ink.
+      const ink = rgb(theme, 'ink');
+      const panel = rgb(theme, 'panel');
+      const outline = ink.map((v, i) => share * v + (1 - share) * panel[i]);
+      expect(ratio(outline, panel)).toBeGreaterThanOrEqual(3);
     }
   });
 });

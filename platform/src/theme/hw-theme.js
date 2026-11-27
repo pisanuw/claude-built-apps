@@ -118,7 +118,7 @@
     'background:var(--hw-theme-toggle-background,transparent);color:inherit;font:inherit;line-height:0;' +
     'cursor:pointer;-webkit-tap-highlight-color:transparent}' +
     '@supports (color:color-mix(in srgb,red 50%,blue)){' +
-    'button{border-color:var(--hw-theme-toggle-border,color-mix(in srgb,currentColor 45%,transparent))}' +
+    'button{border-color:var(--hw-theme-toggle-border,color-mix(in srgb,currentColor 60%,transparent))}' +
     'button:hover{background:var(--hw-theme-toggle-hover,color-mix(in srgb,currentColor 10%,transparent))}}' +
     'button:focus-visible{outline:2px solid currentColor;outline-offset:2px}' +
     'svg{display:block;width:20px;height:20px}' +
