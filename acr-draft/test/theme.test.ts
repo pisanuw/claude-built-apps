@@ -3,7 +3,10 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { serializeProject } from '../src/core/project';
+import { sampleProject } from '../src/core/sample';
 import { mount } from '../src/ui/app';
+import { rule, screen } from './helpers';
 
 const sha = (s: string | Uint8Array, enc: 'hex' | 'base64'): string => createHash('sha256').update(s).digest(enc);
 
@@ -195,5 +198,52 @@ describe('the switch in the header', () => {
       expect(own.length, field.outerHTML).toBeGreaterThan(0);
       for (const b of own) expect(b.value, `${b.selector} on ${field.outerHTML}`).toContain('var(--field-border)');
     }
+  });
+});
+
+describe('the tables that scroll sideways on a phone', () => {
+  // At 300 to 360 px the report's tables and the comparison's table are wider than the screen: each box is a
+  // named region in the tab order, so the keyboard can reach and scroll it (axe: scrollable-region-focusable).
+  const expectReachable = (boxes: Element[]): void => {
+    expect(boxes.length).toBeGreaterThan(0);
+    for (const box of boxes) {
+      expect(box.getAttribute('tabindex'), box.outerHTML.slice(0, 80)).toBe('0');
+      expect(box.getAttribute('role')).toBe('region');
+      // Named by its table's caption.
+      expect(box.getAttribute('aria-label')).toBe(box.querySelector('caption')?.textContent);
+    }
+  };
+  const focusRules = [...css.matchAll(/([^{}@]+)\{([^{}]*)\}/g)].filter(([, s]) => s.split(',').some((x) => x.trim() === '.table-wrap:focus-visible'));
+
+  it('makes each report table a named region in the tab order, with the focus ring', () => {
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.getElementById('app') as HTMLElement;
+    const app = mount(root, { storage: null });
+    app.setProject(sampleProject());
+    app.openTab('report');
+    const boxes = [...root.querySelectorAll('.table-wrap')];
+    expectReachable(boxes);
+    expect(boxes.length).toBeGreaterThan(1);
+    expect(focusRules.map((m) => m[2]).join(';')).toMatch(/outline:\s*3px solid var\(--accent\)/);
+  });
+
+  it("makes the comparison's table a named region in the tab order", async () => {
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.getElementById('app') as HTMLElement;
+    const app = mount(root, { storage: null, now: () => new Date('2026-11-02T12:00:00Z') });
+    app.setProject(sampleProject());
+    app.openTab('compare');
+    const prev = sampleProject();
+    prev.product.version = '4.0';
+    prev.screens = [screen('Old screen', [rule('image-alt', 'violation', ['1.1.1'], 2)])];
+    const input = root.querySelector('#prev-file') as HTMLInputElement;
+    const file = { name: 'old.json', text: () => Promise.resolve(serializeProject(prev, new Date('2026-11-01T12:00:00Z'))) } as unknown as File;
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    input.dispatchEvent(new Event('change'));
+    await new Promise((r) => setTimeout(r, 0));
+    const boxes = [...root.querySelectorAll('.diff .table-wrap')];
+    expect(boxes).toHaveLength(1);
+    expectReachable(boxes);
+    expect(boxes[0].getAttribute('aria-label')).toBe('Automated failures, all screens');
   });
 });
