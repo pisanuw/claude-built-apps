@@ -1,4 +1,8 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
+   before the first paint) and for the device setting when scripts do not run
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same. */
 :root {
+  color-scheme: light;
   --bg: #f5f3ee;
   --card: #ffffff;
   --fg: #1d1b18;
@@ -13,10 +17,28 @@
   --s1: #4f7fa8;
   --s2: #7c9a4a;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --field-border: #8a8478;
 }
-
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #12110f;
+  --card: #1c1a17;
+  --fg: #ebe6dd;
+  --muted: #a39d92;
+  --border: #34302a;
+  --accent: #e7b36a;
+  --accent-fg: #15120d;
+  --accent-soft: rgba(231, 179, 106, 0.13);
+  --good: #5cc98b;
+  --bad: #ff6b60;
+  --s0: #d9a54a;
+  --s1: #78a6cf;
+  --s2: #9dbd68;
+  --field-border: #716b61;
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --bg: #12110f;
     --card: #1c1a17;
     --fg: #ebe6dd;
@@ -30,6 +52,7 @@
     --s0: #d9a54a;
     --s1: #78a6cf;
     --s2: #9dbd68;
+    --field-border: #716b61;
   }
 }
 
@@ -53,6 +76,27 @@ body {
 h1 {
   margin: 0 0 4px;
   font-size: 28px;
+}
+
+/* The title and the light and dark mode switch, on one row. */
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 4px;
+}
+
+.title-row h1 {
+  margin: 0;
+}
+
+/* Hold the switch's place until hw-theme.js draws it. */
+hw-theme-toggle:not([hidden]) {
+  display: inline-flex;
+  flex: none;
+  width: var(--hw-theme-toggle-size, 44px);
+  height: var(--hw-theme-toggle-size, 44px);
 }
 
 h2 {
@@ -107,9 +151,19 @@ button {
   font: inherit;
   color: inherit;
   background: var(--bg);
-  border: 1px solid var(--border);
   border-radius: 6px;
   padding: 6px 10px;
+}
+
+/* Fields' edges are 3:1 against the page and the cards (WCAG 1.4.11); buttons and the slider keep the divider colour. */
+input:not([type="range"]),
+select {
+  border: 1px solid var(--field-border);
+}
+
+input[type="range"],
+button {
+  border: 1px solid var(--border);
 }
 
 #target {

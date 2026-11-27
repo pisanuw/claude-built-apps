@@ -1,24 +1,50 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
+   before the first paint) and for the device setting when scripts do not run
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same. */
 :root {
+  color-scheme: light;
   --bg: #f6f7f9;
   --panel: #ffffff;
   --panel-edge: #dde1e8;
   --text: #1a1f2b;
   --muted: #5d6778;
-  --accent: #2f6fdb;
-  --low: #2e8b57;
+  --accent: #2b66cf;
+  --low: #237347;
   --low-bg: #e6f4ec;
-  --medium: #b7860b;
+  --medium: #8a6300;
   --medium-bg: #fbf3dc;
-  --high: #d0661c;
+  --high: #a64a0c;
   --high-bg: #fdeadb;
-  --critical: #c62f3a;
+  --critical: #b52a35;
   --critical-bg: #fbe3e5;
   --code-bg: #f0f2f6;
   --mono: 'SF Mono', ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace;
+  --field-border: #7b8496;
+  --on-accent: #ffffff;
 }
-
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f1420;
+  --panel: #171e2e;
+  --panel-edge: #273149;
+  --text: #e8ecf4;
+  --muted: #93a0b8;
+  --accent: #6ea8fe;
+  --low: #4cc38a;
+  --low-bg: #12291e;
+  --medium: #e3b341;
+  --medium-bg: #2b2410;
+  --high: #f0883e;
+  --high-bg: #33200f;
+  --critical: #ff6b6b;
+  --critical-bg: #351619;
+  --code-bg: #0f1522;
+  --field-border: #6b7790;
+  --on-accent: #0f1420;
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --bg: #0f1420;
     --panel: #171e2e;
     --panel-edge: #273149;
@@ -34,6 +60,8 @@
     --critical: #ff6b6b;
     --critical-bg: #351619;
     --code-bg: #0f1522;
+    --field-border: #6b7790;
+    --on-accent: #0f1420;
   }
 }
 
@@ -54,17 +82,35 @@ body {
   padding: 20px 16px 56px;
 }
 
+/* The title and tagline wrap inside .site-title; the light and dark mode switch
+   is the header's other item, so it stays at the right of the first row at every width. */
 header.site {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   gap: 14px;
-  flex-wrap: wrap;
   margin-bottom: 6px;
+}
+
+.site-title {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  min-width: 0;
 }
 
 header.site h1 {
   font-size: 22px;
   margin: 0;
+}
+
+/* Hold the switch's place until hw-theme.js draws it. */
+hw-theme-toggle:not([hidden]) {
+  display: inline-flex;
+  flex: none;
+  width: var(--hw-theme-toggle-size, 44px);
+  height: var(--hw-theme-toggle-size, 44px);
 }
 
 .tagline,
@@ -87,7 +133,7 @@ code {
 
 .drop {
   display: block;
-  border: 2px dashed var(--panel-edge);
+  border: 2px dashed var(--field-border);
   border-radius: 12px;
   background: var(--panel);
   padding: 26px 16px;
@@ -131,7 +177,7 @@ details.paste textarea {
   margin: 8px 0;
   background: var(--code-bg);
   color: var(--text);
-  border: 1px solid var(--panel-edge);
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   padding: 8px 10px;
   font-family: var(--mono);
@@ -178,7 +224,7 @@ button {
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 button:disabled {

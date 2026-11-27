@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { checkCopies, cspHash, inlineSnippets, sha256hex, themeFiles } from '../src/theme/copies.mjs';
+import { checkCopies, cspHash, inlineSnippets, isSourceFile, sha256hex, themeFiles } from '../src/theme/copies.mjs';
 import { HW_THEME_SHA256, THEME_INIT_CSP, THEME_INIT_JS, THEME_INIT_SNIPPET } from '../src/theme/snippet.mjs';
 
 const REPO = fileURLToPath(new URL('../../', import.meta.url));
@@ -67,6 +67,36 @@ describe('checkCopies on a planted tree', () => {
     expect(problems).toHaveLength(1);
   });
 
+  it('checks a snippet written out in a source file: a layout, or a page a function renders', () => {
+    const r = tree({
+      'site/app/layout.tsx': `export const head = \`${THEME_INIT_SNIPPET}\`;`,
+      'site/netlify/functions/page.mjs': `return '<head><script>${THEME_INIT_JS.replace('matches?', 'matches ?')}</script></head>';`,
+    });
+    const { copies, problems } = checkCopies(r);
+    expect(copies).toEqual([
+      { file: path.join('site', 'app', 'layout.tsx'), kind: 'head snippet', ok: true },
+      { file: path.join('site', 'netlify', 'functions', 'page.mjs'), kind: 'head snippet', ok: false },
+    ]);
+    expect(problems.map((p) => p.file)).toEqual([path.join('site', 'netlify', 'functions', 'page.mjs')]);
+  });
+
+  it('does not read tests or type declarations, which hold sample snippets on purpose', () => {
+    const old = `const page = '<script>/* old */ localStorage.getItem('hw-theme')</script>';`;
+    const r = tree({ 'app/test/theme.test.ts': old, 'app/e2e/theme.spec.mjs': old, 'app/src/page.d.ts': old });
+    expect(themeFiles(r)).toEqual([]);
+  });
+
+  it('does not take app code that listens for the change or draws the button for the snippet', () => {
+    const app = `<head>${THEME_INIT_SNIPPET}</head><body><script>
+      document.addEventListener('hw-themechange', (e) => draw(e.detail.theme));
+      header.innerHTML = '<h1>Game</h1><hw-theme-toggle></hw-theme-toggle>';
+      import('/hw-theme.js');
+    </script></body>`;
+    const { copies, problems } = checkCopies(tree({ 'game/src/public/index.html': app }));
+    expect(copies).toEqual([{ file: path.join('game', 'src', 'public', 'index.html'), kind: 'head snippet', ok: true }]);
+    expect(problems).toEqual([]);
+  });
+
   it('skips node_modules, dist, coverage, dot folders and the source folder', () => {
     const bad = 'stale';
     const r = tree({
@@ -95,9 +125,15 @@ describe('checkCopies on a planted tree', () => {
 });
 
 describe('the helpers', () => {
-  it('find only inline scripts that mention hw-theme', () => {
+  it('find only inline scripts that hold the storage key', () => {
     const html = `<script>var a</script><script src="/hw-theme.js"></script><script type="text/javascript">x('hw-theme')</script>${THEME_INIT_SNIPPET}`;
     expect(inlineSnippets(html)).toEqual(["x('hw-theme')", THEME_INIT_JS]);
+    expect(inlineSnippets('<script>on("hw-themechange", f); load("hw-theme-init.js"); el("hw-theme-toggle")</script>')).toEqual([]);
+    expect(inlineSnippets('<script>localStorage.getItem("hw-theme-v2")</script>')).toHaveLength(1);
+  });
+  it('tell source files from tests and type declarations', () => {
+    for (const name of ['layout.tsx', 'page.mjs', 'main.ts', 'server.cjs', 'App.jsx', 'x.mts']) expect(isSourceFile(name), name).toBe(true);
+    for (const name of ['theme.test.ts', 'theme.spec.mjs', 'hw-theme.d.ts', 'x.d.mts', 'index.html', 'styles.css']) expect(isSourceFile(name), name).toBe(false);
   });
   it('hash the way the README values are written', () => {
     expect(cspHash(THEME_INIT_JS)).toBe(THEME_INIT_CSP);

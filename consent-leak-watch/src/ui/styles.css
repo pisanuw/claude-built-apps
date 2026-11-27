@@ -1,4 +1,8 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
+   before the first paint) and for the device setting when scripts do not run
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same. */
 :root {
+  color-scheme: light;
   --bg: #f7f5f0;
   --panel: #ffffff;
   --ink: #1d2421;
@@ -13,9 +17,29 @@
   --warn-bg: #fff4d6;
   --warn-line: #e0b54a;
   --code-bg: #efece5;
+  --field-border: #8a8478;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121614;
+  --panel: #1b201e;
+  --ink: #e7ece9;
+  --muted: #9fb0a9;
+  --line: #333b38;
+  --accent: #5cc4a5;
+  --accent-ink: #0d1f1a;
+  --bad: #ff8a80;
+  --bad-bg: #3a1f1d;
+  --good: #81c995;
+  --good-bg: #183222;
+  --warn-bg: #3a3118;
+  --warn-line: #9c7c2a;
+  --code-bg: #262d2a;
+  --field-border: #6f7d77;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --bg: #121614;
     --panel: #1b201e;
     --ink: #e7ece9;
@@ -30,6 +54,7 @@
     --warn-bg: #3a3118;
     --warn-line: #9c7c2a;
     --code-bg: #262d2a;
+    --field-border: #6f7d77;
   }
 }
 * { box-sizing: border-box; }
@@ -41,6 +66,11 @@ body {
 }
 #app { max-width: 920px; margin: 0 auto; padding: 24px 16px 48px; }
 header h1 { margin: 0 0 6px; font-size: 2rem; letter-spacing: -0.01em; }
+/* The title and the light and dark mode switch, on one row. */
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 6px; }
+.title-row h1 { margin: 0; }
+/* Hold the switch's place until hw-theme.js draws it. */
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
 .lede { font-size: 1.1rem; margin: 0 0 8px; }
 .privacy { color: var(--good); font-weight: 600; margin: 0 0 16px; }
 h2 { margin: 28px 0 10px; font-size: 1.3rem; }
@@ -53,7 +83,7 @@ ol li { margin: 6px 0; }
 .zones { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
 .zone {
   display: flex; flex-direction: column; gap: 4px;
-  border: 2px dashed var(--line); border-radius: 12px; padding: 16px;
+  border: 2px dashed var(--field-border); border-radius: 12px; padding: 16px;
   background: var(--panel); cursor: pointer; min-height: 120px;
 }
 .zone:hover, .zone.over, .zone:focus-within { border-color: var(--accent); }

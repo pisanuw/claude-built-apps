@@ -998,7 +998,7 @@ export function mount(root: HTMLElement, options: MountOptions = {}): App {
       h(
         'header',
         {},
-        h('h1', {}, 'Accessibility Fleet Log'),
+        h('div', { class: 'title-row' }, h('h1', {}, 'Accessibility Fleet Log'), h('hw-theme-toggle')),
         h('p', { class: 'lede' }, 'Every client website you look after on one screen: a dated log of accessibility problems found and fixed, a draft statement per site, and a monthly report under your own name.'),
         h('p', { class: 'privacy' }, 'Runs in your browser. Nothing you add is uploaded.'),
       ),

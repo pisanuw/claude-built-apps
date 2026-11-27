@@ -1,3 +1,6 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
+   before the first paint) and for the device setting when scripts do not run
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same. */
 :root {
   --bg: #f4f3ee;
   --panel: #ffffff;
@@ -21,10 +24,34 @@
   --window: #e8ecf4;
   --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
   color-scheme: light;
+  --field-border: #82868f;
 }
-
+:root[data-theme="dark"] {
+  --bg: #11141b;
+  --panel: #1a1f29;
+  --ink: #e6e8ee;
+  --muted: #9aa3b5;
+  --line: #2f3644;
+  --accent: #60a5fa;
+  --accent-ink: #0b1220;
+  --good: #4ade80;
+  --good-bg: #16301f;
+  --bad: #f87171;
+  --bad-bg: #3a1d1f;
+  --warn: #fbbf24;
+  --warn-bg: #33290f;
+  --hot: #fbbf24;
+  --hot-bg: #3a2e0c;
+  --c-hash: #2dd4bf;
+  --c-btree: #a78bfa;
+  --c-skip: #60a5fa;
+  --c-lru: #fb923c;
+  --window: #273042;
+  color-scheme: dark;
+  --field-border: #6b7486;
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #11141b;
     --panel: #1a1f29;
     --ink: #e6e8ee;
@@ -46,6 +73,7 @@
     --c-lru: #fb923c;
     --window: #273042;
     color-scheme: dark;
+    --field-border: #6b7486;
   }
 }
 
@@ -68,6 +96,11 @@ body {
 .skyline { display: flex; align-items: flex-end; gap: 4px; height: 44px; }
 .skyline span { width: 18px; background: linear-gradient(var(--c-skip), var(--c-btree)); border-radius: 2px 2px 0 0; opacity: 0.75; }
 .site-header h1 { margin: 8px 0 4px; font-size: 2rem; letter-spacing: -0.01em; }
+/* The title and the light and dark mode switch, on one row. */
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 4px; }
+.site-header .title-row h1 { margin: 0; }
+/* Hold the switch's place until hw-theme.js draws it. */
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
 .lede { color: var(--muted); max-width: 80ch; margin: 0 0 12px; }
 
 button {
@@ -89,7 +122,8 @@ input, select, textarea {
   font: inherit;
   color: var(--ink);
   background: var(--panel);
-  border: 1px solid var(--line);
+  /* 3:1 against the page and the cards (WCAG 1.4.11); --line is for dividers. */
+  border: 1px solid var(--field-border);
   border-radius: 6px;
   padding: 5px 8px;
   max-width: 100%;

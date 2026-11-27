@@ -128,7 +128,7 @@ export function mount(root: HTMLElement, now: () => Date = () => new Date()): Ap
     h(
       'header',
       {},
-      h('h1', {}, 'Consent Leak Watch'),
+      h('div', { class: 'title-row' }, h('h1', {}, 'Consent Leak Watch'), h('hw-theme-toggle')),
       h('p', { class: 'lede' }, 'Does your cookie banner actually stop the trackers? Record two short visits to your shop, drop them here, and see which cookies and trackers fire before a visitor agrees, which plugin loaded them, and what changed since your last check.'),
       h('p', { class: 'privacy' }, 'Everything runs in this browser tab. Your recordings never leave your computer.'),
     ),

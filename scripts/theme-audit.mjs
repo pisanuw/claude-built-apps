@@ -28,11 +28,28 @@ import { OWN_REPO_APPS } from './footer-audit.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-/** Own-repo apps to fetch: the footer audit's list, plus Screen Reader Journeys. */
-export const LIVE_APPS = Object.freeze([
-  ...OWN_REPO_APPS.map(([app, host, repo]) => ({ app, host, repo })),
+/**
+ * Own-repo apps the footer audit does not list (hintwise-workflow
+ * registry/apps.md): some have no HintWise footer, but every one gets the
+ * switch. pisan-analytics is left out: it answers 401 without its password.
+ */
+export const EXTRA_APPS = Object.freeze([
   { app: 'screen-reader-journeys', host: 'screen-reader-journeys.hintwise.org', repo: 'pisan-labs/screen-reader-journeys' },
+  { app: 'myuni', host: 'myuni.top', repo: 'pisanuw/myuni' },
+  { app: 'meetme', host: 'meetme.hintwise.org', repo: 'pisanuw/meetme' },
+  { app: 'studio', host: 'studio.hintwise.org', repo: 'pisanuw/daily-project-ideas' },
+  { app: 'chesstd-server', host: 'td.hintwise.org', repo: 'pisan-labs/chess-tournament-director' },
+  { app: 'ranked-voting', host: 'ranked-voting.hintwise.org', repo: 'pisanuw/ranked-voting' },
 ]);
+
+/** Two lists as one, each host once (an app the footer audit adds later stays listed once). */
+export function liveApps(own, extra) {
+  const seen = new Set();
+  return [...own.map(([app, host, repo]) => ({ app, host, repo })), ...extra].filter(({ host }) => !seen.has(host) && seen.add(host));
+}
+
+/** Own-repo apps to fetch: the footer audit's list, plus EXTRA_APPS. */
+export const LIVE_APPS = Object.freeze(liveApps(OWN_REPO_APPS, EXTRA_APPS));
 
 /** The src of each classic <script> whose file is named `name`. */
 export function scriptSrcs(html, name) {

@@ -115,6 +115,21 @@ describe('the switch in the header', () => {
     expect(button.getAttribute('aria-label')).toBe('Switch to dark mode');
   });
 
+  it('gives every text field its edge from the field colour (a field back on the line colour fails)', () => {
+    render(<App />);
+    // Text fields: not checkboxes, radios or the zoom slider, which have no border of their own.
+    const fields = document.querySelectorAll(
+      'textarea, select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"])',
+    );
+    expect(fields.length).toBeGreaterThan(0);
+    // A Tailwind border colour class: border-<name>, but not a width (border, border-2, border-b) or a style.
+    const width = /^border-([xytrblse](-\d+)?|\d+|solid|dashed|dotted|double|hidden|none)$/;
+    for (const field of fields) {
+      const colours = [...field.classList].filter((c) => c.startsWith('border-') && !width.test(c));
+      expect(colours, field.outerHTML).toEqual(['border-field']);
+    }
+  });
+
   it('switches the page at once and remembers the choice', () => {
     render(<App />);
     const button = screen.getByRole('banner').querySelector('hw-theme-toggle')!.shadowRoot!.querySelector('button')!;

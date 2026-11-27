@@ -1,4 +1,8 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
+   before the first paint) and for the device setting when scripts do not run
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same. */
 :root {
+  color-scheme: light;
   --bg: #f6f7fb;
   --panel: #ffffff;
   --ink: #1b2233;
@@ -19,9 +23,35 @@
   --warn-bg: #fff6dc;
   --warn-line: #d7a530;
   --code-bg: #eef0f6;
+  --field-border: #4f5a70;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #11141c;
+  --panel: #1a1f2b;
+  --ink: #e6e9f2;
+  --muted: #a4adc2;
+  --line: #333b4d;
+  --accent: #9db4ff;
+  --accent-ink: #0e1630;
+  --link: #9db4ff;
+  --bad: #ff9a8f;
+  --bad-bg: #3b1d1a;
+  --good: #85d19a;
+  --good-bg: #16301f;
+  --part: #ffc46b;
+  --part-bg: #3a2a10;
+  --na-bg: #262c3a;
+  --none: #d9a7ff;
+  --none-bg: #2f1f3d;
+  --warn-bg: #352b12;
+  --warn-line: #9c7a26;
+  --code-bg: #232a38;
+  --field-border: #a4adc2;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --bg: #11141c;
     --panel: #1a1f2b;
     --ink: #e6e9f2;
@@ -42,6 +72,7 @@
     --warn-bg: #352b12;
     --warn-line: #9c7a26;
     --code-bg: #232a38;
+    --field-border: #a4adc2;
   }
 }
 * { box-sizing: border-box; }
@@ -56,6 +87,11 @@ a { color: var(--link); }
 .skip { position: absolute; left: -9999px; }
 .skip:focus { left: 16px; top: 8px; background: var(--panel); padding: 8px 12px; border-radius: 6px; z-index: 10; }
 header h1 { margin: 0 0 6px; font-size: 2rem; letter-spacing: -0.01em; }
+/* The title and the light and dark mode switch, on one row. */
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 6px; }
+.title-row h1 { margin: 0; }
+/* Hold the switch's place until hw-theme.js draws it. */
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
 .lede { font-size: 1.1rem; margin: 0 0 8px; max-width: 46em; }
 .privacy { color: var(--good); font-weight: 600; margin: 0 0 12px; }
 h2 { margin: 24px 0 10px; font-size: 1.35rem; }
@@ -79,7 +115,7 @@ summary { cursor: pointer; font-weight: 600; }
 label { font-weight: 600; }
 input[type='text'], input[type='url'], input[type='date'], textarea, select {
   font: inherit; color: var(--ink); background: var(--panel);
-  border: 1px solid var(--muted); border-radius: 8px; padding: 8px 10px; width: 100%;
+  border: 1px solid var(--field-border); border-radius: 8px; padding: 8px 10px; width: 100%;
 }
 select { width: auto; }
 textarea { resize: vertical; }

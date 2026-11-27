@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { auditLive, LIVE_APPS, scriptSrcs } from './theme-audit.mjs';
+import { auditLive, LIVE_APPS, liveApps, scriptSrcs } from './theme-audit.mjs';
 import { THEME_INIT_JS, THEME_INIT_SNIPPET } from '../platform/src/theme/snippet.mjs';
 
 const RUNTIME = readFileSync(new URL('../platform/src/theme/hw-theme.js', import.meta.url));
@@ -16,11 +16,43 @@ const site = (files) => async (url) => {
     : new Response(body, { status: 200 });
 };
 
-test('lists the own-repo apps the footer audit knows, and Screen Reader Journeys', () => {
+test('lists every own-repo app with a public page: the footer audit\'s, and those it leaves out', () => {
   const hosts = LIVE_APPS.map((a) => a.host);
-  assert.ok(hosts.includes('paste-md.hintwise.org'));
-  assert.ok(hosts.includes('screen-reader-journeys.hintwise.org'));
+  // registry/apps.md, apps in their own repositories, and the ideas site; not pisan-analytics (401).
+  for (const host of [
+    'upvoteme.hintwise.org',
+    'paste-md.hintwise.org',
+    'stepwise.hintwise.org',
+    'photo2pgn.hintwise.org',
+    'chesstd.hintwise.org',
+    'td.hintwise.org',
+    'udebt.hintwise.org',
+    'ypai.hintwise.org',
+    'screen-reader-journeys.hintwise.org',
+    'myuni.top',
+    'meetme.hintwise.org',
+    'studio.hintwise.org',
+    'ranked-voting.hintwise.org',
+  ]) {
+    assert.ok(hosts.includes(host), host);
+  }
+  assert.ok(!hosts.some((h) => h.includes('pisan-analytics')));
   assert.equal(new Set(hosts).size, hosts.length);
+  for (const a of LIVE_APPS) assert.match(a.repo, /^[a-z0-9-]+\/[a-z0-9-]+$/, a.app);
+});
+
+test('an app in both lists is fetched once, as the footer audit names it', () => {
+  const merged = liveApps(
+    [['ranked-voting', 'ranked-voting.hintwise.org', 'pisanuw/ranked-voting']],
+    [
+      { app: 'rankedvote', host: 'ranked-voting.hintwise.org', repo: 'pisanuw/ranked-voting' },
+      { app: 'meetme', host: 'meetme.hintwise.org', repo: 'pisanuw/meetme' },
+    ],
+  );
+  assert.deepEqual(merged, [
+    { app: 'ranked-voting', host: 'ranked-voting.hintwise.org', repo: 'pisanuw/ranked-voting' },
+    { app: 'meetme', host: 'meetme.hintwise.org', repo: 'pisanuw/meetme' },
+  ]);
 });
 
 test('finds script files by name, with or without a query, and not by a longer name', () => {
@@ -51,8 +83,15 @@ test('stale: an old hw-theme.js, or an old inline snippet', async () => {
     fetchImpl: site({ '/': '<script defer src="/hw-theme.js"></script>', '/hw-theme.js': 'old copy' }),
   });
   assert.equal(oldRuntime.status, 'stale');
-  const oldSnippet = await auditLive(app, { fetchImpl: site({ '/': '<script>/* hw-theme */ old</script>' }) });
+  const oldSnippet = await auditLive(app, { fetchImpl: site({ '/': "<script>/* old */ localStorage.getItem('hw-theme')</script>" }) });
   assert.equal(oldSnippet.status, 'stale');
+});
+
+test('none: inline app code that only listens for the change is not taken for the snippet', async () => {
+  const r = await auditLive(app, {
+    fetchImpl: site({ '/': "<script>document.addEventListener('hw-themechange', redraw)</script>" }),
+  });
+  assert.equal(r.status, 'none');
 });
 
 test('none: a page without the switch yet', async () => {

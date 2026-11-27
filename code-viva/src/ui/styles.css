@@ -1,4 +1,8 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
+   before the first paint) and for the device setting when scripts do not run
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same. */
 :root {
+  color-scheme: light;
   --bg: #f4f5f2;
   --card: #ffffff;
   --fg: #1b1f24;
@@ -8,17 +12,37 @@
   --accent-fg: #ffffff;
   --accent-soft: rgba(15, 107, 92, 0.1);
   --good: #1d7a46;
-  --warn: #9a5b00;
+  --warn: #8a5100;
   --bad: #b3261e;
   --warn-soft: rgba(154, 91, 0, 0.1);
   --bad-soft: rgba(179, 38, 30, 0.09);
   --code-bg: #f1f2ee;
   --focus-line: rgba(232, 163, 58, 0.25);
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --field-border: #7a847a;
 }
-
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111416;
+  --card: #1a1e21;
+  --fg: #e6e8ea;
+  --muted: #9aa2ab;
+  --border: #2c3236;
+  --accent: #4fc2ad;
+  --accent-fg: #0d1112;
+  --accent-soft: rgba(79, 194, 173, 0.13);
+  --good: #4cc27f;
+  --warn: #f0b04a;
+  --bad: #ff6b60;
+  --warn-soft: rgba(240, 176, 74, 0.12);
+  --bad-soft: rgba(255, 107, 96, 0.12);
+  --code-bg: #14181a;
+  --focus-line: rgba(240, 176, 74, 0.18);
+  --field-border: #737d84;
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --bg: #111416;
     --card: #1a1e21;
     --fg: #e6e8ea;
@@ -34,6 +58,7 @@
     --bad-soft: rgba(255, 107, 96, 0.12);
     --code-bg: #14181a;
     --focus-line: rgba(240, 176, 74, 0.18);
+    --field-border: #737d84;
   }
 }
 
@@ -79,6 +104,30 @@ a {
   align-items: baseline;
   gap: 8px 16px;
   margin-bottom: 14px;
+}
+
+/* The title and the light and dark mode switch, on a row of their own at every width;
+   the lede or the course name comes below. */
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-basis: 100%;
+  min-width: 0;
+}
+
+/* A header that holds only the switch (the question and finished pages). */
+.top > hw-theme-toggle {
+  margin-left: auto;
+}
+
+/* Hold the switch's place until hw-theme.js draws it. */
+hw-theme-toggle:not([hidden]) {
+  display: inline-flex;
+  flex: none;
+  width: var(--hw-theme-toggle-size, 44px);
+  height: var(--hw-theme-toggle-size, 44px);
 }
 
 .lede {
@@ -163,7 +212,8 @@ input:focus-visible,
 textarea:focus-visible,
 select:focus-visible,
 a:focus-visible,
-summary:focus-visible {
+summary:focus-visible,
+.table-wrap:focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 2px;
 }
@@ -174,7 +224,8 @@ select {
   font: inherit;
   color: var(--fg);
   background: var(--card);
-  border: 1px solid var(--border);
+  /* 3:1 against the page and the cards (WCAG 1.4.11); --border is for dividers. */
+  border: 1px solid var(--field-border);
   border-radius: 7px;
   padding: 6px 8px;
   max-width: 100%;
