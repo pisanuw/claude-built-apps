@@ -13,10 +13,10 @@ export const GUIDE_HTML = `
     <div class="cheat">
       <div>
         <h3>Header and direction</h3>
-        <pre>flowchart TD   %% TB, TD, BT, LR, RL
+        <pre tabindex="0" role="region" aria-label="Header and direction syntax">flowchart TD   %% TB, TD, BT, LR, RL
 graph LR</pre>
         <h3>Node shapes</h3>
-        <pre>A[Rectangle]     B(Rounded)
+        <pre tabindex="0" role="region" aria-label="Node shapes syntax">A[Rectangle]     B(Rounded)
 C([Stadium])     D[[Subroutine]]
 E[(Database)]    F((Circle))
 G(((Double)))    H>Flag]
@@ -28,7 +28,7 @@ P[Two<br>lines]</pre>
       </div>
       <div>
         <h3>Links</h3>
-        <pre>A --> B     arrow
+        <pre tabindex="0" role="region" aria-label="Links syntax">A --> B     arrow
 A --- B     open
 A -.-> B    dotted
 A ==> B     thick
@@ -44,13 +44,13 @@ A & B --> C    groups</pre>
       </div>
       <div>
         <h3>Subgraphs</h3>
-        <pre>subgraph api [API tier]
+        <pre tabindex="0" role="region" aria-label="Subgraphs syntax">subgraph api [API tier]
   direction LR
   a --> b
 end
 client --> api   %% edge to the box</pre>
         <h3>Styling</h3>
-        <pre>classDef hot fill:#fee,stroke:#c00
+        <pre tabindex="0" role="region" aria-label="Styling syntax">classDef hot fill:#fee,stroke:#c00
 class A,B hot
 C:::hot
 style D fill:#eef,stroke-width:2px

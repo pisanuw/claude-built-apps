@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --bg: #f6f7fb;
   --surface: #ffffff;
   --surface-2: #f1f3f9;
@@ -14,14 +15,21 @@
   --warn: #a15c07;
   --code-bg: #fbfbfe;
   --grid: #e5e8f1;
+  /* Fields' and buttons' edges: 3:1 on the surfaces and the page (--border was 1.18 to 1.54:1). */
+  --field-border: #80869b;
   --shadow: 0 1px 2px rgba(20, 24, 40, 0.06), 0 4px 16px rgba(20, 24, 40, 0.06);
   --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
   --sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
+/* Dark twice, for the switch (data-theme on <html>, set before the first paint) and for the device setting when
+   scripts do not run (platform/src/theme/README.md); test/theme.test.ts keeps the two the same. Both are for the
+   screen only: paper gets the light set. The two blocks were here already, but neither was for the screen only,
+   and the switch's one left out the shadow. A diagram on the Auto theme follows the same rules
+   (src/core/themes.ts). */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #0c1020;
     --surface: #131a2e;
     --surface-2: #1a2238;
@@ -37,28 +45,32 @@
     --warn: #fbbf24;
     --code-bg: #0f1527;
     --grid: #1c2440;
+    --field-border: #626f91;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
-    color-scheme: dark;
   }
 }
 
-:root[data-theme='dark'] {
-  --bg: #0c1020;
-  --surface: #131a2e;
-  --surface-2: #1a2238;
-  --border: #2a3450;
-  --text: #e6e9f2;
-  --muted: #9aa3ba;
-  --accent: #8b8cf8;
-  --accent-soft: #23264a;
-  --accent-ink: #0c1020;
-  --danger: #ff8a80;
-  --danger-soft: #3a1717;
-  --ok: #4ade80;
-  --warn: #fbbf24;
-  --code-bg: #0f1527;
-  --grid: #1c2440;
-  color-scheme: dark;
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0c1020;
+    --surface: #131a2e;
+    --surface-2: #1a2238;
+    --border: #2a3450;
+    --text: #e6e9f2;
+    --muted: #9aa3ba;
+    --accent: #8b8cf8;
+    --accent-soft: #23264a;
+    --accent-ink: #0c1020;
+    --danger: #ff8a80;
+    --danger-soft: #3a1717;
+    --ok: #4ade80;
+    --warn: #fbbf24;
+    --code-bg: #0f1527;
+    --grid: #1c2440;
+    --field-border: #626f91;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.25);
+  }
 }
 
 * {
@@ -115,9 +127,22 @@ textarea {
   font-size: 17px;
   margin: 0;
   letter-spacing: -0.01em;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
-.brand p {
+/* The logo, the title and the switch: the wrapping header's first line, the switch at its end. */
+.top .title-row {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
+
+.top .tagline {
   margin: 0;
   color: var(--muted);
   font-size: 12.5px;
@@ -176,7 +201,7 @@ main {
 }
 
 button {
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   background: var(--surface);
   border-radius: 8px;
   padding: 5px 12px;
@@ -228,7 +253,7 @@ input[type='range'] {
 }
 
 select {
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   background: var(--surface);
   border-radius: 7px;
   padding: 5px 8px;
@@ -277,7 +302,7 @@ select {
 
 .code {
   display: flex;
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 10px;
   background: var(--code-bg);
   overflow: hidden;
@@ -288,8 +313,8 @@ select {
 .gutter {
   margin: 0;
   padding: 10px 6px 10px 10px;
+  /* The muted colour, not faded: at 60% opacity the line numbers were 2.52:1 (light) and 3.36:1 (dark). */
   color: var(--muted);
-  opacity: 0.6;
   text-align: right;
   user-select: none;
   overflow: hidden;
@@ -529,7 +554,7 @@ select {
 
 .seg {
   display: inline-flex;
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 9px;
   overflow: hidden;
 }
@@ -566,7 +591,7 @@ select {
 
 .diff-sources textarea {
   height: 200px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 10px;
   background: var(--code-bg);
   padding: 10px;
@@ -815,7 +840,8 @@ select {
   padding: 0;
   border-radius: 3px 3px 0 0;
   border: 0;
-  background: var(--border);
+  /* A bar's height is the count it shows: --border was 1.18:1 on the stage's surface (WCAG 1.4.11). */
+  background: var(--field-border);
 }
 
 .bar.best {
@@ -1038,7 +1064,7 @@ h3 {
   .opt-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-  .brand p {
+  .top .tagline {
     display: none;
   }
 }
@@ -1061,4 +1087,29 @@ h3 {
 .cheat pre {
   font-variant-ligatures: none;
   font-feature-settings: 'liga' 0, 'calt' 0;
+}
+
+/* Not on paper (last, so it wins). Paper leaves fills out: labels on the accent (the primary buttons, the
+   current pipeline stage) take the ink, the current stage underlined. */
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
+
+  button.primary,
+  .stage-tab.active {
+    color: var(--text);
+  }
+
+  /* The crossings chart keeps its bars on paper. */
+  .bar {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .stage-tab.active {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+  }
 }

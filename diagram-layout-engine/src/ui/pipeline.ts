@@ -54,7 +54,7 @@ function schematic(placed: Map<string, Placed>, edges: { v: string; w: string; c
     .join('');
   const nodes = [...placed.values()].map((p) => nodeSvg(p)).join('');
   return (
-    `<svg class="sch" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img">` +
+    `<svg class="sch" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="Layout schematic: the nodes by layer and order">` +
     '<defs><marker id="sch-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z"/></marker></defs>' +
     `${lines}${nodes}</svg>`
   );
@@ -149,7 +149,7 @@ export function renderPipeline(
       const edges = stage.edges.map((e) => ({ v: e.v, w: e.w, cls: e.reversed ? 'sch-reversed' : '' }));
       body = `<p>Layering needs a DAG, so a feedback arc set is reversed: <strong>${reversed.length}</strong> of ${stage.edges.length} edges ${reversed.length === 1 ? 'is' : 'are'} flipped (red, dashed) and drawn the right way round again at the end. Finding the smallest such set is NP-hard; the greedy heuristic of Eades, Lin and Smyth peels off sinks and sources and then the node with the largest out-minus-in weight.</p>
         ${reversed.length ? `<p class="mono">${reversed.map((e) => `${esc(e.w)} → ${esc(e.v)}`).join(', ')}</p>` : '<p class="mono">No cycles at this level.</p>'}
-        <div class="sch-wrap">${schematic(g.placed, edges, g.w, g.h)}</div>`;
+        <div class="sch-wrap" tabindex="0" role="region" aria-label="Schematic">${schematic(g.placed, edges, g.w, g.h)}</div>`;
       break;
     }
     case 'rank': {
@@ -159,15 +159,15 @@ export function renderPipeline(
       const a = span(stage, stage.longestPathRanks);
       const b = span(stage, stage.ranks);
       body = `<p>Each node gets a layer so every edge points down by at least its minimum length (labelled edges count double, leaving a layer for the label). Longest-path is fast but piles sources on top; network simplex moves nodes to minimise the total edge span, which means fewer dummy nodes, shorter edges and usually fewer crossings.</p>
-        <div class="compare"><figure><figcaption>Longest path: total span <strong>${a}</strong></figcaption><div class="sch-wrap">${schematic(lp.placed, edges, lp.w, lp.h)}</div></figure>
-        <figure><figcaption>Used (${esc(layout.stats.layers + ' layers')}): total span <strong>${b}</strong></figcaption><div class="sch-wrap">${schematic(ns.placed, edges, ns.w, ns.h)}</div></figure></div>`;
+        <div class="compare"><figure><figcaption>Longest path: total span <strong>${a}</strong></figcaption><div class="sch-wrap" tabindex="0" role="region" aria-label="Schematic: longest path">${schematic(lp.placed, edges, lp.w, lp.h)}</div></figure>
+        <figure><figcaption>Used (${esc(layout.stats.layers + ' layers')}): total span <strong>${b}</strong></figcaption><div class="sch-wrap" tabindex="0" role="region" aria-label="Schematic: the layering used">${schematic(ns.placed, edges, ns.w, ns.h)}</div></figure></div>`;
       break;
     }
     case 'normalize': {
       const snap = stage.orders[Math.max(0, stage.bestOrder)];
       const g = grid(stage, snap.layers, () => true);
       body = `<p>Edges spanning several layers are split by <strong>${dummyCount}</strong> dummy nodes (dots), so every edge joins adjacent layers. Labelled edges carry their label on the middle dummy (small boxes). The ordering and coordinate steps then treat dummies like tiny nodes, which is what lets long edges bend around real ones.</p>
-        <div class="sch-wrap">${schematic(g.placed, stage.properEdges, g.w, g.h)}</div>`;
+        <div class="sch-wrap" tabindex="0" role="region" aria-label="Schematic">${schematic(g.placed, stage.properEdges, g.w, g.h)}</div>`;
       break;
     }
     case 'order': {
@@ -185,7 +185,7 @@ export function renderPipeline(
       body = `<p>Sweeps go down and up the layers, sorting each layer by the ${opts.order} position of its neighbours in the layer just fixed${opts.transpose ? '; transposition then swaps neighbours while that lowers the count' : ' (transposition is off)'}. Crossings are counted with the Barth-Juenger-Mutzel accumulator tree and the best order seen is kept.</p>
         <div class="bars" role="group" aria-label="Crossings per step">${bars}</div>
         <div class="snap-ctl"><input type="range" min="0" max="${snaps.length - 1}" value="${k}" id="snap-range" aria-label="Step"><span><strong>${esc(snap.label)}</strong>: ${snap.crossings} crossing${snap.crossings === 1 ? '' : 's'}${k === stage.bestOrder ? ' (kept)' : ''}</span></div>
-        <div class="sch-wrap">${schematic(g.placed, stage.properEdges, g.w, g.h)}</div>`;
+        <div class="sch-wrap" tabindex="0" role="region" aria-label="Schematic">${schematic(g.placed, stage.properEdges, g.w, g.h)}</div>`;
       break;
     }
     case 'position': {
@@ -211,7 +211,7 @@ export function renderPipeline(
         })
         .join('');
       body = `<p>With the order fixed, coordinates are assigned inside each layer. Brandes-Koepf builds four alignments (up/down, left/right) where each node lines up with a median neighbour and inner dummy-to-dummy segments win conflicts, compacts each into blocks, and takes the average median, so long edges come out straight. The priority method instead nudges nodes towards their neighbours, dummies first. Using <strong>${opts.position === 'priority' ? 'the priority method' : 'Brandes-Koepf'}</strong>. Real nodes are shown at true size; lines join centres.</p>
-        <div class="sch-wrap"><svg class="sch" viewBox="0 0 ${maxX + 12} ${maxY + 12}" width="${maxX + 12}" height="${maxY + 12}">${lines}${parts.join('')}</svg></div>`;
+        <div class="sch-wrap" tabindex="0" role="region" aria-label="Schematic"><svg class="sch" viewBox="0 0 ${maxX + 12} ${maxY + 12}" width="${maxX + 12}" height="${maxY + 12}">${lines}${parts.join('')}</svg></div>`;
       break;
     }
     case 'route':
