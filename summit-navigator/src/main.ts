@@ -1,3 +1,5 @@
+// The light and dark mode switch (platform/src/theme), defined before the header is drawn.
+import './lib/hw-theme.js';
 import './style.css';
 import rawSchedule from './data/schedule.json';
 import { validateSchedule, sessionsForDay, groupByStart, trackMap } from './core/schedule';
@@ -42,7 +44,9 @@ root.textContent = '';
 
 /* ---------- header ---------- */
 const hdr = el('header', 'hdr');
-hdr.append(el('h1', undefined, data.conference.name));
+const titleRow = el('div', 'title-row');
+titleRow.append(el('h1', undefined, data.conference.name), document.createElement('hw-theme-toggle'));
+hdr.append(titleRow);
 hdr.append(
   el(
     'p',

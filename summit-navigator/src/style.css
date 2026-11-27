@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --bg: #f6f7f9;
   --card: #ffffff;
   --ink: #1b1f27;
@@ -6,10 +7,92 @@
   --line: #e3e6eb;
   --accent: #6d28d9;
   --accent-soft: #ede9fe;
-  --star: #d97706;
+  /* Text on the accent (the chosen day). */
+  --on-accent: #ffffff;
+  --star: #b45309;
+  /* An empty star, a text glyph: 4.5:1 on the card (#c7ccd4 was 1.6:1). */
+  --star-off: #6b7280;
   --now: #047857;
+  --now-bg: #ecfdf5;
+  --now-edge: #a7f3d0;
+  --live-edge: #6ee7b7;
+  --live-ring: #d1fae5;
+  --invite: #b45309;
+  --invite-edge: #fcd34d;
+  /* The search field's edge: 3:1 on the page (WCAG 1.4.11; --line was 1.17 to 1.25:1). */
+  --field-border: #7c8494;
+  /* A session kind's badge, under white text like the track badges (their colours are the schedule's). */
+  --kind-bg: #64748b;
+  --badge-ink: #ffffff;
+  /* The header: a purple gradient under white text, in both themes. */
+  --hdr-from: #241b4d;
+  --hdr-mid: #4c1d95;
+  --hdr-to: #6d28d9;
+  --hdr-ink: #ffffff;
+  --hdr-btn-on-ink: #4c1d95;
+  --hdr-btn-bg: rgba(255, 255, 255, 0.12);
+  --hdr-btn-edge: rgba(255, 255, 255, 0.35);
   --radius: 14px;
   font-size: 16px;
+}
+
+/* Dark twice, for the switch (data-theme on <html>, set before the first paint) and for the device setting when
+   scripts do not run (platform/src/theme/README.md); test/theme.test.ts keeps the two the same. Both are for the
+   screen only: paper gets the light set. The tracks' colours come from the schedule and stay the same. */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #111318;
+    --card: #1a1d24;
+    --ink: #e7e9ee;
+    --muted: #a2a9b6;
+    --line: #2c313b;
+    --accent: #a78bfa;
+    --accent-soft: #2a2145;
+    --on-accent: #1a1033;
+    --star: #fbbf24;
+    --star-off: #8f96a3;
+    --now: #34d399;
+    --now-bg: #0e2a20;
+    --now-edge: #1f6b4f;
+    --live-edge: #34d399;
+    --live-ring: #0e3a2a;
+    --invite: #fbbf24;
+    --invite-edge: #92400e;
+    --field-border: #6e7685;
+    --hdr-from: #140f2e;
+    --hdr-mid: #2e1065;
+    --hdr-to: #4c1d95;
+    --hdr-btn-on-ink: #2e1065;
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111318;
+    --card: #1a1d24;
+    --ink: #e7e9ee;
+    --muted: #a2a9b6;
+    --line: #2c313b;
+    --accent: #a78bfa;
+    --accent-soft: #2a2145;
+    --on-accent: #1a1033;
+    --star: #fbbf24;
+    --star-off: #8f96a3;
+    --now: #34d399;
+    --now-bg: #0e2a20;
+    --now-edge: #1f6b4f;
+    --live-edge: #34d399;
+    --live-ring: #0e3a2a;
+    --invite: #fbbf24;
+    --invite-edge: #92400e;
+    --field-border: #6e7685;
+    --hdr-from: #140f2e;
+    --hdr-mid: #2e1065;
+    --hdr-to: #4c1d95;
+    --hdr-btn-on-ink: #2e1065;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -34,10 +117,15 @@ html, body {
 /* ---------- header ---------- */
 .hdr {
   padding: calc(env(safe-area-inset-top, 0px) + 14px) 16px 10px;
-  background: linear-gradient(135deg, #241b4d, #4c1d95 60%, #6d28d9);
-  color: #fff;
+  background: linear-gradient(135deg, var(--hdr-from), var(--hdr-mid) 60%, var(--hdr-to));
+  color: var(--hdr-ink);
 }
-.hdr h1 { margin: 0; font-size: 1.15rem; line-height: 1.3; letter-spacing: 0.01em; }
+.hdr .title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.hdr h1 { margin: 0; font-size: 1.15rem; line-height: 1.3; letter-spacing: 0.01em; min-width: 0; }
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* On the header, the ring is its text colour. */
+.hdr :focus-visible { outline-color: var(--hdr-ink); }
 .hdr .sub { margin: 2px 0 0; font-size: 0.78rem; opacity: 0.85; }
 .hdr-row {
   display: flex;
@@ -47,9 +135,9 @@ html, body {
 }
 .hdr-btn {
   appearance: none;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
+  border: 1px solid var(--hdr-btn-edge);
+  background: var(--hdr-btn-bg);
+  color: var(--hdr-ink);
   border-radius: 999px;
   padding: 6px 12px;
   font-size: 0.8rem;
@@ -57,9 +145,9 @@ html, body {
   min-height: 34px;
 }
 .hdr-btn[aria-pressed='true'] {
-  background: #fff;
-  color: #4c1d95;
-  border-color: #fff;
+  background: var(--hdr-ink);
+  color: var(--hdr-btn-on-ink);
+  border-color: var(--hdr-ink);
   font-weight: 600;
 }
 
@@ -99,13 +187,13 @@ html, body {
 .daytab[aria-selected='true'] {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .filters { padding: 8px 12px 0; display: flex; flex-direction: column; gap: 8px; }
 .search {
   width: 100%;
-  border: 1px solid var(--line);
+  border: 1px solid var(--field-border);
   border-radius: 12px;
   background: var(--card);
   padding: 10px 12px;
@@ -133,14 +221,14 @@ html, body {
   cursor: pointer;
   min-height: 32px;
 }
-.chip[aria-pressed='true'] { color: #fff; border-color: transparent; }
+.chip[aria-pressed='true'] { color: var(--badge-ink); border-color: transparent; }
 
 /* ---------- now/next banner ---------- */
 .nowbar {
   margin: 10px 12px 0;
   border-radius: var(--radius);
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
+  background: var(--now-bg);
+  border: 1px solid var(--now-edge);
   padding: 10px 12px;
   font-size: 0.85rem;
 }
@@ -165,8 +253,9 @@ html, body {
   margin-bottom: 8px;
   position: relative;
 }
-.card.dim { opacity: 0.72; }
-.card.live { border-color: #6ee7b7; box-shadow: 0 0 0 2px #d1fae5; }
+/* A break: dashed and on the page's ground, not faded (at 72% opacity its time and badges were 2.83 to 4.32:1). */
+.card.dim { background: var(--bg); border-style: dashed; }
+.card.live { border-color: var(--live-edge); box-shadow: 0 0 0 2px var(--live-ring); }
 .card .time { font-size: 0.78rem; color: var(--muted); }
 .card .live-tag { color: var(--now); font-weight: 700; }
 .card h3 {
@@ -181,11 +270,12 @@ html, body {
   font-size: 0.7rem;
   border-radius: 999px;
   padding: 2px 8px;
-  color: #fff;
+  color: var(--badge-ink);
   font-weight: 600;
 }
+.badge.kind { background: var(--kind-bg); }
 .badge.room { background: transparent; color: var(--muted); border: 1px solid var(--line); font-weight: 500; }
-.badge.invite { background: transparent; color: #b45309; border: 1px solid #fcd34d; font-weight: 600; }
+.badge.invite { background: transparent; color: var(--invite); border: 1px solid var(--invite-edge); font-weight: 600; }
 .speakers { margin: 6px 0 0; font-size: 0.82rem; color: var(--muted); }
 .desc { margin: 8px 0 0; font-size: 0.85rem; line-height: 1.45; color: var(--ink); }
 .desc[hidden] { display: none; }
@@ -199,7 +289,7 @@ html, body {
   font-size: 1.35rem;
   line-height: 1;
   cursor: pointer;
-  color: #c7ccd4;
+  color: var(--star-off);
   padding: 8px;
   min-width: 44px;
   min-height: 44px;
@@ -226,4 +316,14 @@ html, body {
 @media (min-width: 600px) {
   .hdr h1 { font-size: 1.35rem; }
   .daytab { flex: 1 1 0; }
+}
+
+/* Not on paper (last, so it wins). Paper leaves fills out: the header's white text takes the ink, the chosen day
+   is underlined, and the track and kind badges keep their fill, which carries their white text. */
+@media print {
+  hw-theme-toggle { display: none !important; }
+  .hdr, .hdr-btn, .daytab[aria-selected='true'] { color: var(--ink); }
+  .hdr-btn { border-color: var(--line); }
+  .daytab[aria-selected='true'] { text-decoration: underline; }
+  .badge, .chip[aria-pressed='true'] { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 }

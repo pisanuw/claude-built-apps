@@ -56,8 +56,7 @@ export function renderCard(s: Session, deps: CardDeps): HTMLElement {
     badges.append(chip);
   }
   if (s.kind !== 'talks') {
-    const kind = el('span', 'badge', KIND_LABEL[s.kind]);
-    kind.style.background = '#64748b';
+    const kind = el('span', 'badge kind', KIND_LABEL[s.kind]);
     badges.append(kind);
   }
   badges.append(el('span', 'badge room', s.room));
