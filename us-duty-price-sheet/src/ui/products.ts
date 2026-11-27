@@ -274,7 +274,7 @@ function importPanel(ctx: Ctx): HTMLElement {
       m.weight >= 0 ? ` Weights read as ${m.weightToGrams === 1 ? 'grams' : m.weightToGrams === 1000 ? 'kilograms' : m.weightToGrams > 100 ? 'pounds' : 'ounces'}.` : ' No weight column: add weights after importing.'));
     if (res.skipped.length) panel.append(h('ul', { class: 'warnings' }, res.skipped.slice(0, 8).map((s) => h('li', { class: 'check' }, `Row ${s.row} skipped: ${s.reason}`))));
     if (res.products.length) {
-      panel.append(h('div', { class: 'tablewrap' }, h('table', null,
+      panel.append(h('div', { class: 'tablewrap', tabindex: '0', role: 'region', 'aria-label': 'The first products to add' }, h('table', null,
         h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Product'), h('th', { scope: 'col', class: 'num' }, 'Price'), h('th', { scope: 'col', class: 'num' }, 'Grams'), h('th', { scope: 'col' }, 'Code'))),
         h('tbody', null, res.products.slice(0, 6).map((p) => h('tr', null, h('td', null, p.title), h('td', { class: 'num' }, gbp(p.price)), h('td', { class: 'num' }, p.grams), h('td', null, p.code || '–')))))),
       h('button', { onclick: () => {

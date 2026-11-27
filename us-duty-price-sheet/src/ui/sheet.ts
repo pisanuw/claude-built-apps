@@ -45,7 +45,8 @@ export function sheetView(ctx: Ctx): HTMLElement {
 
   const rows = priceAll(catalog.products, s, ctx.index);
   const postage = s.mode === 'postage';
-  wrap.append(h('div', { class: 'tablewrap' }, h('table', { class: 'sheet' },
+  // A focusable, named region: on a phone the table scrolls sideways, and its rows may hold nothing focusable.
+  wrap.append(h('div', { class: 'tablewrap', tabindex: '0', role: 'region', 'aria-label': postage ? 'US postage with duty included' : 'US prices with duty included' }, h('table', { class: 'sheet' },
     h('caption', null, postage ? 'US postage with duty included' : 'US prices with duty included'),
     h('thead', null, h('tr', null,
       h('th', { scope: 'col' }, 'Product'), h('th', { scope: 'col' }, 'US code'), h('th', { scope: 'col', class: 'num' }, 'Duty'),
