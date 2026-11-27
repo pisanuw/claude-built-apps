@@ -114,6 +114,8 @@ class Sampler {
     this.timer = setInterval(() => this.tick(), 100);
   }
   reset() {
+    this.phase = 'capture';
+    this.phasePeak = { capture: 0, verapdf: 0 };
     this.jobPeak = 0;
     this.jobRssPeak = 0;
     this.cgPeak = 0;
@@ -129,6 +131,7 @@ class Sampler {
     this.samples += 1;
     const m = jobMemory();
     this.jobPeak = Math.max(this.jobPeak, m.pss);
+    this.phasePeak[this.phase] = Math.max(this.phasePeak[this.phase], m.pss);
     this.jobRssPeak = Math.max(this.jobRssPeak, m.rss);
     this.cgPeak = Math.max(this.cgPeak, cgroup.usage() ?? 0);
     this.rssPeak = Math.max(this.rssPeak, cgroup.totalRss() ?? 0);
@@ -276,49 +279,67 @@ async function capture(file, { canvas = false } = {}) {
     await s('Page.enable');
     await s('Page.navigate', { url: `http://127.0.0.1:${PORT}/capture.html?file=/job.pdf&canvas=${canvas ? 1 : 0}&outputCap=${OUTPUT_CAP}` });
     result.sandbox = sandboxFacts(proc.pid);
-    let summary = null;
-    for (let i = 0; i < 400 && !summary; i++) {
-      try {
-        const r = await s('Runtime.evaluate', { expression: 'window.__capture', awaitPromise: true, returnByValue: true });
-        summary = r.result.value ?? null;
-      } catch (e) {
-        if (/chrome exited/.test(String(e))) throw e;
-      }
-      if (!summary) await new Promise((r) => setTimeout(r, 50));
-    }
-    if (!summary || summary.error) throw new Error(`capture failed: ${summary?.error ?? 'no answer'}`);
-    Object.assign(result, { page: summary });
-    result.captureMs = Date.now() - t0;
-    // The page's own output, as one string (milestone 2 may take it in parts).
-    const outStr = summary.capped ? '' : (await s('Runtime.evaluate', { expression: 'window.__output', returnByValue: true })).result.value;
-    // The accessibility tree, in parts: children of one node per call, many calls at a time.
-    const tA = Date.now();
-    await s('Accessibility.enable');
-    const { nodes: rootNodes } = await s('Accessibility.getFullAXTree', { depth: 1 });
-    const chunks = [];
-    let axBytes = outStr.length;
-    let axNodes = 0;
-    let capped = summary.capped;
-    const seen = new Set();
-    const queue = [];
-    const add = (n) => {
-      if (seen.has(n.nodeId)) return;
-      seen.add(n.nodeId);
-      axNodes += 1;
-      const c = JSON.stringify({ i: n.nodeId, r: n.role?.value, n: n.name?.value, g: n.ignored || undefined, c: n.childIds });
-      axBytes += c.length;
-      if (axBytes > OUTPUT_CAP) capped = true;
-      else chunks.push(c);
-      if (n.childIds?.length) queue.push(n.nodeId);
+    const call = async (expr) => {
+      const r = await s('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true });
+      const v = r.result.value;
+      if (!v || v.error) throw new Error(`capture failed: ${v?.error ?? JSON.stringify(r.exceptionDetails ?? r.result).slice(0, 500)}`);
+      return v;
     };
-    rootNodes.forEach(add);
-    while (queue.length && !capped) {
-      const batch = queue.splice(0, 64);
-      const answers = await Promise.all(batch.map((id) => s('Accessibility.getChildAXNodes', { id }).catch(() => ({ nodes: [] }))));
-      for (const a of answers) for (const n of a.nodes) add(n);
+    for (let i = 0; i < 400; i++) {
+      const r = await s('Runtime.evaluate', { expression: 'window.__ready === true', returnByValue: true }).catch(() => null);
+      if (r?.result?.value === true) break;
+      await new Promise((res) => setTimeout(res, 50));
+    }
+    const opened = await call('window.__open()');
+    await s('Accessibility.enable');
+    const chunks = [];
+    let axBytes = 0;
+    let axNodes = 0;
+    let capped = false;
+    let maxElements = 0;
+    let axMs = 0;
+    const tA = Date.now();
+    for (let n = 1; n <= opened.pagesRead && !capped; n++) {
+      const pg = await call(`window.__page(${n})`);
+      maxElements = Math.max(maxElements, pg.elements ?? 0);
+      if (pg.capped) {
+        capped = true;
+        break;
+      }
+      // This page's accessibility tree, in parts: the children of one node per call, 64 calls at a time.
+      const tP = Date.now();
+      const { nodes: rootNodes } = await s('Accessibility.getFullAXTree', { depth: 1 });
+      const seen = new Set();
+      const queue = [];
+      const add = (node) => {
+        if (seen.has(node.nodeId)) return;
+        seen.add(node.nodeId);
+        axNodes += 1;
+        const c = JSON.stringify({ p: n, i: node.nodeId, r: node.role?.value, n: node.name?.value, g: node.ignored || undefined, c: node.childIds });
+        axBytes += c.length;
+        if (axBytes > OUTPUT_CAP) capped = true;
+        else chunks.push(c);
+        if (node.childIds?.length) queue.push(node.nodeId);
+      };
+      rootNodes.forEach(add);
+      while (queue.length && !capped) {
+        const batch = queue.splice(0, 64);
+        const answers = await Promise.all(batch.map((id) => s('Accessibility.getChildAXNodes', { id }).catch(() => ({ nodes: [] }))));
+        for (const ans of answers) for (const node of ans.nodes) add(node);
+        if (Date.now() - t0 > JOB_LIMIT_MS) throw new Error('job time limit');
+      }
+      axMs += Date.now() - tP;
       if (Date.now() - t0 > JOB_LIMIT_MS) throw new Error('job time limit');
     }
-    result.axMs = Date.now() - tA;
+    const summary = await call('window.__finish()');
+    Object.assign(result, { page: { ...opened, ...summary, maxElements } });
+    result.captureMs = Date.now() - t0;
+    capped = capped || summary.capped;
+    const outStr = capped ? '' : (await s('Runtime.evaluate', { expression: 'window.__output', returnByValue: true })).result.value;
+    axBytes += outStr.length;
+    if (axBytes > OUTPUT_CAP) capped = true;
+    result.pagesLoopMs = Date.now() - tA;
+    result.axMs = axMs;
     result.axNodes = axNodes;
     result.outputBytes = axBytes;
     result.capped = capped;
@@ -380,6 +401,8 @@ async function job(name, { canvas = false, hold = false, keepTree = false } = {}
   const before = { cg: cgroup.usage(), rss: cgroup.totalRss() };
   const t0 = Date.now();
   const { result, output, job: dir } = await capture(path.join(FIXTURES, `${name}.pdf`), { canvas });
+  sampler.tick();
+  sampler.phase = 'verapdf';
   const v = result.error ? {} : await verapdf(dir);
   sampler.tick();
   fs.rmSync(dir, { recursive: true, force: true });
@@ -391,6 +414,8 @@ async function job(name, { canvas = false, hold = false, keepTree = false } = {}
     own: keepTree ? result.own : undefined,
     wallMs: Date.now() - t0,
     jobPssPeakMB: +(sampler.jobPeak / 2 ** 20).toFixed(1),
+    capturePhasePeakMB: +(sampler.phasePeak.capture / 2 ** 20).toFixed(1),
+    verapdfPhasePeakMB: +(sampler.phasePeak.verapdf / 2 ** 20).toFixed(1),
     jobRssAnonShmemPeakMB: +(sampler.jobRssPeak / 2 ** 20).toFixed(1),
     containerPeakMB: +(sampler.cgPeak / 2 ** 20).toFixed(1),
     containerTotalRssPeakMB: +(sampler.rssPeak / 2 ** 20).toFixed(1),

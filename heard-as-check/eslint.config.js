@@ -16,5 +16,5 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
-  { ignores: ['dist/**', 'coverage/**', 'node_modules/**', 'playwright-report/**', 'test-results/**', 'src/lib/hw-theme.js', 'test/fixtures/out/**'] },
+  { ignores: ['dist/**', 'coverage/**', 'node_modules/**', 'playwright-report/**', 'test-results/**', 'src/lib/hw-theme.js', 'test/fixtures/out/**', 'dist-live/**'] },
 );
