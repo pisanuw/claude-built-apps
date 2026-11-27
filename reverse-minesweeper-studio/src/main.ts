@@ -1,3 +1,4 @@
+import './lib/hw-theme.js';
 import './ui/styles.css';
 import { type Board, boardProblem, cloneBoard, coords, mineCount, numbers, resizeBoard } from './core/board';
 import { FLAG, type Game, OPEN, flagsPlaced, newGame, openCell, toggleFlag } from './core/game';
@@ -24,7 +25,7 @@ const SIZES: [number, number][] = [
 const app = document.getElementById('app')!;
 app.innerHTML = `
 <header>
-  <h1>Reverse Minesweeper Studio</h1>
+  <div class="title-row"><h1>Reverse Minesweeper Studio</h1><hw-theme-toggle></hw-theme-toggle></div>
   <p>Paint a picture with mines. A logic solver plays it from your opening cell and tells you whether anyone could clear it <strong>without a single guess</strong>.</p>
   <nav class="tabs" role="tablist">
     <button role="tab" data-mode="edit">Paint</button>
@@ -51,7 +52,7 @@ app.innerHTML = `
       <button id="flagmode" aria-pressed="false">Flag mode</button>
       <button id="restart">Restart</button>
     </div>
-    <div class="canvas-scroll"><canvas id="board" aria-label="Minesweeper board"></canvas></div>
+    <div class="canvas-scroll" tabindex="0" role="region" aria-label="Board"><canvas id="board" aria-label="Minesweeper board"></canvas></div>
     <p class="hint" id="hint"></p>
   </section>
   <aside id="panel" aria-live="polite"></aside>
@@ -66,7 +67,6 @@ const panel = document.getElementById('panel')!;
 const hint = document.getElementById('hint')!;
 const sizeSelect = document.getElementById('size') as HTMLSelectElement;
 const presetSelect = document.getElementById('preset') as HTMLSelectElement;
-const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
 let board: Board = boardFromRows(PRESETS[0]!.rows);
 board.start = bestStart(board);
@@ -195,14 +195,14 @@ function render(): void {
 
   const wrap = canvas.parentElement!;
   cellSize = cellSizeFor(board, Math.min(wrap.clientWidth || 360, 900));
-  const pal = palette(darkQuery.matches);
-  if (mode === 'play' && game) {
-    drawBoard(canvas, board, cellSize, playView(game), pal);
-    renderPlay(game);
-  } else {
-    drawBoard(canvas, board, cellSize, editView(), pal);
-    renderEditPanel();
-  }
+  drawCurrent();
+  if (mode === 'play' && game) renderPlay(game);
+  else renderEditPanel();
+}
+
+/** The board as the state stands, in the colours in place now. */
+function drawCurrent(): void {
+  drawBoard(canvas, board, cellSize, mode === 'play' && game ? playView(game) : editView(), palette());
 }
 
 function esc(s: string): string {
@@ -343,7 +343,7 @@ function paintAt(i: number): void {
   if (board.mines[i] === painting) return;
   board.mines[i] = painting;
   scheduleAnalyze();
-  drawBoard(canvas, board, cellSize, editView(), palette(darkQuery.matches));
+  drawBoard(canvas, board, cellSize, editView(), palette());
 }
 
 let pressTimer = 0;
@@ -481,7 +481,7 @@ panel.addEventListener('input', (e) => {
   const t = e.target as HTMLInputElement;
   if (t.id === 'step') {
     shownSteps = Number(t.value);
-    drawBoard(canvas, board, cellSize, editView(), palette(darkQuery.matches));
+    drawBoard(canvas, board, cellSize, editView(), palette());
     const step = result?.steps[shownSteps - 1];
     const label = t.nextElementSibling;
     if (label && step) {
@@ -494,7 +494,7 @@ panel.addEventListener('pointerover', (e) => {
   const next = li ? Number(li.dataset.preview) : null;
   if (next !== preview && mode === 'edit') {
     preview = next;
-    drawBoard(canvas, board, cellSize, editView(), palette(darkQuery.matches));
+    drawBoard(canvas, board, cellSize, editView(), palette());
   }
 });
 
@@ -543,7 +543,11 @@ window.addEventListener('hashchange', () => {
   if (location.hash !== hashFor(mode, board)) loadFromHash();
 });
 window.addEventListener('resize', () => render());
-darkQuery.addEventListener('change', () => render());
+// The board reads the colour tokens as it draws: draw it again when the theme changes (the switch, or the device
+// setting with nothing stored), and at once on the way into print and back. Print takes the light set, but a canvas
+// keeps the pixels it drew on screen; matchMedia('print') changes with the print colours in place.
+document.addEventListener('hw-themechange', drawCurrent);
+if (typeof window.matchMedia === 'function') window.matchMedia('print').addEventListener?.('change', drawCurrent);
 
 loadFromHash();
 if (!location.hash) syncHash();

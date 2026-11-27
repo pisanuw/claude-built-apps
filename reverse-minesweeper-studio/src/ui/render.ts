@@ -17,40 +17,32 @@ export interface Palette {
   numbers: string[];
 }
 
-export function palette(dark: boolean): Palette {
-  return dark
-    ? {
-        bg: '#0f1216',
-        hidden: '#2a313a',
-        open: '#171b21',
-        grid: '#0b0d10',
-        ink: '#e6e9ee',
-        mine: '#e6e9ee',
-        start: '#3fb950',
-        stuck: '#e3b341',
-        sealed: '#8a6d1f',
-        fresh: 'rgba(76, 141, 255, 0.35)',
-        layout: '#ff6b6b',
-        suggest: '#c297ff',
-        exploded: '#ff6b6b',
-        numbers: ['', '#6ea8ff', '#3fb950', '#ff6b6b', '#a5a8ff', '#ff9e64', '#4fd1c5', '#e6e9ee', '#98a2ad'],
-      }
-    : {
-        bg: '#f6f7f9',
-        hidden: '#c9d0d8',
-        open: '#ffffff',
-        grid: '#f6f7f9',
-        ink: '#1b1f24',
-        mine: '#1b1f24',
-        start: '#1a7f37',
-        stuck: '#f2b134',
-        sealed: '#f7d98b',
-        fresh: 'rgba(31, 111, 235, 0.22)',
-        layout: '#c62828',
-        suggest: '#8250df',
-        exploded: '#c62828',
-        numbers: ['', '#1f4fd6', '#1a7f37', '#c62828', '#1b2a8c', '#8b1a1a', '#0f7b7b', '#1b1f24', '#5c6670'],
-      };
+/** The board's colours: the stylesheet's tokens as they are now, so the board follows the light and dark switch,
+ *  and print (src/ui/styles.css). The light values stand in where no stylesheet is loaded (the tests). */
+export const TOKENS = {
+  bg: ['--bg', '#f6f7f9'],
+  hidden: ['--tile-hidden', '#c9d0d8'],
+  open: ['--panel', '#ffffff'],
+  grid: ['--board-grid', '#f6f7f9'],
+  ink: ['--ink', '#1b1f24'],
+  mine: ['--ink', '#1b1f24'],
+  start: ['--good', '#1a7f37'],
+  stuck: ['--stuck', '#f2b134'],
+  sealed: ['--sealed', '#f7d98b'],
+  fresh: ['--fresh', 'rgba(27, 99, 216, 0.18)'],
+  layout: ['--bad', '#c62828'],
+  suggest: ['--suggest', '#8250df'],
+  exploded: ['--bad', '#c62828'],
+} as const satisfies Record<Exclude<keyof Palette, 'numbers'>, readonly [string, string]>;
+export const NUMBER_TOKENS = ['#1f4fd6', '#15692d', '#b02020', '#1b2a8c', '#8b1a1a', '#0b6767', '#1b1f24', '#4f5862'].map(
+  (light, i) => [`--num-${i + 1}`, light] as const,
+);
+
+export function palette(root: Element = document.documentElement): Palette {
+  const style = getComputedStyle(root);
+  const read = ([name, light]: readonly [string, string]): string => style.getPropertyValue(name).trim() || light;
+  const pal = Object.fromEntries(Object.entries(TOKENS).map(([k, t]) => [k, read(t)])) as Omit<Palette, 'numbers'>;
+  return { ...pal, numbers: ['', ...NUMBER_TOKENS.map(read)] };
 }
 
 /** What a single cell should look like; the caller decides from app state. */
