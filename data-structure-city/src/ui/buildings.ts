@@ -52,7 +52,8 @@ export function renderSkip(snap: SkipSnapshot, touched: Set<string>): HTMLElemen
   }
   grid.append(h('span', { class: 'lvl' }));
   for (const t of snap.towers) grid.append(h('span', { class: `skip-key${touched.has(t.key) ? ' touched' : ''}`, title: `${t.key} = ${t.value}` }, label(t.key)));
-  return h('div', { class: 'scroll-x' }, grid);
+  // Focusable, so a keyboard can scroll it when it is wider than the screen.
+  return h('div', { class: 'scroll-x', tabindex: '0', role: 'region', 'aria-label': 'Skip list towers' }, grid);
 }
 
 export function renderLru(snap: LruSnapshot, touched: Set<string>, evicted: string[]): HTMLElement {
@@ -132,5 +133,5 @@ export function renderBTree(snap: BTreeSnapshot, touched: Set<string>): HTMLElem
     g.append(node);
   }
   const svg = s('svg', { class: 'btree-svg', viewBox: `0 0 ${width} ${height}`, width, height, role: 'img', 'aria-label': `B-tree of height ${snap.height}` }, g);
-  return h('div', { class: 'scroll-x' }, svg as unknown as HTMLElement);
+  return h('div', { class: 'scroll-x', tabindex: '0', role: 'region', 'aria-label': 'B-tree nodes' }, svg as unknown as HTMLElement);
 }

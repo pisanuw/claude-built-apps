@@ -206,7 +206,7 @@ export function mountApp(root: HTMLElement): void {
       'header',
       { class: 'site-header' },
       h('div', { class: 'skyline', 'aria-hidden': 'true' }, ...[3, 5, 2, 6, 4, 7, 3, 5, 2, 4].map((n) => h('span', { style: `height:${n * 6}px` }))),
-      h('h1', {}, 'Data Structure City'),
+      h('div', { class: 'title-row' }, h('h1', {}, 'Data Structure City'), h('hw-theme-toggle')),
       h(
         'p',
         { class: 'lede' },
