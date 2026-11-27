@@ -102,17 +102,16 @@ describe.skipIf(!URL_)('races on a real Postgres (R1.1-2, R1.1-3, R1.2-1)', () =
     const first = await call(c1, key);
     await c2.query('begin');
     await asUser(c2, null);
-    const second = call(c2, key2);
+    const second = call(c2, key2).then((r) => ({ r }), (e: Error) => ({ e }));
     await blocked(); // c2 waits for c1's per-person lock
     await c1.query('commit');
-    let r2: pg.QueryResult;
-    try {
-      r2 = await second;
-      await c2.query('commit');
-    } catch (e) {
+    const settled = await second;
+    if ('e' in settled) {
       await c2.query('rollback');
-      throw e;
+      throw settled.e;
     }
+    const r2 = settled.r;
+    await c2.query('commit');
     expect(first.rows[0].r.is_baseline).toBe(true);
     expect(r2.rows[0].r.is_baseline).toBe(false);
     expect(r2.rows[0].r.document_id).toBe(first.rows[0].r.document_id);
@@ -127,10 +126,15 @@ describe.skipIf(!URL_)('races on a real Postgres (R1.1-2, R1.1-3, R1.2-1)', () =
     const first = await call(c1);
     await c2.query('begin');
     await asUser(c2, null);
-    const second = call(c2);
+    const second = call(c2).then((r) => ({ r }), (e: Error) => ({ e }));
     await blocked();
     await c1.query('commit');
-    const r2 = await second;
+    const settled = await second;
+    if ('e' in settled) {
+      await c2.query('rollback');
+      throw settled.e;
+    }
+    const r2 = settled.r;
     await c2.query('commit');
     expect(r2.rows[0].r.document_id).toBe(first.rows[0].r.document_id);
     expect([first.rows[0].r.is_baseline, r2.rows[0].r.is_baseline]).toEqual([true, false]);
@@ -153,10 +157,10 @@ describe.skipIf(!URL_)('races on a real Postgres (R1.1-2, R1.1-3, R1.2-1)', () =
     await c1.query(`select ${S}.set_baseline($1)`, [y]);
     await c2.query('begin');
     await asUser(c2, U);
-    const second = c2.query(`select ${S}.set_baseline($1)`, [z]);
+    const second = failure(c2.query(`select ${S}.set_baseline($1)`, [z]));
     await blocked(); // c2 waits for c1
     await c1.query('commit');
-    const outcome = await failure(second);
+    const outcome = await second;
     await c2.query(outcome === 'no error' ? 'commit' : 'rollback');
     expect(outcome).toBe('no error');
     const base = await c1.query(`select id from ${S}.runs where document_id = $1 and is_baseline`, [d.id]);
@@ -180,10 +184,11 @@ describe.skipIf(!URL_)('races on a real Postgres (R1.1-2, R1.1-3, R1.2-1)', () =
     await remove(c1);
     await c2.query('begin');
     await asUser(c2, U);
-    const second = c2.query(`select ${S}.set_baseline($1)`, [target]);
+    // The handler is attached when the query is sent: c2's error can arrive before c1's commit returns.
+    const second = failure(c2.query(`select ${S}.set_baseline($1)`, [target]));
     await blocked();
     await c1.query('commit');
-    const outcome = await failure(second);
+    const outcome = await second;
     await c2.query(outcome === 'no error' ? 'commit' : 'rollback');
     return outcome;
   };
