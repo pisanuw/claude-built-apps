@@ -101,7 +101,7 @@ h1{font-size:1.6rem;margin:0 0 4px}h2{font-size:1.15rem;margin:28px 0 8px}h3{fon
 .finding header{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.finding .bytes{margin-left:auto;font-weight:600}.badge{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;background:#f1f5f9;padding:2px 8px;border-radius:999px}
 .eco{font-size:.8rem;color:#64748b}.paths{margin:6px 0;padding-left:18px;font-size:.85rem}.paths .more{color:#64748b;list-style:none;margin-left:-18px}
 code{font:.85em ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all}pre{background:#0f172a;color:#e2e8f0;padding:10px 12px;border-radius:8px;overflow:auto;font-size:.85rem}
-.ok{color:#15803d;font-weight:600}.rule-toggle{width:18px;height:18px}.finding.off{opacity:.55}
+.ok{color:#15803d;font-weight:600}.rule-toggle{width:18px;height:18px}.finding.off{border-left-style:dashed;background:#f8fafc}.finding.off h3{text-decoration:line-through}
 `;
 
 /** A self-contained HTML report a student can attach to a help request. */

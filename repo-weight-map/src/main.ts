@@ -1,3 +1,5 @@
+// The light and dark mode switch (platform/src/theme), defined before the header is drawn.
+import './lib/hw-theme.js';
 // The stylesheet as a file, so Vite links it in the head: the first paint is already styled. Added by the
 // script (?inline into a <style>) it came after a first paint in the browser's own colours.
 import './ui/styles.css';
@@ -17,7 +19,7 @@ if (!app) throw new Error('missing #app');
 app.innerHTML = `
   <div class="wrap">
     <header class="site">
-      <h1>Repo Weight Map</h1>
+      <div class="title-row"><h1>Repo Weight Map</h1><hw-theme-toggle></hw-theme-toggle></div>
       <span class="tagline">What is bloating this repo, and what should never have been committed?</span>
     </header>
     <p class="privacy">
@@ -26,8 +28,8 @@ app.innerHTML = `
       caches, secrets, and stray datasets. Your root <code>.gitignore</code> is read too, so anything it already
       excludes is marked <em>already ignored</em> rather than counted against you.
     </p>
-    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Drop a folder here or use the buttons">
-      <strong>Drop a folder here</strong>
+    <div class="drop" id="drop" role="group" aria-labelledby="drop-title">
+      <strong id="drop-title">Drop a folder here</strong>
       <div class="controls">
         <button id="pick" type="button" class="primary">Choose folder</button>
         <label class="btn" for="files">Choose folder (fallback)<input type="file" id="files" webkitdirectory multiple hidden /></label>
@@ -42,7 +44,7 @@ app.innerHTML = `
           <nav id="crumbs" class="crumbs" aria-label="Treemap location"></nav>
           <button id="up" type="button" class="small" hidden>Up one level</button>
         </div>
-        <svg id="treemap" class="treemap" role="img" aria-label="Treemap of folder sizes"></svg>
+        <svg id="treemap" class="treemap" role="group" aria-label="Treemap of folder sizes"></svg>
         <div id="detail" class="detail" hidden></div>
         <ul class="legend" id="legend"></ul>
       </section>
