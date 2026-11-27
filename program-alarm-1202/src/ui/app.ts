@@ -62,12 +62,10 @@ export function outcomeLabel(o: Outcome): string {
 
 const SHELL = `
 <header class="top">
-  <div>
-    <h1>Program Alarm <span class="mono">1202</span></h1>
-    <p class="lede">Fly the last 1.5 km of a lunar descent while a mis-set radar switch steals CPU cycles.
-    Watch the Apollo Guidance Computer's priority Executive run out of job slots, raise the famous alarms,
-    restart itself, and keep landing guidance alive. Then try the same load on schedulers without that design.</p>
-  </div>
+  <div class="title-row"><h1>Program Alarm <span class="mono">1202</span></h1><hw-theme-toggle></hw-theme-toggle></div>
+  <p class="lede">Fly the last 1.5 km of a lunar descent while a mis-set radar switch steals CPU cycles.
+  Watch the Apollo Guidance Computer's priority Executive run out of job slots, raise the famous alarms,
+  restart itself, and keep landing guidance alive. Then try the same load on schedulers without that design.</p>
 </header>
 <nav class="tabs" role="tablist">
   <button role="tab" data-tab="fly" id="tab-fly">Fly</button>
@@ -138,7 +136,7 @@ const SHELL = `
   </div>
   <div class="card">
     <h2>Event log</h2>
-    <ol id="log" class="log" aria-live="polite"></ol>
+    <div class="log-box" tabindex="0" role="region" aria-label="Event log"><ol id="log" class="log" aria-live="polite"></ol></div>
   </div>
 </section>
 <section id="panel-compare" class="panel" role="tabpanel" aria-labelledby="tab-compare" hidden>
@@ -146,7 +144,7 @@ const SHELL = `
     <h2>Same load, three schedulers</h2>
     <p>Runs the whole descent under each scheduler with the steal and monitor settings from the Fly tab
     (<span id="cmp-settings"></span>). Change them there and come back.</p>
-    <div class="table-wrap"><table class="cmp"><thead><tr>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Schedulers compared"><table class="cmp"><thead><tr>
       <th>Scheduler</th><th>Outcome</th><th>1202</th><th>1201</th><th>Restarts</th><th>Missed guidance</th><th>Longest stale</th><th>Display jobs done</th>
     </tr></thead><tbody id="cmp-body"></tbody></table></div>
   </div>
@@ -158,7 +156,7 @@ const SHELL = `
   <div class="card">
     <h2>Steal sweep</h2>
     <p class="hint">Outcome for every steal level from 0% to ${MAX_STEAL}%, with the monitor setting from the Fly tab.</p>
-    <div class="table-wrap"><table class="sweep" id="sweep"></table></div>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Steal sweep"><table class="sweep" id="sweep"></table></div>
   </div>
 </section>
 <section id="panel-apollo" class="panel" role="tabpanel" aria-labelledby="tab-apollo" hidden>
@@ -359,8 +357,10 @@ export function mountApp(root: HTMLElement): void {
     drawDescent(descentCanvas, s);
   }
 
+  let lastResults: RunSummary[] | null = null;
   function renderCompare(): void {
     const results: RunSummary[] = compare(config.stealPct, config.monitorOn);
+    lastResults = results;
     byId(root, 'cmp-settings').textContent = `${config.stealPct}% steal, monitor ${config.monitorOn ? 'on' : 'off'}`;
     byId(root, 'cmp-body').replaceChildren(
       ...results.map((r) =>
@@ -442,6 +442,16 @@ export function mountApp(root: HTMLElement): void {
     b.addEventListener('click', () => setTab(b.dataset.tab as Tab));
   }
   window.addEventListener('resize', () => (tab === 'compare' ? renderCompare() : renderFly()));
+
+  // The charts read the colour tokens as they draw, so draw them again when the theme changes, and at once on
+  // the way into print and back: print takes the light set, but a canvas keeps the pixels it drew on screen.
+  // matchMedia('print') changes with the print colours in place (the next frame would come after the printout).
+  const redrawCharts = (): void => {
+    if (tab === 'compare' && lastResults) drawTimelines(timelineCanvas, lastResults, SCHEDULERS.map((s) => s.name));
+    else drawDescent(descentCanvas, state);
+  };
+  document.addEventListener('hw-themechange', redrawCharts);
+  if (typeof window.matchMedia === 'function') window.matchMedia('print').addEventListener?.('change', redrawCharts);
 
   syncControls();
   setTab(tab);
