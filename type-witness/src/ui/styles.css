@@ -1,16 +1,71 @@
 :root {
-  --bg: #0f1420;
-  --panel: #171e2e;
-  --panel-2: #1c2438;
-  --border: #2a3550;
-  --text: #e6ebf5;
-  --muted: #8b97b0;
-  --accent: #4cc2ff;
-  --accent-2: #9d7bff;
-  --good: #4ade80;
-  --warn: #fbbf24;
-  --bad: #f87171;
+  color-scheme: light;
+  --bg: #f5f7fb;
+  --panel: #ffffff;
+  --panel-2: #eef2f8;
+  --border: #d5dbe7;
+  --text: #172033;
+  --muted: #56627a;
+  --accent: #0869a8;
+  --accent-2: #6d4fd8;
+  --good: #157a3c;
+  --warn: #855600;
+  --bad: #c4283a;
+  /* The editor's and the witness view's ground, and the hover card's. */
+  --code-bg: #f8fafd;
+  --tooltip-bg: #ffffff;
+  /* Fields' edges: 3:1 on what they sit on (WCAG 1.4.11; --border was 1.27 to 1.56:1 in dark). */
+  --field-border: #7a8599;
+  --tok-hover: rgba(8, 105, 168, 0.12);
+  --current-bg: rgba(109, 79, 216, 0.16);
   --mono: 'SF Mono', 'Cascadia Code', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+/* Dark twice, for the switch (data-theme on <html>, set before the first paint) and for the device setting when
+   scripts do not run (platform/src/theme/README.md); test/theme.test.ts keeps the two the same. Both are for the
+   screen only: paper gets the light set. The dark set is the app's original palette. */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0f1420;
+    --panel: #171e2e;
+    --panel-2: #1c2438;
+    --border: #2a3550;
+    --text: #e6ebf5;
+    --muted: #8b97b0;
+    --accent: #4cc2ff;
+    --accent-2: #9d7bff;
+    --good: #4ade80;
+    --warn: #fbbf24;
+    --bad: #f87171;
+    --code-bg: #0b101b;
+    --tooltip-bg: #060a12;
+    --field-border: #66748f;
+    --tok-hover: rgba(76, 194, 255, 0.18);
+    --current-bg: rgba(157, 123, 255, 0.32);
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0f1420;
+    --panel: #171e2e;
+    --panel-2: #1c2438;
+    --border: #2a3550;
+    --text: #e6ebf5;
+    --muted: #8b97b0;
+    --accent: #4cc2ff;
+    --accent-2: #9d7bff;
+    --good: #4ade80;
+    --warn: #fbbf24;
+    --bad: #f87171;
+    --code-bg: #0b101b;
+    --tooltip-bg: #060a12;
+    --field-border: #66748f;
+    --tok-hover: rgba(76, 194, 255, 0.18);
+    --current-bg: rgba(157, 123, 255, 0.32);
+  }
 }
 
 * {
@@ -38,10 +93,27 @@ body {
   gap: 12px;
 }
 
-.brand h1 {
+/* The title row takes the header's whole first line, so the switch is never alone on one. */
+.top .title-row {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.top h1 {
   margin: 0;
+  min-width: 0;
   font-size: 26px;
   letter-spacing: 0.2px;
+}
+
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .tagline {
@@ -64,7 +136,7 @@ body {
 select,
 button {
   background: var(--panel-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   color: var(--text);
   border-radius: 8px;
   padding: 7px 12px;
@@ -145,9 +217,9 @@ button:disabled {
   width: 100%;
   min-height: 200px;
   resize: vertical;
-  background: #0b101b;
+  background: var(--code-bg);
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   padding: 12px;
   font-family: var(--mono);
@@ -163,7 +235,7 @@ button:disabled {
 
 .witness {
   margin: 0;
-  background: #0b101b;
+  background: var(--code-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px;
@@ -178,13 +250,13 @@ button:disabled {
 }
 
 .witness .tok:hover {
-  background: rgba(76, 194, 255, 0.18);
+  background: var(--tok-hover);
   border-radius: 3px;
   cursor: pointer;
 }
 
 .witness .current {
-  background: rgba(157, 123, 255, 0.32);
+  background: var(--current-bg);
   outline: 1px solid var(--accent-2);
   border-radius: 3px;
 }
@@ -251,13 +323,17 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+/* The steps scroll in a named region, in the tab order. */
+.steps-scroll {
+  overflow: auto;
+  max-height: 420px;
+  flex: 1;
+}
+
 .steps {
   list-style: none;
   margin: 0;
   padding: 0;
-  overflow: auto;
-  max-height: 420px;
-  flex: 1;
 }
 
 .step {
@@ -340,7 +416,7 @@ button:disabled {
 .tooltip {
   position: fixed;
   z-index: 10;
-  background: #060a12;
+  background: var(--tooltip-bg);
   border: 1px solid var(--accent);
   color: var(--text);
   border-radius: 6px;
@@ -361,4 +437,11 @@ button:disabled {
 
 .foot a {
   color: var(--accent);
+}
+
+/* Not on paper. */
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
 }
