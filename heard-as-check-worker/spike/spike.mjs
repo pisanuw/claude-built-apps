@@ -164,21 +164,22 @@ class Cdp {
     this.id = 0;
     this.waiting = new Map();
     this.events = [];
-    let buf = '';
-    // A Chromium that dies resets the pipe; the exit is reported by capture().
-    proc.on('exit', (code, sig) => {
+    // Bytes are split on the NUL that ends each message, then decoded: a character split across
+    // two chunks is never decoded half (R1.1-6).
+    let buf = Buffer.alloc(0);
+    this.proc.on('exit', (code, sig) => {
       for (const { reject } of this.waiting.values()) reject(new Error(`chrome exited (${code ?? sig})`));
       this.waiting.clear();
     });
     proc.stdio[3].on('error', () => {});
     proc.stdio[4].on('error', () => {});
     proc.stdio[4].on('data', (chunk) => {
-      buf += chunk.toString('utf8');
+      buf = Buffer.concat([buf, chunk]);
       let i;
-      while ((i = buf.indexOf('\0')) >= 0) {
-        const msg = JSON.parse(buf.slice(0, i));
-        buf = buf.slice(i + 1);
+      while ((i = buf.indexOf(0)) >= 0) {
+        const msg = JSON.parse(buf.subarray(0, i).toString('utf8'));
         this.answerBytes = Math.max(this.answerBytes ?? 0, i);
+        buf = buf.subarray(i + 1);
         if (msg.id && this.waiting.has(msg.id)) {
           const { resolve, reject } = this.waiting.get(msg.id);
           this.waiting.delete(msg.id);
@@ -297,6 +298,7 @@ async function capture(file, { canvas = false } = {}) {
     let axNodes = 0;
     let capped = false;
     let maxElements = 0;
+    const failedReads = [];
     let axMs = 0;
     const tA = Date.now();
     for (let n = 1; n <= opened.pagesRead && !capped; n++) {
@@ -316,7 +318,7 @@ async function capture(file, { canvas = false } = {}) {
         seen.add(node.nodeId);
         axNodes += 1;
         const c = JSON.stringify({ p: n, i: node.nodeId, r: node.role?.value, n: node.name?.value, g: node.ignored || undefined, c: node.childIds });
-        axBytes += c.length;
+        axBytes += Buffer.byteLength(c, 'utf8');
         if (axBytes > OUTPUT_CAP) capped = true;
         else chunks.push(c);
         if (node.childIds?.length) queue.push(node.nodeId);
@@ -324,7 +326,9 @@ async function capture(file, { canvas = false } = {}) {
       rootNodes.forEach(add);
       while (queue.length && !capped) {
         const batch = queue.splice(0, 64);
-        const answers = await Promise.all(batch.map((id) => s('Accessibility.getChildAXNodes', { id }).catch(() => ({ nodes: [] }))));
+        // A failed read is counted, never dropped silently (R1.1-6).
+        const answers = await Promise.all(batch.map((id) => s('Accessibility.getChildAXNodes', { id }).catch((e) => ({ nodes: [], failed: String(e.message ?? e) }))));
+        for (const ans of answers) if (ans.failed) failedReads.push(ans.failed);
         for (const ans of answers) for (const node of ans.nodes) add(node);
         if (Date.now() - t0 > JOB_LIMIT_MS) throw new Error('job time limit');
       }
@@ -336,10 +340,12 @@ async function capture(file, { canvas = false } = {}) {
     result.captureMs = Date.now() - t0;
     capped = capped || summary.capped;
     const outStr = capped ? '' : (await s('Runtime.evaluate', { expression: 'window.__output', returnByValue: true })).result.value;
-    axBytes += outStr.length;
+    axBytes += Buffer.byteLength(outStr, 'utf8');
     if (axBytes > OUTPUT_CAP) capped = true;
     result.pagesLoopMs = Date.now() - tA;
     result.axMs = axMs;
+    result.failedReads = failedReads.length;
+    result.failedReadSamples = failedReads.slice(0, 3);
     result.axNodes = axNodes;
     result.outputBytes = axBytes;
     result.capped = capped;
@@ -374,6 +380,8 @@ function verapdf(job) {
     const p = spawn('setpriv', ['--reuid', String(JOB_UID), '--regid', String(JOB_UID), '--clear-groups', '--', ...argv], { stdio: ['ignore', 'pipe', 'pipe'], env: { PATH: '/usr/bin:/bin', HOME: job, LANG: 'C.UTF-8' } });
     let out = '';
     let err = '';
+    p.stdout.setEncoding('utf8');
+    p.stderr.setEncoding('utf8');
     p.stdout.on('data', (d) => (out += d));
     p.stderr.on('data', (d) => (err += d));
     const kill = setTimeout(() => p.kill('SIGKILL'), JOB_LIMIT_MS);

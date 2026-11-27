@@ -18,8 +18,10 @@ const l10n = { getLanguage: () => 'en', getDirection: () => 'ltr', get: async ()
 
 class Cap extends Error {}
 let outputBytes = 0;
+const utf8 = new TextEncoder();
+// The cap counts UTF-8 bytes, what the output is when it leaves the page (R1.1-6).
 const count = (s) => {
-  outputBytes += s.length;
+  outputBytes += utf8.encode(s).length;
   if (outputBytes > OUTPUT_CAP) throw new Cap('output cap');
   return s;
 };
