@@ -149,7 +149,7 @@ export function mountApp(root: HTMLElement): void {
     el(
       'header',
       {},
-      el('h1', {}, 'Brocot Gear Finder'),
+      el('div', { class: 'title-row' }, el('h1', {}, 'Brocot Gear Finder'), el('hw-theme-toggle')),
       el(
         'p',
         { class: 'lede' },
@@ -306,7 +306,8 @@ export function mountApp(root: HTMLElement): void {
       ),
       el(
         'div',
-        { class: 'table-wrap' },
+        // Focusable, so a keyboard can scroll it when it is wider than the screen.
+        { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': 'Convergents' },
         el(
           'table',
           { class: 'approx' },
