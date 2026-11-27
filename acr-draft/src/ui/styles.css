@@ -1,6 +1,7 @@
 /* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
    before the first paint) and for the device setting when scripts do not run
-   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same. */
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same.
+   Both are for screens only, so a printout uses the light set. */
 :root {
   color-scheme: light;
   --bg: #f6f7fb;
@@ -25,31 +26,33 @@
   --code-bg: #eef0f6;
   --field-border: #4f5a70;
 }
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #11141c;
-  --panel: #1a1f2b;
-  --ink: #e6e9f2;
-  --muted: #a4adc2;
-  --line: #333b4d;
-  --accent: #9db4ff;
-  --accent-ink: #0e1630;
-  --link: #9db4ff;
-  --bad: #ff9a8f;
-  --bad-bg: #3b1d1a;
-  --good: #85d19a;
-  --good-bg: #16301f;
-  --part: #ffc46b;
-  --part-bg: #3a2a10;
-  --na-bg: #262c3a;
-  --none: #d9a7ff;
-  --none-bg: #2f1f3d;
-  --warn-bg: #352b12;
-  --warn-line: #9c7a26;
-  --code-bg: #232a38;
-  --field-border: #a4adc2;
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #11141c;
+    --panel: #1a1f2b;
+    --ink: #e6e9f2;
+    --muted: #a4adc2;
+    --line: #333b4d;
+    --accent: #9db4ff;
+    --accent-ink: #0e1630;
+    --link: #9db4ff;
+    --bad: #ff9a8f;
+    --bad-bg: #3b1d1a;
+    --good: #85d19a;
+    --good-bg: #16301f;
+    --part: #ffc46b;
+    --part-bg: #3a2a10;
+    --na-bg: #262c3a;
+    --none: #d9a7ff;
+    --none-bg: #2f1f3d;
+    --warn-bg: #352b12;
+    --warn-line: #9c7a26;
+    --code-bg: #232a38;
+    --field-border: #a4adc2;
+  }
 }
-@media (prefers-color-scheme: dark) {
+@media screen and (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: #11141c;
@@ -191,3 +194,8 @@ tbody th { font-weight: 600; width: 30%; }
 .rc-new td:nth-child(2), .rc-more td:nth-child(2) { color: var(--bad); font-weight: 600; }
 .rc-fixed td:nth-child(2), .rc-fewer td:nth-child(2) { color: var(--good); font-weight: 600; }
 .print-frame { position: fixed; width: 0; height: 0; border: 0; left: -10000px; }
+
+/* Print: the light set (the dark blocks above are for screens only), without the switch. */
+@media print {
+  hw-theme-toggle { display: none !important; }
+}
