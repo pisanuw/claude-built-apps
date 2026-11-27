@@ -3,6 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Light and dark mode: sets data-theme before the first paint (platform/src/theme/README.md; test/theme.test.ts pins it) -->
+    <script>(function(){var t;try{t=localStorage.getItem('hw-theme')}catch{}if(t!=='light'&&t!=='dark')t=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)})();</script>
     <title>US Duty Price Sheet</title>
     <meta name="description" content="For UK makers who post to US customers with Royal Mail, duty paid: keep a US tariff code for every product, get a US price and postage table that includes the import duty, and see which prices to change when US duty changes. Runs in your browser." />
     <meta name="color-scheme" content="light dark" />

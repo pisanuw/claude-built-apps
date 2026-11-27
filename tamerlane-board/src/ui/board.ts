@@ -77,15 +77,17 @@ export function renderBoard(state: BoardState): HTMLElement {
         .filter(Boolean)
         .join(', ');
       const delay = state.stagger?.get(sq);
+      // The name comes from a hidden span, not aria-label: the square's visible marks (its coordinate, the
+      // piece's symbol) are not words of the name, which axe reports as a label-in-name mismatch (WCAG 2.5.3).
       const attrs: Record<string, string | ((ev: Event) => void)> = {
         class: classes.join(' '),
         role: 'gridcell',
-        'aria-label': desc,
         title: desc,
       };
       if (delay !== undefined) attrs.style = `--delay:${delay * 45}ms`;
       const onClick = state.onClick;
       const cell = onClick ? h('button', { ...attrs, type: 'button', onclick: () => onClick(sq) }) : h('div', attrs);
+      cell.append(h('span', { class: 'cell-name' }, desc));
       if (!state.small && !geo.isCitadel(sq)) {
         if (col === side) cell.append(h('span', { class: 'coord rank', 'aria-hidden': 'true' }, String(y + 1)));
         if (row === geo.height - 1) cell.append(h('span', { class: 'coord file', 'aria-hidden': 'true' }, String.fromCharCode(97 + x)));

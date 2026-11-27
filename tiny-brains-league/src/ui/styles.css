@@ -21,8 +21,8 @@
   --p1: #dc2626;
   --p2: #eab308;
   --bar: #6366f1;
-  /* The last move's ring on the board. */
-  --mark: #ffffff;
+  /* The replay's winning and must-block dots, drawn in a column's next empty hole: 3:1 on --hole (white was 1.08:1 there in light). */
+  --mark: #18202f;
   /* The head-to-head scores are links on a green tint of up to 35%. */
   --cell-link: #1e40af;
   /* 3:1 against the panel and the page (WCAG 1.4.11); --line is for dividers. */

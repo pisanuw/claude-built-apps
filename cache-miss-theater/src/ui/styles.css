@@ -1,3 +1,8 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
+   before the first paint) and for the device setting when scripts do not run
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same.
+   Both are for the screen only: paper gets the light set. The theater's canvases
+   read these tokens and redraw on hw-themechange. */
 :root {
   --bg: #f3f4f1;
   --card: #ffffff;
@@ -10,23 +15,33 @@
   --good: #1d7a46;
   --bad: #b3261e;
   --code-bg: #f6f7f4;
-  --k-hit: #2e8b57;
+  /* 4.5:1 on the cards, and for white text on it (#2e8b57 was 4.24:1). */
+  --k-hit: #267a4c;
   --k-compulsory: #2f6fb3;
-  --k-capacity: #c77700;
+  /* 4.5:1 on the cards, and for white text on it (#c77700 was 3.46:1). */
+  --k-capacity: #a86400;
   --k-conflict: #c0362c;
+  /* The arrays' colours: 3:1 on the card (the swatches, the memory map; #c4a028 was 2.50:1, #3aa6a6 2.92:1),
+     and 4.5:1 for the cache grid's labels, --fg on a 55% block of them (the dark #d5b139 was 4.08:1). */
   --arr-0: #4a86c8;
   --arr-1: #d0802a;
   --arr-2: #4aa36a;
   --arr-3: #a35bb8;
-  --arr-4: #c4a028;
-  --arr-5: #3aa6a6;
+  --arr-4: #a3851a;
+  --arr-5: #339494;
   --mem-empty: #e6e8e3;
   --mem-seen: #b9bdb6;
+  /* 3:1 against the cards and the page (WCAG 1.4.11); --border is for dividers. */
+  --field-border: #7f847e;
+  /* Text on a miss kind's colour (the replay's chip). */
+  --on-kind: #ffffff;
+  color-scheme: light;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #111311;
     --card: #1a1d1a;
     --fg: #e6e9e4;
@@ -46,10 +61,42 @@
     --arr-1: #e0913b;
     --arr-2: #5bb47b;
     --arr-3: #b46cc9;
-    --arr-4: #d5b139;
+    --arr-4: #c4a02c;
     --arr-5: #4bb7b7;
     --mem-empty: #262a26;
     --mem-seen: #4a504a;
+    --field-border: #6c7369;
+    --on-kind: #0f1a14;
+  }
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111311;
+    --card: #1a1d1a;
+    --fg: #e6e9e4;
+    --muted: #a0a69e;
+    --border: #313631;
+    --accent: #7fcca4;
+    --accent-fg: #0f1a14;
+    --accent-soft: rgba(127, 204, 164, 0.13);
+    --good: #5cc98b;
+    --bad: #ff6b60;
+    --code-bg: #141714;
+    --k-hit: #5cc98b;
+    --k-compulsory: #6aa8ef;
+    --k-capacity: #f0a540;
+    --k-conflict: #ff6b60;
+    --arr-0: #5b97d8;
+    --arr-1: #e0913b;
+    --arr-2: #5bb47b;
+    --arr-3: #b46cc9;
+    --arr-4: #c4a02c;
+    --arr-5: #4bb7b7;
+    --mem-empty: #262a26;
+    --mem-seen: #4a504a;
+    --field-border: #6c7369;
+    --on-kind: #0f1a14;
   }
 }
 
@@ -70,8 +117,26 @@ body {
   padding: 20px 16px 64px;
 }
 
-h1 {
+/* The header: the title and the light and dark mode switch on one row, the lede under them. */
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin: 0 0 4px;
+}
+
+/* Hold the switch's place until hw-theme.js draws it. */
+hw-theme-toggle:not([hidden]) {
+  display: inline-flex;
+  flex: none;
+  width: var(--hw-theme-toggle-size, 44px);
+  height: var(--hw-theme-toggle-size, 44px);
+}
+
+h1 {
+  margin: 0;
+  min-width: 0;
   font-size: 28px;
 }
 
@@ -137,7 +202,8 @@ button {
   font: inherit;
   color: var(--fg);
   background: var(--card);
-  border: 1px solid var(--border);
+  /* Fields: 3:1 against the cards and the page (WCAG 1.4.11); every button sets its own border colour below. */
+  border: 1px solid var(--field-border);
   border-radius: 6px;
   padding: 5px 8px;
 }
@@ -303,7 +369,8 @@ pre.output:empty::before {
 
 .quiz {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  /* min(): one column narrower than 300px on a phone; the cards widened the page to 333 px at 320. */
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
   gap: 12px;
 }
 
@@ -349,7 +416,7 @@ footer {
 
 .panes {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
   gap: 12px;
 }
 
@@ -457,7 +524,7 @@ input.wide {
 .chip.k-compulsory,
 .chip.k-capacity,
 .chip.k-conflict {
-  color: #fff;
+  color: var(--on-kind);
   border-color: transparent;
 }
 
@@ -699,4 +766,11 @@ select {
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 1px 8px;
+}
+
+/* Not on paper. */
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
 }

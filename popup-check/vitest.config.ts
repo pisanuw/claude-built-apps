@@ -10,7 +10,7 @@ export default defineConfig({
       reporter: ['text'],
       include: ['src/**/*.ts'],
       // Entry files only mount the app; panel-css and env.d.ts hold no logic.
-      exclude: ['src/main.ts', 'src/practice-main.ts', 'src/panel/entry.ts', 'src/env.d.ts', 'src/panel/panel-css.ts'],
+      exclude: ['src/main.ts', 'src/practice-main.ts', 'src/panel/entry.ts', 'src/env.d.ts', 'src/lib/hw-theme.d.ts', 'src/panel/panel-css.ts'],
       thresholds: { statements: 85, branches: 85, functions: 85, lines: 85 },
     },
   },

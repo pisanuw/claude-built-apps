@@ -200,6 +200,8 @@ h3 { margin: 18px 0 8px; font-size: 1.12rem; }
   overflow: hidden;
   font-size: inherit;
 }
+/* A square's name, for screen readers only (its marks are aria-hidden). */
+.cell-name { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 button.cell { cursor: pointer; }
 button.cell:hover { filter: brightness(1.05); }
 .cell.void { background: transparent; border: 0; }

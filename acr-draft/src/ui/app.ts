@@ -740,10 +740,11 @@ export function mount(root: HTMLElement, opts: MountOptions = {}): App {
       h('button', { type: 'button', class: 'secondary', id: 'print', onclick: () => printReport(reportHtml(model)) }, 'Print or save as PDF'),
       h('button', { type: 'button', class: 'secondary', id: 'dl-project', onclick: () => saveProjectFile() }, 'Save project file'),
     );
+    // Each table scrolls sideways on a phone: a named region in the tab order, so the keyboard can scroll it too.
     const preview = model.tables.map((t) =>
       h(
         'div',
-        { class: 'table-wrap' },
+        { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': t.title },
         h(
           'table',
           {},
@@ -798,7 +799,7 @@ export function mount(root: HTMLElement, opts: MountOptions = {}): App {
       d.ruleChanges.length
         ? h(
             'div',
-            { class: 'table-wrap' },
+            { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': 'Automated failures, all screens' },
             h(
               'table',
               {},

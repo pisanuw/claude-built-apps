@@ -32,7 +32,8 @@ export function changesView(ctx: Ctx, notice: { from: string; affected: RateChan
       wrap.append(h('p', { class: 'good strong' }, `Nothing to update: all ${report.unchanged} product${report.unchanged === 1 ? '' : 's'} still match your shop.`));
     } else {
       wrap.append(h('p', { class: 'strong' }, `${report.changes.length} product${report.changes.length === 1 ? '' : 's'} to update in your shop${report.unchanged ? `, ${report.unchanged} unchanged` : ''}.`));
-      wrap.append(h('div', { class: 'tablewrap' }, h('table', null,
+      // A wide table on a phone: a focusable, named region, so a keyboard can scroll it.
+      wrap.append(h('div', { class: 'tablewrap', tabindex: '0', role: 'region', 'aria-label': 'Products to update' }, h('table', null,
         h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'Product'), h('th', { scope: 'col' }, 'Why'),
           h('th', { scope: 'col', class: 'num' }, mode === 'postage' ? 'US postage was' : 'US price was'),
           h('th', { scope: 'col', class: 'num' }, 'Now'))),
@@ -61,7 +62,7 @@ export function changesView(ctx: Ctx, notice: { from: string; affected: RateChan
 
   wrap.append(h('h3', null, 'The UK duty layer'),
     h('p', null, `Goods made in the UK pay an extra ${UK_LAYER.percent}% on top of each code's general rate (heading ${UK_LAYER.heading}, ${UK_LAYER.authority}, since ${ukDate(UK_LAYER.since)}). ${UK_LAYER.exemptions}`),
-    h('div', { class: 'tablewrap' }, h('table', null,
+    h('div', { class: 'tablewrap', tabindex: '0', role: 'region', 'aria-label': 'The UK duty layer over time' }, h('table', null,
       h('thead', null, h('tr', null, h('th', { scope: 'col' }, 'From'), h('th', { scope: 'col' }, 'To'), h('th', { scope: 'col', class: 'num' }, 'Extra duty'), h('th', { scope: 'col' }, 'Under'))),
       h('tbody', null, UK_LAYER_HISTORY.map((p) => h('tr', null, h('td', null, ukDate(p.from)), h('td', null, p.to ? ukDate(p.to) : 'now'), h('td', { class: 'num' }, `${p.percent}%`), h('td', null, p.authority)))))),
     h('p', { class: 'hint' }, `Checked on ${UK_LAYER.checked} against the official US tariff schedule.`));

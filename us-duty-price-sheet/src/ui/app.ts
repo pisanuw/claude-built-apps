@@ -28,6 +28,16 @@ const TABS: [Tab, string][] = [
   ['about', 'How it works'],
 ];
 
+/** The title and the light and dark mode switch, on one row at the top of every page and state. */
+export function titleRow(): HTMLElement {
+  return h('div', { class: 'title-row' }, h('h1', null, 'US Duty Price Sheet'), h('hw-theme-toggle'));
+}
+
+/** The page before the catalogue is drawn: the header with the switch, and a message (loading, or an error). */
+export function showMessage(root: HTMLElement, message: string): void {
+  root.replaceChildren(h('header', null, titleRow()), h('p', { role: 'status' }, message));
+}
+
 export function mount(root: HTMLElement, opts: MountOptions): Ctx {
   const loaded = load(opts.store);
   const catalog = loaded.catalog ?? emptyCatalog();
@@ -73,7 +83,7 @@ export function mount(root: HTMLElement, opts: MountOptions): Ctx {
   function header(): HTMLElement {
     const d = opts.index.data;
     return h('header', null,
-      h('h1', null, 'US Duty Price Sheet'),
+      titleRow(),
       h('p', { class: 'lede' }, 'For UK makers who post to US customers with Royal Mail, duty paid. Keep a US code for every product, get a US price and postage table you can copy into your shop, and see which prices need changing when US duty changes.'),
       h('p', { class: 'privacy' }, 'Your catalogue stays in this browser. Nothing is uploaded.'),
       h('p', { class: 'datastamp' },

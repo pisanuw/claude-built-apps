@@ -1,14 +1,13 @@
 // The light and dark mode switch (platform/src/theme), defined before the header is drawn.
 import './lib/hw-theme.js';
+// The page's stylesheet as a file, so Vite links it in the head after the theme snippet: the first paint already
+// has the stored theme. The same CSS as a string goes into the downloaded report only.
+import './ui/styles.css';
 import css from './ui/styles.css?inline';
 import { escapeHtml, renderResults, standaloneReport } from './core/report.js';
 import { LOCATIONS, SAMPLES } from './core/samples.js';
 import { scan } from './core/scan.js';
 import type { FileInput } from './core/types.js';
-
-const style = document.createElement('style');
-style.textContent = css;
-document.head.append(style);
 
 const app = document.getElementById('app');
 if (!app) throw new Error('missing #app');

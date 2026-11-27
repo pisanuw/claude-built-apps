@@ -165,11 +165,16 @@ export function mountApp(root: HTMLElement): void {
   });
   const body = el('div');
   root.replaceChildren(
-    el('h1', {}, 'Net Units'),
+    // The header: the title and the light and dark mode switch on one row, then the lede.
     el(
-      'p',
-      { class: 'lede' },
-      'How much code did each solution add? Net Units counts syntax elements (names, keywords, literals and operators) on added lines minus deleted lines, so cramming code onto fewer lines does not make it smaller. Compare students, a reference and AI baselines on size against tests passed, then let the class guess which ones an AI wrote.',
+      'header',
+      { class: 'site-header' },
+      el('div', { class: 'title-row' }, el('h1', {}, 'Net Units'), el('hw-theme-toggle')),
+      el(
+        'p',
+        { class: 'lede' },
+        'How much code did each solution add? Net Units counts syntax elements (names, keywords, literals and operators) on added lines minus deleted lines, so cramming code onto fewer lines does not make it smaller. Compare students, a reference and AI baselines on size against tests passed, then let the class guess which ones an AI wrote.',
+      ),
     ),
     el(
       'div',
@@ -450,9 +455,10 @@ export function mountApp(root: HTMLElement): void {
         ),
       ),
     );
+    // Wide tables and code scroll sideways on a phone: each box is a focusable, named region, so a keyboard can scroll it.
     const fnTable = el(
       'div',
-      { class: 'table-wrap' },
+      { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': 'Per function' },
       el(
         'table',
         {},
@@ -553,7 +559,7 @@ export function mountApp(root: HTMLElement): void {
       );
     });
     flush();
-    return el('div', { class: 'diff' }, el('table', {}, tbody));
+    return el('div', { class: 'diff', tabindex: '0', role: 'region', 'aria-label': `Diff of ${f.path}` }, el('table', {}, tbody));
   }
 
   // ---------- guess the author ----------
@@ -591,7 +597,7 @@ export function mountApp(root: HTMLElement): void {
         { class: 'vote-card' },
         el('h3', {}, names.get(s.id) ?? s.id),
         el('div', { class: 'muted small' }, `${st.net} net units · ${s.testsPassed ?? '-'}/${assignment.testsTotal} tests`),
-        el('pre', {}, added || '(no added lines)'),
+        el('pre', { tabindex: '0', role: 'region', 'aria-label': `Lines ${names.get(s.id) ?? s.id} added` }, added || '(no added lines)'),
         el(
           'div',
           { class: 'row' },

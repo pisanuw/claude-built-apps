@@ -23,7 +23,7 @@ import {
   stepToDecision,
   targetInfo,
 } from '../core/sim';
-import { h, select } from './dom';
+import { ghostInk, h, select } from './dom';
 import { type Layout, type View, drawScene, layoutFor, pixelToTile, readPalette } from './render';
 
 const HISTORY_LIMIT = 30 * TICKS_PER_SECOND;
@@ -359,8 +359,11 @@ export function mazeView(): HTMLElement {
 
   function onKey(ev: KeyboardEvent): void {
     if (!root.isConnected) return;
-    const tag = (ev.target as HTMLElement | null)?.tagName ?? '';
-    if (['INPUT', 'SELECT', 'TEXTAREA'].includes(tag) && !(ev.target as HTMLInputElement).type?.match(/checkbox|radio/)) return;
+    // The element the key was pressed on: a key in a shadow root (the light and dark mode switch's button)
+    // reaches the document retargeted to its host, <hw-theme-toggle>, so ev.target would hide the button.
+    const target = (ev.composedPath()[0] ?? ev.target) as HTMLElement | null;
+    const tag = target?.tagName ?? '';
+    if (['INPUT', 'SELECT', 'TEXTAREA'].includes(tag) && !(target as HTMLInputElement).type?.match(/checkbox|radio/)) return;
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
     const key = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
     const dir = KEY_DIRS[key];
@@ -449,7 +452,7 @@ export function mazeView(): HTMLElement {
     const targetEl = h('p', { class: 'ghost-target' });
     const el = h(
       'div',
-      { class: 'ghost-card', style: `--g: ${meta.color}` },
+      { class: 'ghost-card', style: `--g: ${ghostInk(meta.id)}` },
       h(
         'div',
         { class: 'ghost-head' },
@@ -530,7 +533,8 @@ export function mazeView(): HTMLElement {
       ),
       h(
         'div',
-        { class: 'table-scroll' },
+        // Focusable and named: on a narrow phone the table scrolls sideways.
+        { class: 'table-scroll', tabindex: '0', role: 'region', 'aria-label': preview ? 'The next choice' : 'The last choice' },
         h('table', { class: 'decision' }, h('thead', {}, h('tr', {}, h('th', {}, 'Exit'), h('th', {}, 'Tile'), h('th', { class: 'num' }, 'dist²'), h('th', {}, ''))), h('tbody', {}, ...rows)),
       ),
       pathNote,
@@ -542,7 +546,7 @@ export function mazeView(): HTMLElement {
     const meta = GHOST_META[g.id];
     const preview = previewDecision(config, state, g);
     inspector.replaceChildren(
-      h('h3', { style: `color: ${meta.color}` }, `Ghost cam: ${meta.name}`),
+      h('h3', { style: `color: ${ghostInk(g.id)}` }, `Ghost cam: ${meta.name}`),
       g.status === 'house'
         ? h('p', { class: 'muted' }, g.releaseTick === Infinity ? 'Not in play in this scenario.' : 'Waiting in the house.')
         : h(
@@ -587,10 +591,21 @@ export function mazeView(): HTMLElement {
   const ro = new ResizeObserver(() => resize());
   ro.observe(canvasWrap);
   window.addEventListener('resize', resize);
-  const scheme = window.matchMedia?.('(prefers-color-scheme: dark)');
-  scheme?.addEventListener?.('change', () => {
+  // The maze draws with the colour tokens: draw it again when the page's theme changes
+  // (the switch, or the device setting while no choice is stored).
+  document.addEventListener('hw-themechange', () => {
     dirty = true;
   });
+  // Print uses the light set (both dark blocks are for the screen), but a canvas keeps what it drew: draw it at
+  // once on the way into print and back (the next frame would come after the printout). matchMedia('print')
+  // changes with the print colours in place; beforeprint still sees the screen's.
+  if (typeof window.matchMedia === 'function') {
+    window.matchMedia('print').addEventListener?.('change', () => {
+      if (!root.isConnected) return;
+      draw();
+      dirty = false;
+    });
+  }
   root.addEventListener('shown', () => {
     resize();
     startLoop();

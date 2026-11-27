@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { sampleFleet } from '../src/core/sample';
 import { mount } from '../src/ui/app';
 
 const sha = (s: string | Uint8Array, enc: 'hex' | 'base64'): string => createHash('sha256').update(s).digest(enc);
@@ -212,5 +213,25 @@ describe('the switch in the header', () => {
       expect(own.length, field.outerHTML).toBeGreaterThan(0);
       for (const b of own) expect(b.value, `${b.selector} on ${field.outerHTML}`).toContain('var(--field-border)');
     }
+  });
+});
+
+describe('the Site log on a phone', () => {
+  it("breaks the statement preview's long address and email, which widened the page to 344 px at 320", () => {
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.getElementById('app') as HTMLElement;
+    const app = mount(root, { storage: memoryStorage() });
+    const fleet = sampleFleet('2026-11-27');
+    app.setFleet(fleet);
+    app.openTab('site', fleet.sites[0].id);
+    const preview = root.querySelector('article.statement')!;
+    expect(preview.getAttribute('aria-label')).toBe('Statement preview');
+    // The preview holds an address that cannot break on its own.
+    expect(preview.textContent).toMatch(/https:\/\/\S{30,}/);
+    const own = [...css.matchAll(/([^{}@]+)\{([^{}]*)\}/g)]
+      .filter(([, sel]) => sel.split(',').some((x) => preview.matches(x.trim())))
+      .map((m) => m[2])
+      .join(';');
+    expect(own).toMatch(/overflow-wrap:\s*anywhere/);
   });
 });

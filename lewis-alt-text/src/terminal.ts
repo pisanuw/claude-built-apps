@@ -2,6 +2,8 @@
  * Mounts the /terminal/ page with the real sign-in link function and
  * Turnstile. Everything else is in src/ui/terminal.ts.
  */
+// The light and dark mode switch (platform/src/theme), defined before the header is drawn.
+import './lib/hw-theme.js';
 import './ui/styles.css';
 import { loadTurnstile, sendMagicLink, TURNSTILE_ACTION } from './lib/auth';
 import { mountTerminal } from './ui/terminal';

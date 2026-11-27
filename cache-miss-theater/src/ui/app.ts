@@ -226,7 +226,7 @@ export function mountApp(root: HTMLElement): void {
           return el(
             'tr',
             {},
-            el('td', {}, el('span', { class: 'swatch', style: `background:${arrayColor(a.id)}` }), `${a.type} ${a.name}${a.dims.map((d) => `[${d}]`).join('')} @ ${hex(a.base)}`),
+            el('td', {}, el('span', { class: 'swatch', style: `background:var(--arr-${a.id % 6})` }), `${a.type} ${a.name}${a.dims.map((d) => `[${d}]`).join('')} @ ${hex(a.base)}`),
             el('td', { class: 'num' }, fmt(c.accesses)),
             el('td', { class: 'num' }, fmt(c.misses)),
             el('td', { class: 'num' }, c.accesses ? percent(c.misses / c.accesses) : '–'),
@@ -243,13 +243,14 @@ export function mountApp(root: HTMLElement): void {
       kindBar(s),
       el('table', { class: 'tbl kv' }, el('tbody', {}, ...rows.map(([k, v]) => el('tr', {}, el('th', {}, k), el('td', {}, v))))),
       el('h3', {}, 'By array'),
-      el('div', { class: 'scroll' }, perArray),
+      // Wide tables and code scroll sideways on a phone: each box is a focusable, named region, so a keyboard can scroll it.
+      el('div', { class: 'scroll', tabindex: '0', role: 'region', 'aria-label': `${title}: by array` }, perArray),
       el('h3', {}, 'By source line'),
-      annotated(run, title === 'Kernel B' ? codeB.value : codeA.value),
+      annotated(run, title === 'Kernel B' ? codeB.value : codeA.value, `${title}: by source line`),
     );
   }
 
-  function annotated(run: Run, src: string): HTMLElement {
+  function annotated(run: Run, src: string, label: string): HTMLElement {
     const lines = src.replace(/\s+$/, '').split('\n');
     const max = Math.max(1, ...[...run.sim.stats.perLine.values()].map((c) => c.misses));
     const pre = el('div', { class: 'annot' });
@@ -266,7 +267,7 @@ export function mountApp(root: HTMLElement): void {
         ),
       );
     });
-    return el('div', { class: 'scroll' }, pre);
+    return el('div', { class: 'scroll', tabindex: '0', role: 'region', 'aria-label': label }, pre);
   }
 
   function renderResults(): void {
@@ -596,7 +597,7 @@ export function mountApp(root: HTMLElement): void {
         ctx.fillRect((e % cols) * cell + cell / 4, Math.floor(e / cols) * cell + cell / 4, Math.max(1, cell / 2), Math.max(1, cell / 2));
       }
       const caption = `${a.type} ${a.name}${a.dims.map((d) => `[${d}]`).join('')} @ ${hex(a.base)}–${hex(a.base + a.bytes - 1)}${a.dims.length === 1 ? `, shown ${cols} per row` : ''}`;
-      kids.push(el('div', { class: 'memarr' }, el('div', { class: 'small mono' }, el('span', { class: 'swatch', style: `background:${col}` }), caption), canvas));
+      kids.push(el('div', { class: 'memarr' }, el('div', { class: 'small mono' }, el('span', { class: 'swatch', style: `background:var(--arr-${a.id % 6})` }), caption), canvas));
     }
     memBox.replaceChildren(...kids);
   }
@@ -743,7 +744,7 @@ export function mountApp(root: HTMLElement): void {
         }),
       ),
     );
-    return el('div', { class: 'scroll' }, el('table', { class: 'tbl' }, el('thead', {}, head), el('tbody', {}, ...body)));
+    return el('div', { class: 'scroll', tabindex: '0', role: 'region', 'aria-label': 'Sweep results' }, el('table', { class: 'tbl' }, el('thead', {}, head), el('tbody', {}, ...body)));
   }
 
   // ---------- quiz ----------
@@ -876,6 +877,12 @@ export function mountApp(root: HTMLElement): void {
     }
     setTimeout(() => (shareBtn.textContent = 'Copy share link'), 1500);
   });
+  // The canvases draw with the colour tokens: draw them again when the page's theme changes.
+  document.addEventListener('hw-themechange', () => renderTheater());
+  // Print uses the light set (both dark blocks are for the screen), but a canvas keeps what it drew: draw again
+  // at once on the way into print and back. matchMedia('print') changes with the print colours in place;
+  // beforeprint still sees the screen's.
+  if (typeof window.matchMedia === 'function') window.matchMedia('print').addEventListener?.('change', () => renderTheater());
   let resizeT = 0;
   window.addEventListener('resize', () => {
     clearTimeout(resizeT);
@@ -883,7 +890,7 @@ export function mountApp(root: HTMLElement): void {
   });
 
   root.append(
-    el('header', {}, el('h1', {}, 'Cache Miss Theater'), el('p', { class: 'lede' }, 'Write a small C loop nest. Its exact address trace runs through the cache you configure, every miss is classified as compulsory, capacity or conflict, and you can watch each line arrive and get evicted.')),
+    el('header', {}, el('div', { class: 'title-row' }, el('h1', {}, 'Cache Miss Theater'), el('hw-theme-toggle')), el('p', { class: 'lede' }, 'Write a small C loop nest. Its exact address trace runs through the cache you configure, every miss is classified as compulsory, capacity or conflict, and you can watch each line arrive and get evicted.')),
     el('div', { class: 'grid' }, kernelsCard, cacheCard),
     resultsCard,
     theaterCard,
