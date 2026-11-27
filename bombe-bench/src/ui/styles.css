@@ -1,5 +1,8 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set before the first paint) and
+   for the device setting when scripts do not run (platform/src/theme/README.md). test/theme.test.ts keeps the
+   two the same. Both are for the screen only: paper gets the light set. */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --bg: #f4f3ee;
   --panel: #ffffff;
   --border: #d8d4c8;
@@ -7,9 +10,11 @@
   --muted: #655f52;
   --accent: #8a4b08;
   --accent-text: #ffffff;
-  --ok: #1f7a3d;
-  --bad: #c0392b;
-  --fwd: #e8740c;
+  /* 4.5:1 on a selected stop's tint too (#1f7a3d and #c0392b were 4.24 and 4.29:1 there). */
+  --ok: #1a6d36;
+  --bad: #a8301f;
+  /* The forward path: 3:1 on the rotor boxes (#e8740c was 2.85:1), with dark text on it 5.11:1. */
+  --fwd: #d46a0a;
   --bwd: #1c7ed6;
   --refl: #9c36b5;
   --wire: rgba(80, 70, 50, 0.14);
@@ -18,11 +23,19 @@
   --lamp: #e9e4d6;
   --lamp-lit: #ffd54a;
   --under: rgba(232, 116, 12, 0.22);
+  /* Text on the lit lamp and the lamp's rim, the same in both themes (the lamp is the same yellow). */
+  --on-lit: #1a1408;
+  --lit-edge: #c9a227;
+  /* Text on a clash cell (--bad). */
+  --on-bad: #ffffff;
+  /* Fields' and buttons' edges: 3:1 on the panels, the page and the boxes (WCAG 1.4.11); --border (1.48:1) is for dividers. */
+  --field-border: #8a8272;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #15130f;
     --panel: #1f1c16;
     --border: #3a352b;
@@ -31,13 +44,41 @@
     --accent: #e0a24a;
     --accent-text: #1a1408;
     --ok: #5dc77f;
-    --bad: #ff7b6b;
+    --bad: #ff958a;
     --wire: rgba(230, 220, 190, 0.12);
     --box: #262219;
     --box-border: #5a5243;
     --lamp: #2e2a21;
     --lamp-lit: #ffd54a;
     --under: rgba(232, 116, 12, 0.3);
+    /* The reflector's path: #9c36b5 was 2.92:1 on the dark panel. */
+    --refl: #c27ee0;
+    --on-bad: #2a0b07;
+    --field-border: #7d7564;
+  }
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #15130f;
+    --panel: #1f1c16;
+    --border: #3a352b;
+    --text: #ece7da;
+    --muted: #a59d8a;
+    --accent: #e0a24a;
+    --accent-text: #1a1408;
+    --ok: #5dc77f;
+    --bad: #ff958a;
+    --wire: rgba(230, 220, 190, 0.12);
+    --box: #262219;
+    --box-border: #5a5243;
+    --lamp: #2e2a21;
+    --lamp-lit: #ffd54a;
+    --under: rgba(232, 116, 12, 0.3);
+    /* The reflector's path: #9c36b5 was 2.92:1 on the dark panel. */
+    --refl: #c27ee0;
+    --on-bad: #2a0b07;
+    --field-border: #7d7564;
   }
 }
 
@@ -73,9 +114,27 @@ header.top {
   background: var(--panel);
 }
 
+/* The title and the light and dark mode switch take the header's first row; the tagline and tabs follow. */
+header.top .title-row {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 header.top h1 {
   font-size: 18px;
   margin: 0;
+  min-width: 0;
+}
+
+/* The switch's place is held until hw-theme.js draws it. */
+hw-theme-toggle:not([hidden]) {
+  display: inline-flex;
+  flex: none;
+  width: var(--hw-theme-toggle-size, 44px);
+  height: var(--hw-theme-toggle-size, 44px);
 }
 
 header.top .tagline {
@@ -171,7 +230,7 @@ button {
   font: inherit;
   color: var(--text);
   background: var(--panel);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 5px;
   padding: 4px 7px;
 }
@@ -252,7 +311,7 @@ button:disabled {
 
 .tape mark {
   background: var(--lamp-lit);
-  color: #1a1408;
+  color: var(--on-lit);
   border-radius: 2px;
 }
 
@@ -278,13 +337,19 @@ button:disabled {
 
 .lamp.lit {
   background: var(--lamp-lit);
-  color: #1a1408;
-  border-color: #c9a227;
+  color: var(--on-lit);
+  border-color: var(--lit-edge);
   box-shadow: 0 0 10px var(--lamp-lit);
 }
 
 .wiring-wrap {
   overflow-x: auto;
+}
+
+.wiring-wrap:focus-visible,
+.strip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 svg.wiring {
@@ -361,12 +426,12 @@ svg.wiring .key.key-in circle {
 
 svg.wiring .key.key-out circle {
   fill: var(--lamp-lit);
-  stroke: #c9a227;
+  stroke: var(--lit-edge);
 }
 
 svg.wiring .key.key-in text,
 svg.wiring .key.key-out text {
-  fill: #1a1408;
+  fill: var(--on-lit);
   font-weight: 700;
 }
 
@@ -427,7 +492,7 @@ svg.wiring .key.key-out text {
 
 .cell.clash {
   background: var(--bad);
-  color: #fff;
+  color: var(--on-bad);
 }
 
 .chips {
@@ -551,6 +616,15 @@ svg.menu-graph .node.test text {
   transition: width 0.15s;
 }
 
+.table-scroll {
+  overflow-x: auto;
+}
+
+.table-scroll:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 table.stops {
   border-collapse: collapse;
   width: 100%;
@@ -643,4 +717,11 @@ footer.about a {
 
 .credits {
   font-size: 12px;
+}
+
+/* Not on paper. */
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
 }

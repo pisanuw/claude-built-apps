@@ -109,7 +109,7 @@ export class App {
   private build(): void {
     this.root.replaceChildren(
       h(`<header class="top">
-        <h1>Bombe Bench</h1>
+        <div class="title-row"><h1>Bombe Bench</h1><hw-theme-toggle></hw-theme-toggle></div>
         <span class="tagline">An Enigma you can open up, and the Bombe that broke it.</span>
         <nav class="tabs" role="tablist">
           <button data-tab="machine" role="tab">Machine</button>
@@ -192,7 +192,7 @@ export class App {
           <span id="m-stepinfo" class="muted"></span>
         </div>
       </div>`),
-      h(`<div class="panel"><div id="m-wiring" class="wiring-wrap"></div>
+      h(`<div class="panel"><div id="m-wiring" class="wiring-wrap" tabindex="0" role="region" aria-label="Wiring diagram"></div>
         <p class="legend"><span class="sw fwd"></span> outbound <span class="sw bwd"></span> return <span class="muted">· contacts are labelled in the fixed frame of the machine; a rotor's window letter shifts its wiring against them.</span></p>
       </div>`),
       h(`<div class="panel"><h2>Permutations and cycles</h2><div id="m-cycles" class="cycles"></div></div>`),
@@ -336,7 +336,7 @@ export class App {
       </div>`),
       h(`<div class="panel"><h2>1. Slide the crib</h2>
         <p class="muted">Enigma never enciphers a letter to itself, so any position where the crib and the ciphertext share a letter in the same column is impossible.</p>
-        <div id="a-strip" class="strip"></div>
+        <div id="a-strip" class="strip" tabindex="0" role="region" aria-label="The crib under the ciphertext"></div>
         <div class="row"><label class="grow">Offset <input type="range" id="a-offset" min="0" max="0" value="0" /></label><span id="a-offset-info"></span></div>
         <div id="a-valid" class="chips"></div>
       </div>`),
@@ -620,7 +620,8 @@ export class App {
         <td>${s.checked ? '<span class="ok">✓ consistent</span>' : hyp.contradictions.length ? `<span class="bad">✗ ${hyp.contradictions.map(chr).join('')} plugged twice</span>` : `<span class="bad">✗ ${s.otherComponents - s.otherComponentsOk} component${s.otherComponents - s.otherComponentsOk === 1 ? '' : 's'} dead</span>`}</td>
       </tr>`;
     });
-    box.innerHTML = `<table class="stops"><thead><tr><th>Rotors</th><th>Window at crib start</th><th>Test plug</th><th>Crib reproduced</th><th>Checking machine</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+    // A named region in the tab order: on a phone the table scrolls sideways inside it, not the page.
+    box.innerHTML = `<div class="table-scroll" tabindex="0" role="region" aria-label="Bombe stops"><table class="stops"><thead><tr><th>Rotors</th><th>Window at crib start</th><th>Test plug</th><th>Crib reproduced</th><th>Checking machine</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
     for (const tr of box.querySelectorAll<HTMLTableRowElement>('tr[data-i]')) {
       tr.addEventListener('click', () => {
         this.selectedStop = this.stops[Number(tr.dataset.i)];
@@ -747,7 +748,7 @@ export class App {
         <div>Plaintext: <code>${groupFives(c.plaintext)}</code></div>
         <div>Ciphertext: <code>${groupFives(c.ciphertext)}</code></div>
         <div>Crib: <code>${c.crib}</code>${c.offset >= 0 ? ` at offset ${c.offset}` : ' (position not given)'}</div>
-        <div class="row"><input id="c-link" class="mono grow" readonly value="${esc(link)}" /><button id="c-copy" class="small">Copy link</button><button id="c-open" class="small">Open it here</button></div>
+        <div class="row"><input id="c-link" class="mono grow" readonly aria-label="Challenge link" value="${esc(link)}" /><button id="c-copy" class="small">Copy link</button><button id="c-open" class="small">Open it here</button></div>
         <p class="muted">The settings ride inside the link, lightly scrambled so they are not readable at a glance; a determined student can decode them. Hand out the link, not this panel.</p>
       </div>`;
       this.els.cOut.querySelector('#c-copy')!.addEventListener('click', () => {

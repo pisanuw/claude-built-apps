@@ -51,7 +51,7 @@ export function renderMenu(container: HTMLElement, menu: Menu, opts: MenuViewOpt
   const cx = size / 2;
   const cy = size / 2;
   const R = size / 2 - 36;
-  const svg = el('svg', { viewBox: `0 0 ${size} ${size}`, class: 'menu-graph', role: 'img', 'aria-label': 'Menu graph' });
+  const svg = el('svg', { viewBox: `0 0 ${size} ${size}`, class: 'menu-graph', role: 'group', 'aria-label': 'Menu graph' });
   const order = circleOrder(menu);
   const pos = new Map<number, { x: number; y: number }>();
   order.forEach((l, i) => {
