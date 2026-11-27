@@ -1,4 +1,8 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
+   before the first paint) and for the device setting when scripts do not run
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same. */
 :root {
+  color-scheme: light;
   --bg: #f5f7fa;
   --panel: #ffffff;
   --ink: #18202b;
@@ -17,9 +21,33 @@
   --code-bg: #eef1f5;
   --added-bg: #e3f4e6;
   --removed-bg: #fbe9e7;
+  --field-border: #4b5666;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #10141a;
+  --panel: #19202a;
+  --ink: #e5e9f0;
+  --muted: #a6b0bf;
+  --line: #323c4b;
+  --accent: #8cc4ef;
+  --accent-ink: #0b1a26;
+  --link: #8cc4ef;
+  --bad: #ff9a8f;
+  --bad-bg: #3b1d1a;
+  --good: #85d19a;
+  --good-bg: #16301f;
+  --warn: #ffc46b;
+  --warn-bg: #3a2a10;
+  --neutral-bg: #262d39;
+  --code-bg: #222a36;
+  --added-bg: #16301f;
+  --removed-bg: #3b1d1a;
+  --field-border: #a6b0bf;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --bg: #10141a;
     --panel: #19202a;
     --ink: #e5e9f0;
@@ -38,6 +66,7 @@
     --code-bg: #222a36;
     --added-bg: #16301f;
     --removed-bg: #3b1d1a;
+    --field-border: #a6b0bf;
   }
 }
 * { box-sizing: border-box; }
@@ -53,6 +82,11 @@ a { color: var(--link); }
 .skip:focus { left: 16px; top: 8px; background: var(--panel); padding: 8px 12px; border-radius: 6px; z-index: 10; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 header h1 { margin: 0 0 6px; font-size: 2rem; letter-spacing: -0.01em; }
+/* The title and the light and dark mode switch, on one row. */
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 6px; }
+.title-row h1 { margin: 0; }
+/* Hold the switch's place until hw-theme.js draws it. */
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
 .lede { font-size: 1.1rem; margin: 0 0 8px; max-width: 48em; }
 .privacy { color: var(--good); font-weight: 600; margin: 0 0 12px; }
 h2 { margin: 20px 0 10px; font-size: 1.35rem; }
@@ -75,10 +109,10 @@ summary { cursor: pointer; font-weight: 600; }
 label { font-weight: 600; }
 input[type='text'], input[type='url'], input[type='email'], input[type='date'], textarea, select {
   font: inherit; color: var(--ink); background: var(--panel);
-  border: 1px solid var(--muted); border-radius: 8px; padding: 7px 10px; width: 100%;
+  border: 1px solid var(--field-border); border-radius: 8px; padding: 7px 10px; width: 100%;
 }
 select { width: auto; max-width: 100%; }
-input[type='color'] { width: 64px; height: 40px; border: 1px solid var(--muted); border-radius: 8px; background: var(--panel); }
+input[type='color'] { width: 64px; height: 40px; border: 1px solid var(--field-border); border-radius: 8px; background: var(--panel); }
 textarea { resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.88rem; }
 #site-knownLimits { font-family: inherit; font-size: 1rem; }
 input.note { padding: 4px 6px; font-size: 0.88rem; min-width: 10em; }
