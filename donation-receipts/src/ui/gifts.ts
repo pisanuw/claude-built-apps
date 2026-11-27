@@ -186,7 +186,8 @@ export function giftsView(ctx: Ctx): HTMLElement {
     shown.length
       ? h(
           'div',
-          { class: 'scroll' },
+          // Focusable, so a keyboard can scroll the table when it is wider than the screen.
+          { class: 'scroll', tabindex: 0, role: 'region', 'aria-label': 'Gifts' },
           h(
             'table',
             { class: 'list gifts' },

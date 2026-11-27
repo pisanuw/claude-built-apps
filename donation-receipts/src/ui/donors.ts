@@ -111,7 +111,8 @@ export function donorsView(ctx: Ctx): HTMLElement {
     donors.length
       ? h(
           'div',
-          { class: 'scroll' },
+          // Focusable, so a keyboard can scroll the table when it is wider than the screen.
+          { class: 'scroll', tabindex: 0, role: 'region', 'aria-label': 'Donors' },
           h(
             'table',
             { class: 'list donors' },

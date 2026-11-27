@@ -48,6 +48,8 @@ export function mount(root: HTMLElement, now: () => Date = () => new Date(), sto
 
   const status = h('div', { class: 'status', role: 'status', 'aria-live': 'polite' });
   const header = h('header');
+  // The light and dark mode switch: one element, kept when the header is redrawn.
+  const themeToggle = h('hw-theme-toggle');
   const nav = h('nav', { 'aria-label': 'Steps' });
   const main = h('main', { id: 'main', tabindex: -1 });
   root.replaceChildren(header, nav, status, main);
@@ -66,7 +68,7 @@ export function mount(root: HTMLElement, now: () => Date = () => new Date(), sto
   function renderHeader(): void {
     const org = activeOrg(data);
     header.replaceChildren(
-      h('h1', {}, 'Donation Receipts'),
+      h('div', { class: 'title-row' }, h('h1', {}, 'Donation Receipts'), themeToggle),
       h(
         'p',
         { class: 'lede' },
