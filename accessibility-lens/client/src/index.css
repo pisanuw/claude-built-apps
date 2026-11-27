@@ -14,6 +14,7 @@
     --al-ink: 24 20 16;
     --al-muted: 92 85 75;
     --al-line: 226 220 207;
+    --al-field: 140 131 118;
     --al-accent: 18 92 77;
     --al-accent-soft: 44 122 104;
     --al-critical: 154 27 18;
@@ -30,6 +31,7 @@
     --al-ink: 241 236 226;
     --al-muted: 179 170 156;
     --al-line: 59 53 45;
+    --al-field: 120 112 100;
     --al-accent: 92 196 170;
     --al-accent-soft: 134 214 193;
     --al-critical: 255 143 128;
@@ -47,6 +49,7 @@
       --al-ink: 241 236 226;
       --al-muted: 179 170 156;
       --al-line: 59 53 45;
+      --al-field: 120 112 100;
       --al-accent: 92 196 170;
       --al-accent-soft: 134 214 193;
       --al-critical: 255 143 128;
@@ -58,11 +61,11 @@
   }
 
   /* Hold the switch's place until hw-theme.js draws it. */
-  hw-theme-toggle {
+  hw-theme-toggle:not([hidden]) {
     display: inline-flex;
     flex: none;
-    width: 44px;
-    height: 44px;
+    width: var(--hw-theme-toggle-size, 44px);
+    height: var(--hw-theme-toggle-size, 44px);
   }
 
   html {

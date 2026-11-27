@@ -6,13 +6,16 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { App } from '../src/App.js';
 
-// From platform/src/theme/README.md, "The values". A failure here means the copy differs.
-const HW_THEME_SHA256 = '3b1a9b360cc671e8298b09738924d15fc8c99c112fbebc2db8e1c93cf6891625';
-const THEME_INIT_CSP = "'sha256-GhyjaPQKUCt6Zif2GMbTG7M6cUY6iW77/obk7CBvquk='";
-
 // Paths from the client folder, where vitest runs (jsdom's URL is not a file URL).
 const file = (path: string): string => readFileSync(resolve(process.cwd(), path), 'utf8');
 const sha = (s: string, enc: 'hex' | 'base64'): string => createHash('sha256').update(s).digest(enc);
+
+// Compared with the source in this repository, so a change to platform/src/theme
+// fails here until the copy is updated (platform/test/theme-copies.test.ts checks
+// every app's copy the same way).
+const SOURCE = '../../platform/src/theme/';
+const HW_THEME_SHA256 = sha(file(`${SOURCE}hw-theme.js`), 'hex');
+const THEME_INIT_CSP = `'sha256-${sha(file(`${SOURCE}theme-init.js`), 'base64')}'`;
 
 describe('the copies of the shared switch', () => {
   it('hw-theme.js is the platform copy, unchanged', () => {
@@ -51,11 +54,11 @@ describe('the dark palette', () => {
   it('sets every colour the light theme sets', () => {
     const names = (s: string): string[] => [...s.matchAll(/(--al-[a-z-]+):/g)].map((m) => m[1]).sort();
     expect(names(dark)).toEqual(names(light));
-    expect(names(light)).toHaveLength(12);
+    expect(names(light)).toHaveLength(13);
     expect(dark).toContain('color-scheme: dark;');
   });
 
-  it('meets WCAG AA for text on both backgrounds, in both themes', () => {
+  it('meets WCAG AA for text on both backgrounds, and 3:1 for field borders, in both themes', () => {
     const rgb = (s: string, name: string): number[] => s.match(new RegExp(`--al-${name}: (\\d+) (\\d+) (\\d+);`))!.slice(1).map(Number);
     const lum = (c: number[]): number => {
       const [r, g, b] = c.map((v) => v / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
@@ -73,6 +76,10 @@ describe('the dark palette', () => {
       }
       // The Scan button: panel-coloured text on the accent.
       expect(ratio(rgb(theme, 'panel'), rgb(theme, 'accent'))).toBeGreaterThanOrEqual(4.5);
+      // Text fields' edges: 3:1 against what they sit on (WCAG 1.4.11).
+      for (const bg of ['paper', 'panel']) {
+        expect(ratio(rgb(theme, 'field'), rgb(theme, bg)), `field on ${bg}`).toBeGreaterThanOrEqual(3);
+      }
     }
   });
 });

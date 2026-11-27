@@ -32,7 +32,7 @@ export function ScanForm({ onScan, loading }: ScanFormProps): JSX.Element {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           disabled={loading}
-          className="min-w-0 flex-1 rounded-lg border border-line bg-panel px-4 py-3 font-mono text-sm text-ink shadow-card placeholder:text-muted disabled:opacity-60"
+          className="min-w-0 flex-1 rounded-lg border border-field bg-panel px-4 py-3 font-mono text-sm text-ink shadow-card placeholder:text-muted disabled:opacity-60"
         />
         <button
           type="submit"

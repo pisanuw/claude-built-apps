@@ -12,6 +12,8 @@ export default {
         ink: 'rgb(var(--al-ink) / <alpha-value>)',
         muted: 'rgb(var(--al-muted) / <alpha-value>)',
         line: 'rgb(var(--al-line) / <alpha-value>)',
+        // Text fields' edges: 3:1 against paper and panel (WCAG 1.4.11).
+        field: 'rgb(var(--al-field) / <alpha-value>)',
         accent: 'rgb(var(--al-accent) / <alpha-value>)',
         'accent-soft': 'rgb(var(--al-accent-soft) / <alpha-value>)',
         severity: {
