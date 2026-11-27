@@ -64,8 +64,7 @@ function renderHome(): void {
   root.replaceChildren();
 
   const shell = el('div', 'shell');
-  const header = el('header', 'masthead');
-  header.append(el('h1', '', 'Code Review Gauntlet'));
+  const header = renderMasthead(false);
   header.append(
     el(
       'p',
@@ -120,6 +119,24 @@ function renderHome(): void {
   shell.append(renderProfilePanel());
   shell.append(renderFooter());
   root.append(shell);
+}
+
+/** The app's name and the light and dark mode switch, on every screen; smaller during a round and on its result. */
+function renderMasthead(compact: boolean): HTMLElement {
+  const header = el('header', compact ? 'masthead compact' : 'masthead');
+  const row = el('div', 'title-row');
+  row.append(el('h1', '', 'Code Review Gauntlet'), document.createElement('hw-theme-toggle'));
+  header.append(row);
+  return header;
+}
+
+/** The code is a box that scrolls sideways on a phone, so it is in the tab order with a name. */
+function codePanel(label: string): HTMLElement {
+  const panel = el('div', 'code-panel');
+  panel.tabIndex = 0;
+  panel.setAttribute('role', 'region');
+  panel.setAttribute('aria-label', label);
+  return panel;
 }
 
 function describeLibrary(): string {
@@ -243,6 +260,7 @@ function renderRound(): void {
   root.replaceChildren();
 
   const shell = el('div', 'shell');
+  shell.append(renderMasthead(true));
   const bar = el('div', 'round-bar');
   const meta = el('div', 'round-meta');
   meta.append(el('span', 'chip lang', puzzle.language));
@@ -251,7 +269,9 @@ function renderRound(): void {
   bar.append(meta);
 
   const timerWrap = el('div', 'timer');
-  timerWrap.append(el('div', 'timer-fill'));
+  const track = el('div', 'timer-track');
+  track.append(el('div', 'timer-fill'));
+  timerWrap.append(track);
   timerWrap.append(el('span', 'timer-text'));
   bar.append(timerWrap);
   shell.append(bar);
@@ -265,7 +285,7 @@ function renderRound(): void {
     ),
   );
 
-  const codePanel = el('div', 'code-panel');
+  const code = codePanel('The code under review');
   const pre = el('pre', 'code');
   puzzle.code.forEach((text, i) => {
     const line = el('div', 'code-line');
@@ -275,8 +295,8 @@ function renderRound(): void {
     line.addEventListener('click', () => toggleLine(i + 1, line));
     pre.append(line);
   });
-  codePanel.append(pre);
-  shell.append(codePanel);
+  code.append(pre);
+  shell.append(code);
 
   const actions = el('div', 'round-actions');
   const count = el('span', 'flag-count');
@@ -345,6 +365,7 @@ function renderResult(result: RoundResult): void {
   root.replaceChildren();
 
   const shell = el('div', 'shell');
+  shell.append(renderMasthead(true));
   const summary = el('section', `result-summary grade-${result.grade}`);
   summary.append(el('div', 'grade', result.grade));
   const details = el('div', 'result-details');
@@ -362,7 +383,7 @@ function renderResult(result: RoundResult): void {
   summary.append(details);
   shell.append(summary);
 
-  const codePanel = el('div', 'code-panel');
+  const code = codePanel('The code, marked');
   const pre = el('pre', 'code');
   const defectLines = new Map(puzzle.defects.map((d) => [d.line, d]));
   puzzle.code.forEach((text, i) => {
@@ -375,8 +396,8 @@ function renderResult(result: RoundResult): void {
     line.append(el('span', 'line-text', text.length > 0 ? text : ' '));
     pre.append(line);
   });
-  codePanel.append(pre);
-  shell.append(codePanel);
+  code.append(pre);
+  shell.append(code);
 
   const explainer = el('section', 'explainer');
   explainer.append(el('h2', '', 'The defects'));
