@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { footerHtml } from './site-footer.mjs';
-import { audit, classify, footersIn, repoTargets, stripScripts, summarize } from './footer-audit.mjs';
+import { OWN_REPO_APPS, audit, classify, footersIn, repoTargets, stripScripts, summarize } from './footer-audit.mjs';
 
 const page = (body) => `<!doctype html><html><head><title>x</title></head><body><main>app</main>${body}</body></html>`;
 const current = footerHtml('demo');
@@ -40,6 +40,15 @@ test('a copy inside <script> (a Next.js payload) is not counted', () => {
   assert.equal(classify(page(payload), 'demo'), 'missing');
   assert.equal(stripScripts('a<script type="x">b</script>c'), 'ac');
   assert.equal(footersIn(page(current)).length, 1);
+});
+
+test('the apps in their own repositories include RankedVote, each with a hintwise.org host and its repository', () => {
+  assert.deepEqual(OWN_REPO_APPS.find(([app]) => app === 'ranked-voting'), ['ranked-voting', 'ranked-voting.hintwise.org', 'pisanuw/ranked-voting']);
+  for (const [app, host, repo] of OWN_REPO_APPS) {
+    assert.equal(host, `${app}.hintwise.org`, app);
+    assert.match(repo, /^[a-z0-9-]+\/[a-z0-9-]+$/, app);
+  }
+  assert.equal(new Set(OWN_REPO_APPS.map(([app]) => app)).size, OWN_REPO_APPS.length);
 });
 
 test('repoTargets reads projectName, the hintwise.org host and footer: false', () => {
