@@ -879,6 +879,10 @@ export function mountApp(root: HTMLElement): void {
   });
   // The canvases draw with the colour tokens: draw them again when the page's theme changes.
   document.addEventListener('hw-themechange', () => renderTheater());
+  // Print uses the light set (both dark blocks are for the screen), but a canvas keeps what it drew: draw again
+  // at once on the way into print and back. matchMedia('print') changes with the print colours in place;
+  // beforeprint still sees the screen's.
+  if (typeof window.matchMedia === 'function') window.matchMedia('print').addEventListener?.('change', () => renderTheater());
   let resizeT = 0;
   window.addEventListener('resize', () => {
     clearTimeout(resizeT);

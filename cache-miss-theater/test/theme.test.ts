@@ -2,7 +2,7 @@
 // The light and dark mode switch (platform/src/theme/README.md, "The test an app copies").
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mountApp } from '../src/ui/app';
 
 const sha = (s: string | Uint8Array, enc: 'hex' | 'base64'): string => createHash('sha256').update(s).digest(enc);
@@ -227,6 +227,23 @@ const fakeContext = new Proxy({} as Record<string, unknown>, {
 });
 HTMLCanvasElement.prototype.getContext = (() => fakeContext) as unknown as HTMLCanvasElement['getContext'];
 
+// Stands in for matchMedia (jsdom has none) and keeps the print query's change listeners.
+function stubPrintQuery(): { onPrint: (() => void)[]; restore: () => void } {
+  const real = window.matchMedia;
+  const onPrint: (() => void)[] = [];
+  vi.stubGlobal('matchMedia', (media: string) => ({
+    media,
+    matches: false,
+    onchange: null,
+    addEventListener: (type: string, fn: () => void) => void (media === 'print' && type === 'change' && onPrint.push(fn)),
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  }));
+  return { onPrint, restore: () => vi.stubGlobal('matchMedia', real) };
+}
+
 describe('the switch in the header', () => {
   let root: HTMLElement;
   beforeAll(async () => {
@@ -279,6 +296,23 @@ describe('the switch in the header', () => {
     // The device setting changing, with nothing stored, fires the same event.
     document.dispatchEvent(new CustomEvent('hw-themechange', { detail: { theme: 'light' } }));
     expect(drawn.calls).toBeGreaterThan(mid);
+  });
+
+  it('draws the theater again on the way into print and back, so a dark choice prints in the light colours', () => {
+    // Print takes the light set, but a canvas keeps the pixels it drew on screen until it is drawn again.
+    const print = stubPrintQuery();
+    try {
+      document.body.innerHTML = '<div id="app"></div>';
+      root = document.getElementById('app') as HTMLElement;
+      mountApp(root);
+      press('Next miss');
+      expect(print.onPrint).toHaveLength(1);
+      const before = drawn.calls;
+      print.onPrint[0]();
+      expect(drawn.calls).toBeGreaterThan(before);
+    } finally {
+      print.restore();
+    }
   });
 
   it('gives every text field its border from --field-border (back on --border fails)', () => {
