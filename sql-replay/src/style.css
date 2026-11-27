@@ -1,15 +1,71 @@
 :root {
-  --bg: #0f1420;
-  --panel: #171e2e;
-  --panel-2: #1d2639;
-  --border: #2c374a;
-  --text: #e8edf6;
-  --muted: #9aa7bd;
-  --accent: #5eb0ff;
-  --green: #3ecf8e;
-  --red: #ff6b7a;
-  --amber: #f5b04d;
+  color-scheme: light;
+  --bg: #f4f6fa;
+  --panel: #ffffff;
+  --panel-2: #eef2f7;
+  --border: #d3dae5;
+  --text: #172033;
+  --muted: #56627a;
+  --accent: #1f6fd1;
+  /* Text on the accent (the primary buttons, the current table and stage). */
+  --on-accent: #ffffff;
+  --green: #0f7a4d;
+  --red: #c92a3a;
+  --amber: #a35f00;
+  /* Fields' edges: 3:1 on what they sit on (WCAG 1.4.11; --border was 1.26 to 1.39:1 in dark). */
+  --field-border: #7a8599;
+  --narration-bg: rgba(31, 111, 209, 0.07);
+  --narration-edge: rgba(31, 111, 209, 0.3);
+  --error-bg: rgba(201, 42, 58, 0.08);
+  --error-edge: rgba(201, 42, 58, 0.4);
   font-size: 16px;
+}
+
+/* Dark twice, for the switch (data-theme on <html>, set before the first paint) and for the device setting when
+   scripts do not run (platform/src/theme/README.md); test/theme.test.ts keeps the two the same. Both are for the
+   screen only: paper gets the light set. The dark set is the app's original palette. */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0f1420;
+    --panel: #171e2e;
+    --panel-2: #1d2639;
+    --border: #2c374a;
+    --text: #e8edf6;
+    --muted: #9aa7bd;
+    --accent: #5eb0ff;
+    --on-accent: #0b1220;
+    --green: #3ecf8e;
+    --red: #ff6b7a;
+    --amber: #f5b04d;
+    --field-border: #6b7a93;
+    --narration-bg: rgba(94, 176, 255, 0.08);
+    --narration-edge: rgba(94, 176, 255, 0.25);
+    --error-bg: rgba(255, 107, 122, 0.1);
+    --error-edge: rgba(255, 107, 122, 0.4);
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0f1420;
+    --panel: #171e2e;
+    --panel-2: #1d2639;
+    --border: #2c374a;
+    --text: #e8edf6;
+    --muted: #9aa7bd;
+    --accent: #5eb0ff;
+    --on-accent: #0b1220;
+    --green: #3ecf8e;
+    --red: #ff6b7a;
+    --amber: #f5b04d;
+    --field-border: #6b7a93;
+    --narration-bg: rgba(94, 176, 255, 0.08);
+    --narration-edge: rgba(94, 176, 255, 0.25);
+    --error-bg: rgba(255, 107, 122, 0.1);
+    --error-edge: rgba(255, 107, 122, 0.4);
+  }
 }
 
 * { box-sizing: border-box; }
@@ -24,11 +80,16 @@ body {
 
 #app { max-width: 1280px; margin: 0 auto; padding: 1rem 1.25rem 3rem; }
 
-header h1 { margin: 0.5rem 0 0.25rem; font-size: 1.8rem; }
+header .title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+header h1 { margin: 0.5rem 0 0.25rem; font-size: 1.8rem; min-width: 0; }
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .tagline { margin: 0 0 1rem; color: var(--muted); max-width: 62rem; }
 
-main { display: grid; grid-template-columns: minmax(320px, 420px) 1fr; gap: 1.25rem; align-items: start; }
-@media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+/* minmax(0, 1fr): the columns never grow to fit their content, so a wide result grid scrolls in its own box (it widened
+   the page to 1286 px at 1280, and the query pane to 385 px at 320). */
+main { display: grid; grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+@media (max-width: 900px) { main { grid-template-columns: minmax(0, 1fr); } }
 
 .left, .right {
   background: var(--panel);
@@ -45,7 +106,7 @@ textarea {
   width: 100%;
   background: var(--panel-2);
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   padding: 0.6rem 0.7rem;
   font-family: ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace;
@@ -65,7 +126,7 @@ button {
 }
 button:hover:not(:disabled) { border-color: var(--accent); }
 button:disabled { opacity: 0.4; cursor: default; }
-button.primary { background: var(--accent); border-color: var(--accent); color: #0b1220; font-weight: 700; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
 
 .actions { display: flex; align-items: center; gap: 0.5rem; margin: 0.6rem 0 0.2rem; flex-wrap: wrap; }
 .share-notice { color: var(--green); font-size: 0.85rem; }
@@ -75,7 +136,7 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 
 .tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.4rem; }
 .tab { font-size: 0.82rem; padding: 0.28rem 0.65rem; font-family: ui-monospace, Menlo, Consolas, monospace; }
-.tab.active { background: var(--accent); border-color: var(--accent); color: #0b1220; font-weight: 700; }
+.tab.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
 .tab.add, .tab.remove { padding: 0.28rem 0.5rem; }
 
 .timeline { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; margin-bottom: 0.75rem; }
@@ -88,7 +149,7 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
   color: var(--muted);
 }
 .chip.done { color: var(--text); border-color: var(--accent); }
-.chip.current { background: var(--accent); border-color: var(--accent); color: #0b1220; }
+.chip.current { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .chip-arrow { color: var(--muted); font-size: 0.8rem; }
 
 .transport { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.9rem; }
@@ -108,8 +169,8 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .narration {
   margin: 0 0 1rem;
   padding: 0.6rem 0.8rem;
-  background: rgba(94, 176, 255, 0.08);
-  border: 1px solid rgba(94, 176, 255, 0.25);
+  background: var(--narration-bg);
+  border: 1px solid var(--narration-edge);
   border-radius: 8px;
   max-width: 62rem;
 }
@@ -150,8 +211,8 @@ td.note { color: var(--muted); font-size: 0.78rem; }
 td.empty { color: var(--muted); font-style: italic; }
 
 .error {
-  background: rgba(255, 107, 122, 0.1);
-  border: 1px solid rgba(255, 107, 122, 0.4);
+  background: var(--error-bg);
+  border: 1px solid var(--error-edge);
   border-radius: 8px;
   padding: 0.8rem 1rem;
 }
@@ -159,3 +220,11 @@ td.empty { color: var(--muted); font-style: italic; }
 
 footer { margin-top: 1.5rem; color: var(--muted); font-size: 0.82rem; }
 footer a { color: var(--accent); }
+
+/* Not on paper (last, so it wins). Paper leaves fills out: a filled label takes the ink, and the current table and
+   stage are underlined. */
+@media print {
+  hw-theme-toggle { display: none !important; }
+  button.primary, .tab.active, .chip.current { color: var(--text); }
+  .tab.active, .chip.current { text-decoration: underline; }
+}

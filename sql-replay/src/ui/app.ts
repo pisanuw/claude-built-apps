@@ -53,7 +53,7 @@ export class App {
   private renderShell(): void {
     this.root.innerHTML = `
       <header>
-        <h1>🎬 SQL Replay</h1>
+        <div class="title-row"><h1>🎬 SQL Replay</h1><hw-theme-toggle></hw-theme-toggle></div>
         <p class="tagline">Type a SELECT, press Run, and watch it execute one stage at a time,
           narrated in plain English. Everything runs in your browser: no database, no server, no AI.</p>
       </header>
@@ -67,7 +67,7 @@ export class App {
             <button id="share" type="button">🔗 Copy share link</button>
             <span id="share-notice" class="share-notice" hidden>link copied</span>
           </div>
-          <label class="panel-label">Sample data <span class="hint">(CSV, first line = column names)</span></label>
+          <label class="panel-label" for="csv">Sample data <span class="hint">(CSV, first line = column names)</span></label>
           <div class="tabs" id="tabs"></div>
           <textarea id="csv" spellcheck="false" rows="10"></textarea>
         </section>
@@ -194,10 +194,16 @@ export class App {
       }
     });
     this.root.addEventListener('keydown', (ev) => {
-      if ((ev.target as HTMLElement).tagName === 'TEXTAREA') {
+      // The element the key was pressed on: a key in a shadow root (the light and dark mode switch's button)
+      // arrives retargeted to its host (platform/src/theme/README.md, "Key shortcuts").
+      const t = (ev.composedPath()[0] ?? ev.target) as HTMLElement;
+      if (t.tagName === 'TEXTAREA') {
         if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); this.run(); }
         return;
       }
+      // A scroll region (a result grid) keeps its keys, and Space presses a focused button or link.
+      if (t.closest?.('[role="region"]')) return;
+      if (ev.key === ' ' && t.closest?.('button, a, [role="button"]')) return;
       if (ev.key === 'ArrowRight') { this.pause(); this.goTo(this.current + 1); }
       if (ev.key === 'ArrowLeft') { this.pause(); this.goTo(this.current - 1); }
       if (ev.key === ' ') {

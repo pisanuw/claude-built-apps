@@ -28,7 +28,7 @@ function renderGrid(grid: StepGrid): string {
   return `
     <figure class="grid">
       <figcaption>${escapeHtml(grid.title)}</figcaption>
-      <div class="grid-scroll">
+      <div class="grid-scroll" tabindex="0" role="region" aria-label="${escapeHtml(grid.title)}">
         <table>
           <thead><tr>${head}${noteHead}</tr></thead>
           <tbody>${body}${empty}</tbody>
