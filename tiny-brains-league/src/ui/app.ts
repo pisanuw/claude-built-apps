@@ -36,7 +36,12 @@ export function mountApp(root: HTMLElement): void {
     h(
       'header',
       { class: 'site-header' },
-      h('h1', {}, h('span', { class: 'logo', 'aria-hidden': 'true' }, '●●●●'), ' Tiny Brains League', h('span', { class: 'tagline' }, 'Smallest network that still wins at Connect Four')),
+      h(
+        'div',
+        { class: 'title-row' },
+        h('h1', {}, h('span', { class: 'logo', 'aria-hidden': 'true' }, '●●●●'), ' Tiny Brains League', h('span', { class: 'tagline' }, 'Smallest network that still wins at Connect Four')),
+        h('hw-theme-toggle'),
+      ),
       h('nav', { role: 'tablist', 'aria-label': 'Sections' }, ...buttons),
     ),
     main,

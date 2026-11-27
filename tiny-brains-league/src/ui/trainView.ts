@@ -195,7 +195,8 @@ export function trainView(): HTMLElement {
     for (const r of state.runs) body.append(h('tr', {}, h('td', {}, r.name), h('td', {}, r.hidden), h('td', { class: 'num' }, r.params.toLocaleString()), h('td', {}, r.method), h('td', { class: 'num' }, String(r.seed)), h('td', { class: 'num' }, pct(r.vsRandom)), h('td', { class: 'num' }, pct(r.vsScripted)), h('td', { class: 'num' }, String(r.seconds))));
     table.append(body);
     logBox.append(
-      h('div', { class: 'table-wrap' }, table),
+      // It scrolls sideways on a phone, with nothing focusable inside: a named region the keyboard can reach.
+      h('div', { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': 'Training runs' }, table),
       h(
         'div',
         { class: 'actions' },
