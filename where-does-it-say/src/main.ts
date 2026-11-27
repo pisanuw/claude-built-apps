@@ -1,3 +1,5 @@
+// The light and dark mode switch (platform/src/theme), defined before the header is drawn.
+import './lib/hw-theme.js';
 import css from './ui/styles.css?inline';
 import { answer, type Answer, type Quote } from './core/answer.js';
 import { formatFromName, locationLabel, titleFromName, type DocFormat, type ParsedDoc } from './core/docs.js';
@@ -341,7 +343,7 @@ function teachView(): string {
       <h2>1. Course documents</h2>
       <p>Add the syllabus, assignment specs and policies. PDF, Markdown and plain text files are read in this browser; nothing is uploaded. For a PDF, the text is extracted and shown as text, so check it in the viewer.</p>
       <ul class="plain docs">${docRows || '<li class="muted">No documents.</li>'}</ul>
-      <div class="drop" id="drop" tabindex="0" role="button" aria-label="Add files: PDF, Markdown or text">
+      <div class="drop" id="drop" role="group" aria-label="Add files: PDF, Markdown or text">
         <strong>Drop files here</strong> or <label class="btn small filebtn">choose files<input type="file" id="files" multiple accept=".pdf,.md,.markdown,.txt,text/plain,text/markdown,application/pdf" /></label>
       </div>
       <details class="paste"><summary>Or paste text</summary>
@@ -400,12 +402,13 @@ function headerHtml(): string {
   const src =
     packSource === 'sample' ? 'Sample course' : packSource === 'link' ? 'Opened from a course link' : 'Documents saved in this browser';
   const nav = (t: Tab, label: string) => `<button data-tab="${t}" ${tab === t ? 'aria-current="page"' : ''}>${label}</button>`;
+  // The title and the light and dark mode switch on one row; the tagline and the course below, side by side when they fit.
   return `<header class="site">
-      <div>
-        <h1>Where Does It Say</h1>
+      <div class="title-row"><h1>Where Does It Say</h1><hw-theme-toggle></hw-theme-toggle></div>
+      <div class="site-meta">
         <p class="tagline">Answers only with sentences from the course documents, or says they do not say.</p>
+        <p class="course"><strong>${escapeHtml(pack.title)}</strong><br /><span class="muted small">${src}, ${docs.length} document${docs.length === 1 ? '' : 's'}</span></p>
       </div>
-      <p class="course"><strong>${escapeHtml(pack.title)}</strong><br /><span class="muted small">${src}, ${docs.length} document${docs.length === 1 ? '' : 's'}</span></p>
     </header>
     <nav class="views" aria-label="Views">${nav('ask', 'Ask')}${nav('check', 'Check a quote')}${nav('teach', 'Instructor')}</nav>`;
 }
@@ -721,13 +724,6 @@ app.addEventListener('drop', (ev) => {
   ev.preventDefault();
   drop.classList.remove('over');
   if (ev.dataTransfer?.files.length) void addFiles(ev.dataTransfer.files);
-});
-app.addEventListener('keydown', (ev) => {
-  const el = ev.target as HTMLElement;
-  if (el.id === 'drop' && (ev.key === 'Enter' || ev.key === ' ')) {
-    ev.preventDefault();
-    document.getElementById('files')?.click();
-  }
 });
 
 // ------------------------------------------------------------------ start

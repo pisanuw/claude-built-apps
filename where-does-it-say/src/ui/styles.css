@@ -1,3 +1,7 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
+   before the first paint) and for the device setting when scripts do not run
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same.
+   Both are for the screen only: paper gets the light set. */
 :root {
   --bg: #f6f5f1;
   --panel: #ffffff;
@@ -14,10 +18,13 @@
   --mark1: #bae6fd;
   --mark2: #fbcfe8;
   --doc-bg: #fffdf8;
+  /* 3:1 against the panels and the page (WCAG 1.4.11); --line is for dividers. */
+  --field-border: #858077;
   color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #161513;
     --panel: #201f1c;
     --ink: #ece9e3;
@@ -33,15 +40,40 @@
     --mark1: #164e63;
     --mark2: #6b1f45;
     --doc-bg: #1b1a17;
+    --field-border: #74706a;
+  }
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
+    --bg: #161513;
+    --panel: #201f1c;
+    --ink: #ece9e3;
+    --muted: #a8a299;
+    --line: #37342f;
+    --accent: #4fc3a8;
+    --accent-ink: #0d1f1b;
+    --accent-soft: #16322c;
+    --bad: #f28b82;
+    --bad-soft: #3a1f1d;
+    --good: #7fd69f;
+    --mark0: #6b5314;
+    --mark1: #164e63;
+    --mark2: #6b1f45;
+    --doc-bg: #1b1a17;
+    --field-border: #74706a;
   }
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 .wrap { max-width: 1240px; margin: 0 auto; padding: 18px 16px 48px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-header.site { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 6px 18px; }
-header.site h1 { margin: 0; font-size: 1.75rem; letter-spacing: -0.01em; }
+/* The title and the light and dark mode switch, on one row; the tagline and the course under them. */
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* Hold the switch's place until hw-theme.js draws it. */
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
+header.site h1 { margin: 0; min-width: 0; font-size: 1.75rem; letter-spacing: -0.01em; }
+.site-meta { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 6px 18px; }
 .tagline { margin: 2px 0 0; color: var(--muted); }
 .course { margin: 0; text-align: right; }
 @media (max-width: 700px) { .course { text-align: left; } }
@@ -54,7 +86,8 @@ button.primary { background: var(--accent); color: var(--accent-ink); border-col
 button.small, .btn.small { min-height: 32px; padding: 3px 10px; font-size: 0.88rem; }
 button.linkish { border: 0; background: none; padding: 0; min-height: 0; color: var(--accent); text-align: left; text-decoration: underline; text-underline-offset: 2px; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-input, select, textarea { font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); min-height: 40px; }
+/* Fields: 3:1 against the panels and the page (WCAG 1.4.11). */
+input, select, textarea { font: inherit; padding: 7px 9px; border: 1px solid var(--field-border); border-radius: 8px; background: var(--panel); color: var(--ink); min-height: 40px; }
 textarea { width: 100%; resize: vertical; }
 label { display: inline-flex; flex-direction: column; gap: 3px; font-size: 0.92rem; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin: 12px 0; }
@@ -131,10 +164,13 @@ mark.q2 { background: var(--mark2); }
 .teach .docs .docrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 0; border-top: 1px solid var(--line); }
 .teach .docs .docrow:first-child { border-top: 0; }
 .docrow input { flex: 1 1 200px; min-width: 0; }
-.drop { border: 2px dashed var(--line); border-radius: 10px; padding: 18px; text-align: center; margin: 10px 0; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; }
+/* The drop zone's edge is 3:1 too. Its "choose files" button is the keyboard's way in (the zone held it inside a role=button: axe nested-interactive). */
+.drop { border: 2px dashed var(--field-border); border-radius: 10px; padding: 18px; text-align: center; margin: 10px 0; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; }
 .drop.over { border-color: var(--accent); background: var(--accent-soft); }
 .filebtn { position: relative; flex-direction: row; overflow: hidden; }
 .filebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; min-height: 0; }
+/* The file input is see-through: its label shows where the focus is. */
+.filebtn:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
 .paste-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
 .share input { flex: 1; min-width: 0; font: 0.85rem ui-monospace, SFMono-Regular, Menlo, monospace; }
 .share .controls { flex-wrap: nowrap; }
@@ -147,3 +183,8 @@ ul.gaps ul { color: var(--muted); font-size: 0.92rem; }
 code { font: 0.9em ui-monospace, SFMono-Regular, Menlo, monospace; }
 footer { margin-top: 24px; }
 a { color: var(--accent); }
+
+/* Not on paper. */
+@media print {
+  hw-theme-toggle { display: none !important; }
+}
