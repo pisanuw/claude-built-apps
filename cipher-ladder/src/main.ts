@@ -1,4 +1,8 @@
-import css from './ui/styles.css?inline';
+// The light and dark mode switch (platform/src/theme), defined before the header is drawn.
+import './lib/hw-theme.js';
+// The stylesheet as a file, so Vite links it in the head after the theme snippet: the first paint already has
+// the stored theme. Added by the script (?inline) it came after a first paint in the device's colours.
+import './ui/styles.css';
 import { column, icByPeriod, kasiski, letterFrequencies, symbolFrequencies, topNgrams, ENGLISH_BIGRAMS } from './core/analysis.js';
 import {
   CIPHER_LABEL,
@@ -43,10 +47,6 @@ import {
 import { accuracy, solve, type SolverResult } from './core/solvers.js';
 import { ALPHABET, AFFINE_MULTIPLIERS, ENGLISH_IC, group5, indexOfCoincidence } from './core/text.js';
 import { barChart } from './ui/charts.js';
-
-const style = document.createElement('style');
-style.textContent = css;
-document.head.append(style);
 
 const app = document.getElementById('app');
 if (!app) throw new Error('missing #app');
@@ -134,7 +134,8 @@ function render(): void {
   app!.innerHTML = `
     <div class="wrap">
       <header class="site">
-        <div><h1>Cipher Ladder</h1> <span class="tagline">Break six classical ciphers, one rung at a time, then see how a solver did it.</span></div>
+        <div class="title-row"><h1>Cipher Ladder</h1><hw-theme-toggle></hw-theme-toggle></div>
+        <p class="tagline">Break six classical ciphers, one rung at a time, then see how a solver did it.</p>
       </header>
       <nav class="views" aria-label="Views">
         ${views.map((v) => `<button data-view="${v.id}" ${view === v.id ? 'aria-current="page"' : ''}>${v.label}</button>`).join('')}
@@ -500,9 +501,9 @@ function dashboardHtml(): string {
   return `<section class="panel">
     <h2>Instructor dashboard</h2>
     <p class="muted">Students download their progress as JSON from the Climb view (or you collect the files however you like). Drop any number of those files here; nothing is uploaded.</p>
-    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Drop progress JSON files here or choose files">
-      <p>Drop progress files here</p>
-      <input type="file" id="files" accept="application/json,.json" multiple />
+    <div class="drop" id="drop" role="group" aria-labelledby="drop-title">
+      <p id="drop-title">Drop progress files here</p>
+      <label class="filepick">or choose progress files (JSON) <input type="file" id="files" accept="application/json,.json" multiple /></label>
     </div>
     ${dashboardError ? `<p class="status bad">${escapeHtml(dashboardError)}</p>` : ''}
     ${
