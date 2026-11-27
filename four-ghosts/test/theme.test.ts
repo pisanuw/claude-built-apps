@@ -246,6 +246,23 @@ class FakeWorker {
 }
 vi.stubGlobal('Worker', FakeWorker);
 
+// Stands in for matchMedia (jsdom has none) and keeps the print query's change listeners.
+function stubPrintQuery(): { onPrint: (() => void)[]; restore: () => void } {
+  const real = window.matchMedia;
+  const onPrint: (() => void)[] = [];
+  vi.stubGlobal('matchMedia', (media: string) => ({
+    media,
+    matches: false,
+    onchange: null,
+    addEventListener: (type: string, fn: () => void) => void (media === 'print' && type === 'change' && onPrint.push(fn)),
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  }));
+  return { onPrint, restore: () => vi.stubGlobal('matchMedia', real) };
+}
+
 describe('the switch in the header', () => {
   let root: HTMLElement;
   beforeAll(async () => {
@@ -326,6 +343,27 @@ describe('the switch in the header', () => {
     expect(drawn.calls).toBe(before);
     button().click();
     await vi.waitFor(() => expect(drawn.calls).toBeGreaterThan(before));
+  });
+
+  it('draws the maze at once on the way into print and back, so a dark choice prints in the light colours', () => {
+    // Print takes the light set, but a canvas keeps the pixels it drew on screen; the next frame would be too late.
+    const print = stubPrintQuery();
+    try {
+      document.body.innerHTML = '<div id="app"></div>';
+      root = document.getElementById('app') as HTMLElement;
+      mountApp(root);
+      expect(print.onPrint).toHaveLength(1);
+      const before = drawn.calls;
+      print.onPrint[0]();
+      expect(drawn.calls).toBeGreaterThan(before);
+      // Not while the maze is on another tab (nothing of it prints).
+      show('rules');
+      const away = drawn.calls;
+      print.onPrint[0]();
+      expect(drawn.calls).toBe(away);
+    } finally {
+      print.restore();
+    }
   });
 
   it("takes each ghost's colour on the page from its token, so it flips with the theme", async () => {

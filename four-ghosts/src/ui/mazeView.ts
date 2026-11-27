@@ -596,6 +596,16 @@ export function mazeView(): HTMLElement {
   document.addEventListener('hw-themechange', () => {
     dirty = true;
   });
+  // Print uses the light set (both dark blocks are for the screen), but a canvas keeps what it drew: draw it at
+  // once on the way into print and back (the next frame would come after the printout). matchMedia('print')
+  // changes with the print colours in place; beforeprint still sees the screen's.
+  if (typeof window.matchMedia === 'function') {
+    window.matchMedia('print').addEventListener?.('change', () => {
+      if (!root.isConnected) return;
+      draw();
+      dirty = false;
+    });
+  }
   root.addEventListener('shown', () => {
     resize();
     startLoop();
