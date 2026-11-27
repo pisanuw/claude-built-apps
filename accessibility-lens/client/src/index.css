@@ -6,7 +6,8 @@
   /* Colours, as "R G B" for Tailwind (tailwind.config.js). Light here; dark
      twice, for the switch (data-theme on <html>) and for the device setting
      when scripts do not run (platform/src/theme/README.md). Both meet WCAG AA
-     contrast; test/theme.test.tsx keeps the two dark blocks the same. */
+     contrast; test/theme.test.tsx keeps the two dark blocks the same.
+     Both are for screens only, so a printout uses the light set. */
   :root {
     color-scheme: light;
     --al-paper: 244 241 234;
@@ -24,24 +25,26 @@
     --al-shadow: 24 20 16;
   }
 
-  :root[data-theme="dark"] {
-    color-scheme: dark;
-    --al-paper: 21 18 15;
-    --al-panel: 30 26 22;
-    --al-ink: 241 236 226;
-    --al-muted: 179 170 156;
-    --al-line: 59 53 45;
-    --al-field: 120 112 100;
-    --al-accent: 92 196 170;
-    --al-accent-soft: 134 214 193;
-    --al-critical: 255 143 128;
-    --al-serious: 242 167 102;
-    --al-moderate: 224 192 99;
-    --al-minor: 169 212 116;
-    --al-shadow: 0 0 0;
+  @media screen {
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --al-paper: 21 18 15;
+      --al-panel: 30 26 22;
+      --al-ink: 241 236 226;
+      --al-muted: 179 170 156;
+      --al-line: 59 53 45;
+      --al-field: 120 112 100;
+      --al-accent: 92 196 170;
+      --al-accent-soft: 134 214 193;
+      --al-critical: 255 143 128;
+      --al-serious: 242 167 102;
+      --al-moderate: 224 192 99;
+      --al-minor: 169 212 116;
+      --al-shadow: 0 0 0;
+    }
   }
 
-  @media (prefers-color-scheme: dark) {
+  @media screen and (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       color-scheme: dark;
       --al-paper: 21 18 15;
@@ -120,4 +123,9 @@
 /* Low-vision preview treatments. */
 .lv-blur {
   filter: blur(1.4px) contrast(0.8);
+}
+
+/* Print: the light set (the dark blocks above are for screens only), without the switch. */
+@media print {
+  hw-theme-toggle { display: none !important; }
 }
