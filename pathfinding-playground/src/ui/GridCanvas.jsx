@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { EMPTY, WALL, MUD, idx } from '../engine/grid.js';
-import { PALETTE as P } from './palette.js';
+import { readPalette } from './palette.js';
 
 // Renders the map plus the current search state on a <canvas>, and handles
 // map editing: paint walls or mud, erase, and drag the start and goal pins.
@@ -14,6 +14,7 @@ export default function GridCanvas({
   const [cell, setCell] = useState(20);
   const [hover, setHover] = useState(null);
   const dragRef = useRef(null);
+  const drawRef = useRef(null);
 
   // Fit the cell size to the wrapper width.
   useEffect(() => {
@@ -94,174 +95,195 @@ export default function GridCanvas({
 
   const endDrag = () => { dragRef.current = null; };
 
-  // Draw everything.
+  // Draw everything, in the colours in place now.
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const dpr = window.devicePixelRatio || 1;
-    const W = grid.cols * cell;
-    const H = grid.rows * cell;
-    canvas.width = W * dpr;
-    canvas.height = H * dpr;
-    canvas.style.width = `${W}px`;
-    canvas.style.height = `${H}px`;
-    const ctx = canvas.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const draw = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const P = readPalette();
+      const dpr = window.devicePixelRatio || 1;
+      const W = grid.cols * cell;
+      const H = grid.rows * cell;
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
+      canvas.style.width = `${W}px`;
+      canvas.style.height = `${H}px`;
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    ctx.fillStyle = P.paper;
-    ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = P.paper;
+      ctx.fillRect(0, 0, W, H);
 
-    const key = (r, c) => r * grid.cols + c;
+      const key = (r, c) => r * grid.cols + c;
 
-    // Terrain: mud with a diagonal hatch.
-    for (let r = 0; r < grid.rows; r++) {
-      for (let c = 0; c < grid.cols; c++) {
-        if (grid.cells[key(r, c)] === MUD) {
-          const x = c * cell;
-          const y = r * cell;
-          ctx.fillStyle = P.sand;
-          ctx.fillRect(x, y, cell, cell);
-          ctx.strokeStyle = P.sandLine;
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          for (let o = -cell; o < cell; o += 5) {
-            ctx.moveTo(x + o, y + cell);
-            ctx.lineTo(x + o + cell, y);
+      // Terrain: mud with a diagonal hatch.
+      for (let r = 0; r < grid.rows; r++) {
+        for (let c = 0; c < grid.cols; c++) {
+          if (grid.cells[key(r, c)] === MUD) {
+            const x = c * cell;
+            const y = r * cell;
+            ctx.fillStyle = P.sand;
+            ctx.fillRect(x, y, cell, cell);
+            ctx.strokeStyle = P.sandLine;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let o = -cell; o < cell; o += 5) {
+              ctx.moveTo(x + o, y + cell);
+              ctx.lineTo(x + o + cell, y);
+            }
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x, y, cell, cell);
+            ctx.clip();
+            ctx.beginPath();
+            for (let o = -cell; o < cell; o += 5) {
+              ctx.moveTo(x + o, y + cell);
+              ctx.lineTo(x + o + cell, y);
+            }
+            ctx.stroke();
+            ctx.restore();
           }
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(x, y, cell, cell);
-          ctx.clip();
-          ctx.beginPath();
-          for (let o = -cell; o < cell; o += 5) {
-            ctx.moveTo(x + o, y + cell);
-            ctx.lineTo(x + o + cell, y);
-          }
-          ctx.stroke();
-          ctx.restore();
         }
       }
-    }
 
-    // Search washes.
-    if (view) {
-      ctx.fillStyle = 'rgba(169, 196, 219, 0.62)';
-      for (const k of view.visited.keys()) {
-        const r = Math.floor(k / grid.cols);
-        const c = k % grid.cols;
-        ctx.fillRect(c * cell, r * cell, cell, cell);
-      }
-      for (const k of view.frontier.keys()) {
-        const r = Math.floor(k / grid.cols);
-        const c = k % grid.cols;
-        ctx.fillStyle = 'rgba(232, 155, 20, 0.80)';
-        ctx.fillRect(c * cell + 1, r * cell + 1, cell - 2, cell - 2);
-      }
-    }
-
-    // Walls.
-    ctx.fillStyle = P.ink;
-    for (let r = 0; r < grid.rows; r++) {
-      for (let c = 0; c < grid.cols; c++) {
-        if (grid.cells[key(r, c)] === WALL) {
-          ctx.fillRect(c * cell + 0.5, r * cell + 0.5, cell - 1, cell - 1);
-        }
-      }
-    }
-
-    // Grid lines.
-    ctx.strokeStyle = P.line;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let c = 0; c <= grid.cols; c++) {
-      ctx.moveTo(c * cell + 0.5, 0);
-      ctx.lineTo(c * cell + 0.5, H);
-    }
-    for (let r = 0; r <= grid.rows; r++) {
-      ctx.moveTo(0, r * cell + 0.5);
-      ctx.lineTo(W, r * cell + 0.5);
-    }
-    ctx.stroke();
-
-    // Final path, drawn like a route inked on a survey map.
-    if (view?.done?.found) {
-      const p = view.done.path;
-      ctx.strokeStyle = P.route;
-      ctx.lineWidth = Math.max(2.5, cell * 0.22);
-      ctx.lineJoin = 'round';
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      p.forEach((n, i) => {
-        const x = n.c * cell + cell / 2;
-        const y = n.r * cell + cell / 2;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      });
-      ctx.stroke();
-    }
-
-    // Current expansion marker.
-    if (view?.current && !view.done) {
-      const n = view.current.node;
-      ctx.strokeStyle = P.ink;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(n.c * cell + 1.5, n.r * cell + 1.5, cell - 3, cell - 3);
-    }
-
-    // Cost overlays.
-    if (showCosts && view && cell >= 18) {
-      ctx.font = `${Math.max(8, Math.floor(cell * 0.36))}px "IBM Plex Mono", monospace`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const draw = (map, color) => {
-        ctx.fillStyle = color;
-        for (const [k, info] of map) {
+      // Search washes.
+      if (view) {
+        ctx.fillStyle = P.visited;
+        for (const k of view.visited.keys()) {
           const r = Math.floor(k / grid.cols);
           const c = k % grid.cols;
-          const v = info.f ?? info.g;
-          if (v == null) continue;
-          ctx.fillText(String(v), c * cell + cell / 2, r * cell + cell / 2 + 0.5);
+          ctx.fillRect(c * cell, r * cell, cell, cell);
+        }
+        for (const k of view.frontier.keys()) {
+          const r = Math.floor(k / grid.cols);
+          const c = k % grid.cols;
+          ctx.fillStyle = P.frontier;
+          ctx.fillRect(c * cell + 1, r * cell + 1, cell - 2, cell - 2);
+        }
+      }
+
+      // Walls.
+      ctx.fillStyle = P.ink;
+      for (let r = 0; r < grid.rows; r++) {
+        for (let c = 0; c < grid.cols; c++) {
+          if (grid.cells[key(r, c)] === WALL) {
+            ctx.fillRect(c * cell + 0.5, r * cell + 0.5, cell - 1, cell - 1);
+          }
+        }
+      }
+
+      // Grid lines.
+      ctx.strokeStyle = P.line;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let c = 0; c <= grid.cols; c++) {
+        ctx.moveTo(c * cell + 0.5, 0);
+        ctx.lineTo(c * cell + 0.5, H);
+      }
+      for (let r = 0; r <= grid.rows; r++) {
+        ctx.moveTo(0, r * cell + 0.5);
+        ctx.lineTo(W, r * cell + 0.5);
+      }
+      ctx.stroke();
+
+      // Final path, drawn like a route inked on a survey map.
+      if (view?.done?.found) {
+        const p = view.done.path;
+        ctx.strokeStyle = P.route;
+        ctx.lineWidth = Math.max(2.5, cell * 0.22);
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        p.forEach((n, i) => {
+          const x = n.c * cell + cell / 2;
+          const y = n.r * cell + cell / 2;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      }
+
+      // Current expansion marker.
+      if (view?.current && !view.done) {
+        const n = view.current.node;
+        ctx.strokeStyle = P.ink;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(n.c * cell + 1.5, n.r * cell + 1.5, cell - 3, cell - 3);
+      }
+
+      // Cost overlays.
+      if (showCosts && view && cell >= 18) {
+        ctx.font = `${Math.max(8, Math.floor(cell * 0.36))}px "IBM Plex Mono", monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const figures = (map, color) => {
+          ctx.fillStyle = color;
+          for (const [k, info] of map) {
+            const r = Math.floor(k / grid.cols);
+            const c = k % grid.cols;
+            const v = info.f ?? info.g;
+            if (v == null) continue;
+            ctx.fillText(String(v), c * cell + cell / 2, r * cell + cell / 2 + 0.5);
+          }
+        };
+        figures(view.visited, P.costVisited);
+        figures(view.frontier, P.costFrontier);
+      }
+
+      // Start pin: a filled survey point. Goal pin: a bullseye.
+      const pin = (n, kind) => {
+        const x = n.c * cell + cell / 2;
+        const y = n.r * cell + cell / 2;
+        const R = cell * 0.32;
+        if (kind === 'start') {
+          ctx.fillStyle = P.green;
+          ctx.beginPath();
+          ctx.arc(x, y, R, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = P.paper;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        } else {
+          ctx.strokeStyle = P.route;
+          ctx.lineWidth = Math.max(2, cell * 0.12);
+          ctx.beginPath();
+          ctx.arc(x, y, R, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fillStyle = P.route;
+          ctx.beginPath();
+          ctx.arc(x, y, R * 0.38, 0, Math.PI * 2);
+          ctx.fill();
         }
       };
-      draw(view.visited, 'rgba(20, 48, 74, 0.75)');
-      draw(view.frontier, '#5c3a00');
-    }
+      pin(grid.start, 'start');
+      pin(grid.goal, 'goal');
 
-    // Start pin: a filled survey point. Goal pin: a bullseye.
-    const pin = (n, kind) => {
-      const x = n.c * cell + cell / 2;
-      const y = n.r * cell + cell / 2;
-      const R = cell * 0.32;
-      if (kind === 'start') {
-        ctx.fillStyle = P.green;
-        ctx.beginPath();
-        ctx.arc(x, y, R, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = P.paper;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      } else {
-        ctx.strokeStyle = P.route;
-        ctx.lineWidth = Math.max(2, cell * 0.12);
-        ctx.beginPath();
-        ctx.arc(x, y, R, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.fillStyle = P.route;
-        ctx.beginPath();
-        ctx.arc(x, y, R * 0.38, 0, Math.PI * 2);
-        ctx.fill();
+      // Hover outline.
+      if (hover && editable) {
+        ctx.strokeStyle = P.inkSoft;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(hover.c * cell + 1, hover.r * cell + 1, cell - 2, cell - 2);
       }
     };
-    pin(grid.start, 'start');
-    pin(grid.goal, 'goal');
-
-    // Hover outline.
-    if (hover && editable) {
-      ctx.strokeStyle = P.inkSoft;
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(hover.c * cell + 1, hover.r * cell + 1, cell - 2, cell - 2);
-    }
+    drawRef.current = draw;
+    draw();
   }, [grid, view, cell, hover, showCosts, editable]);
+
+  // Draw again when the theme changes, and at once on the way into print and
+  // back: print takes the light set, but a canvas keeps the pixels it drew on
+  // screen. matchMedia('print') changes with the print colours in place (the
+  // next frame would come after the printout; beforeprint still sees the
+  // screen's colours).
+  useEffect(() => {
+    const redraw = () => drawRef.current?.();
+    document.addEventListener('hw-themechange', redraw);
+    const print = typeof window.matchMedia === 'function' ? window.matchMedia('print') : null;
+    print?.addEventListener?.('change', redraw);
+    return () => {
+      document.removeEventListener('hw-themechange', redraw);
+      print?.removeEventListener?.('change', redraw);
+    };
+  }, []);
 
   return (
     <div className="sheet" ref={wrapRef}>
