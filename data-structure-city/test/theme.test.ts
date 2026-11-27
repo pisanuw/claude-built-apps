@@ -133,6 +133,18 @@ describe('the palette', () => {
   });
 });
 
+// A box that scrolls sideways must be reachable by keyboard (axe: scrollable-region-focusable):
+// either it holds something focusable, or it is a focusable region with a name.
+function expectReachable(boxes: Element[]): void {
+  for (const box of boxes) {
+    const focusable = box.querySelector('[tabindex="0"], a[href], button, input, select, textarea');
+    if (focusable) continue;
+    expect(box.getAttribute('tabindex'), box.outerHTML.slice(0, 80)).toBe('0');
+    expect(box.getAttribute('role')).toBe('region');
+    expect(box.getAttribute('aria-label')).toBeTruthy();
+  }
+}
+
 describe('the switch in the header', () => {
   let root: HTMLElement;
   beforeAll(async () => {
@@ -152,6 +164,14 @@ describe('the switch in the header', () => {
     expect(toggle.previousElementSibling?.tagName).toBe('H1');
     expect(root.querySelectorAll('hw-theme-toggle')).toHaveLength(1);
     expect(button().getAttribute('aria-label')).toBe('Switch to dark mode');
+  });
+
+  it('makes the skip list and the B-tree, which scroll sideways, focusable, labelled regions', () => {
+    [...root.querySelectorAll('button')].find((b) => b.textContent === 'FILL 8')!.click();
+    const boxes = [...root.querySelectorAll('.scroll-x')];
+    expect(boxes).toHaveLength(2);
+    expectReachable(boxes);
+    expect(boxes.map((b) => b.getAttribute('aria-label')).sort()).toEqual(['B-tree nodes', 'Skip list towers']);
   });
 
   it('switches the page at once and remembers the choice', () => {
