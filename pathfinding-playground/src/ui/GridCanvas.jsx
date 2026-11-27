@@ -238,6 +238,11 @@ export default function GridCanvas({
         }
       }
 
+      // The cost figures' size, for their boxes (in the wash pass) and the figures (over the route).
+      const showFigures = Boolean(showCosts && view && cell >= 18);
+      const costSize = Math.max(8, Math.floor(cell * 0.36));
+      const costFont = `${costSize}px "IBM Plex Mono", monospace`;
+
       // Search washes.
       if (view) {
         ctx.fillStyle = P.visited;
@@ -267,6 +272,24 @@ export default function GridCanvas({
           }
           ctx.stroke();
           ctx.restore();
+        }
+        // With cell costs shown, a figure on a visited cell sits on a box of
+        // the wash, laid the same way (the sheet, then the wash), so the hatch
+        // does not run through it. The boxes go down here, under the walls,
+        // the grid lines and the final path: a box hides only the hatch.
+        if (showFigures) {
+          ctx.font = costFont;
+          for (const [k, info] of view.visited) {
+            const v = info.f ?? info.g;
+            if (v == null || view.frontier.has(k)) continue;
+            const x = (k % grid.cols) * cell + cell / 2;
+            const y = Math.floor(k / grid.cols) * cell + cell / 2 + 0.5;
+            const w = ctx.measureText(String(v)).width + 2;
+            for (const fill of [P.paper, P.visited]) {
+              ctx.fillStyle = fill;
+              ctx.fillRect(x - w / 2, y - costSize / 2 - 1, w, costSize + 2);
+            }
+          }
         }
         for (const k of view.frontier.keys()) {
           const r = Math.floor(k / grid.cols);
@@ -325,35 +348,24 @@ export default function GridCanvas({
         ctx.strokeRect(n.c * cell + 1.5, n.r * cell + 1.5, cell - 3, cell - 3);
       }
 
-      // Cost overlays.
-      if (showCosts && view && cell >= 18) {
-        const size = Math.max(8, Math.floor(cell * 0.36));
-        ctx.font = `${size}px "IBM Plex Mono", monospace`;
+      // Cost overlays (a visited cell's figure on its box, laid in the wash
+      // pass above).
+      if (showFigures) {
+        ctx.font = costFont;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        // On a visited cell the figure sits on the wash alone: a box of the
-        // wash, laid the same way, covers the hatch behind it.
-        const figures = (map, color, backed) => {
+        const figures = (map, color) => {
           for (const [k, info] of map) {
             const r = Math.floor(k / grid.cols);
             const c = k % grid.cols;
             const v = info.f ?? info.g;
             if (v == null) continue;
-            const x = c * cell + cell / 2;
-            const y = r * cell + cell / 2 + 0.5;
-            if (backed && !view.frontier.has(k)) {
-              const w = ctx.measureText(String(v)).width + 2;
-              for (const fill of [P.paper, P.visited]) {
-                ctx.fillStyle = fill;
-                ctx.fillRect(x - w / 2, y - size / 2 - 1, w, size + 2);
-              }
-            }
             ctx.fillStyle = color;
-            ctx.fillText(String(v), x, y);
+            ctx.fillText(String(v), c * cell + cell / 2, r * cell + cell / 2 + 0.5);
           }
         };
-        figures(view.visited, P.costVisited, true);
-        figures(view.frontier, P.costFrontier, false);
+        figures(view.visited, P.costVisited);
+        figures(view.frontier, P.costFrontier);
       }
 
       // Start pin: a filled survey point. Goal pin: a bullseye.

@@ -357,7 +357,7 @@ describe('the switch in the header', () => {
     }
   });
 
-  it('hatches the visited cells, and sets the figures on them on a box of the wash (batch 6 review R1-1)', () => {
+  it('hatches the visited cells, and sets the figures on them on a box of the wash, under the final path (batch 6 review R1-1, batch 7 review R1-1)', () => {
     press('+ step');
     press('+ step');
     const ops = redrawOps();
@@ -369,11 +369,22 @@ describe('the switch in the header', () => {
       [...root.querySelectorAll('label.check')].find((l) => l.textContent.includes('cell costs')).querySelector('input').click();
     });
     const withFigures = redrawOps();
-    // The box is the sheet, then the wash over it, then the figure in --cost-visited.
-    const box = ['fillStyle=#f4f8fb', 'fillRect', 'fillStyle=rgba(169, 196, 219, 0.62)', 'fillRect', 'fillStyle=rgba(20, 48, 74, 0.75)', 'fillText'];
+    // The box is the sheet, then the wash over it; the figure in --cost-visited goes on top.
+    const box = ['fillStyle=#f4f8fb', 'fillRect', 'fillStyle=rgba(169, 196, 219, 0.62)', 'fillRect'];
     expect(runs(withFigures, box)).toBe(true);
+    expect(runs(withFigures, ['fillStyle=rgba(20, 48, 74, 0.75)', 'fillText'])).toBe(true);
     // The frontier's figures sit straight on their fill.
     expect(runs(withFigures, ['fillStyle=#5c3a00', 'fillText'])).toBe(true);
+    // A finished search: the boxes are laid before the final path, in the wash pass, and the figures after it, so a
+    // box hides only the hatch and never a piece of the route (they were drawn over it, leaving 53% of its pixels).
+    press('End');
+    const done = redrawOps();
+    const route = done.indexOf('strokeStyle=#b5381c');
+    expect(route).toBeGreaterThan(-1);
+    const boxes = done.map((_, i) => i).filter((i) => box.every((x, j) => done[i + j] === x));
+    expect(boxes.length).toBeGreaterThan(0);
+    expect(Math.max(...boxes)).toBeLessThan(route);
+    expect(done.indexOf('fillStyle=rgba(20, 48, 74, 0.75)')).toBeGreaterThan(route);
     act(() => {
       [...root.querySelectorAll('label.check')].find((l) => l.textContent.includes('cell costs')).querySelector('input').click();
     });
