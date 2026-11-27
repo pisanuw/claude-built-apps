@@ -128,7 +128,8 @@ export function mountApp(root: HTMLElement): void {
   const nextBtn = el('button', { class: 'secondary', type: 'button', 'aria-label': 'Next step' }, '▶');
   const endBtn = el('button', { class: 'secondary', type: 'button' }, 'Jump to end');
   const stepLabel = el('span', { class: 'steplabel' });
-  const vTable = el('div', { class: 'vtable' });
+  // A named region in the tab order: on a phone the V array scrolls sideways inside it.
+  const vTable = el('div', { class: 'vtable', tabindex: '0', role: 'region', 'aria-label': 'V array' });
   const stepText = el('ol', { class: 'steptext small' });
   const finalBox = el('div', {});
   const graphStats = el('div', { class: 'stats' });
@@ -383,7 +384,7 @@ export function mountApp(root: HTMLElement): void {
       body.append(row);
     }
     table.append(body);
-    lcsBox.append(el('div', { class: 'scrollx' }, table));
+    lcsBox.append(el('div', { class: 'scrollx', tabindex: '0', role: 'region', 'aria-label': 'LCS table' }, table));
   }
 
   // ---------- exercises panel ----------
@@ -518,7 +519,8 @@ export function mountApp(root: HTMLElement): void {
   });
 
   root.replaceChildren(
-    el('header', {}, el('h1', {}, 'Edit Graph Lab'), el('p', { class: 'lede' }, 'Diff is a shortest-path search. Type two texts, watch Myers’ O(ND) algorithm push its furthest-reaching paths across the edit graph, then see where LCS, patience and histogram diff disagree. Everything runs in your browser.')),
+    // The light and dark mode switch at the end of the title's row (platform/src/theme).
+    el('header', {}, el('div', { class: 'title-row' }, el('h1', {}, 'Edit Graph Lab'), el('hw-theme-toggle')), el('p', { class: 'lede' }, 'Diff is a shortest-path search. Type two texts, watch Myers’ O(ND) algorithm push its furthest-reaching paths across the edit graph, then see where LCS, patience and histogram diff disagree. Everything runs in your browser.')),
     inputCard,
     tabBar,
     panels.graph as HTMLElement,
