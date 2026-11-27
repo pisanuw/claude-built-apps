@@ -3,7 +3,7 @@
  * "Simulated" line and sign-in for a visitor; for a signed-in person, the
  * upload screen, which says "The checker is not available yet." and has no
  * upload box, because no capture service answers for this page (AC-11). The
- * page asks the capture service nothing in this milestone (DECISIONS.md D-7).
+ * page asks the capture service nothing in this milestone (DECISIONS.md D-2).
  */
 import type { User } from '@supabase/supabase-js';
 import { mountSignIn as defaultMountSignIn, onAuth as defaultOnAuth, type AuthCallback, type AuthClient } from '../lib/auth';

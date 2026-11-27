@@ -32,7 +32,7 @@ create table if not exists app_heard_as_check.runs (
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   document_id uuid not null,
   -- Insertion order: "the oldest run" and "the latest 5 runs" follow it, because
-  -- created_at ties inside one transaction and a client may write it (D-12).
+  -- created_at ties inside one transaction and a client may write it (D-5).
   seq bigint generated always as identity,
   created_at timestamptz not null default now(),
   source text not null check (source in ('web', 'ci')),
@@ -72,9 +72,9 @@ comment on table app_heard_as_check.runs is 'One saved check of a document: vers
 create index if not exists runs_document_seq_idx on app_heard_as_check.runs (document_id, seq);
 -- One baseline per document. set_baseline clears the old one before it sets
 -- the new one, in two statements, because a partial unique index is checked
--- row by row and cannot be deferred (S3-8, D-11). user_id is in the key so
+-- row by row and cannot be deferred (S3-8, D-6). user_id is in the key so
 -- that a row naming another person's document is refused by the composite
--- key, never answered "duplicate key" about that person's baseline (D-13).
+-- key, never answered "duplicate key" about that person's baseline (D-6).
 create unique index if not exists runs_one_baseline_idx on app_heard_as_check.runs (document_id, user_id) where is_baseline;
 
 -- api_keys -------------------------------------------------------------------
@@ -183,6 +183,37 @@ drop trigger if exists runs_before_insert on app_heard_as_check.runs;
 create trigger runs_before_insert before insert on app_heard_as_check.runs
   for each row execute function app_heard_as_check.runs_before_insert();
 
+-- A saved run is a record: after insert, only the baseline flag may change,
+-- and the text may only be dropped (set to null). Moving a run to another
+-- document, rewriting its facts or adding text past the rules is refused;
+-- the column grants below say the same, this says it for every caller (R1.1-1, D-23).
+create or replace function app_heard_as_check.runs_before_update()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.transcript is not null and new.transcript is distinct from old.transcript then
+    raise exception 'A saved run''s text can only be removed.' using errcode = 'P0001', hint = 'run-text-frozen';
+  end if;
+  if (new.id, new.user_id, new.document_id, new.seq, new.created_at, new.source, new.file_sha256, new.file_bytes,
+      new.pages, new.pages_read, new.pdfjs_version, new.chromium_version, new.verapdf_profile, new.verapdf_version,
+      new.verapdf_compliant, new.verdict, new.error_count, new.warning_count, new.quirk_count,
+      new.transcript_sha256, new.transcript_lines, new.faults)
+     is distinct from
+     (old.id, old.user_id, old.document_id, old.seq, old.created_at, old.source, old.file_sha256, old.file_bytes,
+      old.pages, old.pages_read, old.pdfjs_version, old.chromium_version, old.verapdf_profile, old.verapdf_version,
+      old.verapdf_compliant, old.verdict, old.error_count, old.warning_count, old.quirk_count,
+      old.transcript_sha256, old.transcript_lines, old.faults) then
+    raise exception 'A saved run cannot be changed; only its baseline flag and its text (removed) can.' using errcode = 'P0001', hint = 'run-frozen';
+  end if;
+  return new;
+end
+$$;
+drop trigger if exists runs_before_update on app_heard_as_check.runs;
+create trigger runs_before_update before update on app_heard_as_check.runs
+  for each row execute function app_heard_as_check.runs_before_update();
+
 -- After a run is written: at most 50 runs per document (the oldest that is not
 -- the baseline goes first), and text only on the latest 5.
 create or replace function app_heard_as_check.runs_after_insert()
@@ -213,7 +244,8 @@ drop trigger if exists runs_after_insert on app_heard_as_check.runs;
 create trigger runs_after_insert after insert on app_heard_as_check.runs
   for each row execute function app_heard_as_check.runs_after_insert();
 
--- At most 5 active keys per person; a revoked key stays revoked.
+-- At most 5 active keys and 50 keys in all (revoked ones count) per person;
+-- a revoked key stays revoked (R1.1-4).
 create or replace function app_heard_as_check.api_keys_rules()
 returns trigger
 language plpgsql
@@ -222,6 +254,12 @@ as $$
 begin
   if tg_op = 'UPDATE' and old.revoked_at is not null and new.revoked_at is distinct from old.revoked_at then
     raise exception 'A revoked key cannot be used again.' using errcode = 'P0001', hint = 'key-revoked';
+  end if;
+  if tg_op = 'INSERT' then
+    perform pg_advisory_xact_lock(hashtextextended('app_heard_as_check.api_keys:' || new.user_id::text, 0));
+    if (select count(*) from app_heard_as_check.api_keys k where k.user_id = new.user_id) >= 50 then
+      raise exception 'You have 50 API keys, revoked ones included. Delete some revoked keys first.' using errcode = 'P0001', hint = 'keys-total-cap';
+    end if;
   end if;
   if new.revoked_at is null and (tg_op = 'INSERT' or old.revoked_at is not null) then
     perform pg_advisory_xact_lock(hashtextextended('app_heard_as_check.api_keys:' || new.user_id::text, 0));
@@ -252,6 +290,9 @@ begin
   if doc is null then
     raise exception 'No such run.' using errcode = 'P0002', hint = 'run-not-found';
   end if;
+  -- The per-document lock that inserts take too: two calls at once run one
+  -- after the other, so the second sees the first's baseline (R1.1-3).
+  perform 1 from app_heard_as_check.documents d where d.id = doc for update;
   -- Two statements, the old baseline first (S3-8).
   update app_heard_as_check.runs r set is_baseline = false where r.document_id = doc and r.is_baseline and r.id <> p_run_id;
   update app_heard_as_check.runs r set is_baseline = true where r.id = p_run_id and not r.is_baseline;
@@ -349,6 +390,10 @@ begin
   if p_run is null or jsonb_typeof(p_run) <> 'object' or octet_length(p_run::text) > 262144 then
     raise exception 'invalid run' using errcode = '22023';
   end if;
+  -- The per-person lock documents_cap takes, taken before the lookup: two first
+  -- runs for one new name at once run one after the other, and the second
+  -- finds the document the first created (R1.1-2).
+  perform pg_advisory_xact_lock(hashtextextended('app_heard_as_check.documents:' || k.owner::text, 0));
   select d.id into doc_id from app_heard_as_check.documents d where d.user_id = k.owner and d.name = p_document;
   if doc_id is null then
     insert into app_heard_as_check.documents (user_id, name) values (k.owner, p_document) returning id into doc_id;
@@ -376,7 +421,9 @@ $$;
 grant usage on schema app_heard_as_check to authenticated, anon;
 revoke all on all tables in schema app_heard_as_check from anon, public;
 grant select, insert, update, delete on app_heard_as_check.documents to authenticated;
-grant select, insert, update, delete on app_heard_as_check.runs to authenticated;
+grant select, insert, delete on app_heard_as_check.runs to authenticated;
+-- Update only what set_baseline and the text-dropping triggers write as the caller (R1.1-1).
+grant update (is_baseline, transcript) on app_heard_as_check.runs to authenticated;
 revoke all on app_heard_as_check.api_keys from authenticated;
 grant select (id, user_id, label, prefix, created_at, last_used_at, revoked_at) on app_heard_as_check.api_keys to authenticated;
 grant insert (label, prefix, key_hash) on app_heard_as_check.api_keys to authenticated;

@@ -194,6 +194,7 @@ describe('AC-7: the migration and the shape check-schema needs', () => {
       'documents_keep_text',
       'runs_after_insert',
       'runs_before_insert',
+      'runs_before_update',
       'set_baseline',
     ]);
     for (const f of fns) expect(f.config ?? [], f.name).toContain('search_path=""');
@@ -236,7 +237,8 @@ describe('AC-8: B reaches nothing of A; anon reads nothing', () => {
   it('B updates and deletes nothing of A', async () => {
     const ids: Record<string, [string, string, unknown]> = {
       documents: [docA, 'name', 'taken'],
-      runs: [runA, 'verdict', 'No tags found'],
+      // The browser may update only is_baseline and transcript on runs (R1.1-1).
+      runs: [runA, 'is_baseline', false],
       api_keys: [keyA.id, 'label', 'taken'],
     };
     for (const t of TABLES) {
@@ -253,10 +255,10 @@ describe('AC-8: B reaches nothing of A; anon reads nothing', () => {
     expect(await failure(as(B, `update ${S}.documents set user_id = $1 where id = $2`, [A, d.id]))).toMatch(/row-level security|foreign key|23503/);
   });
 
-  it('a run naming A\'s document is refused by the composite key, on insert and on update', async () => {
+  it('a run naming A\'s document is refused: by the composite key on insert, and on update because no run can be moved', async () => {
     expect(await failure(insertRun(B, docA))).toMatch(/23503|foreign key/);
     const [r] = await as<{ id: string }>(B, `select id from ${S}.runs limit 1`);
-    expect(await failure(as(B, `update ${S}.runs set document_id = $1 where id = $2`, [docA, r.id]))).toMatch(/23503|foreign key/);
+    expect(await failure(as(B, `update ${S}.runs set document_id = $1 where id = $2`, [docA, r.id]))).toMatch(/42501 permission denied/);
     // A's document still has only A's run.
     expect(await as(A, `select id from ${S}.runs where document_id = $1`, [docA])).toEqual([{ id: runA }]);
   });
@@ -513,5 +515,102 @@ describe('AC-10: the ci_* functions', () => {
   it('a signed-in person cannot call the ci_* functions (they are for the mount, with a key)', async () => {
     expect(await failure(as(Q, `select ${S}.ci_baseline($1, 'x')`, [key.key]))).toMatch(/permission denied/);
     expect(await failure(as(null, `select ${S}.ci_key_owner($1)`, [key.key]))).toMatch(/permission denied/);
+  });
+});
+
+describe('R1.1-1: a saved run cannot be rewritten through the Data API', () => {
+  const R = '00000000-0000-4000-8000-0000000000b1';
+  beforeAll(async () => {
+    await db.query('insert into auth.users (id) values ($1)', [R]);
+  });
+
+  it('P1: moving runs to another of my documents is refused, so the 50-run cap holds', async () => {
+    const d1 = await newDocument(R, 'p1-a');
+    const d2 = await newDocument(R, 'p1-b');
+    for (let i = 0; i < 50; i++) await insertRun(R, d1);
+    expect(await failure(as(R, `update ${S}.runs set document_id = $1 where document_id = $2 and not is_baseline`, [d2, d1]))).toMatch(/42501 permission denied/);
+    const count = async (d: string) => (await as<{ n: number }>(R, `select count(*)::int as n from ${S}.runs where document_id = $1`, [d]))[0].n;
+    expect([await count(d1), await count(d2)]).toEqual([50, 0]);
+    // The trigger refuses it for any caller, also one that may update every column (the migration's owner, as a definer function would be).
+    const [one] = await as<{ id: string }>(R, `select id from ${S}.runs where document_id = $1 and not is_baseline limit 1`, [d1]);
+    expect(await failure(db.query(`update ${S}.runs set document_id = $1 where id = $2`, [d2, one.id]))).toMatch(/cannot be changed/);
+    await as(R, `delete from ${S}.documents where id in ($1, $2)`, [d1, d2]);
+  });
+
+  it('P2: text cannot be written onto a run, whatever the switch, the run\'s age or its source; in any form', async () => {
+    const off = await newDocument(R, 'p2-off');
+    const ci = (await insertRun(R, off, { source: 'ci' })).id;
+    for (let i = 0; i < 6; i++) await insertRun(R, off);
+    for (const text of ['x'.repeat(1_048_576), 'short', '']) {
+      expect(await failure(as(R, `update ${S}.runs set transcript = $1 where document_id = $2`, [text, off])), JSON.stringify(text.slice(0, 5))).toMatch(/can only be removed/);
+    }
+    expect(await failure(as(R, `update ${S}.runs set transcript = 'x' where id = $1`, [ci]))).toMatch(/can only be removed/);
+    expect((await as<{ n: number }>(R, `select count(transcript)::int as n from ${S}.runs where document_id = $1`, [off]))[0].n).toBe(0);
+    // On a document that keeps text, kept text cannot be replaced either; removing it is allowed (the nearest case the old grant allowed).
+    const on = await newDocument(R, 'p2-on', true);
+    const kept = await insertRun(R, on, { transcript: 'kept' });
+    expect(await failure(as(R, `update ${S}.runs set transcript = 'changed' where id = $1`, [kept.id]))).toMatch(/can only be removed/);
+    expect(await as(R, `update ${S}.runs set transcript = 'kept' where id = $1 returning id`, [kept.id])).toEqual([{ id: kept.id }]);
+    expect(await as(R, `update ${S}.runs set transcript = null where id = $1 returning id`, [kept.id])).toEqual([{ id: kept.id }]);
+    await as(R, `delete from ${S}.documents where id in ($1, $2)`, [off, on]);
+  });
+
+  it('P3: a run\'s source and its other facts cannot be changed', async () => {
+    const d = await newDocument(R, 'p3');
+    const r = (await insertRun(R, d, { source: 'ci' })).id;
+    for (const [col, v] of [['source', 'web'], ['verdict', 'No tags found'], ['faults', '[]'], ['error_count', 0], ['created_at', '2020-01-01'], ['file_sha256', 'b'.repeat(64)]] as const) {
+      expect(await failure(as(R, `update ${S}.runs set ${col} = $1 where id = $2`, [v, r])), col).toMatch(/42501 permission denied/);
+    }
+    expect((await as<{ source: string }>(R, `select source from ${S}.runs where id = $1`, [r]))[0].source).toBe('ci');
+    // The baseline flag still changes, through set_baseline and directly (nearest case that must keep working).
+    const r2 = (await insertRun(R, d)).id;
+    await as(R, `select ${S}.set_baseline($1)`, [r2]);
+    expect((await as<{ id: string }>(R, `select id from ${S}.runs where document_id = $1 and is_baseline`, [d])).map((x) => x.id)).toEqual([r2]);
+    expect(await as(R, `update ${S}.runs set is_baseline = false where id = $1 returning id`, [r2])).toEqual([{ id: r2 }]);
+    await as(R, `delete from ${S}.documents where id = $1`, [d]);
+  });
+
+  it('deleting a run is still allowed', async () => {
+    const d = await newDocument(R, 'del');
+    const r = (await insertRun(R, d)).id;
+    expect(await as(R, `delete from ${S}.runs where id = $1 returning id`, [r])).toEqual([{ id: r }]);
+    await as(R, `delete from ${S}.documents where id = $1`, [d]);
+  });
+});
+
+describe('R1.1-4: keys in all, revoked ones included, are capped at 50', () => {
+  const K = '00000000-0000-4000-8000-0000000000b4';
+  beforeAll(async () => {
+    await db.query('insert into auth.users (id) values ($1)', [K]);
+  });
+  it('the 50th key is accepted, the 51st refused even with every other key revoked; a delete makes room', async () => {
+    for (let i = 0; i < 50; i++) {
+      const k = await newKey(K, `k${i}`);
+      await as(K, `update ${S}.api_keys set revoked_at = now() where id = $1`, [k.id]);
+    }
+    expect((await as<{ n: number }>(K, `select count(*)::int as n from ${S}.api_keys`))[0].n).toBe(50);
+    expect(await failure(newKey(K, 'k50'))).toMatch(/50 API keys/);
+    await as(K, `delete from ${S}.api_keys where label = 'k0'`);
+    await newKey(K, 'k50');
+    // Revoking and un-revoking are updates, not inserts: the total cap does not touch them.
+    expect(await failure(newKey(K, 'k51'))).toMatch(/50 API keys/);
+    await as(K, `delete from ${S}.api_keys`);
+  });
+});
+
+describe('R1.1-2 and R1.1-3: the locks are taken before the lookups', () => {
+  // The races themselves need two connections (test/schema-race.test.ts, on a real Postgres when HAC_PG_URL is set).
+  const src = (fn: string) => migration.slice(migration.indexOf(`function app_heard_as_check.${fn}(`), migration.indexOf('$$;', migration.indexOf(`function app_heard_as_check.${fn}(`)));
+  it('ci_record_run takes the per-person document lock (the one documents_cap takes) before it looks the document up', () => {
+    const body = src('ci_record_run');
+    const lock = body.indexOf("pg_advisory_xact_lock(hashtextextended('app_heard_as_check.documents:' || k.owner::text, 0))");
+    expect(lock).toBeGreaterThan(-1);
+    expect(lock).toBeLessThan(body.indexOf('select d.id into doc_id'));
+    expect(src('documents_cap')).toContain("hashtextextended('app_heard_as_check.documents:' || new.user_id::text, 0)");
+  });
+  it('set_baseline locks the document row before it clears the old baseline', () => {
+    const body = src('set_baseline');
+    expect(body.indexOf('for update')).toBeGreaterThan(-1);
+    expect(body.indexOf('for update')).toBeLessThan(body.indexOf('set is_baseline = false'));
   });
 });

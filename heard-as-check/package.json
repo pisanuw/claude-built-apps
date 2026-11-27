@@ -6,7 +6,7 @@
   "description": "Heard-As Check: see what a PDF viewer's tagged layer hands to a screen reader from your tagged PDF, beside veraPDF's verdict.",
   "license": "MIT",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.18"
   },
   "scripts": {
     "dev": "vite",

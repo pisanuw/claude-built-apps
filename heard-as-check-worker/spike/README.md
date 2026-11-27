@@ -4,7 +4,7 @@ A measurement, run once in a session on day 1 (2026-11-27); not the mount, and
 never deployed. Milestone 2 writes the mount in `heard-as-check-worker/`; this
 folder must stay out of backend-hub's build filter (SPEC open item S3-4).
 The numbers and the go or no-go are in hintwise-workflow
-`projects/heard-as-check/build/DECISIONS.md` (D-12 onwards).
+`projects/heard-as-check/build/DECISIONS.md` (D-13 to D-22, and D-24 for the re-run after review).
 
 What the image holds: the hub's Node image (same digest), backend-hub and its
 mounts idle (mult-streak; Tagging Doctor's checker without TeX Live), Chrome
