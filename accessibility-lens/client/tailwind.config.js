@@ -3,19 +3,24 @@ export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      // Each colour is a CSS variable (src/index.css) holding "R G B", so the
+      // dark theme only changes the variables and opacity modifiers such as
+      // bg-accent/5 keep working.
       colors: {
-        paper: '#F4F1EA',
-        panel: '#FBFAF6',
-        ink: '#181410',
-        muted: '#5C554B',
-        line: '#E2DCCF',
-        accent: '#125C4D',
-        'accent-soft': '#2C7A68',
+        paper: 'rgb(var(--al-paper) / <alpha-value>)',
+        panel: 'rgb(var(--al-panel) / <alpha-value>)',
+        ink: 'rgb(var(--al-ink) / <alpha-value>)',
+        muted: 'rgb(var(--al-muted) / <alpha-value>)',
+        line: 'rgb(var(--al-line) / <alpha-value>)',
+        // Text fields' edges: 3:1 against paper and panel (WCAG 1.4.11).
+        field: 'rgb(var(--al-field) / <alpha-value>)',
+        accent: 'rgb(var(--al-accent) / <alpha-value>)',
+        'accent-soft': 'rgb(var(--al-accent-soft) / <alpha-value>)',
         severity: {
-          critical: '#9A1B12',
-          serious: '#A85510',
-          moderate: '#7A5A0A',
-          minor: '#3F6212',
+          critical: 'rgb(var(--al-critical) / <alpha-value>)',
+          serious: 'rgb(var(--al-serious) / <alpha-value>)',
+          moderate: 'rgb(var(--al-moderate) / <alpha-value>)',
+          minor: 'rgb(var(--al-minor) / <alpha-value>)',
         },
       },
       fontFamily: {
@@ -24,8 +29,8 @@ export default {
         mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
       },
       boxShadow: {
-        card: '0 1px 0 #E2DCCF, 0 2px 8px rgba(24, 20, 16, 0.04)',
-        lift: '0 4px 24px rgba(24, 20, 16, 0.10)',
+        card: '0 1px 0 rgb(var(--al-line)), 0 2px 8px rgb(var(--al-shadow) / 0.04)',
+        lift: '0 4px 24px rgb(var(--al-shadow) / 0.10)',
       },
     },
   },

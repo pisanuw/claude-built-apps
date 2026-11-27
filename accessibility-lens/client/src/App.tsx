@@ -35,9 +35,13 @@ export function App(): JSX.Element {
 
       <header className="border-b border-line bg-panel">
         <div className="mx-auto max-w-4xl px-6 py-10">
-          <p className="mb-2 font-mono text-xs uppercase tracking-[0.3em] text-accent">
-            Accessibility Lens
-          </p>
+          <div className="mb-2 flex items-center justify-between gap-4">
+            <p className="font-mono text-xs uppercase tracking-[0.3em] text-accent">
+              Accessibility Lens
+            </p>
+            {/* The light and dark mode switch (platform/src/theme, src/lib/hw-theme.js). */}
+            <hw-theme-toggle />
+          </div>
           <h1 className="font-display text-4xl font-bold leading-tight text-ink sm:text-5xl">
             See your page through four kinds of eyes.
           </h1>

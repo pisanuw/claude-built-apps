@@ -13,3 +13,4 @@ Types: decision, plan, doc, scope, code, note.
 2026-05-21 code 102 tests passing (server 88 at ~96% coverage, client 14 at ~96%); thresholds enforced in CI.
 2026-05-21 doc Wrote README, ASSUMPTIONS, .env.example; added Dockerfile, render.yaml, and GitHub Actions CI.
 2026-10-17 code Default model claude-sonnet-4-20250514 (retired 2026-06-15) replaced by claude-sonnet-5-5 at low effort, max_tokens 1024; refusals and truncated replies fall back to the rule-based fix. SDK 0.32 to 0.135.
+2026-11-27 code Light and dark mode switch: the shared <hw-theme-toggle> (platform/src/theme, copied unchanged to client/src/lib/hw-theme.js, pinned by sha256) at the top right of the header, the head snippet in index.html, and a dark palette; the Tailwind colours are now CSS variables (src/index.css), so dark mode only changes their values. client 22 tests (8 new in test/theme.test.tsx, including WCAG AA contrast of every text colour in both themes).
