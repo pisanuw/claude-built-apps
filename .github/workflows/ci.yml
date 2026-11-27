@@ -2104,6 +2104,19 @@ jobs:
     defaults:
       run:
         working-directory: heard-as-check
+    # A throwaway Postgres for test/schema-race.test.ts (two connections; PGlite has one).
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_PASSWORD: race
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
     steps:
       - uses: actions/checkout@v7
 
@@ -2124,6 +2137,8 @@ jobs:
 
       - name: Test with coverage
         run: npm run coverage
+        env:
+          HAC_PG_URL: postgres://postgres:race@127.0.0.1:55432/postgres
 
       - name: Build
         run: npm run build
