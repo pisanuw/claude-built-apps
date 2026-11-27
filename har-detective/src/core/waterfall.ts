@@ -2,32 +2,22 @@
  * Waterfall renderer: builds the SVG timeline as a string so it can be unit
  * tested; the UI layer just injects it into the page. Each row is one request
  * with its phases (dns, connect, ssl, send, wait, receive) drawn as stacked
- * colored segments plus a label and a hover tooltip.
+ * colored segments plus a label and a hover tooltip. Colours come from the
+ * page's stylesheet (the wf-, p- and t- classes), so the waterfall follows the
+ * light and dark theme.
  */
 
 import type { Entry, ResourceType } from './types';
 import { formatBytes, formatMs, shortPath } from './format';
 
-export const PHASE_COLORS: Record<string, string> = {
-  blocked: '#94a3b8',
-  dns: '#0ea5e9',
-  connect: '#f59e0b',
-  ssl: '#a855f7',
-  send: '#22c55e',
-  wait: '#e11d48',
-  receive: '#2563eb',
-};
+/** The phases the waterfall draws, in spec order (ssl overlaps connect and is drawn inside it). */
+export const PHASES = ['blocked', 'dns', 'connect', 'send', 'wait', 'receive'] as const;
 
-export const TYPE_COLORS: Record<ResourceType, string> = {
-  document: '#0ea5e9',
-  script: '#f59e0b',
-  stylesheet: '#a855f7',
-  image: '#22c55e',
-  font: '#e879f9',
-  xhr: '#e11d48',
-  media: '#14b8a6',
-  other: '#94a3b8',
-};
+/** The class that colours a phase's segment or swatch. */
+export const phaseClass = (phase: string): string => `p-${phase}`;
+
+/** The class that colours a resource type's dot or swatch. */
+export const typeClass = (type: ResourceType): string => `t-${type}`;
 
 export interface WaterfallOptions {
   width?: number;
@@ -78,8 +68,8 @@ export function waterfallSvg(entries: Entry[], opts: WaterfallOptions = {}): str
   const step = tickStep(totalMs);
   for (let t = 0; t <= totalMs; t += step) {
     const px = x(t);
-    parts.push(`<line x1="${px.toFixed(1)}" y1="${AXIS_HEIGHT}" x2="${px.toFixed(1)}" y2="${height}" stroke="#e2e8f0" stroke-width="1"/>`);
-    parts.push(`<text x="${px.toFixed(1)}" y="14" fill="#64748b" text-anchor="middle">${formatMs(t)}</text>`);
+    parts.push(`<line x1="${px.toFixed(1)}" y1="${AXIS_HEIGHT}" x2="${px.toFixed(1)}" y2="${height}" class="wf-grid" stroke-width="1"/>`);
+    parts.push(`<text x="${px.toFixed(1)}" y="14" class="wf-tick" text-anchor="middle">${formatMs(t)}</text>`);
   }
 
   visible.forEach((e, row) => {
@@ -87,39 +77,37 @@ export function waterfallSvg(entries: Entry[], opts: WaterfallOptions = {}): str
     const mid = y + rowHeight / 2 + 4;
     const highlighted = opts.highlight?.has(e.index) ?? false;
     if (highlighted) {
-      parts.push(`<rect x="0" y="${y}" width="${width}" height="${rowHeight}" fill="#fde68a" opacity="0.45"/>`);
+      parts.push(`<rect x="0" y="${y}" width="${width}" height="${rowHeight}" class="wf-hl"/>`);
     } else if (row % 2 === 1) {
-      parts.push(`<rect x="0" y="${y}" width="${width}" height="${rowHeight}" fill="#f8fafc"/>`);
+      parts.push(`<rect x="0" y="${y}" width="${width}" height="${rowHeight}" class="wf-alt"/>`);
     }
 
     const failed = e.status >= 400 || e.status === 0;
     const label = `${e.method === 'GET' ? '' : `${e.method} `}${shortPath(e.path, 30)}`;
     parts.push(
-      `<circle cx="8" cy="${(y + rowHeight / 2).toFixed(1)}" r="4" fill="${TYPE_COLORS[e.type]}"/>`,
-      `<text x="18" y="${mid.toFixed(1)}" fill="${failed ? '#dc2626' : '#0f172a'}">${esc(label)}</text>`,
+      `<circle cx="8" cy="${(y + rowHeight / 2).toFixed(1)}" r="4" class="${typeClass(e.type)}"/>`,
+      `<text x="18" y="${mid.toFixed(1)}" class="${failed ? 'wf-label failed' : 'wf-label'}">${esc(label)}</text>`,
     );
 
     // Phase segments in spec order, skipping zero-length phases.
     let cursor = e.start;
-    const order = ['blocked', 'dns', 'connect', 'ssl', 'send', 'wait', 'receive'] as const;
     const segs: string[] = [];
-    for (const phase of order) {
-      // ssl overlaps connect in the HAR spec; draw it inside connect's slot.
-      if (phase === 'ssl') continue;
+    // ssl overlaps connect in the HAR spec, so it is drawn inside connect's slot (PHASES leaves it out).
+    for (const phase of PHASES) {
       const dur = e.phases[phase];
       if (dur <= 0) continue;
       const x0 = x(cursor);
       const w = Math.max(1, x(cursor + dur) - x0);
       segs.push(
         `<rect x="${x0.toFixed(1)}" y="${(y + 4).toFixed(1)}" width="${w.toFixed(1)}" ` +
-          `height="${rowHeight - 8}" fill="${PHASE_COLORS[phase]}" rx="1"/>`,
+          `height="${rowHeight - 8}" class="${phaseClass(phase)}" rx="1"/>`,
       );
       cursor += dur;
     }
     if (segs.length === 0) {
       // Cached or zero-timing entries still get a sliver so the row is visible.
       segs.push(
-        `<rect x="${x(e.start).toFixed(1)}" y="${(y + 4).toFixed(1)}" width="2" height="${rowHeight - 8}" fill="#94a3b8"/>`,
+        `<rect x="${x(e.start).toFixed(1)}" y="${(y + 4).toFixed(1)}" width="2" height="${rowHeight - 8}" class="p-cached"/>`,
       );
     }
     const tooltip =

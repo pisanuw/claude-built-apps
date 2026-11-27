@@ -7,7 +7,7 @@
 import { parseHar, HarParseError } from '../core/har';
 import { analyze } from '../core/analyze';
 import { toMarkdown } from '../core/report';
-import { waterfallSvg, omittedRows, PHASE_COLORS, TYPE_COLORS } from '../core/waterfall';
+import { waterfallSvg, omittedRows, PHASES, phaseClass, typeClass } from '../core/waterfall';
 import { sampleHarText } from '../core/sample';
 import { formatBytes, formatMs } from '../core/format';
 import type { Analysis, ParsedHar, ResourceType } from '../core/types';
@@ -41,12 +41,12 @@ function el<T extends HTMLElement>(sel: string): T {
 export function initApp(root: HTMLElement): void {
   root.innerHTML = `
     <header>
-      <h1>🕵️ HAR Detective</h1>
+      <div class="title-row"><h1>🕵️ HAR Detective</h1><hw-theme-toggle></hw-theme-toggle></div>
       <p class="tagline">Drop a browser HAR file and get a waterfall plus a ranked, plain-English performance report.</p>
       <p class="privacy">Fully client-side: the HAR file is parsed in your browser and never uploaded anywhere.
       Every finding comes from deterministic rules, so the same file always yields the same report.</p>
     </header>
-    <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Load a HAR file">
+    <div class="dropzone" id="dropzone" role="button" tabindex="0">
       <p><strong>Drop a .har file here</strong> or click to choose one</p>
       <p class="hint">DevTools → Network → right-click → “Save all as HAR”</p>
     </div>
@@ -173,14 +173,11 @@ function renderResults(): void {
     .map(
       (t) => `
         <label><input type="checkbox" data-type="${t}" ${state.hiddenTypes.has(t) ? '' : 'checked'} />
-        <span class="swatch" style="background:${TYPE_COLORS[t]}"></span>${t}</label>`,
+        <span class="swatch ${typeClass(t)}"></span>${t}</label>`,
     )
     .join('');
 
-  const legend = Object.entries(PHASE_COLORS)
-    .filter(([k]) => k !== 'ssl')
-    .map(([k, c]) => `<span><span class="swatch" style="background:${c}"></span>${k}</span>`)
-    .join('');
+  const legend = PHASES.map((k) => `<span><span class="swatch ${phaseClass(k)}"></span>${k}</span>`).join('');
 
   el<HTMLDivElement>('#results').innerHTML = `
     <div class="panel narrative">${esc(analysis.narrative)}</div>
@@ -198,7 +195,7 @@ function renderResults(): void {
       <button id="clear-highlight" hidden>Clear highlight</button>
     </div>
     <div class="legend">${legend}</div>
-    <div class="waterfall-scroll" id="waterfall"></div>
+    <div class="waterfall-scroll" id="waterfall" tabindex="0" role="region" aria-label="Waterfall"></div>
     <p class="note" id="omitted"></p>
   `;
 
