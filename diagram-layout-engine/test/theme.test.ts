@@ -5,6 +5,9 @@ import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { start } from '../src/ui/app';
 import { themeCss } from '../src/core/themes';
+import { layoutChart } from '../src/core/layout';
+import { parse } from '../src/core/parser';
+import { renderSvg } from '../src/core/svg';
 const sha = (s: string | Uint8Array, enc: 'hex' | 'base64'): string => createHash('sha256').update(s).digest(enc);
 
 // Compared with the source in this repository, so a change to platform/src/theme
@@ -284,6 +287,24 @@ describe('the switch in the header', () => {
     // The device setting alone, as it was, would keep a diagram dark after the switch chose light, and on paper.
     expect(auto).not.toMatch(/@media \(prefers-color-scheme/);
     expect(themeCss('light', '.dle')).not.toContain('@media');
+  });
+
+  it("lets an exported SVG on Auto follow its viewer's dark setting, as it did before the switch (batch 7 review R1-2)", () => {
+    // The page's two rules need <html> above the SVG; a file opened on its own has the <svg> as its root.
+    const chart = parse('flowchart TD\nA --> B');
+    const file = renderSvg(layoutChart(chart), { theme: 'auto', idPrefix: 'dle', classDefs: chart.classDefs });
+    const doc = new DOMParser().parseFromString(file, 'image/svg+xml');
+    const svg = doc.documentElement;
+    expect(svg.id).toBe('dlesvg');
+    const style = svg.querySelector('style')!.textContent!;
+    const device = style.match(/@media screen and \(prefers-color-scheme: dark\)\{((?:[^{}]*\{[^{}]*\})*)\}/)![1];
+    const rules = [...device.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selector, body]) => ({ selector, body }));
+    const own = rules.find((r) => svg.matches(r.selector));
+    expect(own, 'a dark rule that matches the root <svg> of a standalone file').toBeTruthy();
+    // The dark set, the same as the page's.
+    expect(own!.body).toBe(rules.find((r) => r.selector.startsWith(':root:not'))!.body);
+    // In the page, the inline <svg> is never the root, so the switch alone decides there.
+    expect(root.querySelector('#canvas svg')!.matches(own!.selector.replace('#dlesvg', '#edsvg'))).toBe(false);
   });
 
   it('draws a diagram on Auto again when the theme changes, and leaves one in a fixed theme alone', () => {
