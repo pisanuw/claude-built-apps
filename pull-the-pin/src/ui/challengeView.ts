@@ -232,12 +232,12 @@ export class ChallengeView {
         select(options, this.programChoice, (v) => {
           this.programChoice = v;
           this.renderSide();
-        }),
+        }, 'Test program'),
         button('Run', () => this.doRun(), 'primary'),
       ),
     );
     if (this.programChoice === 'custom') {
-      const ta = el('textarea', { rows: '6', spellcheck: 'false', class: 'mono' });
+      const ta = el('textarea', { rows: '6', spellcheck: 'false', class: 'mono', 'aria-label': 'Your test program' });
       ta.value = this.customSource;
       ta.addEventListener('input', () => (this.customSource = ta.value));
       card.append(ta);
@@ -275,6 +275,7 @@ export class ChallengeView {
       [['', 'or pick a net…'], ...NETS.map((n, i): [string, string] => [`${i}`, `${n.name} (${n.group})`])],
       this.selected !== null && this.selected < NET_COUNT ? `${this.selected}` : '',
       (v) => v && this.pick(Number(v)),
+      'Net to probe',
     );
     card.append(el('div', { class: 'row' }, b, nets));
     if (!run) card.append(el('p', { class: 'muted small' }, 'Run a program first.'));
@@ -323,7 +324,8 @@ export class ChallengeView {
       // The panel is rebuilt while signatures load; keep expanded groups open.
       details.open = this.openKinds.has(kind);
       details.addEventListener('toggle', () => (details.open ? this.openKinds.add(kind) : this.openKinds.delete(kind)));
-      const ul = el('ul', { class: 'faults' });
+      // Capped at 220 px and scrolls: reachable by keyboard, with a name.
+      const ul = el('ul', { class: 'faults', tabindex: '0', 'aria-label': `${KIND_TITLES[kind]} still consistent` });
       for (const i of list.slice(0, 60)) ul.append(el('li', {}, describeFault(CATALOG[i])));
       if (list.length > 60) ul.append(el('li', { class: 'muted' }, `…and ${list.length - 60} more`));
       details.append(ul);

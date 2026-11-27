@@ -1,4 +1,9 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
+   before the first paint) and for the device setting when scripts do not run
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same.
+   Both are for the screen only: paper gets the light set. */
 :root {
+  color-scheme: light;
   --bg: #f3f5f2;
   --card: #ffffff;
   --fg: #1a1f1b;
@@ -16,11 +21,14 @@
   --pkg-fg: #e8ecef;
   --trace: #b9c4bb;
   --code-bg: #f6f8f5;
+  /* 3:1 against the card and the page (WCAG 1.4.11); --border is for dividers. */
+  --field-border: #888d88;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #101411;
     --card: #181d19;
     --fg: #e3e9e4;
@@ -38,6 +46,31 @@
     --pkg-fg: #d6dde2;
     --trace: #3c473f;
     --code-bg: #141915;
+    --field-border: #656c67;
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #101411;
+    --card: #181d19;
+    --fg: #e3e9e4;
+    --muted: #9aa69c;
+    --border: #2f3831;
+    --accent: #2dd4bf;
+    --accent-fg: #062320;
+    --accent-soft: rgba(45, 212, 191, 0.14);
+    --good: #5cc98b;
+    --bad: #ff6b60;
+    --warn: #fb923c;
+    --hi: #f87171;
+    --lo: #93c5fd;
+    --pkg: #0b0e10;
+    --pkg-fg: #d6dde2;
+    --trace: #3c473f;
+    --code-bg: #141915;
+    --field-border: #656c67;
   }
 }
 
@@ -51,7 +84,13 @@ body {
 }
 
 #app { max-width: 1280px; margin: 0 auto; padding: 20px 16px 64px; }
-h1 { margin: 0 0 4px; font-size: 28px; }
+h1 { margin: 0; font-size: 28px; }
+/* The title and the light and dark mode switch, on one row. */
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 4px; }
+/* Hold the switch's place until hw-theme.js draws it. */
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
+/* Not on paper. */
+@media print { hw-theme-toggle { display: none !important; } }
 h2 { margin: 0 0 8px; font-size: 17px; }
 header p { margin: 0 0 12px; max-width: 760px; }
 
@@ -97,8 +136,9 @@ button.small { padding: 3px 9px; font-size: 13px; }
 button.icon { padding: 0 6px; border: none; background: none; color: var(--muted); font-size: 15px; line-height: 1; }
 button.run { font-size: 13px; padding: 2px 8px; }
 button.run.active { background: var(--accent-soft); border-color: var(--accent); }
+/* Fields: 3:1 against the card and the page (WCAG 1.4.11). */
 select, input, textarea {
-  font: inherit; font-size: 14px; padding: 5px 7px; border-radius: 6px; border: 1px solid var(--border);
+  font: inherit; font-size: 14px; padding: 5px 7px; border-radius: 6px; border: 1px solid var(--field-border);
   background: var(--code-bg); color: var(--fg); max-width: 100%;
 }
 textarea { width: 100%; font-family: var(--mono); font-size: 13px; }

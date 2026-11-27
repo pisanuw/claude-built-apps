@@ -23,7 +23,8 @@ export class Analyzer {
 
   constructor(private readonly onCursor: (cycle: number) => void) {
     this.labels = el('div', { class: 'la-labels' });
-    this.scroller = el('div', { class: 'la-scroll' });
+    // It scrolls sideways and holds nothing focusable: a named region the keyboard can reach and scroll.
+    this.scroller = el('div', { class: 'la-scroll', tabindex: '0', role: 'region', 'aria-label': 'Captured waveforms' });
     this.root = el('div', { class: 'analyzer' }, this.labels, this.scroller);
   }
 
