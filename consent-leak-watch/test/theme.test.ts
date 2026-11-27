@@ -111,8 +111,9 @@ describe('the palette', () => {
     // None: every colour is a token.
     const ALLOWED: [string, string][] = [];
     const rest = css
-      .replace(/@media\s*\(prefers-color-scheme:\s*dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)\s*\{[^}]*\}\s*\}/g, '')
-      .replace(/:root(\[data-theme="dark"\])?\s*\{[^}]*\}/g, '');
+      .replace(/@media\s+screen\s+and\s+\(prefers-color-scheme:\s*dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)\s*\{[^}]*\}\s*\}/g, '')
+      .replace(/@media\s+screen\s*\{\s*:root\[data-theme="dark"\]\s*\{[^}]*\}\s*\}/g, '')
+      .replace(/:root\s*\{[^}]*\}/g, '');
     const COLOUR =
       /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(|(?<![\w-])(?:white|black|red|green|blue|gray|grey|silver|yellow|orange|purple|pink|navy|teal|maroon)(?![\w-])/gi;
     const found: string[] = [];
@@ -124,6 +125,20 @@ describe('the palette', () => {
       }
     }
     expect(found).toEqual([]);
+  });
+
+  it('prints with the light set and without the switch: both dark blocks are for screens only', () => {
+    // Paper is white (browsers leave backgrounds out), so the dark set's pale text would not read there.
+    const screenAttr = /@media\s+screen\s*\{\s*:root\[data-theme="dark"\]\s*\{[^}]*\}\s*\}/;
+    const screenDevice = /@media\s+screen\s+and\s+\(prefers-color-scheme:\s*dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)\s*\{[^}]*\}\s*\}/;
+    expect(css).toMatch(screenAttr);
+    expect(css).toMatch(screenDevice);
+    // No other rule follows the theme or the device setting, which print would then follow too.
+    expect(css.replace(screenAttr, '').replace(screenDevice, '')).not.toMatch(/data-theme|prefers-color-scheme/);
+    const print = [...css.matchAll(/@media\s+print\s*\{((?:[^{}]*\{[^{}]*\})*[^{}]*)\}/g)].map((m) => m[1]).join('\n');
+    expect(print).toMatch(/(?:^|[\s,}])hw-theme-toggle\s*\{\s*display:\s*none\s*!important;?\s*\}/);
+    // Badges are white text on their colour: the colour stays on paper.
+    expect(print).toMatch(/\.badge\s*\{[^}]*(?<!-webkit-)print-color-adjust:\s*exact/);
   });
 });
 
