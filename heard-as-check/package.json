@@ -1,0 +1,44 @@
+{
+  "name": "heard-as-check",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Heard-As Check: see what a PDF viewer's tagged layer hands to a screen reader from your tagged PDF, beside veraPDF's verdict.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test e2e",
+    "e2e": "playwright test",
+    "fixtures": "node test/fixtures/generate.ts",
+    "fixtures:verapdf": "node test/fixtures/verapdf.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.119.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.15",
+    "@eslint/js": "^9.17.0",
+    "@playwright/test": "^1.65.0",
+    "@types/node": "^22.20.7",
+    "@types/pg": "^8.15.5",
+    "@vitest/coverage-v8": "^2.1.8",
+    "axe-core": "^4.14.0",
+    "eslint": "^9.17.0",
+    "globals": "^15.14.0",
+    "jsdom": "^25.0.1",
+    "pg": "^8.16.3",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.19.0",
+    "vite": "^6.0.7",
+    "vitest": "^2.1.8",
+    "yaml": "^2.9.1"
+  }
+}
