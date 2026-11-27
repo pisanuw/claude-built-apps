@@ -3,7 +3,7 @@
  * The values an app copies to use the shared light and dark mode switch
  * (README.md beside this file). Like FOOTER_STYLE_CSP in
  * scripts/site-footer.mjs, they are computed from the files, so they change
- * whenever a file does, and test/theme.test.ts checks README.md shows them.
+ * whenever a file does, and test/theme-snippet.test.ts checks README.md shows them.
  *
  * Usage: node platform/src/theme/snippet.mjs   (prints them)
  */

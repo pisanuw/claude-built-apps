@@ -2136,4 +2136,4 @@ jobs:
           node-version: '24'
 
       - name: Test
-        run: node --test scripts/site-footer.test.mjs scripts/footer-audit.test.mjs scripts/site-analytics.test.mjs scripts/domains.test.mjs accessibility-lens/deploy/cloudflare-dns.test.mjs accessibility-lens/deploy/redirect-rule.test.mjs accessibility-lens/deploy/migrate-domains.test.mjs accessibility-lens/deploy/retire-netlify-site.test.mjs accessibility-lens/deploy/render-wait.test.mjs accessibility-lens/deploy/render-service.test.mjs
+        run: node --test scripts/site-footer.test.mjs scripts/footer-audit.test.mjs scripts/theme-audit.test.mjs scripts/site-analytics.test.mjs scripts/domains.test.mjs accessibility-lens/deploy/cloudflare-dns.test.mjs accessibility-lens/deploy/redirect-rule.test.mjs accessibility-lens/deploy/migrate-domains.test.mjs accessibility-lens/deploy/retire-netlify-site.test.mjs accessibility-lens/deploy/render-wait.test.mjs accessibility-lens/deploy/render-service.test.mjs

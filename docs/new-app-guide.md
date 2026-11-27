@@ -156,7 +156,7 @@ Every HintWise app has a light and dark mode switch (owner, 27 Nov 2026; Manager
 - **The button:** a real `<button>` with an accessible name that says what it does ("Switch to dark mode" / "Switch to light mode") and `aria-pressed` or an updated label; reachable by keyboard; at least 44 by 44 px on a phone.
 - **One source:** the shared switch in `platform/src/theme/`; [its README](../platform/src/theme/README.md) has the exact snippets for a Vite app, a React app, plain HTML pages and Next.js, the CSS token pattern, the CSP hash for the inline head script (or the file to load instead under `script-src 'self'`), the sha256 to pin the copy of `hw-theme.js`, and the test to copy.
   - Put the head snippet first in `<head>`, copy `hw-theme.js` unchanged, and put `<hw-theme-toggle></hw-theme-toggle>` at the right of the header, before the sign-in controls.
-  - It is copied into each app and pinned by sha256, like `hw-events.js` in option B, in both options: the deploy does not add it, because the button belongs in the app's own header.
+  - Whichever option the app uses, it is copied into the app and checked by sha256 (like `hw-events.js` in option B): the deploy does not add it, because the button belongs in the app's own header. In this repository, the platform CI job checks every copy against the source on every push; own-repo copies are checked by `node scripts/theme-audit.mjs`.
   - Examples: accessibility-lens (React and Tailwind, colours moved to CSS variables) and PasteMD (plain HTML pages under a strict CSP).
 - **The footer** inherits the page's text colour, so it suits both themes; the HintWise wordmark needs `hintwise-wordmark-white.svg` in dark mode.
 
