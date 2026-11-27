@@ -869,4 +869,14 @@ pre.ctx {
   hw-theme-toggle {
     display: none !important;
   }
+
+  /* Paper leaves fills out (batch 5 review R1-2): a filled control's white label takes the ink, and the current one is underlined. */
+  .tab.active,
+  button.primary {
+    color: var(--text);
+  }
+
+  .tab.active {
+    text-decoration: underline;
+  }
 }
