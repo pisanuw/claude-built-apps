@@ -4,11 +4,18 @@
 # 2026: "deploy dashboards", option 1, so no token is pasted anywhere).
 #
 # Every run is a production deploy (Netlify credits). The site's own env vars
-# (DASHBOARD_PASSWORD, NETLIFY_TOKEN, CRON_SECRET, TZ, APP_EVENTS_REPORT_*) stay
-# on the site; this workflow lists their names and never reads or prints a
-# value. It refuses to deploy when DASHBOARD_PASSWORD is not set for
-# production, because the dashboard would then be open to anyone.
+# (DASHBOARD_PASSWORD, CRON_SECRET, TZ, APP_EVENTS_REPORT_*) stay on the site;
+# this workflow lists their names and never prints a value. It refuses to
+# deploy when DASHBOARD_PASSWORD is not set for production, because the
+# dashboard would then be open to anyone.
 # APP_EVENTS_REPORT_SECRET is set by supabase-admin.yml `report-secret on`.
+#
+# One token (owner, 27 Nov 2026: "One token"): before each deploy the workflow
+# sets the site's NETLIFY_TOKEN, which the sync uses to read Netlify's API, to
+# this repo's NETLIFY_AUTH_TOKEN, so there is one Netlify token to renew. The
+# value goes from the secret to the API in a request body and is never printed.
+# After renewing NETLIFY_AUTH_TOKEN, run this workflow once so the dashboard's
+# sync gets the new token too.
 #
 # After the deploy it checks the gate signed out, with no secret: / goes to
 # the sign-in page (pisanuw/dashboards netlify-analytics/netlify/edge-functions/
@@ -74,7 +81,53 @@ jobs:
           rm -f "$RUNNER_TEMP/env.json"
           [ "$GATE" -gt 0 ] || { echo "::error::DASHBOARD_PASSWORD is not set for production on $SITE: the dashboard would be public. Set it on the site first."; exit 1; }
           echo "site_id=$SITE_ID" >> "$GITHUB_OUTPUT"
+          echo "account=$ACCOUNT" >> "$GITHUB_OUTPUT"
           echo "base=$(jq -r '.ssl_url // .url' "$RUNNER_TEMP/site.json")" >> "$GITHUB_OUTPUT"
+
+      # One token: the sync reads NETLIFY_TOKEN first (pisanuw/dashboards
+      # netlify-analytics/src/config.js), so set it to this repo's token before
+      # the deploy, which gives the functions the new value. An existing
+      # variable keeps its scopes and contexts and only its values change; a
+      # missing one is created for every context. Only key names, contexts and
+      # HTTP codes are printed.
+      - name: Give the site this repo's Netlify token
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          SITE_ID: ${{ steps.site.outputs.site_id }}
+          ACCOUNT: ${{ steps.site.outputs.account }}
+        run: |
+          set -euo pipefail
+          URL="https://api.netlify.com/api/v1/accounts/$ACCOUNT/env"
+          call() { # method, path and query; the body, if any, comes on stdin
+            curl -sS -o /dev/null -w '%{http_code}' -X "$1" -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+              -H 'Content-Type: application/json' --data-binary @- "$URL$2"
+          }
+          code=$(curl -sS -o "$RUNNER_TEMP/var.json" -w '%{http_code}' -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+            "$URL/NETLIFY_TOKEN?site_id=$SITE_ID")
+          if [ "$code" = 200 ]; then
+            # Contexts only: the old value stays inside the deleted file.
+            jq -c '.values[] | {context, context_parameter}' "$RUNNER_TEMP/var.json" > "$RUNNER_TEMP/contexts.jsonl"
+            rm -f "$RUNNER_TEMP/var.json"
+            [ -s "$RUNNER_TEMP/contexts.jsonl" ] || echo '{"context":"all","context_parameter":null}' > "$RUNNER_TEMP/contexts.jsonl"
+            while read -r c; do
+              ctx=$(jq -r .context <<<"$c")
+              code=$(jq -c '. + {value: env.NETLIFY_AUTH_TOKEN} | with_entries(select(.value != null))' <<<"$c" \
+                | call PATCH "/NETLIFY_TOKEN?site_id=$SITE_ID")
+              echo "NETLIFY_TOKEN ($ctx): HTTP $code"
+              [ "$code" = 200 ] || [ "$code" = 201 ] || { echo "::error::could not set NETLIFY_TOKEN ($ctx) on the site"; exit 1; }
+            done < "$RUNNER_TEMP/contexts.jsonl"
+            rm -f "$RUNNER_TEMP/contexts.jsonl"
+          elif [ "$code" = 404 ]; then
+            rm -f "$RUNNER_TEMP/var.json"
+            code=$(jq -nc \
+              '[{key: "NETLIFY_TOKEN", scopes: ["builds", "functions", "runtime"], values: [{context: "all", value: env.NETLIFY_AUTH_TOKEN}]}]' \
+              | call POST "?site_id=$SITE_ID")
+            echo "NETLIFY_TOKEN (all, created): HTTP $code"
+            [ "$code" = 201 ] || [ "$code" = 200 ] || { echo "::error::could not create NETLIFY_TOKEN on the site"; exit 1; }
+          else
+            rm -f "$RUNNER_TEMP/var.json"
+            echo "::error::reading NETLIFY_TOKEN's contexts answered HTTP $code"; exit 1
+          fi
 
       - name: Build and deploy (production)
         working-directory: netlify-analytics
