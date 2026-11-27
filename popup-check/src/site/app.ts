@@ -176,7 +176,8 @@ export function mount(root: HTMLElement, opts: MountOptions): { showReport(r: Re
     h(
       'header',
       {},
-      h('h1', {}, 'Popup Check'),
+      // The light and dark mode switch at the end of the title's row (platform/src/theme).
+      h('div', { class: 'title-row' }, h('h1', {}, 'Popup Check'), h('hw-theme-toggle', {})),
       h('p', { class: 'lede' }, 'Find out whether the popups on your store lock out shoppers who use a keyboard or a screen reader, before someone else finds out for you.'),
       h('p', { class: 'privacy' }, 'It runs in your own browser, on your own store. Nothing is installed on your site and nothing is uploaded.'),
     ),

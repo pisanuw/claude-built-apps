@@ -1,4 +1,9 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set before the first paint) and
+   for the device setting when scripts do not run (platform/src/theme/README.md). test/theme.test.ts keeps the
+   two the same. Both are for the screen only: paper gets the light set. The bookmark's panel (src/panel) has
+   its own colours and follows the device: it is drawn on the shopper's store, not here. */
 :root {
+  color-scheme: light;
   --bg: #f5f7fa;
   --panel: #ffffff;
   --ink: #18202b;
@@ -14,10 +19,14 @@
   --warn: #7a4a00;
   --warn-bg: #fff1d6;
   --neutral-bg: #eceff4;
-  --focus: #f2b544;
+  /* The paste box's edge: 3:1 on the panel, the page and the grey boxes (WCAG 1.4.11); --line (1.42:1) is for dividers. */
+  --field-border: #7c8594;
+  /* The focus ring: 3:1 on the page (#f2b544 was 1.71:1 in light; it stays for dark). */
+  --focus: #a86400;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #10141a;
     --panel: #19202a;
     --ink: #e5e9f0;
@@ -33,6 +42,30 @@
     --warn: #ffc46b;
     --warn-bg: #3a2a10;
     --neutral-bg: #262d39;
+    --field-border: #737e90;
+    --focus: #f2b544;
+  }
+}
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #10141a;
+    --panel: #19202a;
+    --ink: #e5e9f0;
+    --muted: #a6b0bf;
+    --line: #323c4b;
+    --accent: #8cc4ef;
+    --accent-ink: #0b1a26;
+    --link: #8cc4ef;
+    --bad: #ff9a8f;
+    --bad-bg: #3b1d1a;
+    --good: #85d19a;
+    --good-bg: #16301f;
+    --warn: #ffc46b;
+    --warn-bg: #3a2a10;
+    --neutral-bg: #262d39;
+    --field-border: #737e90;
+    --focus: #f2b544;
   }
 }
 * { box-sizing: border-box; }
@@ -47,7 +80,10 @@ a { color: var(--link); }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .skip { position: absolute; left: -9999px; }
 .skip:focus { left: 16px; top: 8px; background: var(--panel); padding: 8px 12px; border-radius: 6px; z-index: 10; }
-header h1 { margin: 0 0 6px; font-size: 2.1rem; letter-spacing: -0.01em; }
+/* The title, and the light and dark mode switch at the end of its row (its place held until hw-theme.js draws it). */
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 6px; }
+header h1 { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: 2.1rem; letter-spacing: -0.01em; }
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
 .lede { font-size: 1.15rem; margin: 0 0 8px; max-width: 46em; }
 .privacy { color: var(--good); font-weight: 600; margin: 0 0 12px; }
 h2 { margin: 28px 0 10px; font-size: 1.35rem; }
@@ -69,7 +105,7 @@ button.linklike { border: 0; background: none; color: var(--link); text-decorati
   box-shadow: 0 0 0 3px var(--accent);
 }
 .steps li, .checklist li { margin: 4px 0; }
-textarea { width: 100%; font: 0.95rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); }
+textarea { width: 100%; font: 0.95rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 8px; border: 1px solid var(--field-border); border-radius: 6px; background: var(--panel); color: var(--ink); }
 label { display: block; font-weight: 600; margin: 8px 0 4px; }
 .status:empty { display: none; }
 .status { background: var(--good-bg); color: var(--good); padding: 8px 12px; border-radius: 8px; }
@@ -99,7 +135,8 @@ label { display: block; font-weight: 600; margin: 8px 0 4px; }
 .history { padding-left: 20px; }
 .history li { margin: 6px 0; }
 
-/* Practice shop: always light, like a typical store. */
+/* Practice shop: always light, like a typical store (practice.html sets data-theme="light" and has no switch:
+   it stands in for the store that Popup Check tests, not for the app). */
 body.practice { background: #fbfaf7; color: #1d2430; }
 body.practice .back { max-width: 920px; margin: 0 auto; padding: 12px 16px 0; }
 body.practice a { color: #1a5a96; }
@@ -121,4 +158,5 @@ body.practice a { color: #1a5a96; }
   .report { border: 0; padding: 0; }
   .overlay-card { break-inside: avoid-page; }
   textarea { border: 1px solid #999999; }
+  hw-theme-toggle { display: none !important; }
 }
