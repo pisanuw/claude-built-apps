@@ -359,8 +359,11 @@ export function mazeView(): HTMLElement {
 
   function onKey(ev: KeyboardEvent): void {
     if (!root.isConnected) return;
-    const tag = (ev.target as HTMLElement | null)?.tagName ?? '';
-    if (['INPUT', 'SELECT', 'TEXTAREA'].includes(tag) && !(ev.target as HTMLInputElement).type?.match(/checkbox|radio/)) return;
+    // The element the key was pressed on: a key in a shadow root (the light and dark mode switch's button)
+    // reaches the document retargeted to its host, <hw-theme-toggle>, so ev.target would hide the button.
+    const target = (ev.composedPath()[0] ?? ev.target) as HTMLElement | null;
+    const tag = target?.tagName ?? '';
+    if (['INPUT', 'SELECT', 'TEXTAREA'].includes(tag) && !(target as HTMLInputElement).type?.match(/checkbox|radio/)) return;
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
     const key = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
     const dir = KEY_DIRS[key];

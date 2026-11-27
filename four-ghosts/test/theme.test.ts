@@ -289,6 +289,23 @@ describe('the switch in the header', () => {
     expect(localStorage.getItem('hw-theme')).toBe('light');
   });
 
+  it('leaves Space on the switch to the switch: it does not play or pause the maze', () => {
+    const play = (): HTMLButtonElement => [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => /^(?:Play|Pause)$/.test(b.textContent ?? ''))!;
+    expect(play().textContent).toBe('Play');
+    // A key pressed in the switch's shadow root reaches the document with its host, HW-THEME-TOGGLE, as the target.
+    const inner = button();
+    inner.focus();
+    const onSwitch = new KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true, composed: true, cancelable: true });
+    inner.dispatchEvent(onSwitch);
+    expect(onSwitch.defaultPrevented).toBe(false);
+    expect(play().textContent).toBe('Play');
+    // Space anywhere else on the maze tab still plays.
+    const onPage = new KeyboardEvent('keydown', { key: ' ', code: 'Space', bubbles: true, cancelable: true });
+    document.body.dispatchEvent(onPage);
+    expect(onPage.defaultPrevented).toBe(true);
+    expect(play().textContent).toBe('Pause');
+  });
+
   it('stays in the header on every tab', () => {
     for (const tab of ['maze', 'compare', 'rules']) {
       show(tab);
