@@ -76,7 +76,7 @@ before.
 when `<label>` is:
 - a deployed app (`app-hosts.ts`, generated from each `target.yml`'s
   `netlify.customDomain`, mapped by `scripts/domains.mjs`, or its `siteName`);
-- or one of `EXTERNAL_APP_LABELS` (`stepwise`, from 12 Nov `photo2pgn`, deployed from its own repository pisan-labs/photo2pgn, from 15 Nov `udebt`, from pisanuw/understanding-debt, and from 18 Nov `ypai`, from pisanuw/digitalme).
+- or one of `EXTERNAL_APP_LABELS` (`stepwise`, from 12 Nov `photo2pgn`, deployed from its own repository pisan-labs/photo2pgn, from 15 Nov `udebt`, from pisanuw/understanding-debt, from 18 Nov `ypai`, from pisanuw/digitalme, from 24 Nov `screen-reader-journeys`, from pisan-labs/screen-reader-journeys, and `ranked-voting`, from pisanuw/ranked-voting, once its move to the shared project is released).
 
 `auth`, `www` and the other `NON_APP_LABELS` are never allowed. The Origin
 and CORS follow the same list.
