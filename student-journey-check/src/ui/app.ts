@@ -300,7 +300,7 @@ export function mount(root: HTMLElement, deps: Deps = {}): App {
     h(
       'header',
       {},
-      h('h1', {}, 'Student Journey Check'),
+      h('div', { class: 'title-row' }, h('h1', {}, 'Student Journey Check'), h('hw-theme-toggle')),
       h('p', { class: 'lede' }, 'A test student walks through your online course the way your real students do: log in, open the dashboard, a lesson and its video, a quiz, a certificate, and the price new customers see. You get a plain answer to one question: can my students still get in?'),
       h('p', { class: 'for' }, 'For coaches, tutors and small academies who sell courses from their own WordPress site with Tutor LMS. Run it right after every plugin update.'),
     ),
