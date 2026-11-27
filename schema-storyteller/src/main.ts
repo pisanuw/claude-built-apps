@@ -1,3 +1,5 @@
+// The light and dark mode switch (platform/src/theme), defined before the header is drawn.
+import './lib/hw-theme.js';
 import './ui/styles.css';
 import { analyze } from './core/analyze.js';
 import { detectFormat } from './core/parse/index.js';
@@ -19,7 +21,7 @@ if (!app) throw new Error('#app root not found');
 app.innerHTML = `
   <header class="site-head">
     <div class="wrap">
-      <h1>📖 Schema Storyteller</h1>
+      <div class="title-row"><h1>📖 Schema Storyteller</h1><hw-theme-toggle></hw-theme-toggle></div>
       <p class="tagline">
         Paste a SQL, Prisma, or JSON Schema and read what your data model actually
         means, then get a rule-based review of missing keys, indexes, and constraints.
@@ -46,6 +48,7 @@ app.innerHTML = `
       </div>
       <textarea
         id="source"
+        aria-label="Schema"
         spellcheck="false"
         placeholder="Paste CREATE TABLE statements, a Prisma schema, or a JSON Schema here…"
       ></textarea>
