@@ -64,7 +64,7 @@ The copies are not the app's code. Keep them out of its lint, format and coverag
    // or, in a template string: `<header class="site-header"><h1>App name</h1><hw-theme-toggle></hw-theme-toggle></header>`
    ```
 
-4. Colours as tokens (below). An app that already has a `@media (prefers-color-scheme: dark) { :root { ... } }` block changes its selector to `:root:not([data-theme="light"])` and repeats the block under `:root[data-theme="dark"]`.
+4. Colours as tokens (below). An app that already has a `@media (prefers-color-scheme: dark) { :root { ... } }` block changes it to `@media screen and (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { ... } }` and repeats the block as `@media screen { :root[data-theme="dark"] { ... } }`.
 
 ### A React app (Vite)
 
@@ -104,7 +104,7 @@ hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--h
 
 ## Colours: the token pattern
 
-Define every colour once as a custom property, light on `:root`, dark twice: for the attribute, and for the device setting when scripts do not run.
+Define every colour once as a custom property, light on `:root`, dark twice: for the attribute, and for the device setting when scripts do not run. Both dark blocks are for screens only, so a printout uses the light set.
 
 ```css
 :root {
@@ -117,17 +117,19 @@ Define every colour once as a custom property, light on `:root`, dark twice: for
   --accent: #1d4ed8;
   --on-accent: #ffffff;
 }
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #0b1120;
-  --surface: #111827;
-  --text: #e5e7eb;
-  --muted: #9ca3af;
-  --field-border: #6b7280;
-  --accent: #93c5fd;
-  --on-accent: #0b1120;
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0b1120;
+    --surface: #111827;
+    --text: #e5e7eb;
+    --muted: #9ca3af;
+    --field-border: #6b7280;
+    --accent: #93c5fd;
+    --on-accent: #0b1120;
+  }
 }
-@media (prefers-color-scheme: dark) {
+@media screen and (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: #0b1120;
@@ -139,10 +141,14 @@ Define every colour once as a custom property, light on `:root`, dark twice: for
     --on-accent: #0b1120;
   }
 }
+@media print {
+  hw-theme-toggle { display: none !important; }
+}
 ```
 
 - `color-scheme` makes form controls and scroll bars follow.
 - Keep the two dark blocks identical (the app's test below compares them).
+- **Print uses the light set, without the switch.** Browsers leave backgrounds out when printing, by default, so the dark set's pale text would land on white paper (about 1.2:1). Keep both dark blocks inside `screen` queries, add nothing else that follows `data-theme` or `prefers-color-scheme`, and hide the switch in print (the test below checks all three). Text on a coloured fill, such as a white-on-red badge in a report, needs `print-color-adjust: exact` in print to keep its fill.
 - **The switch's outline** is 60% of the header's text colour over the header's background; check it is at least 3:1 in both themes (as accessibility-lens's and PasteMD's tests do). With a pale text colour on a pale header, set `--hw-theme-toggle-border` to a stronger colour.
 - Both themes meet contrast: 4.5:1 for text, 3:1 for large text and for the parts of controls that identify them; no serious issue in an accessibility-lens scan of each.
 - **Field borders are 3:1** against what the field sits on, in both themes (WCAG 1.4.11): a text field's border is often its only edge. Give inputs, textareas and selects their own token (`--field-border`); the light grey used for dividers and cards is usually about 1.5:1 and too faint for that. Put the pair in the app's contrast test, and test that the fields use the token: render the page and check that every text field takes its border from `--field-border` (the test below; with Tailwind, that each field's border colour class is the field colour, as in accessibility-lens). A test of the token's value alone passes when a field goes back to the divider colour.
@@ -153,7 +159,7 @@ Define every colour once as a custom property, light on `:root`, dark twice: for
 
 ## The test an app copies
 
-Vitest with jsdom (adjust the paths, the token names and the render step). It pins both copies, checks the button is in the header and switches the page, checks the palette's contrast in both themes (text, the field borders, the switch's outline), that every text field uses `--field-border`, and that no colour is written outside the token blocks except the content colours it lists. Read files by path from the package folder, where vitest runs: under jsdom, `new URL(..., import.meta.url)` is jsdom's URL, which `readFileSync` does not take. accessibility-lens's `client/test/theme.test.tsx` is a worked copy for React and Tailwind; `acr-draft/test/theme.test.ts` for a vanilla Vite app.
+Vitest with jsdom (adjust the paths, the token names and the render step). It pins both copies, checks the button is in the header and switches the page, checks the palette's contrast in both themes (text, the field borders, the switch's outline), that every text field uses `--field-border`, that no colour is written outside the token blocks except the content colours it lists, and that print uses the light set without the switch. Read files by path from the package folder, where vitest runs: under jsdom, `new URL(..., import.meta.url)` is jsdom's URL, which `readFileSync` does not take. accessibility-lens's `client/test/theme.test.tsx` is a worked copy for React and Tailwind; `acr-draft/test/theme.test.ts` for a vanilla Vite app.
 
 ```ts
 // test/theme.test.ts
@@ -234,8 +240,9 @@ describe('the light and dark mode switch', () => {
       // Exact selector and colour pairs that stay the same in both themes (a printed report, a sample).
       const ALLOWED: [string, string][] = [];
       const rest = css
-        .replace(/@media\s*\(prefers-color-scheme:\s*dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)\s*\{[^}]*\}\s*\}/g, '')
-        .replace(/:root(\[data-theme="dark"\])?\s*\{[^}]*\}/g, '');
+        .replace(/@media\s+screen\s+and\s+\(prefers-color-scheme:\s*dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)\s*\{[^}]*\}\s*\}/g, '')
+        .replace(/@media\s+screen\s*\{\s*:root\[data-theme="dark"\]\s*\{[^}]*\}\s*\}/g, '')
+        .replace(/:root\s*\{[^}]*\}/g, '');
       const COLOUR =
         /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(|(?<![\w-])(?:white|black|red|green|blue|gray|grey|silver|yellow|orange|purple|pink|navy|teal|maroon)(?![\w-])/gi;
       const found: string[] = [];
@@ -247,6 +254,18 @@ describe('the light and dark mode switch', () => {
         }
       }
       expect(found).toEqual([]);
+    });
+
+    it('prints with the light set and without the switch: both dark blocks are for screens only', () => {
+      // Paper is white (browsers leave backgrounds out), so the dark set's pale text would not read there.
+      const screenAttr = /@media\s+screen\s*\{\s*:root\[data-theme="dark"\]\s*\{[^}]*\}\s*\}/;
+      const screenDevice = /@media\s+screen\s+and\s+\(prefers-color-scheme:\s*dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)\s*\{[^}]*\}\s*\}/;
+      expect(css).toMatch(screenAttr);
+      expect(css).toMatch(screenDevice);
+      // No other rule follows the theme or the device setting, which print would then follow too.
+      expect(css.replace(screenAttr, '').replace(screenDevice, '')).not.toMatch(/data-theme|prefers-color-scheme/);
+      const print = [...css.matchAll(/@media\s+print\s*\{((?:[^{}]*\{[^{}]*\})*[^{}]*)\}/g)].map((m) => m[1]).join('\n');
+      expect(print).toMatch(/(?:^|[\s,}])hw-theme-toggle\s*\{\s*display:\s*none\s*!important;?\s*\}/);
     });
   });
 
