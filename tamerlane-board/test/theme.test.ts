@@ -3,7 +3,10 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Game, Ruleset, colorOf, typeOf } from '../src/core/game';
+import { CLASSIC } from '../src/core/variants';
 import { mountApp } from '../src/ui/app';
+import { renderBoard } from '../src/ui/board';
 
 // The engine runs in a Web Worker, which jsdom does not have: a balance test answers with four quick games.
 vi.mock('../src/ui/engineClient', () => ({
@@ -164,6 +167,11 @@ describe('the palette', () => {
     expect(rules('.board-row')).toMatch(/display:\s*contents/);
   });
 
+  it('writes no board rule for a cell as a child of the board: cells are in rows now, so it would match nothing', () => {
+    const selectors = [...css.matchAll(/([^{}@]+)\{/g)].flatMap(([, s]) => s.split(',').map((x) => x.trim()));
+    expect(selectors.filter((x) => /\.board\s*>\s*(?:\.cell|button|div:not\(\.board-row\))/.test(x))).toEqual([]);
+  });
+
 });
 
 // Every rule for a selector, media queries included.
@@ -315,6 +323,48 @@ describe('the switch in the header', () => {
       expect(cells.length).toBeGreaterThan(20);
       for (const cell of cells) expect(cell.parentElement!.getAttribute('role')).toBe('row');
     }
+  });
+
+  it("draws the squares' lines, the check mark and the corner on cells inside rows", () => {
+    // A board drawn the way the play tab draws it, with a king in check, matched against the stylesheet.
+    const rs = new Ruleset(CLASSIC);
+    const game = Game.initial(rs);
+    const king = [...game.board].findIndex((code) => code && rs.pieces[typeOf(code)].def.royal && colorOf(code) === 0);
+    expect(king).toBeGreaterThanOrEqual(0);
+    const board = renderBoard({ rs, board: game.board, check: king, onClick: () => {} });
+    document.body.append(board);
+    try {
+      const cells = [...board.querySelectorAll('.cell:not(.void):not(.citadel)')];
+      expect(cells.length).toBe(64);
+      for (const cell of cells) expect(rulesFor(cell), cell.getAttribute('title')!).toMatch(/box-shadow:\s*-1px -1px 0 var\(--sq-line\)/);
+      const checked = board.querySelector('.cell.check')!;
+      expect(checked).not.toBeNull();
+      expect(rulesFor(checked)).toMatch(/box-shadow:\s*inset 0 0 0 3px var\(--cap\)/);
+      expect(rulesFor(board.querySelector('.cell')!)).toMatch(/border-top-left-radius:\s*4px/);
+      expect(rulesFor(board.querySelectorAll('.cell')[1])).not.toMatch(/border-top-left-radius/);
+    } finally {
+      board.remove();
+    }
+  });
+
+  it("names each square from hidden text, not aria-label, so its visible marks need not be words of the name (axe label-content-name-mismatch)", () => {
+    const named: Element[] = [];
+    for (const tab of ['play', 'lab', 'pieces']) {
+      show(tab);
+      named.push(...root.querySelectorAll('.board [role="gridcell"]'));
+    }
+    expect(named.length).toBeGreaterThan(100);
+    for (const cell of named) {
+      expect(cell.hasAttribute('aria-label'), cell.outerHTML.slice(0, 100)).toBe(false);
+      expect(cell.hasAttribute('aria-labelledby')).toBe(false);
+      // The name: the one span that is not aria-hidden, the same text as the tooltip.
+      const name = cell.querySelector(':scope > .cell-name')!;
+      expect(name.textContent).toBe(cell.getAttribute('title'));
+      expect(name.textContent).toMatch(/^(?:[a-z]\d+|(?:White|Black) citadel), /);
+      for (const child of cell.children) if (child !== name) expect(child.getAttribute('aria-hidden'), child.outerHTML.slice(0, 60)).toBe('true');
+    }
+    expect(rules('.cell-name')).toMatch(/position:\s*absolute/);
+    expect(rules('.cell-name')).toMatch(/clip:\s*rect\(0 0 0 0\)/);
   });
 
   it("makes the lab's balance-test table, which scrolls sideways on a phone, a focusable, labelled region", () => {
