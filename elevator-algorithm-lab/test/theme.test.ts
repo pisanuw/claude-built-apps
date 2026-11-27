@@ -111,8 +111,9 @@ describe('the palette', () => {
     // None: every colour is a token.
     const ALLOWED: [string, string][] = [];
     const rest = css
-      .replace(/@media\s*\(prefers-color-scheme:\s*dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)\s*\{[^}]*\}\s*\}/g, '')
-      .replace(/:root(\[data-theme="dark"\])?\s*\{[^}]*\}/g, '');
+      .replace(/@media\s+screen\s+and\s+\(prefers-color-scheme:\s*dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)\s*\{[^}]*\}\s*\}/g, '')
+      .replace(/@media\s+screen\s*\{\s*:root\[data-theme="dark"\]\s*\{[^}]*\}\s*\}/g, '')
+      .replace(/:root\s*\{[^}]*\}/g, '');
     const COLOUR =
       /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(|(?<![\w-])(?:white|black|red|green|blue|gray|grey|silver|yellow|orange|purple|pink|navy|teal|maroon)(?![\w-])/gi;
     const found: string[] = [];
@@ -124,6 +125,18 @@ describe('the palette', () => {
       }
     }
     expect(found).toEqual([]);
+  });
+
+  it('prints with the light set and without the switch: both dark blocks are for screens only', () => {
+    // Paper is white (browsers leave backgrounds out), so the dark set's pale text would not read there.
+    const screenAttr = /@media\s+screen\s*\{\s*:root\[data-theme="dark"\]\s*\{[^}]*\}\s*\}/;
+    const screenDevice = /@media\s+screen\s+and\s+\(prefers-color-scheme:\s*dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)\s*\{[^}]*\}\s*\}/;
+    expect(css).toMatch(screenAttr);
+    expect(css).toMatch(screenDevice);
+    // No other rule follows the theme or the device setting, which print would then follow too.
+    expect(css.replace(screenAttr, '').replace(screenDevice, '')).not.toMatch(/data-theme|prefers-color-scheme/);
+    const print = [...css.matchAll(/@media\s+print\s*\{((?:[^{}]*\{[^{}]*\})*[^{}]*)\}/g)].map((m) => m[1]).join('\n');
+    expect(print).toMatch(/(?:^|[\s,}])hw-theme-toggle\s*\{\s*display:\s*none\s*!important;?\s*\}/);
   });
 });
 
@@ -155,13 +168,40 @@ describe('the switch in the header', () => {
     const row = toggle.parentElement!;
     expect(row.classList.contains('title-row')).toBe(true);
     expect(row.lastElementChild).toBe(toggle);
-    // Every rule for the row and the switch, media queries included.
-    const rules = (selector: string): string[] =>
-      [...css.matchAll(/([^{}@]+)\{([^{}]*)\}/g)].filter(([, s]) => s.split(',').some((x) => x.trim() === selector)).map((m) => m[2]);
-    expect(rules('.title-row').join(';')).toMatch(/display:\s*flex/);
-    expect(rules('.title-row').join(';')).toMatch(/justify-content:\s*space-between/);
-    expect(rules('.title-row').join(';')).not.toMatch(/flex-wrap:\s*wrap|flex-flow:[^;]*\bwrap\b|display:\s*(block|grid)/);
-    expect(rules('hw-theme-toggle:not([hidden])').join(';')).toMatch(/flex:\s*none/);
+    // Every screen rule that applies to an element, picked by matching it, media queries included.
+    const screenCss = css.replace(/@media\s+print\s*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '');
+    const rulesFor = (el: Element): string =>
+      [...screenCss.matchAll(/([^{}@]+)\{([^{}]*)\}/g)]
+        .filter(([, selector]) => {
+          try {
+            return el.matches(selector.trim());
+          } catch {
+            return false;
+          }
+        })
+        .map((m) => m[2])
+        .join(';');
+    const rowRules = rulesFor(row);
+    expect(rowRules).toMatch(/display:\s*flex/);
+    expect(rowRules).toMatch(/justify-content:\s*space-between/);
+    expect(rowRules).not.toMatch(/flex-wrap:\s*wrap|flex-flow:[^;]*\bwrap\b|display:\s*(?!flex\b)[a-z-]+/);
+    expect(rulesFor(toggle)).toMatch(/flex:\s*none/);
+    // In a header that wraps its items, the row must take the whole width, or the next item sits beside the switch.
+    const parentRules = rulesFor(row.parentElement!);
+    if (/display:\s*flex/.test(parentRules) && /flex-wrap:\s*wrap|flex-flow:[^;]*\bwrap\b/.test(parentRules)) {
+      expect(rowRules).toMatch(/flex:\s*1 1 100%|flex-basis:\s*100%/);
+    }
+  });
+
+  it('names every field, so a screen reader can say what it is for (axe: label, select-name)', () => {
+    const fields = [...root.querySelectorAll('select, textarea, input:not([type="hidden"])')];
+    expect(fields.length).toBeGreaterThan(3);
+    for (const f of fields) {
+      const id = f.getAttribute('id');
+      const named =
+        !!f.getAttribute('aria-label')?.trim() || !!f.getAttribute('aria-labelledby') || (!!id && !!root.querySelector(`label[for="${id}"]`)) || !!f.closest('label');
+      expect(named, f.outerHTML.slice(0, 100)).toBe(true);
+    }
   });
 
   it('makes the tables and the code listings focusable, labelled regions, so a keyboard can scroll them', () => {

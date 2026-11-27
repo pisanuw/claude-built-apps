@@ -1,6 +1,7 @@
 /* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
    before the first paint) and for the device setting when scripts do not run
-   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same. */
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same.
+   Both are for screens only, so a printout uses the light set. */
 :root {
   color-scheme: light;
   --bg: #f6f7f9;
@@ -25,29 +26,31 @@
   --sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --field-border: #7a848f;
 }
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #0f1216;
-  --panel: #171b21;
-  --ink: #e6e9ee;
-  --muted: #98a2ad;
-  --line: #2b323b;
-  --accent: #4c8dff;
-  --accent-ink: #0f1216;
-  --good: #3fb950;
-  --bad: #ff6b6b;
-  --warn: #e3b341;
-  --shaft: #1f252d;
-  --car: #4c8dff;
-  --car-open: #3fb950;
-  --car-ink: #0f1216;
-  --car-1: #a371f7;
-  --car-2: #bf8700;
-  --car-3: #f85149;
-  --wait: #f0a040;
-  --field-border: #6a7581;
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0f1216;
+    --panel: #171b21;
+    --ink: #e6e9ee;
+    --muted: #98a2ad;
+    --line: #2b323b;
+    --accent: #4c8dff;
+    --accent-ink: #0f1216;
+    --good: #3fb950;
+    --bad: #ff6b6b;
+    --warn: #e3b341;
+    --shaft: #1f252d;
+    --car: #4c8dff;
+    --car-open: #3fb950;
+    --car-ink: #0f1216;
+    --car-1: #a371f7;
+    --car-2: #bf8700;
+    --car-3: #f85149;
+    --wait: #f0a040;
+    --field-border: #6a7581;
+  }
 }
-@media (prefers-color-scheme: dark) {
+@media screen and (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: #0f1216;
@@ -463,4 +466,9 @@ footer {
   padding: 0 16px 30px;
   color: var(--muted);
   font-size: 0.85rem;
+}
+
+/* Print: the light set (the dark blocks above are for screens only), without the switch. */
+@media print {
+  hw-theme-toggle { display: none !important; }
 }

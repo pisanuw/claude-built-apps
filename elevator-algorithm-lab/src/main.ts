@@ -522,7 +522,7 @@ function renderBoard(): void {
   );
 }
 
-const importInput = h('input', { type: 'file', accept: 'application/json', class: 'hidden' });
+const importInput = h('input', { type: 'file', accept: 'application/json', class: 'hidden', 'aria-label': 'Leaderboard JSON file' });
 importInput.addEventListener('change', async () => {
   const file = importInput.files?.[0];
   if (!file) return;
