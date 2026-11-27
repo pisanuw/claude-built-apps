@@ -10,9 +10,10 @@
 --   a contest's admin   (signed in) creates a contest with its options and voter list
 --                       (create_contest_with_relations, which runs as the caller); reads, edits
 --                       and deletes their own contests; adds, edits and removes options while the
---                       contest is a draft; edits its voter list; sees who voted and when
---                       (contest_voters), never how; downloads the comments without voter
---                       identity (contest_feedback); always sees the results (contest_ballots).
+--                       contest is a draft (a contest that has left draft never goes back); edits
+--                       its voter list; sees who voted and when (contest_voters); downloads the
+--                       comments without voter identity (contest_feedback); always sees the
+--                       results (contest_ballots).
 --   a voter             reads one open or closed contest by its voting code (get_contest);
 --                       submits one ballot (submit_vote), which checks the contest is open, the
 --                       submission gate, the end date, the voter list, the ranking and the
@@ -22,13 +23,16 @@
 --                       (my_voter_contests).
 --   anonymous visitors  only get_contest, submit_vote and contest_ballots; submit_vote refuses
 --                       them when the contest has a voter list. No table access.
--- Nobody reads a ballot next to the voter's identity, the admin included: rankings and
--- comments leave the database only through contest_ballots and contest_feedback, without vote
--- ids and in random order.
+-- Ballots and comments are never returned with a voter's identity: rankings and comments
+-- leave the database only through contest_ballots and contest_feedback, without vote ids and in
+-- random order. An admin who watches the results while voting is under way can still infer how
+-- an individual voted (the newest ballot belongs to the newest voter in contest_voters).
 --
 -- Account deletion (docs/platform.md, "Account deletion"): an admin's contests go with the
--- account, and everything under them by cascade. A voter's ballots stay in the count without
--- them (votes.voter_id is set to null), so a closed contest's result does not change.
+-- account, and everything under them by cascade. A voter's ballots, with their rankings and
+-- comments, go too (votes.voter_id cascades), so the results count one ballot fewer. If the
+-- person signs in again with the same address, they may vote once more while the contest is
+-- open: never two ballots at once for one account.
 --
 -- No service-role key anywhere: the browser and the Netlify functions call these with the
 -- public anon key and, when signed in, the person's own token. Every function pins
@@ -66,6 +70,26 @@ comment on table app_ranked_voting.contests is 'One row per contest, owned by ad
 
 create index if not exists contests_admin_id_idx on app_ranked_voting.contests (admin_id, created_at desc);
 
+-- A contest that has left draft never goes back to it: options change only in a draft (the
+-- policies below), so a contest with ballots can never lose or gain an option.
+create or replace function app_ranked_voting.contests_stay_out_of_draft()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.status = 'draft' and old.status <> 'draft' then
+    raise exception 'A contest that has been opened cannot go back to draft' using errcode = 'PT400';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists contests_stay_out_of_draft on app_ranked_voting.contests;
+create trigger contests_stay_out_of_draft
+  before update of status on app_ranked_voting.contests
+  for each row execute function app_ranked_voting.contests_stay_out_of_draft();
+
 create table if not exists app_ranked_voting.contest_options (
   id          uuid primary key default gen_random_uuid(),
   contest_id  uuid not null references app_ranked_voting.contests (id) on delete cascade,
@@ -99,9 +123,9 @@ comment on table app_ranked_voting.allowed_voters is 'A contest''s voter list: f
 create table if not exists app_ranked_voting.votes (
   id          uuid primary key default gen_random_uuid(),
   contest_id  uuid not null references app_ranked_voting.contests (id) on delete cascade,
-  -- The signed-in voter. Set to null when they delete their account: the ballot stays in the
-  -- count, without them.
-  voter_id    uuid references auth.users (id) on delete set null,
+  -- The signed-in voter. Their ballots go with their account, so a deleted account leaves no
+  -- ballot (or comment) behind, and a listed address never holds two ballots at once.
+  voter_id    uuid references auth.users (id) on delete cascade,
   -- An anonymous voter's random browser token (contests without a voter list); it also lets
   -- that browser see the results. Never readable through the API.
   voter_token text check (char_length(voter_token) between 8 and 100),
@@ -109,9 +133,8 @@ create table if not exists app_ranked_voting.votes (
   -- One ballot per person, or per anonymous browser, per contest.
   unique (contest_id, voter_id),
   unique (contest_id, voter_token),
-  -- A ballot is a signed-in person's or an anonymous browser's, never both. submit_vote
-  -- refuses a ballot with neither; only a deleted account leaves both empty.
-  constraint votes_one_identity check (voter_id is null or voter_token is null)
+  -- A ballot is a signed-in person's or an anonymous browser's: exactly one of the two.
+  constraint votes_one_identity check ((voter_id is null) <> (voter_token is null))
 );
 
 comment on table app_ranked_voting.votes is 'One row per ballot. Written only by submit_vote; a voter reads their own row.';
@@ -171,8 +194,8 @@ create policy contests_delete_own on app_ranked_voting.contests
   for delete to authenticated
   using (admin_id = (select auth.uid()));
 
--- Options: the admin reads them always, and changes them only while the contest is a draft,
--- so a ballot never loses or gains an option.
+-- Options: the admin reads them always, and changes them only while the contest is a draft;
+-- with the trigger above, a ballot never loses or gains an option.
 drop policy if exists contest_options_select_admin on app_ranked_voting.contest_options;
 create policy contest_options_select_admin on app_ranked_voting.contest_options
   for select to authenticated
@@ -396,7 +419,7 @@ as $$
     ), '[]'::jsonb)
   )
   from app_ranked_voting.contests c
-  where c.vote_token = p_token and c.status <> 'draft';
+  where c.vote_token = p_token and c.status <> 'draft' and char_length(p_token) <= 128;
 $$;
 
 -- Records one ballot. The caller is the signed-in person (auth.uid()) or, without a session,
@@ -425,6 +448,9 @@ declare
   v_vote_id uuid;
   v_uuid constant text := '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
 begin
+  if p_token is null or char_length(p_token) > 128 then
+    raise exception 'Contest not found' using errcode = 'PT404';
+  end if;
   select * into v_contest
   from app_ranked_voting.contests c
   where c.vote_token = p_token and c.status <> 'draft';
@@ -466,11 +492,16 @@ begin
     end if;
   end if;
 
-  -- The ranking: every option of the contest exactly once, ranks 1 to n.
+  -- The ranking: every option of the contest exactly once, ranks 1 to n. The length is checked
+  -- first, so no array longer than the contest's options is ever read.
   select count(*) into v_options from app_ranked_voting.contest_options o where o.contest_id = v_contest.id;
-  if p_rankings is null or jsonb_typeof(p_rankings) <> 'array' or v_options = 0
-     or jsonb_array_length(p_rankings) <> v_options
-     or exists (
+  if p_rankings is null or jsonb_typeof(p_rankings) is distinct from 'array' or v_options = 0 then
+    raise exception 'Invalid rankings: all options must be ranked exactly once' using errcode = 'PT400';
+  end if;
+  if jsonb_array_length(p_rankings) <> v_options then
+    raise exception 'Invalid rankings: all options must be ranked exactly once' using errcode = 'PT400';
+  end if;
+  if exists (
        select 1 from jsonb_array_elements(p_rankings) e
        where jsonb_typeof(e) <> 'object'
           or jsonb_typeof(e -> 'option_id') is distinct from 'string'
@@ -498,9 +529,16 @@ begin
   end if;
 
   -- Comments: optional, at most one per option of this contest, at most 2000 characters;
-  -- blank ones are dropped.
+  -- blank ones are dropped. No more entries than the contest has options, checked before any
+  -- entry is read.
   if p_comments is not null and jsonb_typeof(p_comments) <> 'null' then
-    if jsonb_typeof(p_comments) <> 'array' or exists (
+    if jsonb_typeof(p_comments) <> 'array' then
+      raise exception 'Invalid comments' using errcode = 'PT400';
+    end if;
+    if jsonb_array_length(p_comments) > v_options then
+      raise exception 'Invalid comments' using errcode = 'PT400';
+    end if;
+    if exists (
       select 1 from jsonb_array_elements(p_comments) e
       where jsonb_typeof(e) <> 'object'
          or jsonb_typeof(e -> 'option_id') is distinct from 'string'
@@ -580,6 +618,9 @@ declare
   v_token text := nullif(btrim(coalesce(p_voter_token, '')), '');
   v_contest app_ranked_voting.contests%rowtype;
 begin
+  if p_token is null or char_length(p_token) > 128 then
+    raise exception 'Contest not found' using errcode = 'PT404';
+  end if;
   select * into v_contest from app_ranked_voting.contests c where c.vote_token = p_token;
   if not found then
     raise exception 'Contest not found' using errcode = 'PT404';
@@ -625,7 +666,7 @@ $$;
 -- The admin's views ------------------------------------------------------------------------
 
 -- Who voted and when, for the contest's admin: the voter's address, or null for an anonymous
--- browser or a deleted account. Never how they voted. Nothing for anyone else.
+-- browser. Not how they voted. Nothing for anyone else.
 create or replace function app_ranked_voting.contest_voters(p_contest_id uuid)
 returns table (email text, voted_at timestamptz)
 language sql
@@ -751,6 +792,7 @@ grant insert (contest_id, email) on table app_ranked_voting.allowed_voters to au
 -- A voter's own vote row, without the anonymous token column.
 grant select (id, contest_id, voter_id, created_at) on table app_ranked_voting.votes to authenticated;
 
+revoke all on function app_ranked_voting.contests_stay_out_of_draft() from public, anon, authenticated;
 revoke all on function app_ranked_voting.create_contest_with_relations(text, text, integer, boolean, boolean, boolean, timestamptz, jsonb, text[]) from public, anon, authenticated;
 revoke all on function app_ranked_voting.get_contest(text) from public, anon, authenticated;
 revoke all on function app_ranked_voting.submit_vote(text, jsonb, jsonb, text) from public, anon, authenticated;

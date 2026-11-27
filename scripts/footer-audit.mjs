@@ -40,6 +40,7 @@ export const OWN_REPO_APPS = Object.freeze([
   ['chesstd', 'chesstd.hintwise.org', 'pisan-labs/chess-tournament-director'],
   ['udebt', 'udebt.hintwise.org', 'pisanuw/understanding-debt'],
   ['ypai', 'ypai.hintwise.org', 'pisanuw/digitalme'],
+  ['ranked-voting', 'ranked-voting.hintwise.org', 'pisanuw/ranked-voting'],
 ]);
 
 const NEEDS_ATTENTION = new Set(['stale', 'differs', 'duplicate', 'missing', 'error']);
