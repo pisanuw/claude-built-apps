@@ -147,6 +147,16 @@ From `platform/brand/README.md`:
 - An app with none uses the HintWise icon: paste the tag in `platform/brand/favicon-link.html` into `<head>`. It's an inline SVG, so there's no file to serve.
 - `platform/brand/favicon.ico`, `hintwise-icon-*.png` and `apple-touch-icon.png` are there if a manifest needs PNGs.
 
+### Light and dark mode
+
+Every HintWise app has a light and dark mode switch (owner, 27 Nov 2026; Manager's standing requirement 13). The owner's example is beyankontrol.com: one round button in the header, beside any other header controls, showing a moon in light mode and a sun in dark mode.
+
+- **Behaviour:** one click switches the whole page at once. The first visit follows the device setting (`prefers-color-scheme`). The choice is remembered on that device (`localStorage`, wrapped in try/catch so a blocked store falls back to the device setting) and applied before the first paint, so the page never flashes the wrong theme.
+- **Colours:** define them as CSS custom properties on `:root`, and override them for dark under `:root[data-theme="dark"]` and under `@media (prefers-color-scheme: dark)` guarded by `:root:not([data-theme="light"])`. Both themes meet contrast: no serious issue in an accessibility-lens scan of each.
+- **The button:** a real `<button>` with an accessible name that says what it does ("Switch to dark mode" / "Switch to light mode") and `aria-pressed` or an updated label; reachable by keyboard; at least 44 by 44 px on a phone.
+- **One source:** the shared switch in `platform/src/theme/` (being built from 27 Nov 2026; its README gives the exact snippet, the CSP hash for its inline script, and the test to copy). Until it lands, follow the rules above.
+- **The footer** inherits the page's text colour, so it suits both themes; the HintWise wordmark needs `hintwise-wordmark-white.svg` in dark mode.
+
 ### Analytics
 
 - **Option A:** the deploy adds the platform's cookieless analytics (`scripts/site-analytics.mjs`): `/hw-events.js` and its tag on every page, and the app's origin registered in `platform.analytics_apps`. **Don't add it yourself.** Set `analytics: false` in target.yml only if the app must not count visits.
@@ -281,7 +291,7 @@ Details: docs/platform.md "Email footer, logo and opt-out".
 3. The label is on the sign-in allow-list, and sign-in-link and delete-account are redeployed (owner's yes).
 4. The migration passes `check-schema`, and includes the `llm_apps` row if the app uses the gateway. If the app needs its own limits, the owner has named the numbers and Plabs has set them (section 7, "Spending limits"); the app shows each 429 scope in plain words.
 5. No Anthropic key and no service-role key anywhere in the app.
-6. The footer is present once (`grep -c data-site-footer` gives 1); the favicon is set; the page doesn't scroll sideways at 375 px.
+6. The footer is present once (`grep -c data-site-footer` gives 1); the favicon is set; the page doesn't scroll sideways at 375 px; the light and dark mode switch is in the header and both themes pass the scan.
 7. Option B: the owner has imported the repo in Netlify with previews off, and the domain is attached by "Attach custom domain".
 8. The app links only `https://<slug>.hintwise.org`.
 
