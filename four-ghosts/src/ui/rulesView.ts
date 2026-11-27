@@ -2,7 +2,7 @@ import { GHOST_IDS, GHOST_META } from '../core/ghosts';
 import { LAB_MAZE } from '../core/maze';
 import { FRIGHT_SECONDS, LEVEL1_SCHEDULE } from '../core/modes';
 import { SPEED } from '../core/sim';
-import { h } from './dom';
+import { ghostInk, h } from './dom';
 
 export function rulesView(): HTMLElement {
   const schedule = LEVEL1_SCHEDULE.map((p) => `${p.mode} ${Number.isFinite(p.seconds) ? `${p.seconds} s` : 'forever'}`).join(' → ');
@@ -27,7 +27,8 @@ export function rulesView(): HTMLElement {
     ),
     h(
       'pre',
-      { class: 'code' },
+      // It scrolls sideways on a phone: a focusable, named region.
+      { class: 'code', tabindex: '0', role: 'region', 'aria-label': 'The decision rule, as code' },
       `best = none
 for dir in [up, left, down, right]:
     t = tile + dir
@@ -39,7 +40,7 @@ heading = best.dir`,
     h('h3', {}, 'Four targets (chase mode)'),
     h(
       'div',
-      { class: 'table-scroll' },
+      { class: 'table-scroll', tabindex: '0', role: 'region', 'aria-label': 'Four targets (chase mode)' },
       h(
         'table',
         {},
@@ -51,7 +52,7 @@ heading = best.dir`,
             h(
               'tr',
               {},
-              h('th', { scope: 'row', style: `color: ${GHOST_META[id].color}` }, GHOST_META[id].name),
+              h('th', { scope: 'row', style: `color: ${ghostInk(id)}` }, GHOST_META[id].name),
               h('td', {}, GHOST_META[id].rule),
               h('td', { class: 'mono' }, `(${LAB_MAZE.scatter[id].x}, ${LAB_MAZE.scatter[id].y})`),
               h('td', {}, GHOST_META[id].analogue),

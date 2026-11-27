@@ -1,3 +1,5 @@
+import type { GhostId } from '../core/ghosts';
+
 type Attrs = Record<string, string | number | boolean | undefined | ((ev: Event) => void)>;
 type Child = Node | string | null | undefined | false;
 
@@ -45,4 +47,9 @@ export function select<T extends string>(options: readonly { value: T; label: st
 
 export function field(label: string, control: HTMLElement, hint?: string): HTMLLabelElement {
   return h('label', { class: 'field' }, h('span', { class: 'field-label' }, label), control, hint ? h('small', {}, hint) : null);
+}
+
+/** A ghost's colour as text or a mark on the page: a token per theme (styles.css); the maze canvas keeps GHOST_META's colours. */
+export function ghostInk(id: GhostId): string {
+  return `var(--ghost-${id})`;
 }

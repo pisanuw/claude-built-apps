@@ -1,7 +1,7 @@
 import { LINEUPS, type Lineup, type LineupSummary, seedsFrom } from '../core/experiment';
 import { GHOST_IDS, GHOST_META, type GhostId, STRATEGIES, type Strategy } from '../core/ghosts';
 import { MAZES } from '../core/maze';
-import { h, select } from './dom';
+import { ghostInk, h, select } from './dom';
 import type { CompareMessage, CompareRequest } from './worker';
 
 export function compareView(): HTMLElement {
@@ -36,7 +36,7 @@ export function compareView(): HTMLElement {
     h(
       'label',
       { class: 'field' },
-      h('span', { class: 'field-label', style: `color: ${GHOST_META[id].color}` }, GHOST_META[id].name),
+      h('span', { class: 'field-label', style: `color: ${ghostInk(id)}` }, GHOST_META[id].name),
       select(STRATEGIES, custom[id], (v) => {
         custom[id] = v;
       }),
@@ -155,7 +155,7 @@ function renderResults(rs: LineupSummary[]): HTMLElement {
       h(
         'td',
         { class: 'by-ghost' },
-        ...GHOST_IDS.map((id) => h('span', { style: `color: ${GHOST_META[id].color}`, title: GHOST_META[id].name }, `${GHOST_META[id].letter} ${r.capturesBy[id]}`)),
+        ...GHOST_IDS.map((id) => h('span', { style: `color: ${ghostInk(id)}`, title: GHOST_META[id].name }, `${GHOST_META[id].letter} ${r.capturesBy[id]}`)),
       ),
     ),
   );
@@ -179,7 +179,8 @@ function renderResults(rs: LineupSummary[]): HTMLElement {
     h('h3', {}, 'Results'),
     h(
       'div',
-      { class: 'table-scroll' },
+      // A wide table on a phone: a focusable, named region, so a keyboard can scroll it.
+      { class: 'table-scroll', tabindex: '0', role: 'region', 'aria-label': 'Results' },
       h(
         'table',
         { class: 'compare-table' },
