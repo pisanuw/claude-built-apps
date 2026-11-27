@@ -51,7 +51,7 @@ function emptyDraft(p: Policy): Draft {
 
 export function mountStudent(root: HTMLElement, policy: Policy | null): void {
   if (!policy) {
-    root.innerHTML = `<section class="card"><h1>This request link is damaged</h1><p>The link may have been cut off when it was copied. Ask your professor to send it again, or copy the whole address including everything after <code>#ask=</code>.</p></section>`;
+    root.innerHTML = `<header class="top"><div class="title-row"><h1>This request link is damaged</h1><hw-theme-toggle></hw-theme-toggle></div></header><section class="card"><p>The link may have been cut off when it was copied. Ask your professor to send it again, or copy the whole address including everything after <code>#ask=</code>.</p></section>`;
     return;
   }
   const p = policy;
@@ -67,7 +67,7 @@ export function mountStudent(root: HTMLElement, policy: Policy | null): void {
 
   root.innerHTML = `
     <header class="top">
-      <h1>Letter request for ${esc(who)}</h1>
+      <div class="title-row"><h1>Letter request for ${esc(who)}</h1><hw-theme-toggle></hw-theme-toggle></div>
       <p class="lede">${esc([p.title, p.institution].filter(Boolean).join(', '))}</p>
     </header>
     <section class="card" aria-labelledby="before-h">
