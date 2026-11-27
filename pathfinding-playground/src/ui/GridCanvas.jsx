@@ -1,9 +1,31 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { EMPTY, WALL, MUD, idx } from '../engine/grid.js';
+import { useEffect, useId, useRef, useState, useCallback } from 'react';
+import { EMPTY, WALL, MUD, MUD_COST, idx } from '../engine/grid.js';
 import { readPalette } from './palette.js';
 
 // Renders the map plus the current search state on a <canvas>, and handles
-// map editing: paint walls or mud, erase, and drag the start and goal pins.
+// map editing: paint walls or mud, erase, and drag the start and goal pins,
+// with a pointer or with the keys (a cursor cell, announced as it moves).
+
+const TOOL_NAME = { wall: 'Wall', mud: 'Mud', erase: 'Erase' };
+const STEP = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+
+/** What a screen reader hears for a cell: where it is, what it is, and what the search made of it. */
+export function describeCell(grid, view, r, c) {
+  const parts = [];
+  if (r === grid.start.r && c === grid.start.c) parts.push('start');
+  else if (r === grid.goal.r && c === grid.goal.c) parts.push('goal');
+  else {
+    const v = grid.cells[idx(grid, r, c)];
+    parts.push(v === WALL ? 'wall' : v === MUD ? `mud, costs ${MUD_COST}` : 'open');
+  }
+  if (view) {
+    const k = idx(grid, r, c);
+    if (view.done?.found && view.done.path.some((n) => n.r === r && n.c === c)) parts.push('on the final path');
+    else if (view.frontier.has(k)) parts.push('in the frontier');
+    else if (view.visited.has(k)) parts.push('visited');
+  }
+  return `Row ${r + 1}, column ${c + 1}: ${parts.join(', ')}.`;
+}
 
 export default function GridCanvas({
   grid, view, tool, showCosts, editable = true,
@@ -15,6 +37,16 @@ export default function GridCanvas({
   const [hover, setHover] = useState(null);
   const dragRef = useRef(null);
   const drawRef = useRef(null);
+  // The keyboard's cursor cell, shown while the map has focus, and what the live region last said.
+  const [at, setAt] = useState(() => ({ r: grid.start.r, c: grid.start.c }));
+  const [focused, setFocused] = useState(false);
+  const [said, setSaid] = useState('');
+  const helpId = useId();
+  const cursor = { r: Math.min(at.r, grid.rows - 1), c: Math.min(at.c, grid.cols - 1) };
+  // A new map size starts the cursor on the start again.
+  useEffect(() => {
+    setAt({ r: grid.start.r, c: grid.start.c });
+  }, [grid.cols, grid.rows]);
 
   // Fit the cell size to the wrapper width.
   useEffect(() => {
@@ -60,6 +92,7 @@ export default function GridCanvas({
     if (!editable) return;
     const at = cellFromEvent(ev);
     if (!at) return;
+    setAt(at);
     ev.currentTarget.setPointerCapture(ev.pointerId);
     if (at.r === grid.start.r && at.c === grid.start.c) {
       dragRef.current = { mode: 'start' };
@@ -94,6 +127,65 @@ export default function GridCanvas({
   };
 
   const endDrag = () => { dragRef.current = null; };
+
+  const isStart = (p) => p.r === grid.start.r && p.c === grid.start.c;
+  const isGoal = (p) => p.r === grid.goal.r && p.c === grid.goal.c;
+  const toolValue = (here, toggle) => {
+    if (tool === 'erase') return EMPTY;
+    const v = tool === 'wall' ? WALL : MUD;
+    return toggle && here === v ? EMPTY : v;
+  };
+  const NAMES = { [EMPTY]: 'Open', [WALL]: 'Wall', [MUD]: 'Mud' };
+
+  // The keys, on the focused map: the arrows move the cursor (with Shift they
+  // draw with the selected tool as they go), Home and End go to the ends of the
+  // row, Space or Enter use the tool on the cursor's cell as a click does, and
+  // S and G put the start or the goal there.
+  const onKeyDown = (ev) => {
+    if (!editable || ev.altKey || ev.ctrlKey || ev.metaKey) return;
+    const key = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+    let next = null;
+    if (STEP[key]) next = { r: cursor.r + STEP[key][0], c: cursor.c + STEP[key][1] };
+    else if (key === 'Home') next = { r: cursor.r, c: 0 };
+    else if (key === 'End') next = { r: cursor.r, c: grid.cols - 1 };
+    if (next) {
+      ev.preventDefault();
+      next = { r: Math.max(0, Math.min(grid.rows - 1, next.r)), c: Math.max(0, Math.min(grid.cols - 1, next.c)) };
+      setAt(next);
+      if (ev.shiftKey && STEP[key] && !isStart(next) && !isGoal(next)) {
+        const v = toolValue(grid.cells[idx(grid, next.r, next.c)], false);
+        if (grid.cells[idx(grid, next.r, next.c)] !== v) onSetCell(next.r, next.c, v);
+        setSaid(`${NAMES[v]} at row ${next.r + 1}, column ${next.c + 1}.`);
+      } else {
+        setSaid(describeCell(grid, view, next.r, next.c));
+      }
+      return;
+    }
+    if (key === ' ' || key === 'Enter') {
+      ev.preventDefault();
+      if (isStart(cursor) || isGoal(cursor)) {
+        setSaid(`The ${isStart(cursor) ? 'start' : 'goal'} is here: press ${isStart(cursor) ? 'S' : 'G'} on another cell to move it.`);
+        return;
+      }
+      const here = grid.cells[idx(grid, cursor.r, cursor.c)];
+      const v = toolValue(here, true);
+      if (v !== here) onSetCell(cursor.r, cursor.c, v);
+      const where = `row ${cursor.r + 1}, column ${cursor.c + 1}`;
+      setSaid(v === here ? `Already open at ${where}.` : v === EMPTY ? `${NAMES[here]} removed at ${where}.` : `${NAMES[v]} placed at ${where}.`);
+      return;
+    }
+    if (key === 's' || key === 'g') {
+      ev.preventDefault();
+      const start = key === 's';
+      const where = `row ${cursor.r + 1}, column ${cursor.c + 1}`;
+      if (start ? isGoal(cursor) : isStart(cursor)) {
+        setSaid(`The ${start ? 'goal' : 'start'} is here; choose another cell for the ${start ? 'start' : 'goal'}.`);
+        return;
+      }
+      (start ? onSetStart : onSetGoal)(cursor.r, cursor.c);
+      setSaid(`${start ? 'Start' : 'Goal'} moved to ${where}.`);
+    }
+  };
 
   // Draw everything, in the colours in place now.
   useEffect(() => {
@@ -298,10 +390,22 @@ export default function GridCanvas({
         ctx.lineWidth = 1.5;
         ctx.strokeRect(hover.c * cell + 1, hover.r * cell + 1, cell - 2, cell - 2);
       }
+
+      // The keyboard's cursor, while the map has focus: a 3 px ring in the
+      // focus colour around the cell, lined with the sheet so it shows on a
+      // wall too.
+      if (focused && editable) {
+        ctx.strokeStyle = P.focus;
+        ctx.lineWidth = 3;
+        ctx.strokeRect(cursor.c * cell - 0.5, cursor.r * cell - 0.5, cell + 1, cell + 1);
+        ctx.strokeStyle = P.paper;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(cursor.c * cell + 1.5, cursor.r * cell + 1.5, cell - 3, cell - 3);
+      }
     };
     drawRef.current = draw;
     draw();
-  }, [grid, view, cell, hover, showCosts, editable]);
+  }, [grid, view, cell, hover, showCosts, editable, focused, cursor.r, cursor.c]);
 
   // Draw again when the theme changes, and at once on the way into print and
   // back: print takes the light set, but a canvas keeps the pixels it drew on
@@ -330,8 +434,19 @@ export default function GridCanvas({
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
         onPointerLeave={() => { setHover(null); endDrag(); }}
-        aria-label={`${grid.cols} by ${grid.rows} map. Drag to draw with the selected tool; drag the green start pin or the red goal ring to move them.`}
+        onKeyDown={onKeyDown}
+        onFocus={() => { setFocused(true); setSaid(describeCell(grid, view, cursor.r, cursor.c)); }}
+        onBlur={() => setFocused(false)}
+        tabIndex={editable ? 0 : -1}
+        role="application"
+        aria-roledescription="map"
+        aria-label={`${label ? `${label} map` : 'Map'}, ${grid.cols} by ${grid.rows} cells`}
+        aria-describedby={helpId}
       />
+      <p id={helpId} className="sr-only">
+        {`Arrow keys move the cursor; Space or Enter uses the selected tool (${TOOL_NAME[tool]}) on its cell; Shift with an arrow key draws as it moves; Home and End go to the ends of the row; S puts the start on the cursor's cell and G the goal. With a pointer, drag to draw, and drag the green start pin or the red goal ring to move them.`}
+      </p>
+      <p className="sr-only" aria-live="polite">{focused ? said : ''}</p>
     </div>
   );
 }

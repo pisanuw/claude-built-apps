@@ -8,6 +8,7 @@ export const TOKENS = {
   line: ['--line', '#c9d8e4'],
   ink: ['--ink', '#14304a'],
   inkSoft: ['--ink-soft', '#3e5c77'],
+  focus: ['--amber-ink', '#8a5200'],
   route: ['--route', '#b5381c'],
   green: ['--green', '#1e7a5a'],
   sand: ['--sand', '#d9bc8c'],

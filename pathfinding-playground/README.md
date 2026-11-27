@@ -13,6 +13,7 @@ Weekend idea 2026-07-26 from [Daily Project Ideas](https://studio.hintwise.org/)
 ## What you can do
 
 - Paint walls and mud (mud costs 5 to enter, everything else costs 1), drag the start and goal pins, generate a maze, sprinkle mud
+- Edit the map by keyboard too: Tab to the map, then the arrow keys move a cursor (announced to screen readers), Space or Enter uses the selected tool, Shift with an arrow draws as it moves, and S and G place the start and goal
 - Pick one of five algorithms and play the search at 2 to 60 expansions per second, step through it, scrub the playhead, or jump to the end
 - Compare two algorithms side by side on the same map, with a one-line verdict at the end ("Both paths cost 135; A* did less work, 301 vs 308 expansions")
 - Toggle per-cell cost overlays (f, else g)

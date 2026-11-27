@@ -242,6 +242,9 @@ export default function App() {
                 </button>
               ))}
             </div>
+            <p className="rail__hint">
+              Or by keyboard: on the map, the arrows move a cursor, Space draws, and S and G place the start and goal.
+            </p>
             <div className="row">
               <button type="button" className="btn btn--small" onClick={() => mutateGrid((g) => recursiveDivision(g, mulberry32(seed())))}>Maze</button>
               <button type="button" className="btn btn--small" onClick={() => mutateGrid((g) => scatterMud(g, 0.12, mulberry32(seed())))}>Sprinkle mud</button>
