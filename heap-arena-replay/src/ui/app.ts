@@ -414,6 +414,8 @@ export function mountApp(root: HTMLElement): void {
     // reaches the document retargeted to its host (platform/src/theme/README.md, "Key shortcuts").
     const t = (e.composedPath()[0] ?? e.target) as HTMLElement | null;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
+    // A key pressed in a scroll region (a table or a trace box) scrolls that region; the shortcuts stay off it.
+    if (t?.closest?.('[role="region"]')) return;
     if (e.key === 'ArrowRight') seek(state.step + 1);
     else if (e.key === 'ArrowLeft') seek(state.step - 1);
     else if (e.key === 'Home') seek(0);

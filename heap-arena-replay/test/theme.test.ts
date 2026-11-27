@@ -304,6 +304,28 @@ describe('the switch in the header', () => {
     expect(onPage.defaultPrevented).toBe(true);
   });
 
+  it('leaves the step keys to a scroll region, so it scrolls sideways and keeps the focus (batch 5 review R1-1)', () => {
+    tab('replay');
+    const label = (): string => root.querySelector('.steplabel')!.textContent!;
+    const region = (): HTMLElement => root.querySelector<HTMLElement>('.tablewrap[role="region"]')!;
+    expect(region().getAttribute('aria-label')).toBe('Operations');
+    const before = label();
+    for (const key of ['ArrowRight', 'ArrowLeft', 'Home', 'End']) {
+      const inRegion = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      // A key on a cell inside the region counts too.
+      (region().querySelector('td') ?? region()).dispatchEvent(inRegion);
+      expect(inRegion.defaultPrevented, key).toBe(false);
+      expect(label(), key).toBe(before);
+    }
+    // The page itself, and the replay's own buttons, keep the shortcut.
+    const onPage = new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true });
+    document.body.dispatchEvent(onPage);
+    expect(onPage.defaultPrevented).toBe(true);
+    expect(label()).not.toBe(before);
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true }));
+    expect(label()).toBe(before);
+  });
+
   it('gives every text field its edge from --field-border (back on --border fails)', () => {
     for (const key of ['replay', 'quiz', 'diff']) {
       tab(key);
