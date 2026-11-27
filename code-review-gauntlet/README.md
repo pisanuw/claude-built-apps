@@ -16,7 +16,7 @@ everything you missed.
 1. Pick a tier (novice / intermediate / expert) or play the shared **daily
    challenge**.
 2. A snippet appears with 1–3 planted defects and a tier-scaled countdown
-   (90/120/150 seconds). Click every line you would flag in review.
+   (90/120/150 seconds). Flag every line you would raise in review: click it, or Tab to it and press Enter or Space.
 3. Submit (or run out of time). Every defect is revealed with its category,
    root cause, and fix; found lines are green, missed lines red, false flags
    amber.

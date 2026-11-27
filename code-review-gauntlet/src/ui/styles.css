@@ -465,6 +465,11 @@ button.ghost {
   background: var(--line-hover);
 }
 
+/* Drawn inside the line, so the code panel's scroll box does not clip it. */
+.code-line:focus-visible {
+  outline-offset: -3px;
+}
+
 .line-no {
   width: 2.5em;
   flex-shrink: 0;
