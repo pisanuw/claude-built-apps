@@ -1,4 +1,8 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
+   before the first paint) and for the device setting when scripts do not run
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same. */
 :root {
+  color-scheme: light;
   --bg: #f4f4f6;
   --card: #ffffff;
   --fg: #1c1d22;
@@ -15,10 +19,30 @@
   --sh-holds: #cfe7d3;
   --sh-none: #ececef;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --field-border: #84868f;
 }
-
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121317;
+  --card: #1b1c21;
+  --fg: #e7e8ec;
+  --muted: #a3a6b1;
+  --border: #33353d;
+  --accent: #9aa8ff;
+  --accent-fg: #101225;
+  --accent-soft: rgba(154, 168, 255, 0.12);
+  --bad: #ff7a70;
+  --warn: #f0c060;
+  --code-bg: #15161a;
+  --sh-easy: #5b2b27;
+  --sh-partial: #574315;
+  --sh-holds: #23472c;
+  --sh-none: #2a2b31;
+  --field-border: #6c6f7a;
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --bg: #121317;
     --card: #1b1c21;
     --fg: #e7e8ec;
@@ -34,6 +58,7 @@
     --sh-partial: #574315;
     --sh-holds: #23472c;
     --sh-none: #2a2b31;
+    --field-border: #6c6f7a;
   }
 }
 
@@ -57,6 +82,27 @@ body {
 h1 {
   margin: 0 0 4px;
   font-size: 28px;
+}
+
+/* The title and the light and dark mode switch, on one row. */
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 4px;
+}
+
+.title-row h1 {
+  margin: 0;
+}
+
+/* Hold the switch's place until hw-theme.js draws it. */
+hw-theme-toggle:not([hidden]) {
+  display: inline-flex;
+  flex: none;
+  width: var(--hw-theme-toggle-size, 44px);
+  height: var(--hw-theme-toggle-size, 44px);
 }
 
 h2 {
@@ -152,10 +198,20 @@ button {
   font: inherit;
   color: var(--fg);
   background: var(--card);
-  border: 1px solid var(--border);
   border-radius: 6px;
   padding: 5px 8px;
   max-width: 100%;
+}
+
+/* Fields' edges are 3:1 against the page and the cards (WCAG 1.4.11); buttons keep the divider colour. */
+select,
+input,
+textarea {
+  border: 1px solid var(--field-border);
+}
+
+button {
+  border: 1px solid var(--border);
 }
 
 input[type="number"] {

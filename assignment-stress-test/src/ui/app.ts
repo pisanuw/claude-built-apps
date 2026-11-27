@@ -125,7 +125,7 @@ export function mountApp(root: HTMLElement): void {
     el(
       'header',
       {},
-      el('h1', {}, 'Assignment Stress Test'),
+      el('div', { class: 'title-row' }, el('h1', {}, 'Assignment Stress Test'), el('hw-theme-toggle')),
       el(
         'p',
         { class: 'lede' },
