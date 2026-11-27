@@ -1,3 +1,5 @@
+// The light and dark mode switch (platform/src/theme), defined before the header is drawn.
+import './lib/hw-theme.js';
 import css from './ui/styles.css?inline';
 import { escapeHtml, renderResults, standaloneReport } from './core/report.js';
 import { LOCATIONS, SAMPLES } from './core/samples.js';
@@ -16,6 +18,7 @@ app.innerHTML = `
     <header class="site">
       <h1>Agent Blast Radius</h1>
       <span class="tagline">What can your AI tools actually touch?</span>
+      <hw-theme-toggle></hw-theme-toggle>
     </header>
     <p class="privacy">
       Drop in your MCP configs, Claude Code settings, browser-extension manifests, or VS Code extension
