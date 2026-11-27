@@ -30,6 +30,7 @@ export const DEPLOYED_APP_LABELS: readonly string[] = [
   'har-detective',
   'health-page-tracker-watch',
   'heap-arena-replay',
+  'heard-as-check',
   'leap-second-lab',
   'letter-ledger',
   'lewis-alt-text',

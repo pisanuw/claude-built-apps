@@ -9,7 +9,7 @@ export default defineConfig({
       reporter: ['text'],
       include: ['src/**/*.ts'],
       // main.ts only mounts the app; the UI is tested under jsdom in test/.
-      exclude: ['src/main.ts'],
+      exclude: ['src/main.ts', 'src/lib/hw-theme.d.ts'],
       thresholds: { statements: 85, branches: 85, functions: 85, lines: 85 },
     },
   },
