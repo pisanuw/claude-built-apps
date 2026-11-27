@@ -1,4 +1,6 @@
-import css from './ui/styles.css?inline';
+// The stylesheet as a file, so Vite links it in the head: the first paint is already styled. Added by the
+// script (?inline into a <style>) it came after a first paint in the browser's own colours.
+import './ui/styles.css';
 import { analyze } from './core/analyze.js';
 import { CATEGORY_COLOR, CATEGORY_LABEL, CATEGORY_ORDER } from './core/classify.js';
 import { formatBytes, formatPct } from './core/format.js';
@@ -8,10 +10,6 @@ import { findNode } from './core/tree.js';
 import type { Analysis, FileRecord, TreeNode } from './core/types.js';
 import { breadcrumbHtml, drawTreemap } from './ui/treemapView.js';
 import { fromDataTransfer, fromFileList, pickAndWalk, supportsDirectoryPicker, type WalkResult } from './ui/walk.js';
-
-const style = document.createElement('style');
-style.textContent = css;
-document.head.append(style);
 
 const app = document.getElementById('app');
 if (!app) throw new Error('missing #app');
