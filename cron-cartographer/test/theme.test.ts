@@ -277,6 +277,68 @@ describe('the switch in the header', () => {
     expect(rules(':focus-visible')).toMatch(/outline:\s*2px solid var\(--accent\)/);
   });
 
+  it("lets a keyboard user reach a day's fire times: the days are a list box, the arrow keys move, Enter chooses", () => {
+    windowButton(30).click();
+    const grid = root().querySelector<HTMLElement>('.heatmap-scroll [role="listbox"]')!;
+    expect(grid.getAttribute('aria-label')).toBe('Days');
+    const days = [...grid.querySelectorAll<HTMLElement>('[role="option"]')];
+    // One square a day across the window: 31 for 30 days.
+    expect(days).toHaveLength(31);
+    for (const pad of grid.querySelectorAll('.hm-cell.pad')) expect(pad.getAttribute('aria-hidden')).toBe('true');
+    // One day is in the tab order: the first that fires (the default schedule fires on weekdays).
+    const inTabOrder = days.filter((d) => d.tabIndex === 0);
+    expect(inTabOrder).toHaveLength(1);
+    expect(inTabOrder[0]).toBe(days.find((d) => !/no firings/.test(d.getAttribute('aria-label')!)));
+    expect(inTabOrder[0].getAttribute('aria-label')).toMatch(/^\w{3} \d{4}-\d{2}-\d{2}: 1 firing$/);
+    const detail = root().querySelector('.day-detail')!;
+    expect(detail.getAttribute('aria-live')).toBe('polite');
+    const key = (k: string): KeyboardEvent => {
+      const e = new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true });
+      (document.activeElement as HTMLElement).dispatchEvent(e);
+      return e;
+    };
+    // Focus says the day's times.
+    inTabOrder[0].focus();
+    const first = days.indexOf(inTabOrder[0]);
+    expect(detail.textContent).toContain(inTabOrder[0].dataset.date!);
+    expect(detail.querySelector('.times')!.textContent).toMatch(/\d{2}:\d{2}/);
+    // Right is a week on, down a day on; each moves the focus and the one tab stop, and says the new day.
+    expect(key('ArrowRight').defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(days[first + 7]);
+    expect(days.filter((d) => d.tabIndex === 0)).toEqual([days[first + 7]]);
+    expect(detail.textContent).toContain(days[first + 7].dataset.date!);
+    key('ArrowDown');
+    expect(document.activeElement).toBe(days[first + 8]);
+    key('ArrowUp');
+    key('ArrowLeft');
+    expect(document.activeElement).toBe(days[first]);
+    key('End');
+    expect(document.activeElement).toBe(days[30]);
+    key('ArrowDown');
+    expect(document.activeElement).toBe(days[30]);
+    key('Home');
+    expect(document.activeElement).toBe(days[0]);
+    // Enter chooses a day, as a click does.
+    expect(key('Enter').defaultPrevented).toBe(true);
+    expect(days[0].getAttribute('aria-selected')).toBe('true');
+    expect(days[0].classList.contains('selected')).toBe(true);
+    key('ArrowRight');
+    expect(key(' ').defaultPrevented).toBe(true);
+    expect(days.filter((d) => d.getAttribute('aria-selected') === 'true')).toEqual([days[7]]);
+    // Other keys are left alone.
+    expect(key('a').defaultPrevented).toBe(false);
+    expect(rules('.hm-cell:focus-visible')).toMatch(/outline:\s*2px solid var\(--text\)/);
+  });
+
+  it('says the same thing once: retyping the schedule does not repeat the hint in the live region', () => {
+    windowButton(90).click();
+    const detail = root().querySelector('.day-detail')!;
+    const hint = detail.firstChild;
+    expect(detail.textContent).toMatch(/Tab to the days and use the arrow keys/);
+    windowButton(30).click();
+    expect(detail.firstChild).toBe(hint);
+  });
+
   it('says which preview window is chosen, and marks it on paper too', () => {
     windowButton(90).click();
     expect([30, 90, 365].map((d) => windowButton(d).getAttribute('aria-pressed'))).toEqual(['false', 'true', 'false']);
