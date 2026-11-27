@@ -48,6 +48,10 @@ export function renderBoard(state: BoardState): HTMLElement {
   const moves = new Set(state.moves ?? []);
   const caps = new Set(state.captures ?? []);
   for (let row = 0; row < geo.height; row++) {
+    // A grid's cells sit in rows (axe aria-required-children and -parent). The row has
+    // display: contents, so its cells stay items of the board's CSS grid.
+    const line = h('div', { class: 'board-row', role: 'row' });
+    grid.append(line);
     for (let col = 0; col < cols; col++) {
       let x = col - side;
       let y = geo.height - 1 - row;
@@ -57,7 +61,7 @@ export function renderBoard(state: BoardState): HTMLElement {
       }
       const sq = geo.at(x, y);
       if (sq < 0) {
-        grid.append(h('div', { class: 'cell void', 'aria-hidden': 'true' }));
+        line.append(h('div', { class: 'cell void', 'aria-hidden': 'true' }));
         continue;
       }
       const code = board[sq];
@@ -89,7 +93,7 @@ export function renderBoard(state: BoardState): HTMLElement {
       if (geo.isCitadel(sq) && !code) cell.append(h('span', { class: 'cit-mark', 'aria-hidden': 'true' }, '⌂'));
       if (code) cell.append(token(rs, code));
       if (moves.has(sq) || caps.has(sq)) cell.append(h('span', { class: 'dot', 'aria-hidden': 'true' }));
-      grid.append(cell);
+      line.append(cell);
     }
   }
   return grid;

@@ -1,3 +1,7 @@
+/* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
+   before the first paint) and for the device setting when scripts do not run
+   (platform/src/theme/README.md). test/theme.test.ts keeps the two the same.
+   Both are for the screen only: paper gets the light set. */
 :root {
   --bg: #f6f1e7;
   --panel: #fffdf8;
@@ -16,18 +20,27 @@
   --last: rgba(183, 121, 31, 0.32);
   --move: #1d4e89;
   --cap: #b42318;
+  /* The square's coordinates, and the promotion mark's text on gold. */
+  --coord: #625849;
+  --on-gold: #1f1a14;
+  /* 3:1 against the panel and the page (WCAG 1.4.11); --line is for dividers. */
+  --field-border: #90887c;
+  /* The pieces are the same in both themes. */
   --w-fill: #fffaf0;
   --w-ink: #2a2118;
   --w-edge: #6b5a42;
   --b-fill: #2c2a35;
   --b-ink: #f3e9d6;
   --b-edge: #0f0e13;
+  --token-shadow: rgba(0, 0, 0, 0.35);
+  --royal-shadow: rgba(0, 0, 0, 0.4);
   --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #15171c;
     --panel: #1d2027;
     --ink: #ece6da;
@@ -45,7 +58,35 @@
     --last: rgba(224, 166, 74, 0.38);
     --move: #b8d6fb;
     --cap: #ff9b90;
+    --coord: #ece6da;
+    --on-gold: #1f1a14;
+    --field-border: #696c75;
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
+    --bg: #15171c;
+    --panel: #1d2027;
+    --ink: #ece6da;
+    --muted: #a59b8a;
+    --line: #343844;
+    --accent: #7fb0ea;
+    --accent-ink: #0f1a2a;
+    --gold: #e0a64a;
+    --bad: #f2877d;
+    --good: #6fcf8f;
+    --sq: #6b5a40;
+    --sq-line: #3b3020;
+    --citadel: #8a6a3e;
+    --sel: rgba(127, 176, 234, 0.4);
+    --last: rgba(224, 166, 74, 0.38);
+    --move: #b8d6fb;
+    --cap: #ff9b90;
+    --coord: #ece6da;
+    --on-gold: #1f1a14;
+    --field-border: #696c75;
   }
 }
 
@@ -63,7 +104,13 @@ body {
 #app { max-width: 1080px; margin: 0 auto; padding: 0 16px 48px; }
 
 .site-header { padding: 20px 0 8px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
-.site-header h1 { margin: 0 0 12px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
+/* The title and the light and dark mode switch, on one row. */
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; }
+/* Hold the switch's place until hw-theme.js draws it. */
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
+/* Not on paper. */
+@media print { hw-theme-toggle { display: none !important; } }
+.site-header h1 { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
 .title { font-family: Georgia, 'Times New Roman', serif; font-size: 2.1rem; color: var(--accent); letter-spacing: 0.01em; }
 .tagline { font-size: 1.05rem; font-weight: 500; color: var(--muted); }
 
@@ -84,11 +131,12 @@ button.secondary { background: var(--panel); color: var(--ink); border-color: va
 button:hover { filter: brightness(1.06); }
 button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+/* Fields: 3:1 against the panel and the page (WCAG 1.4.11). */
 input, select {
   font: inherit;
   color: var(--ink);
   background: var(--panel);
-  border: 1px solid var(--line);
+  border: 1px solid var(--field-border);
   border-radius: 6px;
   padding: 5px 8px;
   max-width: 100%;
@@ -100,7 +148,8 @@ h3 { margin: 18px 0 8px; font-size: 1.12rem; }
 .lede { color: var(--muted); max-width: 75ch; }
 .muted { color: var(--muted); }
 .error { color: var(--bad); }
-.note { font-size: 0.92rem; color: var(--muted); max-width: 80ch; }
+/* The lab's share link is one long word: let it wrap on a phone. */
+.note { font-size: 0.92rem; color: var(--muted); max-width: 80ch; overflow-wrap: anywhere; }
 
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 16px 0; }
 .card h3 { margin-top: 0; }
@@ -130,7 +179,9 @@ h3 { margin: 18px 0 8px; font-size: 1.12rem; }
   user-select: none;
   grid-auto-rows: auto;
 }
-.board > .cell:not(.void):not(.citadel) { box-shadow: -1px -1px 0 var(--sq-line); }
+/* Each row is only for assistive technology: its cells are the grid's items. */
+.board-row { display: contents; }
+.board .cell:not(.void):not(.citadel) { box-shadow: -1px -1px 0 var(--sq-line); }
 .cell {
   position: relative;
   aspect-ratio: 1;
@@ -160,11 +211,11 @@ button.cell:hover { filter: brightness(1.05); }
 .cit-mark { line-height: 0; font-size: 1.1em; color: var(--gold); opacity: 0.8; }
 .cell.last { background-image: linear-gradient(var(--last), var(--last)); }
 .cell.selected { background-image: linear-gradient(var(--sel), var(--sel)); }
-.board > .cell.check { box-shadow: inset 0 0 0 3px var(--cap), inset 0 0 14px var(--cap); }
-.coord { position: absolute; font-size: 0.6rem; color: var(--muted); line-height: 1; pointer-events: none; }
+.board .cell.check { box-shadow: inset 0 0 0 3px var(--cap), inset 0 0 14px var(--cap); }
+.coord { position: absolute; font-size: 0.6rem; color: var(--coord); line-height: 1; pointer-events: none; }
 .coord.rank { left: 2px; top: 2px; }
 .coord.file { right: 2px; bottom: 2px; }
-.board .cell:nth-child(1) { border-top-left-radius: 4px; }
+.board > .board-row:first-child > .cell:first-child { border-top-left-radius: 4px; }
 
 .token {
   width: 82%;
@@ -177,11 +228,11 @@ button.cell:hover { filter: brightness(1.05); }
   font-family: Georgia, 'Times New Roman', serif;
   font-size: clamp(9px, 2.1vw, 17px);
   line-height: 1;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 1px 2px var(--token-shadow);
 }
 .token.white { background: var(--w-fill); color: var(--w-ink); border: 2px solid var(--w-edge); }
 .token.black { background: var(--b-fill); color: var(--b-ink); border: 2px solid var(--b-edge); }
-.token.royal { box-shadow: 0 0 0 2px var(--gold), 0 1px 3px rgba(0, 0, 0, 0.4); }
+.token.royal { box-shadow: 0 0 0 2px var(--gold), 0 1px 3px var(--royal-shadow); }
 .token.pawn { width: 62%; height: 62%; font-size: clamp(8px, 1.7vw, 14px); }
 .token .promo {
   position: absolute;
@@ -190,7 +241,7 @@ button.cell:hover { filter: brightness(1.05); }
   font-size: 0.62em;
   font-family: system-ui, sans-serif;
   background: var(--gold);
-  color: #1f1a14;
+  color: var(--on-gold);
   border-radius: 4px;
   padding: 0 2px;
 }

@@ -50,7 +50,7 @@ export function mountApp(root: HTMLElement): void {
     h(
       'header',
       { class: 'site-header' },
-      h('h1', {}, h('span', { class: 'title' }, 'Tamerlane Board'), h('span', { class: 'tagline' }, 'Timur’s chess, and a lab for inventing pieces')),
+      h('div', { class: 'title-row' }, h('h1', {}, h('span', { class: 'title' }, 'Tamerlane Board'), h('span', { class: 'tagline' }, 'Timur’s chess, and a lab for inventing pieces')), h('hw-theme-toggle')),
       h('nav', { role: 'tablist', 'aria-label': 'Sections' }, ...buttons),
     ),
     main,
