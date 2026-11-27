@@ -1,6 +1,7 @@
 /* Colours: light on :root; dark twice, for the switch (data-theme on <html>, set
    before the first paint) and for the device setting when scripts do not run
    (platform/src/theme/README.md). test/theme.test.ts keeps the two the same.
+   Both are for screens only, so a printout uses the light set.
    The --paper tokens are the receipt preview: a printed page, the same in both themes. */
 :root {
   color-scheme: light;
@@ -28,33 +29,35 @@
   --paper-shadow: rgb(0 0 0 / 0.08);
   --field-border: #8a8478;
 }
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #141815;
-  --panel: #1c211e;
-  --ink: #e7ebe7;
-  --muted: #a3ada5;
-  --line: #36403a;
-  --accent: #8fd0b8;
-  --accent-ink: #0f1f19;
-  --accent-soft: #23352d;
-  --bad: #ff9a8f;
-  --bad-bg: #3a201d;
-  --warn: #f3cf7c;
-  --warn-bg: #352c16;
-  --good: #8fd6a8;
-  --good-bg: #183020;
-  --paper: #fbfbf8;
-  --paper-ink: #1b1b1b;
-  --paper-muted: #4d4d4d;
-  --paper-rule: #c9c9c9;
-  --paper-grid: #e2e2e2;
-  --paper-flag-bg: #f1dcdc;
-  --paper-flag-ink: #7c1c14;
-  --paper-shadow: rgb(0 0 0 / 0.08);
-  --field-border: #6f7d77;
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #141815;
+    --panel: #1c211e;
+    --ink: #e7ebe7;
+    --muted: #a3ada5;
+    --line: #36403a;
+    --accent: #8fd0b8;
+    --accent-ink: #0f1f19;
+    --accent-soft: #23352d;
+    --bad: #ff9a8f;
+    --bad-bg: #3a201d;
+    --warn: #f3cf7c;
+    --warn-bg: #352c16;
+    --good: #8fd6a8;
+    --good-bg: #183020;
+    --paper: #fbfbf8;
+    --paper-ink: #1b1b1b;
+    --paper-muted: #4d4d4d;
+    --paper-rule: #c9c9c9;
+    --paper-grid: #e2e2e2;
+    --paper-flag-bg: #f1dcdc;
+    --paper-flag-ink: #7c1c14;
+    --paper-shadow: rgb(0 0 0 / 0.08);
+    --field-border: #6f7d77;
+  }
 }
-@media (prefers-color-scheme: dark) {
+@media screen and (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: #141815;
@@ -192,4 +195,9 @@ td .tag { margin-left: 6px; }
   .two-col, .pair { grid-template-columns: 1fr; }
   .doc { padding: 18px; }
   .doc-row { grid-template-columns: 7em 1fr; }
+}
+
+/* Print: the light set (the dark blocks above are for screens only), without the switch. */
+@media print {
+  hw-theme-toggle { display: none !important; }
 }
