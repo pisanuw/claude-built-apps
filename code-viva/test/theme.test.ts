@@ -2,7 +2,7 @@
 // The light and dark mode switch (platform/src/theme/README.md, "The test an app copies").
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { vivaId } from '../src/core/pack';
 import { mountInstructor } from '../src/ui/instructor';
 import { mountStudent } from '../src/ui/student';
@@ -139,6 +139,30 @@ describe('the palette', () => {
   });
 });
 
+// The title row: the title and the switch, alone on a row that takes the header's whole
+// width (.title-row is a flex row with space-between and flex-basis 100%), so nothing
+// else in the header can sit beside the switch or push it off the end.
+function expectTitleRow(header: Element): void {
+  const toggle = header.querySelector('hw-theme-toggle')!;
+  const row = toggle.parentElement!;
+  expect(row.className).toBe('title-row');
+  expect(row.parentElement).toBe(header);
+  expect([...row.children].map((c) => c.tagName)).toEqual(['H1', 'HW-THEME-TOGGLE']);
+  const rule = css.match(/\.title-row\s*\{([^}]*)\}/)![1];
+  for (const decl of ['display: flex;', 'justify-content: space-between;', 'flex-basis: 100%;']) expect(rule).toContain(decl);
+}
+
+// A box that scrolls sideways must be reachable by keyboard: tabindex 0, a region, a name.
+function expectRegions(root: Element, atLeast: number): void {
+  const wraps = [...root.querySelectorAll('.table-wrap')];
+  expect(wraps.length).toBeGreaterThanOrEqual(atLeast);
+  for (const w of wraps) {
+    expect(w.getAttribute('tabindex'), w.outerHTML.slice(0, 80)).toBe('0');
+    expect(w.getAttribute('role')).toBe('region');
+    expect(w.getAttribute('aria-label')).toBeTruthy();
+  }
+}
+
 describe('the switch in the header', () => {
   let root: HTMLElement;
   beforeAll(async () => {
@@ -158,6 +182,19 @@ describe('the switch in the header', () => {
     expect(toggle.previousElementSibling?.tagName).toBe('H1');
     expect(root.querySelectorAll('hw-theme-toggle')).toHaveLength(1);
     expect(button().getAttribute('aria-label')).toBe('Switch to dark mode');
+  });
+
+  it('keeps the switch at the end of the title row at every width (the lede comes below)', () => {
+    expectTitleRow(root.querySelector('header')!);
+    expect(root.querySelector('header')!.lastElementChild?.className).toBe('lede');
+  });
+
+  it('makes every wide table a focusable, labelled region, before and after a demo is loaded', () => {
+    expectRegions(root, 1); // the guide's table
+    root.querySelector<HTMLButtonElement>('#demo')!.click();
+    expectRegions(root, 1); // the review tab: all students
+    root.querySelector<HTMLButtonElement>('[data-tab="import"]')!.click();
+    expectRegions(root, 1); // the import tab: the submissions
   });
 
   it('switches the page at once and remembers the choice', () => {
@@ -210,6 +247,24 @@ describe("the switch in the student's pages", () => {
     mountStudent(root, viva());
     expect(toggles()).toHaveLength(1);
     expect(toggles()[0].closest('header')?.querySelector('h1')?.textContent).toBe('Code Viva');
+    expectTitleRow(root.querySelector('header')!);
+  });
+
+  it('the timed question page has it in a header for the whole session', () => {
+    vi.useFakeTimers();
+    try {
+      mountStudent(root, viva());
+      root.querySelector<HTMLButtonElement>('#start')!.click();
+      expect(root.querySelector('#answer')).not.toBeNull();
+      expect(toggles()).toHaveLength(1);
+      expect(toggles()[0].parentElement?.tagName).toBe('HEADER');
+      // The header holds only the switch, pushed to its end.
+      expect(toggles()[0].parentElement?.children).toHaveLength(1);
+      expect(css).toMatch(/\.top > hw-theme-toggle\s*\{\s*margin-left: auto;/);
+    } finally {
+      window.onbeforeunload = null;
+      vi.useRealTimers();
+    }
   });
 
   it('the finished page and the damaged-link page have it in a header too', () => {
@@ -222,6 +277,6 @@ describe("the switch in the student's pages", () => {
     mountStudent(root, null);
     expect(root.querySelector('[role="alert"]')).not.toBeNull();
     expect(toggles()).toHaveLength(1);
-    expect(toggles()[0].parentElement?.tagName).toBe('HEADER');
+    expectTitleRow(root.querySelector('header')!);
   });
 });

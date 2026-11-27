@@ -71,8 +71,7 @@ export function mountInstructor(root: HTMLElement): void {
 
   root.innerHTML = `
     <header class="top">
-      <h1>Code Viva</h1>
-      <hw-theme-toggle></hw-theme-toggle>
+      <div class="title-row"><h1>Code Viva</h1><hw-theme-toggle></hw-theme-toggle></div>
       <p class="lede">Short written orals about each student's own submission: questions anchored to their functions, names and commits, a timed session from a personal link, and proposed scores with quoted evidence for you to approve. Everything runs in this browser; no code or answers leave it unless you send them.</p>
     </header>
     <section class="card demo-bar" aria-labelledby="demo-h">

@@ -106,15 +106,20 @@ a {
   margin-bottom: 14px;
 }
 
-/* The light and dark mode switch, at the right of the title row; the lede takes the next row. */
-.top hw-theme-toggle {
-  margin-left: auto;
-  align-self: center;
+/* The title and the light and dark mode switch, on a row of their own at every width;
+   the lede or the course name comes below. */
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-basis: 100%;
+  min-width: 0;
 }
 
-.top .lede {
-  order: 1;
-  flex-basis: 100%;
+/* A header that holds only the switch (the question and finished pages). */
+.top > hw-theme-toggle {
+  margin-left: auto;
 }
 
 /* Hold the switch's place until hw-theme.js draws it. */

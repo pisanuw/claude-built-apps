@@ -22,7 +22,7 @@ interface Saved {
 
 export function mountStudent(root: HTMLElement, viva: Viva | null): void {
   if (!viva) {
-    root.innerHTML = `<main class="student card"><header class="top"><h1>Code Viva</h1><hw-theme-toggle></hw-theme-toggle></header><p class="notice bad" role="alert">This link is damaged or incomplete. Ask your instructor for a fresh link, and copy the whole thing.</p></main>`;
+    root.innerHTML = `<main class="student card"><header class="top"><div class="title-row"><h1>Code Viva</h1><hw-theme-toggle></hw-theme-toggle></div></header><p class="notice bad" role="alert">This link is damaged or incomplete. Ask your instructor for a fresh link, and copy the whole thing.</p></main>`;
     return;
   }
   const id = vivaId(viva);
@@ -65,7 +65,7 @@ export function mountStudent(root: HTMLElement, viva: Viva | null): void {
 
   root.innerHTML = `
     <main class="student">
-      <header class="top"><h1>Code Viva</h1><span class="muted">${esc(viva.course)} ${viva.course && viva.assignment ? '·' : ''} ${esc(viva.assignment)}</span><hw-theme-toggle></hw-theme-toggle></header>
+      <header class="top"><div class="title-row"><h1>Code Viva</h1><hw-theme-toggle></hw-theme-toggle></div><span class="muted">${esc(viva.course)} ${viva.course && viva.assignment ? '·' : ''} ${esc(viva.assignment)}</span></header>
       <section class="card">
         <h2>Hi ${esc(viva.student)}</h2>
         <p>This is a short written check that you understand the code you submitted. There are <b>${viva.questions.length} questions</b>, each about your own functions, variable names or commits. Your code is shown next to each question.</p>
@@ -92,6 +92,7 @@ export function mountStudent(root: HTMLElement, viva: Viva | null): void {
 
     root.innerHTML = `
       <main class="student">
+        <header class="top"><hw-theme-toggle></hw-theme-toggle></header>
         <section class="card">
           <div class="row" style="justify-content:space-between">
             <span id="where" class="muted"></span>
