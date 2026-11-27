@@ -331,18 +331,35 @@ describe('the switch in the header', () => {
     }
   });
 
-  it('draws the maze again when the theme changes, not on the device query (the switch decides the theme)', async () => {
+  it('draws the maze again when the theme changes, not on the device query (the switch decides the theme)', () => {
     const src = readFileSync('src/ui/mazeView.ts', 'utf8');
     expect(src).not.toMatch(/prefers-color-scheme/);
-    press('Play');
-    press('Pause');
-    await new Promise((r) => setTimeout(r, 100));
-    const before = drawn.calls;
-    await new Promise((r) => setTimeout(r, 100));
-    // Paused and drawn: nothing new is drawn until something changes.
-    expect(drawn.calls).toBe(before);
-    button().click();
-    await vi.waitFor(() => expect(drawn.calls).toBeGreaterThan(before));
+    // The maze draws in its animation frames: the test runs each frame itself, so no wall-clock wait decides it.
+    const real = window.requestAnimationFrame;
+    const queued: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => queued.push(cb));
+    const runFrames = (n: number): void => {
+      for (let i = 0; i < n; i++) for (const cb of queued.splice(0)) cb(performance.now());
+    };
+    try {
+      document.body.innerHTML = '<div id="app"></div>';
+      root = document.getElementById('app') as HTMLElement;
+      mountApp(root);
+      runFrames(1);
+      press('Play');
+      press('Pause');
+      runFrames(2);
+      const before = drawn.calls;
+      expect(queued).toHaveLength(1);
+      runFrames(5);
+      // Paused and drawn: five more frames draw nothing until something changes.
+      expect(drawn.calls).toBe(before);
+      button().click();
+      runFrames(1);
+      expect(drawn.calls).toBeGreaterThan(before);
+    } finally {
+      vi.stubGlobal('requestAnimationFrame', real);
+    }
   });
 
   it('draws the maze at once on the way into print and back, so a dark choice prints in the light colours', () => {
