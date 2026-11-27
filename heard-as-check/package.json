@@ -16,7 +16,9 @@
     "coverage": "vitest run --coverage",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test e2e",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "fixtures": "node test/fixtures/generate.ts",
+    "fixtures:verapdf": "node test/fixtures/verapdf.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0"
