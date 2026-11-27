@@ -21,6 +21,8 @@ export function drawState(canvas: HTMLCanvasElement, kind: 'hanoi' | 'tiles' | '
     line: styles.getPropertyValue('--preview-line').trim() || '#9aa5b1',
     text: styles.getPropertyValue('--text').trim() || '#111',
     tile: styles.getPropertyValue('--preview-tile').trim() || '#ffffff',
+    home: styles.getPropertyValue('--preview-home').trim() || '#2bb673',
+    homeText: styles.getPropertyValue('--preview-home-text').trim() || '#0b1017',
   };
   switch (kind) {
     case 'tiles':
@@ -35,7 +37,7 @@ export function drawState(canvas: HTMLCanvasElement, kind: 'hanoi' | 'tiles' | '
   }
 }
 
-type Colors = { bg: string; line: string; text: string; tile: string };
+type Colors = { bg: string; line: string; text: string; tile: string; home: string; homeText: string };
 
 function drawTiles(ctx: CanvasRenderingContext2D, s: TilesState, size: number, colors: Colors): void {
   const cell = Math.floor((size - 4) / Math.max(s.rows, s.cols));
@@ -55,13 +57,13 @@ function drawTiles(ctx: CanvasRenderingContext2D, s: TilesState, size: number, c
       const y = oy + r * cell;
       if (t === 0) continue;
       const home = s.goalRow[t] === r && s.goalCol[t] === c;
-      ctx.fillStyle = home ? '#2bb673' : colors.tile;
+      ctx.fillStyle = home ? colors.home : colors.tile;
       roundRect(ctx, x + 1.5, y + 1.5, cell - 3, cell - 3, 3);
       ctx.fill();
       ctx.strokeStyle = colors.line;
       ctx.lineWidth = 1;
       ctx.stroke();
-      ctx.fillStyle = home ? '#ffffff' : colors.text;
+      ctx.fillStyle = home ? colors.homeText : colors.text;
       ctx.fillText(String(t), x + cell / 2, y + cell / 2 + 0.5);
     }
   }
@@ -77,7 +79,7 @@ function drawHanoi(ctx: CanvasRenderingContext2D, s: HanoiState, size: number, c
   ctx.fillRect(2, baseY, size - 4, 3);
   for (let p = 0; p < s.pegs; p++) {
     const cx = pegW * p + pegW / 2;
-    ctx.fillStyle = p === s.pegs - 1 ? '#2bb673' : colors.line;
+    ctx.fillStyle = p === s.pegs - 1 ? colors.home : colors.line;
     ctx.fillRect(cx - 1.5, 8, 3, baseY - 8);
     const stack = s.stacks[p];
     for (let k = 0; k < stack.length; k++) {

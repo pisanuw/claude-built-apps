@@ -140,6 +140,13 @@ export class AtlasView {
     return this.view.zoom;
   }
 
+  /** Draws now, in the colours in place now (print cannot wait for the next frame). */
+  renderNow(): void {
+    if (this.frame) cancelAnimationFrame(this.frame);
+    this.frame = 0;
+    this.render();
+  }
+
   requestRender(): void {
     if (this.frame) return;
     this.frame = requestAnimationFrame(() => {
@@ -191,7 +198,7 @@ export class AtlasView {
       frontier: v('--c-frontier', '#f2a93b'),
       expanded: v('--c-expanded', '#4c8dff'),
       path: v('--c-path', '#ff4d6d'),
-      text: v('--text', '#e5e7eb'),
+      text: v('--atlas-text', '#e5e7eb'),
       dead: v('--c-dead', '#6b7280'),
     };
   }

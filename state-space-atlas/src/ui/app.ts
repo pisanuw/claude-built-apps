@@ -109,7 +109,11 @@ export class App {
     this.loadFromHash();
     window.addEventListener('hashchange', () => this.loadFromHash());
     window.addEventListener('keydown', (e) => {
-      if ((e.target as HTMLElement).matches('textarea, input, select')) return;
+      // The real target: a key in a shadow root (the theme switch's) arrives here retargeted to its host.
+      const target = (e.composedPath()[0] ?? e.target) as HTMLElement;
+      if (target.closest?.('textarea, input, select')) return;
+      // Space plays and pauses, but on a focused button, link or scroll box it is that control's own key.
+      if (e.key === ' ' && target.closest?.('button, a[href], summary, [role="button"], [role="region"]')) return;
       if (e.key === ' ') {
         e.preventDefault();
         this.togglePlay();
@@ -117,6 +121,19 @@ export class App {
       else if (e.key === 'r') this.resetSearch();
       else if (e.key === 'f') this.atlas.fit();
     });
+    // The atlas and the selected state's preview read the colour tokens as they draw: draw them again when the
+    // theme changes, and at once on the way into print and back (print takes the light set, but a canvas keeps the
+    // pixels it drew on screen, and the next frame would come after the printout).
+    document.addEventListener('hw-themechange', () => {
+      this.atlas.requestRender();
+      this.renderInspector();
+    });
+    if (typeof window.matchMedia === 'function') {
+      window.matchMedia('print').addEventListener?.('change', () => {
+        this.atlas.renderNow();
+        this.renderInspector();
+      });
+    }
     requestAnimationFrame(() => this.tick());
   }
 
@@ -126,7 +143,7 @@ export class App {
     const header = el(
       'header',
       { class: 'top' },
-      el('h1', { text: 'State Space Atlas' }),
+      el('div', { class: 'title-row' }, el('h1', { text: 'State Space Atlas' }), el('hw-theme-toggle')),
       el('span', { class: 'tagline', text: 'Every reachable state of a small puzzle, drawn as one graph. Watch BFS, DFS, IDDFS, greedy and A* explore it, and test your own heuristic against the true distances.' }),
       el('a', { href: 'https://github.com/pisanuw/Claude-capstone/tree/main/state-space-atlas', target: '_blank', rel: 'noreferrer', text: 'Source & README' }),
     );
