@@ -33,9 +33,13 @@ export function puzzleView(progress: Progress = loadProgress()): HTMLElement {
     h(
       'button',
       { type: 'button', class: 'level-btn', onclick: () => openLevel(l) },
+      // The name is the visible text, with hidden words around it ("Level 2 Off the end bounds checks, 0 of 3
+      // stars"): an aria-label that left out the concept failed axe's label-in-name rule.
+      h('span', { class: 'visually-hidden' }, 'Level '),
       h('span', { class: 'lvl-num' }, String(i + 1)),
       h('span', { class: 'lvl-text' }, h('strong', {}, l.title), h('small', {}, l.concept)),
-      h('span', { class: 'lvl-stars', 'aria-label': '' }),
+      h('span', { class: 'lvl-stars', 'aria-hidden': 'true' }),
+      h('span', { class: 'visually-hidden lvl-stars-text' }),
     ),
   );
   const levelList = h('nav', { class: 'level-list', 'aria-label': 'Levels' }, ...levelButtons);
@@ -147,9 +151,9 @@ export function puzzleView(progress: Progress = loadProgress()): HTMLElement {
       total += st;
       const btn = levelButtons[i];
       (btn.querySelector('.lvl-stars') as HTMLElement).textContent = stars(st);
+      (btn.querySelector('.lvl-stars-text') as HTMLElement).textContent = `, ${st} of 3 stars`;
       btn.classList.toggle('current', l.id === current.id);
       btn.setAttribute('aria-current', l.id === current.id ? 'true' : 'false');
-      btn.setAttribute('aria-label', `Level ${i + 1}: ${l.title}, ${st} of 3 stars`);
     });
     totalStars.textContent = `${total} / ${LEVELS.length * 3} stars`;
   }
@@ -200,7 +204,7 @@ export function puzzleView(progress: Progress = loadProgress()): HTMLElement {
     solutionBox.hidden = false;
     solutionBox.replaceChildren(
       h('p', { class: 'muted small' }, `Launch: ${current.referenceLaunch.grid} blocks × ${current.referenceLaunch.block} threads. Other solutions can tie or beat it.`),
-      h('pre', {}, current.reference),
+      h('pre', { tabindex: '0', role: 'region', 'aria-label': 'A three-star solution' }, current.reference),
       h('button', { type: 'button', class: 'secondary small', onclick: () => { editor.value = current.reference; gridInput.value = String(current.referenceLaunch.grid); blockSel.value = String(current.referenceLaunch.block); renderGutter(); persist(); } }, 'Load into editor'),
     );
   }
