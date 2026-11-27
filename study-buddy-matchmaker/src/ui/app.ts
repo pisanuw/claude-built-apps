@@ -141,7 +141,7 @@ export function mountApp(root: HTMLElement): void {
     el(
       'header',
       {},
-      el('h1', {}, 'Study Buddy Matchmaker'),
+      el('div', { class: 'title-row' }, el('h1', {}, 'Study Buddy Matchmaker'), el('hw-theme-toggle')),
       el(
         'p',
         { class: 'lede' },
@@ -277,7 +277,8 @@ export function mountApp(root: HTMLElement): void {
       book.warnings.length ? el('details', { class: 'warn' }, el('summary', {}, `${book.warnings.length} note${book.warnings.length === 1 ? '' : 's'} about the data`), el('ul', {}, ...book.warnings.slice(0, 40).map((w) => el('li', {}, w)))) : '',
       el(
         'div',
-        { class: 'scroll' },
+        // It scrolls sideways and holds nothing focusable: a named region the keyboard can reach.
+        { class: 'scroll', tabindex: '0', role: 'region', 'aria-label': 'Class profile by topic' },
         el(
           'table',
           { class: 'heat' },
