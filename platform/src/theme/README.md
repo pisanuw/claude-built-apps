@@ -48,13 +48,18 @@ Three steps for every app: the head snippet, the button in the header, and colou
 
 The copies are not the app's code. Keep them out of its lint, format and coverage, or a `prettier --write .` or a lint autofix rewrites them and the copy check fails: list `hw-theme.js` and `hw-theme-init.js` in `.prettierignore` and the ESLint `ignores`, and leave them out of a coverage `include` that matches `.js` (PasteMD's `.prettierignore` and `eslint.config.js` are the example).
 
+**Key shortcuts:** a key pressed on the switch reaches a `document` listener retargeted to `<hw-theme-toggle>`, not to its `<button>` (the shadow root hides it). A shortcut handler that leaves Space and Enter to a focused button, or ignores keys typed in fields, takes the real target, `event.composedPath()[0]`, not `event.target`; otherwise Space on the switch runs the shortcut and its `preventDefault` cancels the switch (four-ghosts did, batch 4 review R1-2).
+
 ### A Vite + TypeScript app (most apps in this repo)
 
 1. Copy `hw-theme.js` and `hw-theme.d.ts` to `src/lib/`. Import it first in `src/main.ts`, so the element is defined before the app draws its header:
 
    ```ts
    import './lib/hw-theme.js';
+   import './styles.css'; // a file: Vite links it in the head, after the snippet
    ```
+
+   Import the stylesheet as a file, not `?inline` into a `<style>` the script adds: until the script runs, such a page has no CSS, so the browser paints its own canvas in the device's colours and a stored choice that differs flashes (where-does-it-say and agent-blast-radius did, batch 4 review R1-1). The head-order check in the test below passes when the head has no stylesheet at all, so the test also checks the import. A report the app exports can still embed the `?inline` string.
 
 2. Paste the head snippet at the top of `index.html`'s `<head>` (Vite leaves an inline classic script as it is).
 3. Put the element at the right of the header, beside any other header controls (sign-in comes after it, as on beyankontrol.com where the menu button follows):
@@ -155,6 +160,7 @@ Define every colour once as a custom property, light on `:root`, dark twice: for
 - A light accent usually needs dark text on it in dark mode (`--on-accent`), and a red used for text and for a button's fill usually needs two tokens.
 - Colours that are content (a palette being inspected, a screenshot, a sample page) do not change with the theme.
 - **A canvas or other drawn colours:** read the tokens with `getComputedStyle(document.documentElement).getPropertyValue('--text')` and redraw on `document.addEventListener('hw-themechange', redraw)`. Replace any `matchMedia('(prefers-color-scheme: dark)')` in scripts with `window.hintwise?.theme?.get()` or `document.documentElement.dataset.theme`.
+  - **Redraw on print too:** print takes the light set, but a canvas keeps the pixels it drew on screen, so with dark stored it prints dark. Also draw at once (not in the next animation frame, which comes after the printout) on `matchMedia('print').addEventListener('change', redraw)`: it fires on the way into print with the print colours in place, and again on the way out. `beforeprint` still sees the screen's colours. cache-miss-theater and four-ghosts do this, with a test that stubs `matchMedia` and fires the change (batch 4 review R1-3).
 - **The HintWise wordmark** uses `hintwise-wordmark-white.svg` in dark mode. The footer follows the text colour on its own.
 
 ## The test an app copies
@@ -191,6 +197,12 @@ describe('the light and dark mode switch', () => {
     expect(`'sha256-${sha(m![1], 'base64')}'`).toBe(THEME_INIT_CSP);
     const stylesheet = head.search(/<link[^>]+stylesheet|<style/);
     expect(stylesheet === -1 || head.indexOf(m![0]) < stylesheet).toBe(true);
+  });
+  it('the stylesheet is linked in the head, not added by the script', () => {
+    // The check above passes when the head has no stylesheet; Vite links one that main.ts imports as a file.
+    const main = readFileSync('src/main.ts', 'utf8');
+    expect(main).toMatch(/^import '\.\/styles\.css';$/m);
+    expect(main).not.toMatch(/createElement\(\s*['"]style['"]/);
   });
   it('the two dark blocks in the stylesheet are the same', () => {
     const block = (re: RegExp) => css.match(re)?.[1].replace(/\s+/g, ' ').trim();
