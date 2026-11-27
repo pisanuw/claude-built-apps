@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --bg: #f3f4f1;
   --card: #ffffff;
   --fg: #1a1c1a;
@@ -8,13 +9,32 @@
   --accent-fg: #ffffff;
   --accent-soft: rgba(47, 107, 79, 0.1);
   --good: #1d7a46;
+  /* The in-sync and passed tints, and the stalled and failed ones (fixed in light before). */
+  --good-soft: rgba(29, 122, 70, 0.12);
   --bad: #b3261e;
+  --bad-soft: rgba(179, 38, 30, 0.12);
   --code-bg: #f6f7f4;
+  /* Fields', buttons', tabs' and the scenarios' edges: 3:1 on the card and the page (--border was 1.27 to
+     1.51:1). */
+  --field-border: #828880;
+  /* The four players, the playfield and its grid, which the canvases read as they draw (this block and the dark
+     ones were a second set further down). */
+  --p0: #2563c9;
+  --p1: #c2410c;
+  --p2: #15803d;
+  --p3: #9333ea;
+  --field: #fbfcfa;
+  --gridline: #e6e9e3;
+  --warn: #b45309;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+/* Dark twice, for the switch (data-theme on <html>, set before the first paint) and for the device setting when
+   scripts do not run (platform/src/theme/README.md); test/theme.test.ts keeps the two the same. Both are for the
+   screen only: paper gets the light set. This is the app's dark palette, which followed the device before. */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #111311;
     --card: #1a1d1a;
     --fg: #e6e9e4;
@@ -24,8 +44,45 @@
     --accent-fg: #0f1a14;
     --accent-soft: rgba(127, 204, 164, 0.13);
     --good: #5cc98b;
+    --good-soft: rgba(92, 201, 139, 0.12);
     --bad: #ff6b60;
+    --bad-soft: rgba(255, 107, 96, 0.12);
     --code-bg: #141714;
+    --field-border: #687067;
+    --p0: #6ea8ff;
+    --p1: #ff9a5c;
+    --p2: #5fd38d;
+    --p3: #c79bff;
+    --field: #141714;
+    --gridline: #262b26;
+    --warn: #f0a540;
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111311;
+    --card: #1a1d1a;
+    --fg: #e6e9e4;
+    --muted: #a0a69e;
+    --border: #313631;
+    --accent: #7fcca4;
+    --accent-fg: #0f1a14;
+    --accent-soft: rgba(127, 204, 164, 0.13);
+    --good: #5cc98b;
+    --good-soft: rgba(92, 201, 139, 0.12);
+    --bad: #ff6b60;
+    --bad-soft: rgba(255, 107, 96, 0.12);
+    --code-bg: #141714;
+    --field-border: #687067;
+    --p0: #6ea8ff;
+    --p1: #ff9a5c;
+    --p2: #5fd38d;
+    --p3: #c79bff;
+    --field: #141714;
+    --gridline: #262b26;
+    --warn: #f0a540;
   }
 }
 
@@ -47,9 +104,20 @@ body {
 }
 
 h1 {
-  margin: 0 0 4px;
+  margin: 0;
   font-size: 28px;
+  min-width: 0;
 }
+
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
 
 h2 {
   margin: 0 0 10px;
@@ -113,7 +181,7 @@ button {
   font: inherit;
   color: var(--fg);
   background: var(--card);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 6px;
   padding: 5px 8px;
 }
@@ -149,7 +217,7 @@ button {
 button.secondary {
   background: var(--card);
   color: var(--fg);
-  border-color: var(--border);
+  border-color: var(--field-border);
 }
 
 button:disabled {
@@ -237,28 +305,6 @@ a {
 
 /* ---------- edit graph lab ---------- */
 
-:root {
-  --p0: #2563c9;
-  --p1: #c2410c;
-  --p2: #15803d;
-  --p3: #9333ea;
-  --field: #fbfcfa;
-  --gridline: #e6e9e3;
-  --warn: #b45309;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --p0: #6ea8ff;
-    --p1: #ff9a5c;
-    --p2: #5fd38d;
-    --p3: #c79bff;
-    --field: #141714;
-    --gridline: #262b26;
-    --warn: #f0a540;
-  }
-}
-
 .pair {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -297,12 +343,12 @@ a {
 .tab {
   background: var(--card);
   color: var(--fg);
-  border-color: var(--border);
+  border-color: var(--field-border);
   border-radius: 999px;
   padding: 6px 14px;
 }
 
-.tab[aria-selected="true"] {
+.tab[aria-pressed="true"] {
   background: var(--accent);
   color: var(--accent-fg);
   border-color: var(--accent);
@@ -442,7 +488,7 @@ legend {
 }
 
 .badge.stall {
-  background: var(--del-bg, rgba(179, 38, 30, 0.12));
+  background: var(--bad-soft);
   color: var(--bad);
 }
 
@@ -454,12 +500,12 @@ legend {
 }
 
 .status.ok {
-  background: rgba(29, 122, 70, 0.12);
+  background: var(--good-soft);
   color: var(--good);
 }
 
 .status.bad {
-  background: rgba(179, 38, 30, 0.12);
+  background: var(--bad-soft);
   color: var(--bad);
 }
 
@@ -516,12 +562,12 @@ textarea.code {
 }
 
 .result.pass {
-  background: rgba(29, 122, 70, 0.12);
+  background: var(--good-soft);
   color: var(--good);
 }
 
 .result.fail {
-  background: rgba(179, 38, 30, 0.12);
+  background: var(--bad-soft);
   color: var(--bad);
 }
 
@@ -558,4 +604,28 @@ code {
 
 .pane canvas {
   max-width: 440px;
+}
+
+/* Not on paper (last, so it wins). Paper leaves fills out: labels on the accent (the buttons, the current
+   scenario or exercise) take the ink, the current one underlined. */
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
+
+  button,
+  .tab[aria-pressed="true"] {
+    color: var(--fg);
+  }
+
+  .tab[aria-pressed="true"] {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+  }
+
+  .legend i {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
 }
