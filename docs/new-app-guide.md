@@ -154,7 +154,10 @@ Every HintWise app has a light and dark mode switch (owner, 27 Nov 2026; Manager
 - **Behaviour:** one click switches the whole page at once. The first visit follows the device setting (`prefers-color-scheme`). The choice is remembered on that device (`localStorage`, wrapped in try/catch so a blocked store falls back to the device setting) and applied before the first paint, so the page never flashes the wrong theme.
 - **Colours:** define them as CSS custom properties on `:root`, and override them for dark under `:root[data-theme="dark"]` and under `@media (prefers-color-scheme: dark)` guarded by `:root:not([data-theme="light"])`. Both themes meet contrast: no serious issue in an accessibility-lens scan of each.
 - **The button:** a real `<button>` with an accessible name that says what it does ("Switch to dark mode" / "Switch to light mode") and `aria-pressed` or an updated label; reachable by keyboard; at least 44 by 44 px on a phone.
-- **One source:** the shared switch in `platform/src/theme/` (being built from 27 Nov 2026; its README gives the exact snippet, the CSP hash for its inline script, and the test to copy). Until it lands, follow the rules above.
+- **One source:** the shared switch in `platform/src/theme/`; [its README](../platform/src/theme/README.md) has the exact snippets for a Vite app, a React app, plain HTML pages and Next.js, the CSS token pattern, the CSP hash for the inline head script (or the file to load instead under `script-src 'self'`), the sha256 to pin the copy of `hw-theme.js`, and the test to copy.
+  - Put the head snippet first in `<head>`, copy `hw-theme.js` unchanged, and put `<hw-theme-toggle></hw-theme-toggle>` at the right of the header, before the sign-in controls.
+  - It is copied into each app and pinned by sha256, like `hw-events.js` in option B, in both options: the deploy does not add it, because the button belongs in the app's own header.
+  - Examples: accessibility-lens (React and Tailwind, colours moved to CSS variables) and PasteMD (plain HTML pages under a strict CSP).
 - **The footer** inherits the page's text colour, so it suits both themes; the HintWise wordmark needs `hintwise-wordmark-white.svg` in dark mode.
 
 ### Analytics
