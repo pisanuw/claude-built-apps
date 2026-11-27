@@ -167,7 +167,8 @@ export async function mountApp(root: HTMLElement, deps: AppDeps): Promise<void> 
 
   root.append(
     h('header', { class: 'top' },
-      h('div', { class: 'top-bar' }, h('h1', { text: 'Qualified Overtime Checker' }), deps.auth ? authArea : null),
+      // The light and dark mode switch sits after the title and before sign-in (platform/src/theme/README.md).
+      h('div', { class: 'top-bar' }, h('h1', { text: 'Qualified Overtime Checker' }), h('hw-theme-toggle'), deps.auth ? authArea : null),
       h('p', { class: 'lede', text: 'Check the overtime figure on your staff’s W-2s (Box 12, code TT) before you file. Upload your timesheet, enter what your payroll calculated, and see who is off and by how much.' }),
       privacy,
     ),

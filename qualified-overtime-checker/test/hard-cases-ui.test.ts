@@ -94,7 +94,9 @@ describe('milestone 3 in the page', () => {
     const area = root.querySelector('header .top-bar > .top-auth') as HTMLElement;
     expect(mounted).toBe(area);
     expect(area.getAttribute('aria-label')).toBe('Account');
-    expect(area.previousElementSibling?.tagName).toBe('H1');
+    // The light and dark mode switch comes between the title and sign-in.
+    expect(area.previousElementSibling?.tagName).toBe('HW-THEME-TOGGLE');
+    expect(area.previousElementSibling?.previousElementSibling?.tagName).toBe('H1');
     expect(root.querySelector('.email-toggle')).toBeNull(); // the template's "Magic link" opens the email form now
     expect(root.textContent).toContain('Sign in at the top of the page');
     cb({ id: 'u', email: 'a@x.org' });

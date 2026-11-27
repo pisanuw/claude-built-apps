@@ -3,6 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Light and dark mode: sets data-theme before the first paint (platform/src/theme/README.md; test/theme.test.ts pins it) -->
+    <script>(function(){var t;try{t=localStorage.getItem('hw-theme')}catch{}if(t!=='light'&&t!=='dark')t=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)})();</script>
     <title>Qualified Overtime Checker</title>
     <meta name="description" content="Check the qualified overtime figure (W-2 Box 12, code TT) for every hourly employee before you file: workweek by workweek, with the blended regular rate." />
     <meta name="color-scheme" content="light dark" />
