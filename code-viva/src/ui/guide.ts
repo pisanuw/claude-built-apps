@@ -44,7 +44,7 @@ export const GUIDE_HTML = `
 
 <section class="card guide">
   <h2>How questions are chosen</h2>
-  <div class="table-wrap"><table>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Question kinds"><table>
     <thead><tr><th>Kind</th><th>Asks about</th><th>Example</th></tr></thead>
     <tbody>
       <tr><td>recursion</td><td>A function that calls itself</td><td>"<code>_sort</code> calls itself on line 56. What is the base case?"</td></tr>

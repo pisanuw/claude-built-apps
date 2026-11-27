@@ -72,6 +72,7 @@ export function mountInstructor(root: HTMLElement): void {
   root.innerHTML = `
     <header class="top">
       <h1>Code Viva</h1>
+      <hw-theme-toggle></hw-theme-toggle>
       <p class="lede">Short written orals about each student's own submission: questions anchored to their functions, names and commits, a timed session from a personal link, and proposed scores with quoted evidence for you to approve. Everything runs in this browser; no code or answers leave it unless you send them.</p>
     </header>
     <section class="card demo-bar" aria-labelledby="demo-h">
@@ -300,7 +301,7 @@ export function mountInstructor(root: HTMLElement): void {
       })
       .join('');
     return `<section class="card"><h2>${course.submissions.length} submissions</h2>
-      <div class="table-wrap"><table><thead><tr><th>Student</th><th>Code</th><th>Commits</th><th>Extended time</th></tr></thead><tbody>${body}</tbody></table></div>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Submissions"><table><thead><tr><th>Student</th><th>Code</th><th>Commits</th><th>Extended time</th></tr></thead><tbody>${body}</tbody></table></div>
       <div class="row" style="margin-top:10px"><button class="primary" data-goto="questions">Next: generate questions</button></div></section>`;
   }
 
@@ -453,7 +454,7 @@ export function mountInstructor(root: HTMLElement): void {
           </section>
           <section class="card">
             <h2>All students</h2>
-            <div class="table-wrap"><table>
+            <div class="table-wrap" tabindex="0" role="region" aria-label="All students"><table>
               <thead><tr><th>Student</th><th>Status</th><th>Proposed</th><th>Final</th></tr></thead>
               <tbody>${all.map((r) => rowHtml(r)).join('')}</tbody>
             </table></div>
