@@ -278,6 +278,41 @@ describe('the switch in the header', () => {
     expect(localStorage.getItem('hw-theme')).toBe('light');
   });
 
+  it('names the link field it shows when the clipboard refuses, or is missing, for both copy buttons', async () => {
+    const linkField = (): HTMLInputElement | null => root.querySelector('input[readonly]');
+    const expectNamed = (): void => {
+      const field = linkField()!;
+      expect(field).not.toBeNull();
+      expect(field.getAttribute('aria-label')).toBe('Link to copy');
+      expect(field.value).toMatch(/#w=/);
+    };
+    const nav = navigator as Navigator & { clipboard?: Clipboard };
+    const had = Object.getOwnPropertyDescriptor(nav, 'clipboard');
+    try {
+      // No clipboard at all (jsdom, an http page): the field at once.
+      Object.defineProperty(nav, 'clipboard', { value: undefined, configurable: true });
+      click('Copy link');
+      expectNamed();
+      // A clipboard that refuses (a headless browser, a denied permission): the field after the refusal.
+      Object.defineProperty(nav, 'clipboard', { value: { writeText: () => Promise.reject(new Error('denied')) }, configurable: true });
+      click('Copy link');
+      await vi.waitFor(() => expect(linkField()).not.toBeNull());
+      expectNamed();
+      click('Create exercise link');
+      await vi.waitFor(() => expect(root.querySelectorAll('input[readonly]')).toHaveLength(2));
+      for (const field of root.querySelectorAll('input[readonly]')) expect(field.getAttribute('aria-label')).toBe('Link to copy');
+      // A clipboard that works: a message, no field.
+      Object.defineProperty(nav, 'clipboard', { value: { writeText: () => Promise.resolve() }, configurable: true });
+      click('Copy link');
+      await vi.waitFor(() => expect(root.textContent).toContain('Link to this code copied'));
+      const done = [...root.querySelectorAll('p')].find((p) => p.textContent?.startsWith('Link to this code copied'))!;
+      expect(done.querySelector('input')).toBeNull();
+    } finally {
+      if (had) Object.defineProperty(nav, 'clipboard', had);
+      else delete (nav as { clipboard?: Clipboard }).clipboard;
+    }
+  });
+
   it('gives every text field its border from --field-border (a field back on another colour fails)', () => {
     const fields = [...root.querySelectorAll(FIELDS)];
     expect(fields.length).toBeGreaterThan(5);

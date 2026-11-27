@@ -414,7 +414,8 @@ export function mountApp(root: HTMLElement): void {
 function copy(text: string, out: HTMLElement, done: string): void {
   clear(out);
   const fallback = (): void => {
-    out.append('Copy this link: ', h('input', { type: 'text', readonly: true, value: text, class: 'mono', onfocus: (e: Event) => (e.target as HTMLInputElement).select() }));
+    // The field needs a name of its own: the words before it are not its label (axe label, critical).
+    out.append('Copy this link: ', h('input', { type: 'text', readonly: true, value: text, class: 'mono', 'aria-label': 'Link to copy', onfocus: (e: Event) => (e.target as HTMLInputElement).select() }));
   };
   if (navigator.clipboard) {
     navigator.clipboard.writeText(text).then(() => out.append(done), fallback);
