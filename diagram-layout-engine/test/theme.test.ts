@@ -5,6 +5,9 @@ import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { start } from '../src/ui/app';
 import { themeCss } from '../src/core/themes';
+import { layoutChart } from '../src/core/layout';
+import { parse } from '../src/core/parser';
+import { renderSvg } from '../src/core/svg';
 const sha = (s: string | Uint8Array, enc: 'hex' | 'base64'): string => createHash('sha256').update(s).digest(enc);
 
 // Compared with the source in this repository, so a change to platform/src/theme
@@ -286,6 +289,24 @@ describe('the switch in the header', () => {
     expect(themeCss('light', '.dle')).not.toContain('@media');
   });
 
+  it("lets an exported SVG on Auto follow its viewer's dark setting, as it did before the switch (batch 7 review R1-2)", () => {
+    // The page's two rules need <html> above the SVG; a file opened on its own has the <svg> as its root.
+    const chart = parse('flowchart TD\nA --> B');
+    const file = renderSvg(layoutChart(chart), { theme: 'auto', idPrefix: 'dle', classDefs: chart.classDefs });
+    const doc = new DOMParser().parseFromString(file, 'image/svg+xml');
+    const svg = doc.documentElement;
+    expect(svg.id).toBe('dlesvg');
+    const style = svg.querySelector('style')!.textContent!;
+    const device = style.match(/@media screen and \(prefers-color-scheme: dark\)\{((?:[^{}]*\{[^{}]*\})*)\}/)![1];
+    const rules = [...device.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selector, body]) => ({ selector, body }));
+    const own = rules.find((r) => svg.matches(r.selector));
+    expect(own, 'a dark rule that matches the root <svg> of a standalone file').toBeTruthy();
+    // The dark set, the same as the page's.
+    expect(own!.body).toBe(rules.find((r) => r.selector.startsWith(':root:not'))!.body);
+    // In the page, the inline <svg> is never the root, so the switch alone decides there.
+    expect(root.querySelector('#canvas svg')!.matches(own!.selector.replace('#dlesvg', '#edsvg'))).toBe(false);
+  });
+
   it('draws a diagram on Auto again when the theme changes, and leaves one in a fixed theme alone', () => {
     const svg = (): Element => root.querySelector('#canvas svg')!;
     const first = svg();
@@ -326,6 +347,17 @@ describe('the switch in the header', () => {
   it('lets the keyboard reach the boxes that scroll, and names the routed diagram', () => {
     root.querySelector<HTMLButtonElement>('#tab-pipeline')!.click();
     const stage = (id: string): void => root.querySelector<HTMLButtonElement>(`[data-stage="${id}"]`)!.click();
+    // The Parse stage's tables are wider than a phone: each scrolls in its own box, so the page does not (it was
+    // 398 px wide at 320 and 375; batch 7 review R1-3).
+    stage('parse');
+    const tables = root.querySelectorAll('.tables > .table-scroll');
+    expect(tables).toHaveLength(2);
+    expectRegion(tables[0], 'Nodes');
+    expectRegion(tables[1], 'Edges');
+    for (const t of tables) expect(t.querySelectorAll(':scope > table')).toHaveLength(1);
+    expect(rules('.table-scroll')).toMatch(/overflow-x:\s*auto/);
+    expect(rules('.table-scroll')).toMatch(/min-width:\s*0/);
+    expect(rules('.tables')).toMatch(/grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
     stage('acyclic');
     expectRegion(root.querySelector('.sch-wrap'), 'Schematic');
     expect(root.querySelector('svg.sch')!.getAttribute('aria-label')).toMatch(/^Layout schematic/);

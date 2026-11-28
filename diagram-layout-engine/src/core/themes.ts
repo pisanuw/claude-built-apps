@@ -180,11 +180,15 @@ function block(selector: string, vars: Record<string, string>): string {
 
 /**
  * CSS declaring the theme variables on `selector`. 'auto' gives the light
- * theme with the dark one on screen when the page's switch says dark
- * (data-theme on the root), or when the device prefers dark and the switch
- * has not chosen light, as the page's own colours do. Paper keeps the light
- * theme. In an exported SVG the root is the <svg>, which has no data-theme,
- * so there it follows the device.
+ * theme, and the dark one on screen:
+ * - in the page, when its switch says dark (data-theme on <html>), or when
+ *   the device prefers dark and the switch has not chosen light, as the
+ *   page's own colours do. These two rules need <html> above the SVG;
+ * - in an exported SVG opened on its own, where the <svg> is the document's
+ *   root (`selector:root`) and there is no switch, when the viewer's device
+ *   prefers dark. In the page the inline <svg> is never the root, so this
+ *   rule does not apply there.
+ * Paper keeps the light theme.
  */
 export function themeCss(themeId: string, selector: string): string {
   if (themeId === 'auto') {
@@ -192,7 +196,7 @@ export function themeCss(themeId: string, selector: string): string {
     return (
       block(selector, themeById('light').vars) +
       `@media screen{${block(`:root[data-theme="dark"] ${selector}`, dark)}}` +
-      `@media screen and (prefers-color-scheme: dark){${block(`:root:not([data-theme="light"]) ${selector}`, dark)}}`
+      `@media screen and (prefers-color-scheme: dark){${block(`:root:not([data-theme="light"]) ${selector}`, dark)}${block(`${selector}:root`, dark)}}`
     );
   }
   return block(selector, themeById(themeId).vars);

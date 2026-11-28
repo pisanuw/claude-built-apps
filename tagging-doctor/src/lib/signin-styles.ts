@@ -26,8 +26,10 @@
  *
  * The other bar buttons share .hw-signin-button: the same height, type,
  * border and weight, so neither sign-in option is more prominent. Light
- * theme only: a dark page needs the dark values (#131314, stroke #8E918F,
- * text #E3E3E3), the dark asset from the same zip, and a dark panel.
+ * theme here: on the dark page, index.html gives the buttons Google's dark
+ * values (#131314, stroke #8E918F, text #E3E3E3), shows the dark asset from
+ * the same zip (google-g-dark.svg, drawn beside the light one and hidden
+ * until then), and the panel the page's colours.
  */
 
 export const SIGN_IN_STYLE_ID = 'hw-signin-styles';
@@ -85,6 +87,12 @@ export const SIGN_IN_CSS = `
   display: block;
   width: 20px;
   height: 20px;
+}
+.hw-signin-google-logo > span {
+  display: block;
+}
+.hw-signin-google-logo .hw-g-dark {
+  display: none;
 }
 .hw-signin-glyph {
   display: inline-flex;

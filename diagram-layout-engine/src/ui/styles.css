@@ -863,10 +863,17 @@ select {
   max-width: 280px;
 }
 
+/* The Parse stage's two tables. Each scrolls sideways in its own box when it is wider than its column, which a
+   phone's always is (the page was 398 px wide at 320 and 375), and the keyboard can reach the box. */
 .tables {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+}
+
+.table-scroll {
+  min-width: 0;
+  overflow-x: auto;
 }
 
 table {

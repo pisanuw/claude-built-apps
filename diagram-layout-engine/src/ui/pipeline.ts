@@ -139,8 +139,8 @@ export function renderPipeline(
         )
         .join('');
       body = `<p>The recursive-descent parser turns the text into a graph model: ${fmt(chart.nodes.size)} nodes, ${fmt(chart.edges.length)} edges and ${fmt(chart.subgraphs.size)} subgraphs, each with its source position for error messages.</p>
-        <div class="tables"><table><thead><tr><th>id</th><th>label</th><th>shape</th><th>subgraph</th><th>at</th></tr></thead><tbody>${rows}</tbody></table>
-        <table><thead><tr><th>#</th><th>edge</th><th>label</th><th>line</th><th>ends</th></tr></thead><tbody>${erows}</tbody></table></div>`;
+        <div class="tables"><div class="table-scroll" tabindex="0" role="region" aria-label="Nodes"><table><thead><tr><th>id</th><th>label</th><th>shape</th><th>subgraph</th><th>at</th></tr></thead><tbody>${rows}</tbody></table></div>
+        <div class="table-scroll" tabindex="0" role="region" aria-label="Edges"><table><thead><tr><th>#</th><th>edge</th><th>label</th><th>line</th><th>ends</th></tr></thead><tbody>${erows}</tbody></table></div></div>`;
       break;
     }
     case 'acyclic': {

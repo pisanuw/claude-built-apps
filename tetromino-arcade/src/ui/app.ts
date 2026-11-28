@@ -56,7 +56,8 @@ export class App {
 
   constructor(private readonly root: HTMLElement) {
     this.audio.setVolume(this.settings.volume);
-    document.documentElement.dataset.theme = this.settings.theme;
+    // The colour theme dresses the board (data-skin); data-theme belongs to the light and dark mode switch.
+    document.documentElement.dataset.skin = this.settings.theme;
     window.addEventListener('keydown', (e) => this.onKey(e, true));
     window.addEventListener('keyup', (e) => this.onKey(e, false));
     window.addEventListener('blur', () => this.autoPause());
@@ -119,7 +120,9 @@ export class App {
 
     this.root.append(
       h('header', { class: 'menu-head' },
-        h('h1', {}, h('span', { class: 'logo', 'aria-hidden': 'true' }, '▦'), ' Tetromino Arcade'),
+        h('div', { class: 'title-row' },
+          h('h1', {}, h('span', { class: 'logo', 'aria-hidden': 'true' }, '▦'), ' Tetromino Arcade'),
+          h('hw-theme-toggle', {})),
         h('p', { class: 'tag' }, 'A falling-block puzzle game with modern rules, seven modes, a CPU rival and replays. Runs entirely in your browser.')),
       h('main', { class: 'menu' },
         h('section', { class: 'modes', 'aria-label': 'Game modes' }, h('div', { class: 'mode-wrap' }, dailyBtn), ...cards),
@@ -329,7 +332,8 @@ export class App {
       this.showSettings();
       return;
     }
-    const target = e.target as HTMLElement | null;
+    // The real target: a key in a shadow root (the theme switch's button) reaches window retargeted to its host.
+    const target = (e.composedPath()[0] ?? e.target) as HTMLElement | null;
     if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT') && target.getAttribute('type') !== 'range') return;
     const r = this.run;
     if (!r) return;
@@ -689,7 +693,8 @@ export class App {
     const back = h('div', { class: 'modal-back' },
       h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
         h('div', { class: 'modal-head' }, h('h2', {}, title), close),
-        h('div', { class: 'modal-body' }, ...body)));
+        // The body scrolls when it is taller than the dialog (How to play): a named region the keyboard can reach.
+        h('div', { class: 'modal-body', tabindex: '0', role: 'region', 'aria-label': title }, ...body)));
     const done = () => {
       back.remove();
       this.rebinding = null;
@@ -753,11 +758,11 @@ export class App {
         h('span', { class: 'keys' }, ...s.bindings[k].map((c) => h('kbd', {}, prettyCode(c)))), change);
     });
 
-    const themeSel = h('select', { 'aria-label': 'Colour theme' },
+    const themeSel = h('select', { 'aria-label': 'Board skin' },
       (['classic', 'neon', 'pastel', 'mono'] as Theme[]).map((t) => h('option', { value: t, selected: s.theme === t }, t[0].toUpperCase() + t.slice(1)))) as HTMLSelectElement;
     themeSel.addEventListener('change', () => {
       s.theme = themeSel.value as Theme;
-      document.documentElement.dataset.theme = s.theme;
+      document.documentElement.dataset.skin = s.theme;
       this.saveSettings();
     });
     const name = h('input', { type: 'text', value: s.name, maxlength: '16', 'aria-label': 'Player name' }) as HTMLInputElement;
@@ -769,7 +774,7 @@ export class App {
     reset.addEventListener('click', () => {
       this.settings = structuredClone({ ...DEFAULT_SETTINGS, name: s.name });
       this.audio.setVolume(this.settings.volume);
-      document.documentElement.dataset.theme = this.settings.theme;
+      document.documentElement.dataset.skin = this.settings.theme;
       this.saveSettings();
       this.showSettings();
     });
@@ -784,7 +789,7 @@ export class App {
       ...bindRows,
       h('p', { class: 'muted' }, 'Esc / P pause, R restart. Gamepads work too: D-pad moves, A/B rotate, Y rotates 180°, X or bumpers hold, Start pauses. On touch screens use the buttons, or drag on the field, tap to rotate and flick down to drop.'),
       h('h3', {}, 'Display'),
-      h('label', { class: 'row' }, h('span', {}, 'Theme'), themeSel),
+      h('label', { class: 'row' }, h('span', {}, 'Board skin'), themeSel),
       check('Ghost piece', s.ghost, (v) => (s.ghost = v)),
       check('Grid lines', s.grid, (v) => (s.grid = v)),
       check('Placement hint (dashed outline of the CPU\'s suggestion)', s.hint, (v) => (s.hint = v)),

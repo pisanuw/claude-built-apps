@@ -1,47 +1,84 @@
 :root {
-  --bg: #0b0e17;
-  --bg2: #141a2a;
-  --panel: #182033;
-  --text: #e8ecf5;
-  --muted: #9aa5bd;
-  --accent: #f2c42c;
-  --accent2: #22c5d8;
-  --danger: #e5434b;
-  --field: #070a12;
-  --gridline: rgba(255, 255, 255, 0.06);
-  --border: #3b4766;
-  --cell: min(3.7vh, 30px);
-  color-scheme: dark;
-}
-:root[data-theme='pastel'] {
+  /* The page: light here, dark below, by the light and dark mode switch. */
+  color-scheme: light;
   --bg: #f4f1ea;
   --bg2: #ebe6da;
   --panel: #ffffff;
   --text: #2a2a33;
-  --muted: #6b6b78;
-  --accent: #b9770e;
-  --accent2: #2a8ca0;
+  --muted: #5f5f6b;
+  /* Accent text and edges; --primary is the filled buttons' colour, with --on-primary on it. */
+  --accent: #8a5a00;
+  --accent2: #1f6f80;
+  --primary: #e0a63a;
+  --on-primary: #111111;
+  --danger: #b3261e;
+  --border: #c9c2b0;
+  /* Buttons', lists' and fields' edges: 3:1 on the page and the panels (--border is for dividers). */
+  --field-border: #857e6b;
+  --scrim: rgba(0, 0, 0, 0.55);
+  --scrim-strong: rgba(0, 0, 0, 0.6);
+  /* The board: the same in both modes, a lit screen of its own; a colour theme (data-skin) restyles it. */
+  --field: #070a12;
+  --gridline: rgba(255, 255, 255, 0.06);
+  --board-frame: #3b4766;
+  --board-accent: #f2c42c;
+  --cell: min(3.7vh, 30px);
+}
+
+/* Dark twice, for the switch (data-theme on <html>, set before the first paint) and for the device setting when
+   scripts do not run (platform/src/theme/README.md); test/theme.test.ts keeps the two the same. Both are for the
+   screen only: paper gets the light set. These are the classic theme's colours, with the errors' red raised. */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0b0e17;
+    --bg2: #141a2a;
+    --panel: #182033;
+    --text: #e8ecf5;
+    --muted: #9aa5bd;
+    --accent: #f2c42c;
+    --accent2: #22c5d8;
+    --primary: #f2c42c;
+    --danger: #ff7a80;
+    --border: #3b4766;
+    --field-border: #64739a;
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0b0e17;
+    --bg2: #141a2a;
+    --panel: #182033;
+    --text: #e8ecf5;
+    --muted: #9aa5bd;
+    --accent: #f2c42c;
+    --accent2: #22c5d8;
+    --primary: #f2c42c;
+    --danger: #ff7a80;
+    --border: #3b4766;
+    --field-border: #64739a;
+  }
+}
+
+/* The colour themes dress the board and its pieces (src/ui/render.ts); the page follows the light and dark mode.
+   They used data-theme, which the switch now owns. */
+:root[data-skin='pastel'] {
   --field: #fbfaf6;
   --gridline: rgba(0, 0, 0, 0.07);
-  --border: #c9c2b0;
-  color-scheme: light;
+  --board-frame: #c9c2b0;
+  --board-accent: #b9770e;
 }
-:root[data-theme='neon'] {
-  --bg: #05010d;
-  --bg2: #0f0620;
-  --panel: #140a2a;
-  --accent: #ff3df5;
-  --accent2: #00f0ff;
-  --border: #5d2a9a;
+:root[data-skin='neon'] {
   --field: #000000;
+  --board-frame: #5d2a9a;
+  --board-accent: #ff3df5;
 }
-:root[data-theme='mono'] {
-  --bg: #101010;
-  --bg2: #1a1a1a;
-  --panel: #1f1f1f;
-  --accent: #ffffff;
-  --accent2: #bbbbbb;
-  --border: #555;
+:root[data-skin='mono'] {
+  --field: #101010;
+  --board-frame: #555555;
+  --board-accent: #ffffff;
 }
 
 * { box-sizing: border-box; }
@@ -58,7 +95,7 @@ a { color: var(--accent2); }
 button, select, input { font: inherit; color: inherit; }
 button {
   background: var(--panel);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   padding: 8px 14px;
   cursor: pointer;
@@ -66,14 +103,17 @@ button {
 button:hover:not(:disabled) { border-color: var(--accent2); }
 button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 button:disabled { opacity: 0.45; cursor: default; }
-button.primary { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 700; }
-select, input[type='text'] { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
+button.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); font-weight: 700; }
+select, input[type='text'] { background: var(--panel); border: 1px solid var(--field-border); border-radius: 6px; padding: 6px 8px; }
 .muted { color: var(--muted); }
 .hidden { display: none !important; }
 
 /* Menu */
 .menu-head { text-align: center; padding: 32px 16px 8px; }
-.menu-head h1 { margin: 0; font-size: clamp(30px, 6vw, 52px); letter-spacing: 0.02em; }
+/* The title, centred as the header is, and the switch at the end of its row. */
+.menu-head .title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 1040px; margin: 0 auto; }
+.menu-head h1 { margin: 0; font-size: clamp(30px, 6vw, 52px); letter-spacing: 0.02em; flex: 1 1 auto; min-width: 0; padding-left: 56px; }
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
 .logo { color: var(--accent); }
 .tag { color: var(--muted); margin: 8px auto 0; max-width: 560px; }
 .menu { width: 100%; max-width: 1040px; margin: 0 auto; padding: 16px; flex: 1; }
@@ -107,7 +147,8 @@ select, input[type='text'] { background: var(--panel); border: 1px solid var(--b
 .side { display: flex; flex-direction: column; gap: 12px; }
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 8px; }
 .panel h2 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
-.preview { display: block; width: 100%; height: calc(var(--cell) * 2.6); }
+/* The hold and next pieces sit on the board's colour, as they do on the board. */
+.preview { display: block; width: 100%; height: calc(var(--cell) * 2.6); background: var(--field); border-radius: 6px; }
 .preview.small { height: calc(var(--cell) * 2); opacity: 0.85; }
 .center { position: relative; }
 .board { display: block; width: calc(var(--cell) * 10 + 14px); height: calc(var(--cell) * 22); touch-action: none; }
@@ -119,11 +160,12 @@ select, input[type='text'] { background: var(--panel); border: 1px solid var(--b
 .progress { height: 6px; background: var(--panel); border-radius: 3px; margin-top: 6px; overflow: hidden; }
 .progress-fill { height: 100%; width: 0; background: var(--accent2); }
 
-.overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.55); border-radius: 6px; z-index: 5; overflow-y: auto; }
+.overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--scrim); border-radius: 6px; z-index: 5; overflow-y: auto; }
 .overlay-box { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 8px; width: min(92%, 360px); max-height: 96%; overflow-y: auto; }
 .overlay-box h2 { margin: 0; text-align: center; font-size: 26px; }
 .overlay-box.ov-countdown { background: transparent; border: 0; align-items: center; }
-.count { font-size: 96px; font-weight: 900; color: var(--accent); text-shadow: 0 4px 24px rgba(0,0,0,0.6); }
+/* On the board, under its scrim: the board's accent, the same in both modes. */
+.count { font-size: 96px; font-weight: 900; color: var(--board-accent); text-shadow: 0 4px 24px var(--scrim-strong); }
 .rank { color: var(--accent); text-align: center; font-weight: 700; margin: 0; }
 .results { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 4px 0; font-size: 14px; }
 .results dt { color: var(--muted); }
@@ -139,11 +181,11 @@ select, input[type='text'] { background: var(--panel); border: 1px solid var(--b
   }
   .tp { grid-column: span 3; padding: 14px 0; font-size: 20px; user-select: none; touch-action: none; }
   .tp-left, .tp-soft, .tp-right { grid-column: span 4; }
-  .tp-hard { background: var(--accent); color: #111; }
+  .tp-hard { background: var(--primary); color: var(--on-primary); }
 }
 
 /* Modals */
-.modal-back { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
+.modal-back { position: fixed; inset: 0; background: var(--scrim-strong); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
 .modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; width: min(640px, 100%); max-height: 90vh; display: flex; flex-direction: column; }
 .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); }
 .modal-head h2 { margin: 0; font-size: 20px; }
@@ -176,4 +218,16 @@ button.small { padding: 4px 10px; font-size: 13px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .mode-card { transition: none; }
+}
+
+/* On paper: the light set, without the switch. A filled button's label takes the ink (browsers leave backgrounds
+   out). */
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
+
+  button.primary {
+    color: var(--text);
+  }
 }

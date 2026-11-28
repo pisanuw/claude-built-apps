@@ -1,10 +1,58 @@
 :root {
+  color-scheme: light;
   --bg: #f1f5f9;
   --panel: #ffffff;
   --ink: #0f172a;
-  --muted: #64748b;
+  --muted: #5b6779;
   --line: #cbd5e1;
+  /* Buttons' edges: 3:1 on the page and the panels (--line is for dividers). */
+  --field-border: #7c8aa0;
   --accent: #2563eb;
+  --on-accent: #ffffff;
+  --chip-bg: #f8fafc;
+  --selected-bg: #eff6ff;
+  --reason: #334155;
+  /* Behind the screenshots, which are content: the same in both modes. */
+  --frame-bg: #ffffff;
+  --check-a: #e2e8f0;
+  --check-b: #f8fafc;
+}
+
+/* Dark twice, for the switch (data-theme on <html>, set before the first paint) and for the device setting when
+   scripts do not run (platform/src/theme/README.md); test/theme.test.ts keeps the two the same. Both are for the
+   screen only: paper gets the light set. */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --ink: #e2e8f0;
+    --muted: #94a3b8;
+    --line: #334155;
+    --field-border: #7286a0;
+    --accent: #60a5fa;
+    --on-accent: #0f172a;
+    --chip-bg: #0f172a;
+    --selected-bg: #1a2f4d;
+    --reason: #cbd5e1;
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --ink: #e2e8f0;
+    --muted: #94a3b8;
+    --line: #334155;
+    --field-border: #7286a0;
+    --accent: #60a5fa;
+    --on-accent: #0f172a;
+    --chip-bg: #0f172a;
+    --selected-bg: #1a2f4d;
+    --reason: #cbd5e1;
+  }
 }
 
 * {
@@ -27,7 +75,18 @@ body {
 header h1 {
   font-size: 1.6rem;
   margin: 0.5rem 0 0.25rem;
+  min-width: 0;
 }
+
+/* The title and the switch, on a line of their own, the switch at its end. */
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
 
 .tagline {
   color: var(--muted);
@@ -102,7 +161,7 @@ header h1 {
   height: auto;
   max-height: 260px;
   object-fit: contain;
-  background: repeating-conic-gradient(#e2e8f0 0% 25%, #f8fafc 0% 50%) 0 0/16px 16px;
+  background: repeating-conic-gradient(var(--check-a) 0% 25%, var(--check-b) 0% 50%) 0 0/16px 16px;
   border-radius: 6px;
 }
 
@@ -116,7 +175,7 @@ button {
   font: inherit;
   border: 1px solid var(--accent);
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border-radius: 8px;
   padding: 0.45rem 0.9rem;
   cursor: pointer;
@@ -183,16 +242,18 @@ button.link {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  background: #f8fafc;
-  border: 1px solid var(--line);
+  background: var(--chip-bg);
+  border: 1px solid var(--field-border);
   color: var(--ink);
   border-radius: 999px;
   padding: 0.25rem 0.7rem;
   font-size: 0.85rem;
 }
 
+/* A hidden change type: struck through, a dashed edge, the muted text (it was faded with opacity, to under 3:1). */
 .legend-item.off {
-  opacity: 0.4;
+  color: var(--muted);
+  border-style: dashed;
   text-decoration: line-through;
 }
 
@@ -234,7 +295,7 @@ button.link {
   border: 1px solid var(--line);
   border-radius: 6px;
   overflow: hidden;
-  background: #fff;
+  background: var(--frame-bg);
 }
 
 .frame img,
@@ -273,15 +334,19 @@ button.link {
 
 .region-item.selected {
   border-color: var(--accent);
-  background: #eff6ff;
+  background: var(--selected-bg);
 }
 
+/* A region's number, in the ink on a ring of its change type's colour: white on the type colours was 2.15 to
+   4.23:1, and dark ink does no better on the violet. */
 .badge {
   flex: 0 0 auto;
   width: 1.6rem;
   height: 1.6rem;
   border-radius: 50%;
-  color: #fff;
+  border: 3px solid;
+  background: var(--panel);
+  color: var(--ink);
   font-weight: 700;
   display: inline-flex;
   align-items: center;
@@ -297,7 +362,7 @@ button.link {
 
 .reason {
   margin: 0.25rem 0 0;
-  color: #334155;
+  color: var(--reason);
   font-size: 0.9rem;
   line-height: 1.4;
 }
@@ -311,4 +376,21 @@ footer {
 
 footer a {
   color: var(--accent);
+}
+
+/* On paper: the light set, without the switch. A filled button's label takes the ink (browsers leave backgrounds
+   out); the change types' swatches keep their fills. */
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
+
+  button:not(.secondary):not(.link):not(.legend-item) {
+    color: var(--ink);
+  }
+
+  .chip {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
 }

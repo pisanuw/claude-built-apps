@@ -36,10 +36,11 @@ for that assignment.
   offending text and a "Go to error" button that selects it in the editor.
   Ignorable constructs (`click`, unsupported style properties, a `linkStyle`
   index with no edge) become warnings instead.
-- **Themes.** Light, dark, forest, blueprint, sepia, high contrast, or auto
-  (light with a dark override under `prefers-color-scheme`). Every colour in
-  the SVG is a CSS custom property, so a theme change restyles without a new
-  layout. A custom `fill` without a `color` gets dark or light text by
+- **Themes.** Light, dark, forest, blueprint, sepia, high contrast, or auto.
+  Auto follows the page's light and dark mode switch (with no choice made,
+  the device's setting); an exported SVG on auto follows the viewer's device
+  setting, and print is light. Every colour in the SVG is a CSS custom
+  property, so a theme change restyles without a new layout. A custom `fill` without a `color` gets dark or light text by
   luminance, so classDef colours stay readable in dark themes.
 - **Export.** SVG (standalone, with the theme inlined), PNG at 2x, copy SVG,
   and share links that carry the source in the URL fragment, deflated.

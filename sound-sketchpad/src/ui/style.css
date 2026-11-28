@@ -1,13 +1,88 @@
 :root {
-  --bg: #070b16;
-  --panel: #0e1526;
-  --panel-edge: #1c2743;
-  --text: #e5eaf5;
-  --dim: #8b96b0;
-  --accent: #6ee7b7;
-  --accent-dark: #10b981;
-  --pink: #f472b6;
-  --amber: #fbbf24;
+  color-scheme: light;
+  --bg: #f5f7fb;
+  --bg-glow: #e6edf9;
+  --panel: #ffffff;
+  --panel-edge: #d5dbe8;
+  /* Fields' and buttons' edges: 3:1 on the cards, the fields and the page (--panel-edge is for dividers). */
+  --field-border: #7c8599;
+  --field-bg: #f8fafc;
+  --btn-bg: #eef2f8;
+  --text: #172033;
+  --dim: #556079;
+  --accent: #065f46;
+  --accent-dark: #047857;
+  --on-primary: #ffffff;
+  --pink: #be185d;
+  --amber: #92400e;
+  --blue: #1d4ed8;
+  --tag-base-bg: rgba(4, 120, 87, 0.12);
+  --tag-mod-bg: rgba(29, 78, 216, 0.1);
+  --tag-warn-bg: rgba(146, 64, 14, 0.1);
+  /* The oscilloscope (a canvas): read when it is drawn. */
+  --scope-bg: #f8fafc;
+  --scope-axis: #cbd5e1;
+  --scope-wave: #047857;
+  --scope-head: #be185d;
+}
+
+/* Dark twice, for the switch (data-theme on <html>, set before the first paint) and for the device setting when
+   scripts do not run (platform/src/theme/README.md); test/theme.test.ts keeps the two the same. Both are for the
+   screen only: paper gets the light set. These are the colours the app had (it was dark only), as tokens. */
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #070b16;
+    --bg-glow: #101b36;
+    --panel: #0e1526;
+    --panel-edge: #1c2743;
+    --field-border: #64739a;
+    --field-bg: #0b1020;
+    --btn-bg: #182238;
+    --text: #e5eaf5;
+    --dim: #8b96b0;
+    --accent: #6ee7b7;
+    --accent-dark: #10b981;
+    --on-primary: #04110b;
+    --pink: #f472b6;
+    --amber: #fbbf24;
+    --blue: #93c5fd;
+    --tag-base-bg: rgba(110, 231, 183, 0.15);
+    --tag-mod-bg: rgba(147, 197, 253, 0.15);
+    --tag-warn-bg: rgba(251, 191, 36, 0.15);
+    --scope-bg: #0b1020;
+    --scope-axis: #1d2947;
+    --scope-wave: #6ee7b7;
+    --scope-head: #f472b6;
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #070b16;
+    --bg-glow: #101b36;
+    --panel: #0e1526;
+    --panel-edge: #1c2743;
+    --field-border: #64739a;
+    --field-bg: #0b1020;
+    --btn-bg: #182238;
+    --text: #e5eaf5;
+    --dim: #8b96b0;
+    --accent: #6ee7b7;
+    --accent-dark: #10b981;
+    --on-primary: #04110b;
+    --pink: #f472b6;
+    --amber: #fbbf24;
+    --blue: #93c5fd;
+    --tag-base-bg: rgba(110, 231, 183, 0.15);
+    --tag-mod-bg: rgba(147, 197, 253, 0.15);
+    --tag-warn-bg: rgba(251, 191, 36, 0.15);
+    --scope-bg: #0b1020;
+    --scope-axis: #1d2947;
+    --scope-wave: #6ee7b7;
+    --scope-head: #f472b6;
+  }
 }
 
 * {
@@ -16,7 +91,7 @@
 
 body {
   margin: 0;
-  background: radial-gradient(1200px 600px at 50% -100px, #101b36, var(--bg));
+  background: radial-gradient(1200px 600px at 50% -100px, var(--bg-glow), var(--bg)) var(--bg);
   color: var(--text);
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   line-height: 1.5;
@@ -33,11 +108,25 @@ body {
   margin-bottom: 24px;
 }
 
+/* The title, centred as the header is, and the switch at the end of its row. */
+.header .title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
+
 .title {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* As wide as the switch and its gap, so the title stays in the middle. */
+  padding-left: 56px;
   margin: 0;
   font-size: 2.2rem;
   letter-spacing: 0.5px;
-  background: linear-gradient(90deg, var(--accent), #93c5fd);
+  background: linear-gradient(90deg, var(--accent), var(--blue));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -67,8 +156,8 @@ body {
 
 .desc-input {
   width: 100%;
-  background: #0b1020;
-  border: 1px solid var(--panel-edge);
+  background: var(--field-bg);
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   color: var(--text);
   font-size: 1.05rem;
@@ -91,8 +180,8 @@ body {
 }
 
 .btn {
-  background: #182238;
-  border: 1px solid var(--panel-edge);
+  background: var(--btn-bg);
+  border: 1px solid var(--field-border);
   color: var(--text);
   border-radius: 8px;
   padding: 8px 16px;
@@ -108,7 +197,7 @@ body {
 .btn.primary {
   background: var(--accent-dark);
   border-color: var(--accent-dark);
-  color: #04110b;
+  color: var(--on-primary);
   font-weight: 600;
 }
 
@@ -129,7 +218,7 @@ body {
 
 .chip {
   background: transparent;
-  border: 1px solid var(--panel-edge);
+  border: 1px solid var(--field-border);
   color: var(--dim);
   border-radius: 999px;
   padding: 4px 12px;
@@ -163,17 +252,17 @@ body {
 }
 
 .tag-base {
-  background: rgba(110, 231, 183, 0.15);
+  background: var(--tag-base-bg);
   color: var(--accent);
 }
 
 .tag-mod {
-  background: rgba(147, 197, 253, 0.15);
-  color: #93c5fd;
+  background: var(--tag-mod-bg);
+  color: var(--blue);
 }
 
 .tag-warn {
-  background: rgba(251, 191, 36, 0.15);
+  background: var(--tag-warn-bg);
   color: var(--amber);
 }
 
@@ -247,7 +336,7 @@ body {
 }
 
 .chain-node {
-  background: #0b1020;
+  background: var(--field-bg);
   border: 1px solid var(--panel-edge);
   border-radius: 6px;
   padding: 2px 8px;
@@ -262,8 +351,8 @@ body {
 }
 
 .select {
-  background: #0b1020;
-  border: 1px solid var(--panel-edge);
+  background: var(--field-bg);
+  border: 1px solid var(--field-border);
   color: var(--text);
   border-radius: 8px;
   padding: 8px 10px;
@@ -280,4 +369,27 @@ body {
 
 .footer a {
   color: var(--accent);
+}
+
+/* On paper: the light set, without the switch. The primary button's label takes the ink (browsers leave
+   backgrounds out), and the tags keep their tints. */
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
+
+  .btn.primary {
+    color: var(--text);
+  }
+
+  /* The title's colour is a background clipped to the text, which paper would leave out. */
+  .title {
+    background: none;
+    color: var(--text);
+  }
+
+  .tag {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
 }

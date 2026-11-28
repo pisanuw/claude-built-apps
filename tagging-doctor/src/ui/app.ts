@@ -129,7 +129,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string,
 export function shellHtml(): string {
   return `
   <header class="top-bar">
-    <h1>Tagging Doctor</h1>
+    <div class="title-row"><h1>Tagging Doctor</h1><hw-theme-toggle></hw-theme-toggle></div>
     <nav class="pages" aria-label="Pages">
       <a href="#/">Scan</a>
       <a href="#/courses" id="nav-courses" hidden>My courses</a>

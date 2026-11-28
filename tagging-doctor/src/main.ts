@@ -9,6 +9,8 @@
  * (src/ui/choose-account.ts). The page is drawn before either chunk is there
  * (AC-53).
  */
+// The light and dark mode switch first: it defines <hw-theme-toggle> before the page draws its top bar.
+import './lib/hw-theme.js';
 import { loadStatus } from './core/status';
 import { hasSupabase } from './lib/supabase';
 import { browserDownload, browserDownloadBlob, mountApp, type AppDeps } from './ui/app';
