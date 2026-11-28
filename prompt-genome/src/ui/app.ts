@@ -201,7 +201,7 @@ function geneCard(gene: Gene, index: number): HTMLElement {
 
   const body: (Node | string)[] = [];
   if (state.editingId === gene.id) {
-    const textarea = el('textarea', { class: 'gene-edit' }, [gene.text]);
+    const textarea = el('textarea', { class: 'gene-edit', 'aria-label': `Edit the ${GENE_META[gene.type].label} gene` }, [gene.text]);
     textarea.value = gene.text;
     textarea.addEventListener('input', () => {
       gene.text = textarea.value;
@@ -382,7 +382,7 @@ function editorView(): HTMLElement {
     state.input = textarea.value;
   });
 
-  const exampleSelect = el('select', {});
+  const exampleSelect = el('select', { 'aria-label': 'Load an example' });
   exampleSelect.append(el('option', { value: '' }, ['Load an example…']));
   for (const ex of EXAMPLES) {
     exampleSelect.append(el('option', { value: ex.id }, [ex.label]));
@@ -456,7 +456,7 @@ function mountInto(root: HTMLElement): void {
   rootEl = root;
   root.replaceChildren();
   const header = el('header', {}, [
-    el('h1', {}, ['🧬 Prompt Genome']),
+    el('div', { class: 'title-row' }, [el('h1', {}, ['🧬 Prompt Genome']), el('hw-theme-toggle', {}, [])]),
     el('p', { class: 'tagline' }, [
       'Every prompt is a strand of typed genes. Paste one, see its anatomy, lint it, mutate it, and keep the genes worth reusing. Deterministic and fully client-side: nothing leaves your browser.',
     ]),
