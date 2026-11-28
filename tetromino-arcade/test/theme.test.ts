@@ -290,7 +290,7 @@ describe('the switch in the header', () => {
     expect(document.documentElement.dataset.skin).toBe('classic');
     expect(document.documentElement.dataset.theme).toBe('light');
     tool('Settings');
-    const list = document.querySelector<HTMLSelectElement>('select[aria-label="Colour theme"]')!;
+    const list = document.querySelector<HTMLSelectElement>('select[aria-label="Board skin"]')!;
     list.value = 'neon';
     list.dispatchEvent(new Event('change', { bubbles: true }));
     expect(document.documentElement.dataset.skin).toBe('neon');

@@ -50,7 +50,9 @@ and is used here only to describe the genre.
 - Ghost piece, optional grid, optional placement hint (the CPU's suggestion
   drawn as a dashed outline), particles, line-clear flash, screen shake,
   "T-Spin Double · 2 Combo" style popups.
-- Four colour themes (Classic, Neon, Pastel light theme, Mono).
+- Four board skins (Classic, Neon, Pastel, Mono; Settings, "Board skin") for
+  the field and the pieces; the page follows the light and dark mode switch
+  in the menu's header.
 - Synthesised sound effects and an optional original music loop whose tempo
   follows the level (Web Audio, no audio files).
 - 3-2-1 countdown, pause (auto-pause when the tab loses focus), quick restart.

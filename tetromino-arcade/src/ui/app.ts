@@ -758,7 +758,7 @@ export class App {
         h('span', { class: 'keys' }, ...s.bindings[k].map((c) => h('kbd', {}, prettyCode(c)))), change);
     });
 
-    const themeSel = h('select', { 'aria-label': 'Colour theme' },
+    const themeSel = h('select', { 'aria-label': 'Board skin' },
       (['classic', 'neon', 'pastel', 'mono'] as Theme[]).map((t) => h('option', { value: t, selected: s.theme === t }, t[0].toUpperCase() + t.slice(1)))) as HTMLSelectElement;
     themeSel.addEventListener('change', () => {
       s.theme = themeSel.value as Theme;
@@ -789,7 +789,7 @@ export class App {
       ...bindRows,
       h('p', { class: 'muted' }, 'Esc / P pause, R restart. Gamepads work too: D-pad moves, A/B rotate, Y rotates 180°, X or bumpers hold, Start pauses. On touch screens use the buttons, or drag on the field, tap to rotate and flick down to drop.'),
       h('h3', {}, 'Display'),
-      h('label', { class: 'row' }, h('span', {}, 'Theme'), themeSel),
+      h('label', { class: 'row' }, h('span', {}, 'Board skin'), themeSel),
       check('Ghost piece', s.ghost, (v) => (s.ghost = v)),
       check('Grid lines', s.grid, (v) => (s.grid = v)),
       check('Placement hint (dashed outline of the CPU\'s suggestion)', s.hint, (v) => (s.hint = v)),
