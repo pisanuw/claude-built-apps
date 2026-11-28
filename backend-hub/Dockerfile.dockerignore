@@ -13,3 +13,7 @@
 !tagging-doctor-worker/package.json
 !tagging-doctor-worker/src
 !tagging-doctor-worker/docker
+!heard-as-check-worker/package.json
+!heard-as-check-worker/package-lock.json
+!heard-as-check-worker/src
+!heard-as-check-worker/static

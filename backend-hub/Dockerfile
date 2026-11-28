@@ -1,10 +1,13 @@
 # backend-hub as a Docker image (CR-13): the hub's Node server with its mounts
-# (mult-streak, and Tagging Doctor's checker at /tagging-doctor), on the
-# checker's pinned TeX Live 2026 and veraPDF 1.30.4.
+# (mult-streak, Tagging Doctor's checker at /tagging-doctor, and Heard-As
+# Check's capture at /heard-as-check), on the checker's pinned TeX Live 2026
+# and veraPDF 1.30.4, with Chrome for Testing's headless shell and pdf.js for
+# the capture (Heard-As Check AC-2).
 #
-# The build context is the repository's root, because the image takes three
-# folders: backend-hub/, mult-streak/ and tagging-doctor-worker/ (and the
-# footer script mult-streak's build runs). Build from the root:
+# The build context is the repository's root, because the image takes four
+# folders: backend-hub/, mult-streak/, tagging-doctor-worker/ and
+# heard-as-check-worker/ (and the footer script mult-streak's build runs).
+# Build from the root:
 #   docker build -f backend-hub/Dockerfile -t backend-hub:dev .
 # backend-hub/Dockerfile.dockerignore keeps the rest of the repository out.
 #
@@ -55,6 +58,20 @@ RUN mkdir -p /opt/texmf-var \
  && cd / && rm -rf /tmp/warm \
  && chown -R root:root /opt/texmf-var && chmod -R a+rX,go-w /opt/texmf-var
 
+# --- Heard-As Check's capture: Chromium, pinned by version and sha256 (AC-2) -------------
+# Chrome for Testing's headless shell 158.0.8127.36, the build the spike measured
+# (Heard-As Check DECISIONS.md D-13). Its system libraries are the TeX image's own
+# (Debian, pinned by the image's digest): the image test lists their versions
+# (heard-as-check-worker/test/image/pins.test.ts; DECISIONS.md D-41).
+FROM tex AS chrome
+ARG CHROME_URL=https://storage.googleapis.com/chrome-for-testing-public/158.0.8127.36/linux64/chrome-headless-shell-linux64.zip
+ARG CHROME_SHA256=2d3a23017323c54fd457a678e4351f895c4076d8050e39d5aa6247f93448b73a
+RUN curl -fsSL -o /tmp/chs.zip "$CHROME_URL" \
+ && echo "$CHROME_SHA256  /tmp/chs.zip" | sha256sum -c - \
+ && cd /opt && unzip -q /tmp/chs.zip && mv chrome-headless-shell-linux64 chrome && rm /tmp/chs.zip \
+ && chown -R root:root /opt/chrome && chmod -R a+rX,go-w /opt/chrome \
+ && /opt/chrome/chrome-headless-shell --version
+
 # --- The hub and mult-streak, built with npm ------------------------------------------
 FROM node AS build
 # Only for a build behind a proxy that re-signs TLS (a session's): its CA, as
@@ -64,9 +81,16 @@ WORKDIR /src
 COPY scripts/site-footer.mjs scripts/site-footer.mjs
 COPY mult-streak/package.json mult-streak/package-lock.json mult-streak/
 COPY backend-hub/package.json backend-hub/package-lock.json backend-hub/
+COPY heard-as-check-worker/package.json heard-as-check-worker/package-lock.json heard-as-check-worker/
+# Heard-As Check's capture needs only pdf.js's browser files (pdfjs-dist, an exact
+# version in its package.json): no dev tools, no optional native canvas, no scripts,
+# and the Node-only and type files dropped.
 RUN if [ -n "$EXTRA_CA_PEM" ]; then printf '%s\n' "$EXTRA_CA_PEM" > /tmp/extra-ca.pem; export NODE_EXTRA_CA_CERTS=/tmp/extra-ca.pem; fi \
  && npm --prefix mult-streak ci --no-audit --no-fund \
  && npm --prefix backend-hub ci --no-audit --no-fund \
+ && npm --prefix heard-as-check-worker ci --omit=dev --omit=optional --ignore-scripts --no-audit --no-fund \
+ && rm -rf heard-as-check-worker/node_modules/pdfjs-dist/legacy heard-as-check-worker/node_modules/pdfjs-dist/types heard-as-check-worker/node_modules/pdfjs-dist/image_decoders \
+ && find heard-as-check-worker/node_modules/pdfjs-dist -name '*.map' -delete \
  && rm -f /tmp/extra-ca.pem
 COPY mult-streak/tsconfig.json mult-streak/
 COPY mult-streak/src mult-streak/src
@@ -91,6 +115,19 @@ COPY --from=build /src/backend-hub/node_modules /app/backend-hub/node_modules
 # The checker is TypeScript that Node runs itself (type stripping): no build step.
 COPY tagging-doctor-worker/package.json /app/tagging-doctor-worker/package.json
 COPY tagging-doctor-worker/src /app/tagging-doctor-worker/src
+# Heard-As Check's capture mount: TypeScript that Node runs itself, its capture
+# page and self-test file, pdf.js, and the headless shell. Its jobs run as hacjob
+# (uid 10002: neither root nor the checker's texjob, AC-14), in folders of their
+# own under /hac-jobs (0711, the server user's).
+COPY --from=chrome /opt/chrome /opt/chrome
+COPY heard-as-check-worker/package.json /app/heard-as-check-worker/package.json
+COPY heard-as-check-worker/src /app/heard-as-check-worker/src
+COPY heard-as-check-worker/static /app/heard-as-check-worker/static
+COPY --from=build /src/heard-as-check-worker/node_modules/pdfjs-dist /app/heard-as-check-worker/node_modules/pdfjs-dist
+RUN groupadd --gid 10002 hacjob \
+ && useradd --uid 10002 --gid 10002 --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin hacjob \
+ && install -d -m 0711 -o root -g root /hac-jobs \
+ && /opt/chrome/chrome-headless-shell --version | head -1 > /opt/versions/chromium
 # The jobs root belongs to the server user with mode 0711: the TeX user can
 # enter its own job folder by name but cannot list the others (AC-64).
 # mult-streak's activity file (./data, players' state) is the server's only:
@@ -106,6 +143,7 @@ WORKDIR /app/backend-hub
 ENV NODE_ENV=production \
     PORT=10000 \
     TAGGING_DOCTOR_CHECKER=/app/tagging-doctor-worker/src/mount.ts \
-    TAGGING_DOCTOR_JOBS_ROOT=/jobs
+    TAGGING_DOCTOR_JOBS_ROOT=/jobs \
+    HEARD_AS_CHECK_MOUNT=/app/heard-as-check-worker/src/mount.ts
 EXPOSE 10000
 CMD ["node", "--disable-warning=ExperimentalWarning", "dist/index.js"]

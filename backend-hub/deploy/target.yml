@@ -2,8 +2,9 @@
 #
 # One Render instance serving several low-traffic backends behind path
 # prefixes ($7/service/month adds up when each idle app has its own service).
-# Currently mounted: /mult-streak and /tagging-doctor (Tagging Doctor's
-# checker, CR-13). Reserved: /chat (chatwithdigitalme).
+# Currently mounted: /mult-streak, /tagging-doctor (Tagging Doctor's
+# checker, CR-13) and /heard-as-check (Heard-As Check's capture, its
+# milestone 2). Reserved: /chat (chatwithdigitalme).
 # /dsa (dsa-instructor) stays standalone and redirects to ypdsa.pisan.me;
 # see backend-hub/README.md for the migration recipe.
 #
@@ -16,8 +17,9 @@ projectName: backend-hub
 directory: backend-hub
 # Since Tagging Doctor's milestone 4b (CR-13) the hub is a Docker image,
 # built from backend-hub/Dockerfile with the repository's root as its
-# context: the image takes backend-hub/, mult-streak/ (a file: dependency)
-# and tagging-doctor-worker/ (the checker), on TeX Live and veraPDF. The
+# context: the image takes backend-hub/, mult-streak/ (a file: dependency),
+# tagging-doctor-worker/ (the checker) and heard-as-check-worker/ (the
+# capture, with Chromium and pdf.js), on TeX Live and veraPDF. The
 # image runs npm ci and both builds itself, so there is no `build` command.
 # Before, it was Render's native Node runtime with
 #   build: npm run deps && npm ci && npm run build
@@ -39,6 +41,13 @@ env:
   # TAGGING_DOCTOR_CHECKER and TAGGING_DOCTOR_JOBS_ROOT itself.
   TAGGING_DOCTOR_SUPABASE_URL: https://auth.hintwise.org
   TAGGING_DOCTOR_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFya3R4bHJseWNlZmZ5b3pkd2hxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4ODEwMTAsImV4cCI6MjA5MjQ1NzAxMH0.Vuku-irT3kAHZYibK23q6dpyOEqV_Eg5zB78I3dyshE
+  # Heard-As Check's capture (mounted at /heard-as-check). It holds no secret
+  # either: the same public anon key, for the visitor's token check. The hub
+  # passes it every HEARD_AS_CHECK_* variable with the prefix taken off; the
+  # image sets HEARD_AS_CHECK_MOUNT itself (Heard-As Check SPEC section 6).
+  HEARD_AS_CHECK_SUPABASE_URL: https://auth.hintwise.org
+  HEARD_AS_CHECK_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFya3R4bHJseWNlZmZ5b3pkd2hxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4ODEwMTAsImV4cCI6MjA5MjQ1NzAxMH0.Vuku-irT3kAHZYibK23q6dpyOEqV_Eg5zB78I3dyshE
+  HEARD_AS_CHECK_ALLOWED_ORIGIN: https://heard-as-check.hintwise.org
 
 # Secret values forwarded from the workflow environment (GitHub repo secrets).
 # Names only; values never live in this file.
@@ -58,6 +67,8 @@ render:
   # With the root as root directory, Render would rebuild the hub (a Docker
   # build on a 2.9 GB TeX image) on every push to main. It rebuilds only when
   # a file the image takes changes (paths are from the repository's root).
+  # heard-as-check-worker/ is listed by the parts the image takes, so its
+  # tests and the spike (test/**, spike/**) never deploy the hub (S3-4).
   buildFilter:
     paths:
       - backend-hub/**
@@ -65,6 +76,10 @@ render:
       - tagging-doctor-worker/src/**
       - tagging-doctor-worker/docker/**
       - tagging-doctor-worker/package.json
+      - heard-as-check-worker/src/**
+      - heard-as-check-worker/static/**
+      - heard-as-check-worker/package.json
+      - heard-as-check-worker/package-lock.json
       - scripts/site-footer.mjs
     ignoredPaths:
       - '**/*.md'
