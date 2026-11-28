@@ -3,31 +3,73 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Light and dark mode: sets data-theme before the first paint (platform/src/theme/README.md; test/theme.test.ts pins it) -->
+    <script>(function(){var t;try{t=localStorage.getItem('hw-theme')}catch{}if(t!=='light'&&t!=='dark')t=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)})();</script>
     <title>Tagging Doctor: what stops your LaTeX from a tagged PDF</title>
     <meta name="description" content="Drop a LaTeX project and see, in your browser, which classes and packages block a tagged PDF, with the file, the line and a suggested fix." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 1000'%3E%3Crect width='1000' height='1000' rx='250' fill='%23312E81'/%3E%3Cg transform='translate%280 1000%29 scale%281 -1%29'%3E%3Cpath fill='%23FFFFFF' d='M557 253V442Q557 467 541 483Q525 499 501 499Q484 499 471 492Q458 485 450 472Q443 459 443 442L403 461Q403 500 419 529Q435 558 465 574Q494 590 532 590Q571 590 600 574Q629 558 645 530Q661 502 661 465V253ZM339 253V747H443V253Z'/%3E%3Cpath fill='%23FF7A45' d='M750 893 L781 781 L893 750 L781 719 L750 607 L719 719 L607 750 L719 781Z'/%3E%3C/g%3E%3C/svg%3E%0A" />
     <style>
       /* Keep body a column (or a plain block): the deploy adds a footer after #app. */
-      :root { --ink: #1a1a1a; --muted: #4a4a4a; --line: #767676; --accent: #312e81; --bg: #fff; --soft: #f4f4f7; }
+      :root {
+        color-scheme: light;
+        --ink: #1a1a1a; --muted: #4a4a4a; --line: #767676; --accent: #312e81; --bg: #ffffff; --soft: #f4f4f7;
+        /* Buttons' fill; the filled buttons are --primary with --on-primary on it. */
+        --surface: #ffffff; --primary: #312e81; --on-primary: #ffffff; --drop-over: #ecebff; --focus: #1a4fa0;
+        /* Findings' and fixes' marks and words. */
+        --danger: #b3261e; --warning: #8a5300; --unknown: #4a4a8a; --ok: #1e6b34; --after-bg: #e9f5ec;
+        /* A figure's thumbnail sits on white in both modes: it is the figure. */
+        --thumb-bg: #ffffff;
+        /* Google's sign-in button, light theme (src/lib/signin-styles.ts); the dark set has its dark theme. */
+        --signin-bg: #ffffff; --signin-border: #747775; --signin-text: #1f1f1f; --signin-hover: #f8f9fa;
+        --g-light: block; --g-dark: none;
+      }
+      /* Dark twice, for the switch (data-theme on <html>, set before the first paint) and for the device setting when
+         scripts do not run (platform/src/theme/README.md); test/theme.test.ts keeps the two the same. Both are for
+         the screen only: paper gets the light set. */
+      @media screen {
+        :root[data-theme="dark"] {
+          color-scheme: dark;
+          --ink: #e8e8ec; --muted: #b4b4bc; --line: #7a7a84; --accent: #b7b5ff; --bg: #121214; --soft: #1c1c21;
+          --surface: #222228; --primary: #b7b5ff; --on-primary: #14123a; --drop-over: #26244a; --focus: #8fb4ff;
+          --danger: #ff8a80; --warning: #f0b25a; --unknown: #a9a9e6; --ok: #6fcf8a; --after-bg: #17301f;
+          --signin-bg: #131314; --signin-border: #8e918f; --signin-text: #e3e3e3; --signin-hover: #1f1f21;
+          --g-light: none; --g-dark: block;
+        }
+      }
+      @media screen and (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          color-scheme: dark;
+          --ink: #e8e8ec; --muted: #b4b4bc; --line: #7a7a84; --accent: #b7b5ff; --bg: #121214; --soft: #1c1c21;
+          --surface: #222228; --primary: #b7b5ff; --on-primary: #14123a; --drop-over: #26244a; --focus: #8fb4ff;
+          --danger: #ff8a80; --warning: #f0b25a; --unknown: #a9a9e6; --ok: #6fcf8a; --after-bg: #17301f;
+          --signin-bg: #131314; --signin-border: #8e918f; --signin-text: #e3e3e3; --signin-hover: #1f1f21;
+          --g-light: none; --g-dark: block;
+        }
+      }
       body { margin: 0; font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); }
       /* At least a screen tall, so the deploy's footer (after #app) starts below the first screen and does not
          move when the script draws the page under the static heading (AC-53, D-185). */
       #app { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem; min-height: 100vh; }
       .top-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
       .top-bar h1 { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: 1.6rem; color: var(--accent); }
+      /* The title and the light and dark mode switch: the title's row takes the bar's free space, so the switch sits at
+         its end, before the pages and sign-in; when they wrap, the switch stays on the title's row. */
+      .top-bar .title-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex: 1 1 auto; min-width: 0; }
+      /* The switch's place is held until hw-theme.js draws it. */
+      hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
       /* A heading can be a long project name with no space: it wraps rather than widen the page (R6.1-2). */
       h2, h3, h4 { overflow-wrap: anywhere; }
       h2 { font-size: 1.3rem; margin: 1.5rem 0 0.5rem; }
       h3 { font-size: 1.1rem; margin: 1.25rem 0 0.4rem; }
       .lede { font-size: 1.05rem; }
       .drop { border: 2px dashed var(--line); border-radius: 0.75rem; padding: 1rem 1.25rem; background: var(--soft); }
-      .drop.over { border-color: var(--accent); background: #ecebff; }
+      .drop.over { border-color: var(--accent); background: var(--drop-over); }
       .drop h2 { margin-top: 0; }
-      button { font: inherit; padding: 0.45rem 0.9rem; border-radius: 0.5rem; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; }
-      button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-      button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid #1a4fa0; outline-offset: 2px; }
+      button { font: inherit; padding: 0.45rem 0.9rem; border-radius: 0.5rem; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+      button.primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+      button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
       .status { min-height: 1.5em; color: var(--muted); }
-      .error p { color: #b3261e; font-weight: 600; }
+      .error p { color: var(--danger); font-weight: 600; }
       .note { font-weight: 600; }
       .doc-list { list-style: none; padding: 0; display: grid; gap: 0.4rem; }
       .doc-list button { max-width: 100%; overflow-wrap: anywhere; text-align: left; }
@@ -36,16 +78,16 @@
       th, td { border: 1px solid var(--line); padding: 0.3rem 0.5rem; text-align: left; vertical-align: top; overflow-wrap: break-word; }
       caption { text-align: left; font-weight: 600; }
       .table-wrap { overflow-x: auto; }
-      .table-wrap:focus-visible { outline: 3px solid #1a4fa0; outline-offset: 2px; }
+      .table-wrap:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
       ul.findings { list-style: none; padding: 0; }
       li.finding { border-left: 4px solid var(--line); padding: 0.25rem 0.75rem; margin: 0.6rem 0; }
-      li.blocker { border-color: #b3261e; } li.warning { border-color: #8a5300; } li.unknown { border-color: #4a4a8a; } li.ok { border-color: #1e6b34; }
+      li.blocker { border-color: var(--danger); } li.warning { border-color: var(--warning); } li.unknown { border-color: var(--unknown); } li.ok { border-color: var(--ok); }
       .f-title { margin-bottom: 0.2rem; overflow-wrap: anywhere; }
       .where, .source, .meta, .help { color: var(--muted); font-size: 0.92rem; }
       .excerpt { background: var(--soft); padding: 0.3rem 0.5rem; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.85rem; }
       details.group > summary { font-weight: 600; font-size: 1.1rem; margin: 1.25rem 0 0.4rem; cursor: pointer; }
       .downloads { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-      a { color: #1a4fa0; }
+      a { color: var(--focus); }
       p, li { overflow-wrap: anywhere; }
       .top-bar nav.pages { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; }
       .top-bar .hw-signin, .top-bar #signin { margin-left: auto; }
@@ -57,42 +99,55 @@
       .save-panel, .pending { border: 1px solid var(--line); border-radius: 0.75rem; padding: 0.5rem 1rem; margin: 0.75rem 0; background: var(--soft); }
       .save-panel h3 { margin-top: 0.5rem; }
       .field label { display: inline-block; min-width: 8rem; font-weight: 600; }
-      .field input, .field select { font: inherit; padding: 0.35rem 0.5rem; border: 1px solid var(--line); border-radius: 0.4rem; max-width: 100%; }
+      .field input, .field select { font: inherit; padding: 0.35rem 0.5rem; border: 1px solid var(--line); border-radius: 0.4rem; max-width: 100%; background: var(--surface); color: var(--ink); }
       .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
       a.button-link { display: inline-block; padding: 0.45rem 0.9rem; border-radius: 0.5rem; border: 1px solid var(--line); text-decoration: none; }
-      .error-text { color: #b3261e; font-weight: 600; }
+      .error-text { color: var(--danger); font-weight: 600; }
       .fixes-panel { border: 1px solid var(--line); border-radius: 0.75rem; padding: 0.5rem 1rem; margin: 0.75rem 0; }
       ol.fix-cards { list-style: none; padding: 0; display: grid; gap: 0.75rem; }
       li.fix-card { border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 0.5rem; padding: 0.25rem 0.75rem; }
-      li.fix-card.accepted { border-left-color: #1e6b34; }
-      li.fix-card.made-it-fail { border-color: #b3261e; border-left-width: 6px; }
+      li.fix-card.accepted { border-left-color: var(--ok); }
+      li.fix-card.made-it-fail { border-color: var(--danger); border-left-width: 6px; }
       li.fix-card h4 { margin: 0.4rem 0; }
       .fix-card .label { margin: 0.4rem 0 0.1rem; font-size: 0.92rem; font-weight: 600; }
       .fix-card pre { margin: 0; background: var(--soft); padding: 0.3rem 0.5rem; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.85rem; }
-      .fix-card pre.after { background: #e9f5ec; }
-      .fix-card .highlight { color: #b3261e; font-weight: 600; }
+      .fix-card pre.after { background: var(--after-bg); }
+      .fix-card .highlight { color: var(--danger); font-weight: 600; }
       ol.figure-list { list-style: none; padding: 0; display: grid; gap: 0.75rem; }
       li.figure-item { border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 0.5rem; padding: 0.25rem 0.75rem; }
-      li.figure-item.approved, li.figure-item.decorative, li.figure-item.has-alt { border-left-color: #1e6b34; }
+      li.figure-item.approved, li.figure-item.decorative, li.figure-item.has-alt { border-left-color: var(--ok); }
       li.figure-item h4 { margin: 0.4rem 0; overflow-wrap: anywhere; }
       li.figure-item .where, li.figure-item .no-preview { margin: 0.2rem 0; }
       li.figure-item .thumb-wait { width: min(12rem, 100%); height: 6rem; border: 1px dashed var(--line); }
-      li.figure-item img.thumb { display: block; max-width: min(12rem, 100%); max-height: 9rem; object-fit: contain; border: 1px solid var(--line); background: #fff; }
-      li.figure-item textarea { display: block; width: 100%; box-sizing: border-box; font: inherit; margin: 0.2rem 0; }
-      li.figure-item .help.long { color: #8a4b00; font-weight: 600; }
-      li.figure-item .error { color: #b3261e; }
+      li.figure-item img.thumb { display: block; max-width: min(12rem, 100%); max-height: 9rem; object-fit: contain; border: 1px solid var(--line); background: var(--thumb-bg); }
+      li.figure-item textarea { display: block; width: 100%; box-sizing: border-box; font: inherit; margin: 0.2rem 0; background: var(--surface); color: var(--ink); border: 1px solid var(--line); }
+      li.figure-item .help.long { color: var(--warning); font-weight: 600; }
+      li.figure-item .error { color: var(--danger); }
       .alt-key input { max-width: 100%; }
       li.figure-item button[aria-disabled="true"] { opacity: 0.6; cursor: progress; }
-      .choose button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
-      .language input { font: inherit; padding: 0.25rem 0.4rem; border: 1px solid var(--line); border-radius: 0.4rem; }
-      .language .error { color: #b3261e; font-weight: 600; }
+      .choose button[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+      .language input { font: inherit; padding: 0.25rem 0.4rem; border: 1px solid var(--line); border-radius: 0.4rem; background: var(--surface); color: var(--ink); }
+      .language .error { color: var(--danger); font-weight: 600; }
       ul.attention-list, ul.retry-list { list-style: none; padding: 0; }
       li.attention-item { border-left: 4px solid var(--line); padding: 0.25rem 0.75rem; margin: 0.6rem 0; }
-      li.attention-item.blocker { border-color: #b3261e; } li.attention-item.warning { border-color: #8a5300; } li.attention-item.unknown { border-color: #4a4a8a; }
+      li.attention-item.blocker { border-color: var(--danger); } li.attention-item.warning { border-color: var(--warning); } li.attention-item.unknown { border-color: var(--unknown); }
       ul.retry-list li { margin: 0.4rem 0; }
       .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
       .compare-slot:not(:empty) { border-top: 1px solid var(--line); margin-top: 0.75rem; }
+      /* The sign-in controls (src/lib/signin-styles.ts, Google's light theme) in this page's mode: Google's dark theme
+         on the dark page (fill #131314, stroke #8E918F, text #E3E3E3, and its dark G), and the panel in the page's
+         colours. */
+      .hw-signin .hw-signin-button { background: var(--signin-bg); border-color: var(--signin-border); color: var(--signin-text); }
+      .hw-signin .hw-signin-button:hover { background: var(--signin-hover); }
+      .hw-signin .hw-signin-button:focus-visible { outline-color: var(--focus); }
+      .hw-signin-google-logo .hw-g-light { display: var(--g-light); }
+      .hw-signin-google-logo .hw-g-dark { display: var(--g-dark); }
+      .hw-signin-panel { background: var(--bg); color: var(--ink); border-color: var(--line); }
+      .hw-signin-panel input[type='email'] { background: var(--surface); color: var(--ink); border-color: var(--line); }
       @media print {
+        hw-theme-toggle { display: none !important; }
+        /* Paper leaves the fills out: a filled button's label takes the ink. */
+        button.primary, .choose button[aria-pressed="true"] { color: var(--ink); }
         #app { min-height: 0; }
         body.printing-report .top-bar, body.printing-report .no-print { display: none !important; }
         body.printing-report #app { max-width: none; padding: 0; }
@@ -108,7 +163,7 @@
            The top bar is the one the script draws (shellHtml in src/ui/app.ts; test/site.test.ts keeps them equal), so
            nothing below it moves when the script runs (D-185). Without JavaScript its links lead nowhere and are hidden. -->
       <header class="top-bar">
-        <h1>Tagging Doctor</h1>
+        <div class="title-row"><h1>Tagging Doctor</h1><hw-theme-toggle></hw-theme-toggle></div>
         <nav class="pages" aria-label="Pages">
           <a href="#/">Scan</a>
           <a href="#/courses" id="nav-courses" hidden>My courses</a>
