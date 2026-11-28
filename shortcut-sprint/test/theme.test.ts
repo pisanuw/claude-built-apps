@@ -235,8 +235,8 @@ describe('the switch in the header', () => {
   });
   const button = (): HTMLButtonElement => root.querySelector('header hw-theme-toggle')!.shadowRoot!.querySelector('button')!;
   const tab = (label: string): void => [...root.querySelectorAll<HTMLButtonElement>('nav.tabs button')].find((b) => b.textContent === label)!.click();
-  const press = (target: EventTarget, key: string, code = key): boolean => {
-    const ev = new KeyboardEvent('keydown', { key, code, bubbles: true, cancelable: true, composed: true });
+  const press = (target: EventTarget, key: string, code = key, mods: KeyboardEventInit = {}): boolean => {
+    const ev = new KeyboardEvent('keydown', { key, code, ...mods, bubbles: true, cancelable: true, composed: true });
     target.dispatchEvent(ev);
     return ev.defaultPrevented;
   };
@@ -266,7 +266,18 @@ describe('the switch in the header', () => {
       expect(press(button(), key, code), key).toBe(false);
       expect(root.querySelector('.feedback')!.textContent, key).toBe('');
     }
-    // A shortcut typed with the switch focused still counts.
+    // A shortcut typed with the switch focused still counts, with Ctrl, Alt or Meta too: Ctrl+Enter, Alt+Tab and
+    // Cmd+Space are answers on many cards (review b8 R1-2).
+    const card = (): string => root.querySelector('.prompt-card')!.textContent ?? '';
+    for (const [key, code, mods] of [
+      ['Enter', 'Enter', { ctrlKey: true }],
+      ['Tab', 'Tab', { altKey: true }],
+      [' ', 'Space', { metaKey: true }],
+    ] as const) {
+      const before = card();
+      expect(press(button(), key, code, mods), `${JSON.stringify(mods)} ${code}`).toBe(true);
+      expect(card(), `${JSON.stringify(mods)} ${code}`).not.toBe(before);
+    }
     expect(press(button(), 'q', 'KeyQ')).toBe(true);
     expect((root.querySelector('.feedback')!.textContent ?? '') + (root.querySelector('.capture kbd')?.textContent ?? '')).not.toBe('');
     // A field in a shadow root keeps its keys: the handler reads the real target.
