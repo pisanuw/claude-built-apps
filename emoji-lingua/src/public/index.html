@@ -3,6 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Light and dark mode: sets data-theme before the first paint (platform/src/theme/README.md; test/theme.test.ts pins it) -->
+    <script>(function(){var t;try{t=localStorage.getItem('hw-theme')}catch{}if(t!=='light'&&t!=='dark')t=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',t)})();</script>
+    <!-- The switch (<hw-theme-toggle>), a pinned copy of platform/src/theme/hw-theme.js -->
+    <script defer src="hw-theme.js"></script>
     <title>Emoji Lingua: translate English and emoji</title>
     <meta
       name="description"
@@ -16,15 +20,64 @@
     />
     <style>
       :root {
-        --bg: #0f1020;
-        --panel: #191b33;
-        --panel-2: #21243f;
-        --line: #32365a;
-        --text: #f0efff;
-        --muted: #a7a6c8;
-        --accent: #ffd166;
-        --accent-2: #7cf3c4;
-        color-scheme: dark;
+        color-scheme: light;
+        --bg: #f6f5ff;
+        --glow-1: #e6e4ff;
+        --glow-2: #f3e6f7;
+        --panel: #ffffff;
+        --panel-2: #f3f2fb;
+        --line: #d6d4ea;
+        /* Fields' and buttons' edges: 3:1 on the panels and the page (--line is for dividers). */
+        --field-border: #7e7c98;
+        --text: #1c1b33;
+        --muted: #55546f;
+        /* Accent text (the copy button, the examples); the pressed switch is the yellow fill in both modes. */
+        --accent: #8a5d00;
+        --accent-fill: #ffd166;
+        --on-accent: #221a00;
+        /* The Translate button's fill and the focus ring. */
+        --accent-2: #0b7a58;
+        --on-accent-2: #ffffff;
+        --error: #b3261e;
+      }
+      /* Dark twice, for the switch (data-theme on <html>, set before the first paint) and for the device setting when
+         scripts do not run (platform/src/theme/README.md); test/theme.test.ts keeps the two the same. Both are for
+         the screen only: paper gets the light set. These are the colours the page had (it was dark only). */
+      @media screen {
+        :root[data-theme="dark"] {
+          color-scheme: dark;
+          --bg: #0f1020;
+          --glow-1: #2b2f5d;
+          --glow-2: #3a2350;
+          --panel: #191b33;
+          --panel-2: #21243f;
+          --line: #32365a;
+          --field-border: #7276a2;
+          --text: #f0efff;
+          --muted: #a7a6c8;
+          --accent: #ffd166;
+          --accent-2: #7cf3c4;
+          --on-accent-2: #04241a;
+          --error: #ff9b9b;
+        }
+      }
+      @media screen and (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          color-scheme: dark;
+          --bg: #0f1020;
+          --glow-1: #2b2f5d;
+          --glow-2: #3a2350;
+          --panel: #191b33;
+          --panel-2: #21243f;
+          --line: #32365a;
+          --field-border: #7276a2;
+          --text: #f0efff;
+          --muted: #a7a6c8;
+          --accent: #ffd166;
+          --accent-2: #7cf3c4;
+          --on-accent-2: #04241a;
+          --error: #ff9b9b;
+        }
       }
       * { box-sizing: border-box; }
       /* Author display rules (e.g. .switch { display: flex }) beat the UA [hidden] style. */
@@ -34,8 +87,8 @@
         min-height: 100vh;
         font-family: 'Outfit', system-ui, sans-serif;
         background:
-          radial-gradient(900px 500px at 15% -10%, #2b2f5d 0%, transparent 60%),
-          radial-gradient(700px 400px at 100% 0%, #3a2350 0%, transparent 55%),
+          radial-gradient(900px 500px at 15% -10%, var(--glow-1) 0%, transparent 60%),
+          radial-gradient(700px 400px at 100% 0%, var(--glow-2) 0%, transparent 55%),
           var(--bg);
         color: var(--text);
         display: flex;
@@ -45,7 +98,10 @@
       }
       .wrap { width: 100%; max-width: 720px; }
       header { text-align: center; margin-bottom: 28px; }
-      h1 { font-size: 34px; margin: 0 0 8px; letter-spacing: -0.02em; }
+      /* The title, centred as the header is, and the switch at the end of its row. */
+      header .title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 8px; }
+      hw-theme-toggle:not([hidden]) { display: inline-flex; flex: none; width: var(--hw-theme-toggle-size, 44px); height: var(--hw-theme-toggle-size, 44px); }
+      h1 { font-size: 34px; margin: 0; letter-spacing: -0.02em; flex: 1 1 auto; min-width: 0; padding-left: 56px; }
       h1 .em { filter: saturate(1.2); }
       .sub { color: var(--muted); margin: 0; font-size: 15px; }
       .switch {
@@ -55,10 +111,10 @@
         font-family: inherit; font-size: 14px; font-weight: 600;
         padding: 9px 16px; border-radius: 999px; cursor: pointer;
         background: var(--panel); color: var(--muted);
-        border: 1px solid var(--line);
+        border: 1px solid var(--field-border);
       }
       .switch button[aria-pressed='true'] {
-        background: var(--accent); color: #221a00; border-color: var(--accent);
+        background: var(--accent-fill); color: var(--on-accent); border-color: var(--field-border);
       }
       .panel {
         background: var(--panel); border: 1px solid var(--line);
@@ -69,7 +125,7 @@
         width: 100%; min-height: 110px; resize: vertical;
         font-family: inherit; font-size: 18px; line-height: 1.5;
         color: var(--text); background: var(--panel-2);
-        border: 1px solid var(--line); border-radius: 12px; padding: 14px;
+        border: 1px solid var(--field-border); border-radius: 12px; padding: 14px;
       }
       textarea:focus-visible, button:focus-visible {
         outline: 3px solid var(--accent-2); outline-offset: 2px;
@@ -79,7 +135,7 @@
       .go {
         font-family: inherit; font-size: 16px; font-weight: 700;
         padding: 12px 22px; border: none; border-radius: 12px; cursor: pointer;
-        background: var(--accent-2); color: #04241a;
+        background: var(--accent-2); color: var(--on-accent-2);
       }
       .go:disabled { opacity: 0.45; cursor: not-allowed; }
       .out {
@@ -96,10 +152,10 @@
       }
       .copy {
         font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
-        background: transparent; color: var(--accent); border: 1px solid var(--line);
+        background: transparent; color: var(--accent); border: 1px solid var(--field-border);
         border-radius: 8px; padding: 6px 12px; margin-left: auto;
       }
-      .err { color: #ff9b9b; font-size: 14px; margin-top: 10px; min-height: 18px; }
+      .err { color: var(--error); font-size: 14px; margin-top: 10px; min-height: 18px; }
       .examples { text-align: center; color: var(--muted); font-size: 13px; margin-top: 18px; }
       .examples button {
         font-family: inherit; font-size: 13px; background: none; border: none;
@@ -110,6 +166,13 @@
         .go, .switch button { transition: transform 0.08s ease, background 0.15s ease; }
         .go:active { transform: scale(0.98); }
       }
+      /* On paper: the light set, without the switch. The pressed direction keeps its fill; the Translate button's label
+         takes the ink (browsers leave backgrounds out). */
+      @media print {
+        hw-theme-toggle { display: none !important; }
+        .go { color: var(--text); }
+        .switch button[aria-pressed='true'] { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      }
     </style>
     <!-- HintWise icon (platform/brand/hintwise-icon.svg) -->
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 1000'%3E%3Crect width='1000' height='1000' rx='250' fill='%23312E81'/%3E%3Cg transform='translate%280 1000%29 scale%281 -1%29'%3E%3Cpath fill='%23FFFFFF' d='M557 253V442Q557 467 541 483Q525 499 501 499Q484 499 471 492Q458 485 450 472Q443 459 443 442L403 461Q403 500 419 529Q435 558 465 574Q494 590 532 590Q571 590 600 574Q629 558 645 530Q661 502 661 465V253ZM339 253V747H443V253Z'/%3E%3Cpath fill='%23FF7A45' d='M750 893 L781 781 L893 750 L781 719 L750 607 L719 719 L607 750 L719 781Z'/%3E%3C/g%3E%3C/svg%3E%0A" />
@@ -117,7 +180,10 @@
   <body>
     <div class="wrap">
       <header>
-        <h1><span class="em">🔤</span> Emoji Lingua <span class="em">😀</span></h1>
+        <div class="title-row">
+          <h1><span class="em">🔤</span> Emoji Lingua <span class="em">😀</span></h1>
+          <hw-theme-toggle></hw-theme-toggle>
+        </div>
         <p class="sub">Translate English into emoji, and emoji back into English.</p>
       </header>
 
