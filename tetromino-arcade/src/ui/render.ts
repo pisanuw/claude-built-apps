@@ -165,7 +165,7 @@ export function drawBoard(canvas: HTMLCanvasElement, game: Game, view: BoardView
   }
 
   // Border and the line separating the buffer.
-  ctx.strokeStyle = css.getPropertyValue('--border').trim() || '#3b4252';
+  ctx.strokeStyle = css.getPropertyValue('--board-frame').trim() || '#3b4766';
   ctx.lineWidth = 2;
   ctx.strokeRect(ox - 1, yOf(TOP) - 1, bw + 2, s * VISIBLE + 2);
 
