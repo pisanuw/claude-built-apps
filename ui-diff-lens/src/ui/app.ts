@@ -7,6 +7,7 @@ import { drawSampleAfter, drawSampleBefore, SAMPLE_SIZE } from './samples';
 
 const MAX_DIMENSION = 1600;
 
+
 interface Slot {
   bitmap: Bitmap | null;
   dataUrl: string | null;
@@ -202,7 +203,7 @@ function legend(result: DiffResult): string {
     .map((t) => {
       const off = state.hiddenTypes.has(t);
       return (
-        `<button class="legend-item${off ? ' off' : ''}" data-toggle="${t}">` +
+        `<button class="legend-item${off ? ' off' : ''}" data-toggle="${t}" aria-pressed="${!off}">` +
         `<span class="chip" style="background:${TYPE_COLORS[t]}"></span>` +
         `${TYPE_LABELS[t]} <span class="count">${counts.get(t)}</span></button>`
       );
@@ -226,7 +227,7 @@ function resultView(): string {
       const sel = state.selected === i ? ' selected' : '';
       return (
         `<li class="region-item${sel}" data-region="${i}">` +
-        `<span class="badge" style="background:${TYPE_COLORS[r.type]}">${i + 1}</span>` +
+        `<span class="badge" style="border-color:${TYPE_COLORS[r.type]}">${i + 1}</span>` +
         `<div><strong>${TYPE_LABELS[r.type]}</strong> <span class="conf">${Math.round(r.confidence * 100)}% confidence</span>` +
         `<p class="reason">${esc(r.reason)}</p></div></li>`
       );
@@ -255,7 +256,7 @@ function resultView(): string {
 function render(): void {
   root.innerHTML = `
     <header>
-      <h1>🔍 UI Diff Lens</h1>
+      <div class="title-row"><h1>🔍 UI Diff Lens</h1><hw-theme-toggle></hw-theme-toggle></div>
       <p class="tagline">Two screenshots in, a classified visual diff out: layout shifts, spacing nudges,
       color restyles, text edits, visibility fades, added and removed elements. Deterministic heuristics,
       100% in your browser: screenshots never leave this machine.</p>
