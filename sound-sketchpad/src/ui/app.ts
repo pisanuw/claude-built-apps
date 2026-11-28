@@ -52,8 +52,10 @@ export function mountApp(root: HTMLElement): void {
 
   // ----- header
   const header = el('header', 'header');
+  const titleRow = el('div', 'title-row');
+  titleRow.append(el('h1', 'title', 'Sound Sketchpad'), el('hw-theme-toggle'));
   header.append(
-    el('h1', 'title', 'Sound Sketchpad'),
+    titleRow,
     el(
       'p',
       'tagline',
@@ -158,6 +160,7 @@ export function mountApp(root: HTMLElement): void {
   exportCard.append(el('h2', 'card-title', 'Export WAV'));
   const exportRow = el('div', 'btn-row');
   const rateSel = el('select', 'select') as HTMLSelectElement;
+  rateSel.setAttribute('aria-label', 'Sample rate');
   for (const r of [22050, 44100, 48000]) {
     const o = el('option', '', `${r} Hz`) as HTMLOptionElement;
     o.value = String(r);
@@ -165,6 +168,7 @@ export function mountApp(root: HTMLElement): void {
     rateSel.append(o);
   }
   const depthSel = el('select', 'select') as HTMLSelectElement;
+  depthSel.setAttribute('aria-label', 'Bit depth');
   for (const d of [16, 24]) {
     const o = el('option', '', `${d}-bit`) as HTMLOptionElement;
     o.value = String(d);
@@ -271,10 +275,14 @@ export function mountApp(root: HTMLElement): void {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.scale(dpr, dpr);
+    // The colours are the stylesheet's tokens, read as it draws, so the scope follows the light and dark mode (the
+    // light values stand in where no stylesheet is loaded).
+    const css = getComputedStyle(document.documentElement);
+    const token = (name: string, fallback: string): string => css.getPropertyValue(name).trim() || fallback;
     ctx.clearRect(0, 0, w, 160);
-    ctx.fillStyle = '#0b1020';
+    ctx.fillStyle = token('--scope-bg', '#f8fafc');
     ctx.fillRect(0, 0, w, 160);
-    ctx.strokeStyle = '#1d2947';
+    ctx.strokeStyle = token('--scope-axis', '#cbd5e1');
     ctx.beginPath();
     ctx.moveTo(0, 80);
     ctx.lineTo(w, 80);
@@ -282,7 +290,7 @@ export function mountApp(root: HTMLElement): void {
 
     const samples = state.samples;
     const step = Math.max(1, Math.floor(samples.length / w));
-    ctx.strokeStyle = '#6ee7b7';
+    ctx.strokeStyle = token('--scope-wave', '#047857');
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let x = 0; x < w; x++) {
@@ -305,7 +313,7 @@ export function mountApp(root: HTMLElement): void {
 
     if (playheadT !== undefined) {
       const x = playheadT * w;
-      ctx.strokeStyle = '#f472b6';
+      ctx.strokeStyle = token('--scope-head', '#be185d');
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(x, 0);
@@ -437,6 +445,13 @@ export function mountApp(root: HTMLElement): void {
     }
   });
   window.addEventListener('resize', () => drawScope());
+  // A change of theme (the switch, or the device setting with nothing stored) draws the scope again; while it
+  // plays, the next frame does. Print takes the light set, but a canvas keeps what it drew, so draw it again at
+  // once on the way into print and back.
+  document.addEventListener('hw-themechange', () => {
+    if (!playing) drawScope();
+  });
+  if (typeof window.matchMedia === 'function') window.matchMedia('print').addEventListener?.('change', () => drawScope());
 
   syncSliders();
   renderExplain();
