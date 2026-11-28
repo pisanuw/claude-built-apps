@@ -40,8 +40,8 @@ export const LIMITS = {
   windDownMs: 2_000,
   /** Bodies received at once (each to a file, never into memory). */
   uploadsAtOnce: 2,
-  /** A body must arrive within this (10 MB at about 1 Mbit/s and a half). */
-  bodyMs: 120_000,
+  /** A body must arrive within this; under the hub's 120 s request timeout, so the mount's own 408 answers first (R2.1-5). */
+  bodyMs: 110_000,
 } as const;
 
 export interface Config {

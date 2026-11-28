@@ -31,6 +31,11 @@ export class Cdp {
     input.on('error', () => this.close(new CdpError('pipe from chromium closed')));
     input.on('end', () => this.close(new CdpError('chromium closed the pipe')));
     input.on('data', (chunk: Buffer) => {
+      // Once closed (a message over the cap, or unreadable), nothing more is kept (R2.1-6).
+      if (this.closed) {
+        buf = Buffer.alloc(0);
+        return;
+      }
       buf = buf.length ? Buffer.concat([buf, chunk]) : chunk;
       let i: number;
       while ((i = buf.indexOf(0)) >= 0) {
@@ -54,6 +59,7 @@ export class Cdp {
       }
       if (buf.length > maxMessage) {
         this.largest = Math.max(this.largest, buf.length);
+        buf = Buffer.alloc(0);
         this.close(new CdpError('message over the cap'));
       }
     });

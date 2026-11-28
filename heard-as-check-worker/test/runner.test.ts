@@ -115,7 +115,8 @@ describe('the runner', () => {
       },
     });
     expect(await ends.r.run({ id: 'x', file: '/f', jobDir: '/j', verapdf: true })).toMatchObject({ ok: false, reason: 'timeout' });
-    expect(order[0]).toBe('cleanup, driver alive');
+    // The first clean-up is the check before the job (no driver yet); the kill's comes while the driver is alive.
+    expect(order[1]).toBe('cleanup, driver alive');
     // A driver that does not end is killed once the wind-down is over.
     const stuck = runner(`await new Promise(()=>{});`, { cfg: { ...cfg, jobMs: 1 }, limits: { windDownMs: 1 } });
     expect(await stuck.r.run({ id: 'x', file: '/f', jobDir: '/j', verapdf: true })).toMatchObject({ ok: false, reason: 'timeout' });
@@ -179,8 +180,43 @@ describe('the runner', () => {
     ]);
   });
 
-  it('cleans up with the real functions by default (nothing of the job user runs here)', () => {
-    const r = new DriverRunner({ cfg: { ...cfg, jobUid: 999_999 }, staticDir: '/s', driverPath: '/d', log: createLogger(() => undefined) });
-    expect(r.cleanup()).toEqual({ killed: 0, removed: 0 });
+  it('cleans up with the real functions by default (nothing of the job user runs here)', async () => {
+    const r = new DriverRunner({ cfg: { ...cfg, jobUid: 999_999, jobGid: 999_999 }, staticDir: '/s', driverPath: '/d', log: createLogger(() => undefined) });
+    expect(await r.cleanup()).toEqual({ killed: 0, removed: 0, clear: true });
+    expect(r.unsafe()).toBe(false);
+  });
+
+  it('fails closed when a process of the job user outlives the clean-up: the job is not clean, and no job runs again (R2.1-2)', async () => {
+    const lines: string[] = [];
+    let alive = false;
+    let spawned = 0;
+    const { r } = runner(`await send({type:'fail',reason:'unreadable'});`, {
+      log: createLogger((l) => lines.push(l)),
+      cleanup: () => ({ killed: 1, removed: 0, clear: !alive }),
+    });
+    const spawn0 = (r as unknown as { spawnDriver: (a: unknown) => unknown }).spawnDriver.bind(r);
+    (r as unknown as { spawnDriver: (a: unknown) => unknown }).spawnDriver = (a) => (spawned++, spawn0(a));
+    // A benign job: clean, as before.
+    expect(await r.run({ id: 'x', file: '/f', jobDir: '/j', verapdf: true })).toMatchObject({ ok: false, reason: 'unreadable', clean: true });
+    expect(r.unsafe()).toBe(false);
+    // A process of the job user is alive before the next job: it is refused without starting the driver.
+    alive = true;
+    const at = spawned;
+    expect(await r.run({ id: 'z', file: '/f', jobDir: '/j', verapdf: true })).toMatchObject({ ok: false, reason: 'internal', clean: false });
+    expect(r.unsafe()).toBe(true);
+    expect(spawned).toBe(at);
+    const before = spawned;
+    alive = false;
+    // Even when a later check would pass, the runner stays closed until a restart.
+    expect(await r.run({ id: 'w', file: '/f', jobDir: '/j', verapdf: true })).toMatchObject({ ok: false, reason: 'internal', clean: false });
+    expect(spawned).toBe(before);
+    expect(lines.some((l) => l.includes('"event":"job-user-alive"'))).toBe(true);
+  });
+
+  it('marks a job not clean when the clean-up after it finds the job user still alive (R2.1-2)', async () => {
+    let calls = 0;
+    const { r } = runner(`await send({type:'fail',reason:'unreadable'});`, { cleanup: () => ({ killed: 0, removed: 0, clear: ++calls === 1 }) });
+    expect(await r.run({ id: 'x', file: '/f', jobDir: '/j', verapdf: true })).toMatchObject({ ok: false, reason: 'unreadable', clean: false });
+    expect(r.unsafe()).toBe(true);
   });
 });

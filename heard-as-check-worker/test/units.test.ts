@@ -8,7 +8,7 @@ import { ConfigError, LIMITS, loadConfig, LOCAL_ORIGIN, PRODUCTION_ORIGIN } from
 import { clean, createLogger } from '../src/log.ts';
 import { MESSAGES, pagesNote } from '../src/messages.ts';
 import { ALL_LIMIT_MESSAGE, PERSON_LIMIT_MESSAGE, Quota } from '../src/quota.ts';
-import { asUser, killUid, pidsOf, sweepOwned } from '../src/sandbox.ts';
+import { asUser, killAsUser, killUid, liveProcessesOf, liveTaskOf, pidsOf, stopUid, sweepOwned } from '../src/sandbox.ts';
 import { flavour, JAVA_FLAGS, JAVA_NO_NETWORK, parseReport, verapdfArgs } from '../src/verapdf.ts';
 
 const dirs: string[] = [];
@@ -60,6 +60,13 @@ describe('loadConfig', () => {
     expect(LIMITS.killJobBytes).toBeGreaterThanOrEqual(292 * 2 ** 20);
     expect(LIMITS.killJobBytes).toBeLessThanOrEqual(300 * 2 ** 20);
     expect(LIMITS.killContainerBytes).toBe(470 * 2 ** 20);
+  });
+  it('gives up on a slow upload before the hub\'s request timeout, so the mount\'s own answer is sent (R2.1-5)', () => {
+    const hub = readFileSync(new URL('../../backend-hub/src/index.ts', import.meta.url), 'utf8');
+    const m = /server\.requestTimeout = ([\d_]+);/.exec(hub);
+    expect(m).not.toBeNull();
+    const hubMs = Number((m as RegExpExecArray)[1].replace(/_/g, ''));
+    expect(LIMITS.bodyMs).toBeLessThanOrEqual(hubMs - 10_000);
   });
 });
 
@@ -182,6 +189,67 @@ describe('the job user\'s processes and files (AC-14)', () => {
     killUid(10002, proc, (p) => killedByMount.push(p));
     expect(killedByMount).toEqual([20]);
   });
+  it('reads every task\'s uids: a live task of the job user by real, effective or saved uid counts; a zombie does not (R2.1-2)', () => {
+    const root = tmp();
+    const task = (pid: number, tid: number, uids: string, state = 'S') => {
+      mkdirSync(path.join(root, String(pid), 'task', String(tid)), { recursive: true });
+      writeFileSync(path.join(root, String(pid), 'task', String(tid), 'status'), `Name:\tx\nState:\t${state} (s)\nUid:\t${uids}\n`);
+    };
+    task(30, 30, '10002\t10002\t10002\t10002');
+    task(31, 31, '0\t0\t0\t0');
+    task(31, 32, '0\t10002\t0\t0'); // a thread of root's that took the job user's effective uid
+    task(33, 33, '10002\t10002\t10002\t10002', 'Z');
+    task(34, 34, '10001\t10001\t10001\t10001');
+    // A process whose task folder cannot be read: its status is read instead.
+    mkdirSync(path.join(root, '35'));
+    writeFileSync(path.join(root, '35', 'status'), 'State:\tR (running)\nUid:\t1\t1\t10002\t1\n');
+    expect(liveProcessesOf(10002, root).sort()).toEqual([30, 31, 35]);
+    expect(liveProcessesOf(10002, path.join(root, 'none'))).toEqual([]);
+    expect(liveTaskOf('State:\tX (dead)\nUid:\t10002\t10002\t10002\t10002\n', 10002)).toBe(false);
+    expect(liveTaskOf('Name:\tx\n', 10002)).toBe(false);
+  });
+
+  it('stops the job user from inside the uid and by pid, pass after pass, until no task is left; reports when one stays (R2.1-2)', async () => {
+    const root = tmp();
+    const add = (pid: number) => {
+      mkdirSync(path.join(root, String(pid)), { recursive: true });
+      writeFileSync(path.join(root, String(pid), 'status'), `State:\tS\nUid:\t10002\t10002\t10002\t10002\n`);
+    };
+    // A fork-hopper: each pass kills what it sees, and a child it could not see appears, twice.
+    add(40);
+    let births = 2;
+    const calls: string[] = [];
+    const s = await stopUid(10002, 10002, {
+      procRoot: root,
+      pause: async () => undefined,
+      killAs: (u, g) => calls.push(`as ${u}:${g}`),
+      kill: (pid) => {
+        rmSync(path.join(root, String(pid)), { recursive: true });
+        if (births-- > 0) add(100 + births);
+      },
+    });
+    expect(s).toEqual({ clear: true, killed: 3, passes: 3 });
+    expect(calls).toEqual(['as 10002:10002', 'as 10002:10002', 'as 10002:10002']);
+    // One that cannot be killed: not clear, after every pass.
+    add(50);
+    const stuck = await stopUid(10002, 10002, { procRoot: root, pause: async () => undefined, killAs: () => { throw new Error('no setpriv'); }, kill: () => { throw new Error('EPERM'); }, passes: 4 });
+    expect(stuck).toEqual({ clear: false, killed: 0, passes: 4 });
+    await expect(stopUid(10001, 10001)).rejects.toThrow(/refusing/);
+    await expect(stopUid(0, 0)).rejects.toThrow(/refusing/);
+    // Nothing of the uid: clear at once (999,999 has no process here).
+    expect(await stopUid(999_999, 999_999, { killAs: () => calls.push('never') })).toEqual({ clear: true, killed: 0, passes: 0 });
+  });
+
+  it('kills as the job user with kill -1 under setpriv, limited in time; never as root or the checker\'s user (R2.1-2)', () => {
+    const seen: unknown[][] = [];
+    killAsUser(10002, 10003, ((cmd: string, args: string[], opts: unknown) => (seen.push([cmd, args, opts]), {})) as never);
+    expect(seen[0][0]).toBe('setpriv');
+    expect(seen[0][1]).toEqual(['--reuid=10002', '--regid=10003', '--clear-groups', '--', 'kill', '-s', 'KILL', '--', '-1']);
+    expect(seen[0][2]).toMatchObject({ timeout: 2_000, killSignal: 'SIGKILL' });
+    expect(() => killAsUser(0, 0)).toThrow(/refusing/);
+    expect(() => killAsUser(10001, 10001)).toThrow(/refusing/);
+  });
+
   it.runIf(process.getuid?.() === 0)('sweeps only the job user\'s entries from /tmp, /var/tmp and /dev/shm stand-ins, never the checker\'s or root\'s', () => {
     const a = tmp();
     const b = tmp();

@@ -251,7 +251,7 @@ export function createHandler(d: ServerDeps) {
     if (result) {
       if (method !== 'GET') throw new HttpError(405, 'Use GET.', 'other');
       const r = d.jobs.result(userId, id);
-      if (!r) throw new HttpError(409, job.failure?.message ?? 'The check has not finished.', 'not-found');
+      if (!r) throw new HttpError(409, job.failure?.message ?? 'The check has not finished.', 'not-ready');
       res.writeHead(200, { ...cors, 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'content-length': String(r.bytes.length) });
       res.once('finish', r.fetched);
       res.end(r.bytes);

@@ -302,6 +302,11 @@ describe('Cdp over the pipe', () => {
     c.fromChrome.write('x'.repeat(150));
     await expect(s).rejects.toThrow(/over the cap/);
     expect(c.cdp.largest).toBe(150);
+    // After the close nothing more is kept or parsed, however much Chromium sends (R2.1-6).
+    c.fromChrome.write('y'.repeat(1000) + '\0' + '{"id":1,"result":{}}\0');
+    await new Promise((r) => setImmediate(r));
+    expect(c.cdp.largest).toBe(150);
+    await expect(c.cdp.send('W')).rejects.toThrow(/over the cap/);
     const d = pair();
     const t = d.cdp.send('X');
     d.fromChrome.emit('error', new Error('EPIPE'));

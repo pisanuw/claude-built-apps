@@ -13,7 +13,7 @@
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { createReadStream, readFileSync, readdirSync, statSync } from 'node:fs';
+import { closeSync, constants, createReadStream, fstatSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
@@ -22,7 +22,8 @@ import { fileURLToPath } from 'node:url';
 import { Cdp } from './cdp.ts';
 import { capture, CaptureFailure, type Captured, type Failure } from './capture.ts';
 import { assemble } from './output.ts';
-import { asUser, killUid } from './sandbox.ts';
+import { LIMITS } from './config.ts';
+import { asUser, killAsUser, killUid } from './sandbox.ts';
 import { parseReport, verapdfArgs, type Validation } from './verapdf.ts';
 
 export interface DriverArgs {
@@ -77,8 +78,35 @@ export function resolveStatic(rel: string, staticDir: string, pdfjsDir: string):
   return null;
 }
 
-/** The job's loopback server: the page and pdf.js under `/<secret>/`, the file at `/<secret>/job.pdf`. */
-export async function staticServer(file: string, staticDir: string, pdfjsDir: string): Promise<{ base: string; close: () => void }> {
+/**
+ * Reads the job's file once, before any process of the job user exists
+ * (R2.1-3): no link is followed (O_NOFOLLOW), a FIFO does not block
+ * (O_NONBLOCK), and the open file must be a regular file with one link,
+ * owned by the job user, of at most 10 MB. The driver runs as the server's
+ * user, and the job's folder is the job user's, so a path read later could
+ * have been swapped for a link to any file. Throws when refused.
+ */
+export function readJobFile(file: string, uid: number, max: number = LIMITS.uploadBytes): Buffer {
+  const fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  try {
+    const st = fstatSync(fd);
+    if (!st.isFile() || st.nlink !== 1 || st.uid !== uid || st.size > max) throw new Error('job file refused');
+    const buf = Buffer.alloc(st.size);
+    let at = 0;
+    while (at < buf.length) {
+      const n = readSync(fd, buf, at, buf.length - at, at);
+      if (n === 0) break;
+      at += n;
+    }
+    if (at !== buf.length) throw new Error('job file changed while read');
+    return buf;
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/** The job's loopback server: the page and pdf.js under `/<secret>/`, the file's bytes (read once, readJobFile) at `/<secret>/job.pdf`. */
+export async function staticServer(pdf: Buffer, staticDir: string, pdfjsDir: string): Promise<{ base: string; close: () => void }> {
   const secret = randomBytes(16).toString('hex');
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://x');
@@ -88,7 +116,13 @@ export async function staticServer(file: string, staticDir: string, pdfjsDir: st
       return;
     }
     const rel = url.pathname.slice(prefix.length);
-    const target = rel === 'job.pdf' ? file : resolveStatic(rel, staticDir, pdfjsDir);
+    if (rel === 'job.pdf') {
+      // From memory, never from the job's folder, which the job user can change (R2.1-3).
+      res.writeHead(200, { 'content-type': 'application/pdf', 'cache-control': 'no-store', 'content-length': String(pdf.length) });
+      res.end(pdf);
+      return;
+    }
+    const target = resolveStatic(rel, staticDir, pdfjsDir);
     let ok = false;
     try {
       ok = target !== null && statSync(target).isFile();
@@ -99,7 +133,7 @@ export async function staticServer(file: string, staticDir: string, pdfjsDir: st
       res.writeHead(404).end();
       return;
     }
-    res.writeHead(200, { 'content-type': rel === 'job.pdf' ? 'application/pdf' : (TYPES[path.extname(target)] ?? 'application/octet-stream'), 'cache-control': 'no-store' });
+    res.writeHead(200, { 'content-type': TYPES[path.extname(target)] ?? 'application/octet-stream', 'cache-control': 'no-store' });
     createReadStream(target).on('error', () => res.destroy()).pipe(res);
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
@@ -226,9 +260,11 @@ async function verapdf(a: DriverArgs, declared: number | null): Promise<{ v: Val
  * process ends, are reaped here and not left as zombies of the hub, which is
  * the container's PID 1 and reaps only its own children. It runs in a session
  * of its own, so killing the driver's group leaves it to reap what the
- * clean-up kills. 157 is prctl and 36 PR_SET_CHILD_SUBREAPER on x86-64.
+ * clean-up kills. prctl is 157 on x86-64 and 167 on arm64, 36 is
+ * PR_SET_CHILD_SUBREAPER; on any other machine, or if the call fails, it
+ * dies rather than run without a reaper (R2.1-8).
  */
-export const REAPER = 'syscall(157, 36, 1); my $p = fork(); die "fork" unless defined $p; if ($p == 0) { exec { $ARGV[0] } @ARGV or exit 127 } alarm 600; while (waitpid(-1, 0) > 0) {} exit 0;';
+export const REAPER = 'use Config; my $n = $Config{archname} =~ /^(aarch64|arm64)/ ? 167 : $Config{archname} =~ /^x86_64/ ? 157 : die "no prctl number"; syscall($n, 36, 1) == 0 or die "no subreaper"; my $p = fork(); die "fork" unless defined $p; if ($p == 0) { exec { $ARGV[0] } @ARGV or exit 127 } alarm 600; while (waitpid(-1, 0) > 0) {} exit 0;';
 
 /** The argv that starts Chromium as the job user under the reaper. Pure. */
 export function chromeArgv(a: Pick<DriverArgs, 'chrome' | 'jobDir' | 'uid' | 'gid'>): string[] {
@@ -258,9 +294,19 @@ function startChrome(a: DriverArgs): { proc: ChildProcess; stderr: () => string;
  * processes as zombies of the hub. A process started meanwhile is killed on
  * the next pass; the reaper is killed only if it has not ended after three.
  */
-export async function stopChrome(chrome: { proc: Pick<ChildProcess, 'kill'>; exited: Promise<void> }, uid: number, kill: (uid: number) => number = killUid, waitMs = 2_000): Promise<void> {
+/** Kills the job user's processes from inside the uid and by pid as root (R2.1-2). */
+export function killJobUser(uid: number, gid: number): number {
+  try {
+    killAsUser(uid, gid);
+  } catch {
+    /* no setpriv: the kill by pid still runs */
+  }
+  return killUid(uid);
+}
+
+export async function stopChrome(chrome: { proc: Pick<ChildProcess, 'kill'>; exited: Promise<void> }, uid: number, gid: number, kill: (uid: number, gid: number) => number = killJobUser, waitMs = 2_000): Promise<void> {
   for (let i = 0; i < 3; i++) {
-    kill(uid);
+    kill(uid, gid);
     const ended = await Promise.race([chrome.exited.then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), waitMs).unref())]);
     if (ended) return;
   }
@@ -269,9 +315,14 @@ export async function stopChrome(chrome: { proc: Pick<ChildProcess, 'kill'>; exi
 
 export async function runDriver(a: DriverArgs): Promise<void> {
   await send({ type: 'stage', stage: 'reading' });
-  const fileBytes = readFileSync(a.file);
+  let fileBytes: Buffer;
+  try {
+    fileBytes = readJobFile(a.file, a.uid);
+  } catch (e) {
+    return send({ type: 'fail', reason: 'internal', detail: String((e as Error)?.message ?? e).slice(0, 200) });
+  }
   const file = { bytes: fileBytes.length, sha256: createHash('sha256').update(fileBytes).digest('hex') };
-  const server = await staticServer(a.file, a.staticDir, a.pdfjsDir);
+  const server = await staticServer(fileBytes, a.staticDir, a.pdfjsDir);
   const chrome = startChrome(a);
   const cdp = new Cdp(chrome.proc.stdio[3] as Writable, chrome.proc.stdio[4] as Readable, a.outputCap);
   let captured: Captured;
@@ -289,7 +340,7 @@ export async function runDriver(a: DriverArgs): Promise<void> {
     sandbox = pickMax(sandbox, sandboxFacts(a.uid));
   } catch (e) {
     server.close();
-    await stopChrome(chrome, a.uid);
+    await stopChrome(chrome, a.uid, a.gid);
     if (e instanceof CaptureFailure) return send({ type: 'fail', reason: e.reason, detail: e.message.slice(0, 200) });
     const err = chrome.stderr();
     if (/No usable sandbox/i.test(err)) return send({ type: 'fail', reason: 'no-sandbox' });
@@ -299,7 +350,7 @@ export async function runDriver(a: DriverArgs): Promise<void> {
   await Promise.race([chrome.exited, new Promise((r) => setTimeout(r, 5_000))]);
   server.close();
   // veraPDF and Chromium never run at the same time: every process of the job user ends first.
-  await stopChrome(chrome, a.uid);
+  await stopChrome(chrome, a.uid, a.gid);
   let v: Validation | null = null;
   let err: 'timeout' | 'failed' | null = null;
   if (a.verapdf) {

@@ -1,10 +1,10 @@
 /** The driver's parts that need no Chromium: the loopback server, Chromium's flags, the sandbox facts (AC-14, AC-15). */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { linkSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { chromeArgs, chromeArgv, hasHeading, REAPER, resolveStatic, sandboxFacts, staticServer, stopChrome } from '../src/driver.ts';
+import { chromeArgs, chromeArgv, hasHeading, readJobFile, REAPER, resolveStatic, sandboxFacts, staticServer, stopChrome } from '../src/driver.ts';
 
 const dirs: string[] = [];
 const tmp = () => {
@@ -37,7 +37,7 @@ describe('the loopback server', () => {
     writeFileSync(path.join(p, 'wasm', 'openjpeg.wasm'), 'w');
     const file = path.join(s, 'in.pdf');
     writeFileSync(file, '%PDF-1.7');
-    const srv = await staticServer(file, s, p);
+    const srv = await staticServer(readJobFile(file, process.getuid?.() ?? 0), s, p);
     try {
       expect(srv.base).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/[0-9a-f]{32}\/$/);
       const page = await fetch(`${srv.base}capture.html`);
@@ -55,6 +55,49 @@ describe('the loopback server', () => {
     } finally {
       srv.close();
     }
+  });
+
+  it('serves the job\'s file from the bytes read once: a link swapped in for in.pdf afterwards is never followed (R2.1-3)', async () => {
+    const dir = tmp();
+    const file = path.join(dir, 'in.pdf');
+    const pdf = Buffer.from('%PDF-1.7\n' + 'x'.repeat(5000));
+    writeFileSync(file, pdf);
+    const secret = path.join(tmp(), 'secret');
+    writeFileSync(secret, 'ROOT-ONLY-SECRET\n', { mode: 0o600 });
+    const srv = await staticServer(readJobFile(file, process.getuid?.() ?? 0), dir, dir);
+    try {
+      expect(Buffer.from(await (await fetch(`${srv.base}job.pdf`)).arrayBuffer()).equals(pdf)).toBe(true);
+      rmSync(file);
+      symlinkSync(secret, file);
+      const again = Buffer.from(await (await fetch(`${srv.base}job.pdf`)).arrayBuffer());
+      expect(again.equals(pdf)).toBe(true);
+      expect(again.toString()).not.toContain('ROOT-ONLY');
+    } finally {
+      srv.close();
+    }
+  });
+
+  it('reads the job\'s file only as a regular file of the job user with one link and at most 10 MB, never through a link (R2.1-3)', () => {
+    const me = process.getuid?.() ?? 0;
+    const dir = tmp();
+    const file = path.join(dir, 'in.pdf');
+    writeFileSync(file, '%PDF-1.7 ok');
+    expect(readJobFile(file, me).toString()).toBe('%PDF-1.7 ok');
+    // Someone else's file, a file over the size, a link, a second hard link, a FIFO and a folder are refused.
+    expect(() => readJobFile(file, me + 1)).toThrow(/refused/);
+    expect(() => readJobFile(file, me, 5)).toThrow(/refused/);
+    const link = path.join(dir, 'link.pdf');
+    symlinkSync(file, link);
+    expect(() => readJobFile(link, me)).toThrow(/ELOOP/);
+    const hard = path.join(dir, 'hard.pdf');
+    linkSync(file, hard);
+    expect(() => readJobFile(file, me)).toThrow(/refused/);
+    rmSync(hard);
+    expect(readJobFile(file, me).length).toBe(11);
+    const fifo = path.join(dir, 'fifo.pdf');
+    expect(spawnSync('mkfifo', [fifo]).status).toBe(0);
+    expect(() => readJobFile(fifo, me)).toThrow(/refused/);
+    expect(() => readJobFile(dir, me)).toThrow(/refused/);
   });
 });
 
@@ -76,7 +119,9 @@ describe('the reaper (D-44)', () => {
     const argv = chromeArgv({ chrome: '/opt/chrome/chrome-headless-shell', jobDir: '/j', uid: 10002, gid: 10002 });
     expect(argv.slice(0, 2)).toEqual(['perl', '-e']);
     expect(argv[2]).toBe(REAPER);
-    expect(REAPER).toContain('syscall(157, 36, 1)');
+    // prctl's number by machine, and a failed call ends the reaper rather than run without one (R2.1-8).
+    expect(REAPER).toContain('? 167 : $Config{archname} =~ /^x86_64/ ? 157');
+    expect(REAPER).toContain('syscall($n, 36, 1) == 0 or die');
     expect(REAPER).toContain('waitpid(-1, 0)');
     expect(argv.slice(3, 6)).toEqual(['setpriv', '--reuid=10002', '--regid=10002']);
     expect(argv).not.toContain('--no-new-privs');
@@ -89,6 +134,14 @@ describe('the reaper (D-44)', () => {
     expect(r.status).toBe(0);
     expect(r.stdout.split('\n').filter(Boolean).sort()).toEqual(['child', 'grandchild']);
   });
+
+  it.runIf(process.platform === 'linux' && process.arch === 'x64')('refuses to run without a subreaper: a failed prctl ends it before the command starts', () => {
+    const broken = REAPER.replace('syscall($n, 36, 1)', 'syscall($n, 9999, 1)');
+    const r = spawnSync('perl', ['-e', broken, 'sh', '-c', 'echo ran'], { encoding: 'utf8' });
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toBe('');
+    expect(r.stderr).toContain('no subreaper');
+  });
 });
 
 describe('ending Chromium (D-44)', () => {
@@ -96,11 +149,11 @@ describe('ending Chromium (D-44)', () => {
     const calls: string[] = [];
     let end: () => void = () => undefined;
     const exited = new Promise<void>((r) => (end = r));
-    await stopChrome({ proc: { kill: () => (calls.push('reaper'), true) }, exited }, 10002, (uid) => (calls.push(`uid ${uid}`), end(), 4));
-    expect(calls).toEqual(['uid 10002']);
+    await stopChrome({ proc: { kill: () => (calls.push('reaper'), true) }, exited }, 10002, 10002, (uid, gid) => (calls.push(`uid ${uid}:${gid}`), end(), 4));
+    expect(calls).toEqual(['uid 10002:10002']);
     calls.length = 0;
-    await stopChrome({ proc: { kill: () => (calls.push('reaper'), true) }, exited: new Promise(() => undefined) }, 10002, (uid) => (calls.push(`uid ${uid}`), 0), 1);
-    expect(calls).toEqual(['uid 10002', 'uid 10002', 'uid 10002', 'reaper']);
+    await stopChrome({ proc: { kill: () => (calls.push('reaper'), true) }, exited: new Promise(() => undefined) }, 10002, 10002, (uid, gid) => (calls.push(`uid ${uid}:${gid}`), 0), 1);
+    expect(calls).toEqual(['uid 10002:10002', 'uid 10002:10002', 'uid 10002:10002', 'reaper']);
   });
 });
 

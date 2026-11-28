@@ -5,7 +5,7 @@
  * so a file name, a token, a transcript or a path cannot reach the log by
  * mistake (the same rule as Tagging Doctor's checker; AC-65 in M6 greps it).
  */
-export const EVENTS = ['self-test', 'request', 'job-started', 'job-stage', 'job-finished', 'job-killed', 'cleanup', 'sweep', 'error'] as const;
+export const EVENTS = ['self-test', 'request', 'job-started', 'job-stage', 'job-finished', 'job-killed', 'cleanup', 'sweep', 'job-user-alive', 'error'] as const;
 export type LogEvent = (typeof EVENTS)[number];
 
 const WORDS = new Set([
@@ -15,9 +15,9 @@ const WORDS = new Set([
   'health', 'jobs', 'job', 'result', 'other', 'GET', 'POST', 'DELETE', 'OPTIONS', 'HEAD', 'PUT', 'PATCH',
   // reasons
   'unauthorized', 'auth-unavailable', 'origin', 'too-large', 'not-pdf', 'busy', 'daily-limit', 'all-limit', 'held-full', 'too-slow',
-  'cut-short', 'not-found', 'timeout', 'memory', 'container-memory', 'password', 'unreadable', 'output-cap', 'tree-cap',
+  'cut-short', 'not-found', 'not-ready', 'timeout', 'memory', 'container-memory', 'password', 'unreadable', 'output-cap', 'tree-cap',
   'cancelled', 'internal', 'unavailable', 'no-sandbox', 'no-heading', 'chrome-failed', 'verapdf-failed', 'verapdf-timeout',
-  'ok', 'lock', 'checker', 'capture', 'expired', 'fetched', 'deleted', 'restart', 'unknown',
+  'job-user-alive', 'ok', 'lock', 'checker', 'capture', 'expired', 'fetched', 'deleted', 'restart', 'unknown',
 ]);
 
 const NUMBER_FIELDS = new Set(['code', 'ms', 'pages', 'pagesRead', 'bytes', 'nodes', 'uid', 'removed', 'killed', 'jobMB', 'containerMB', 'held', 'gapMs']);

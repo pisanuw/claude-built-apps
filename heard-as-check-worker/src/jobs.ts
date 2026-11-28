@@ -109,6 +109,8 @@ export class Jobs {
     const dir = this.dir(id);
     const file = path.join(dir, 'in.pdf');
     let started: Promise<void>;
+    // False when a process of the job user outlived the job: its folder is then left alone (R2.1-2).
+    let clean = true;
     try {
       mkdirSync(dir, { mode: 0o700 });
       for (const d of ['profile', 'tmp']) mkdirSync(path.join(dir, d), { mode: 0o700 });
@@ -121,6 +123,7 @@ export class Jobs {
         .run({ id, file, jobDir: dir, verapdf: opts.verapdf, expect: opts.expect, signal: job.abort.signal, onStage: (stage) => this.stage(job, stage) })
         .then((out) => {
           job.summary = out.summary;
+          if (out.clean === false) clean = false;
           if (out.ok) {
             job.status = 'done';
             job.result = out.output;
@@ -143,7 +146,9 @@ export class Jobs {
         job.failure = { reason: 'internal', message: 'The checker had an internal error. Try again.' };
       })
       .finally(() => {
-        rmSync(dir, { recursive: true, force: true });
+        // A recursive delete as root, while a process of the job user could swap a folder for a link, could
+        // delete outside the job (R2.1-2): only when every process of the job user is gone.
+        if (clean && !this.o.runner.unsafe?.()) rmSync(dir, { recursive: true, force: true });
         rmSync(upload, { force: true });
         job.finishedAt = this.now();
         job.stage = null;
@@ -223,8 +228,9 @@ export class Jobs {
     } catch {
       /* no root */
     }
+    // Folders are deleted only while no job runs and every process of the job user is gone (R2.1-2).
+    if (this.running || this.o.runner.unsafe?.()) names = [];
     for (const name of names) {
-      if (this.running && name === this.running.id) continue;
       const p = path.join(this.o.root, name);
       try {
         if (statSync(p).mtimeMs <= cutoff) {

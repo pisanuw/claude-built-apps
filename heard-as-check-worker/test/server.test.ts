@@ -31,6 +31,10 @@ class StandInRunner implements Runner {
   pending: { req: RunRequest; end: (o: RunOutcome) => void }[] = [];
   seen: RunRequest[] = [];
   selfTest: RunOutcome = { ok: true, output: Buffer.from('{}'), summary: GOOD_SELF_TEST };
+  closed = false;
+  unsafe(): boolean {
+    return this.closed;
+  }
   run(req: RunRequest): Promise<RunOutcome> {
     this.seen.push(req);
     if (!req.verapdf) return Promise.resolve(this.selfTest);
@@ -68,7 +72,7 @@ afterEach(async () => {
   for (const r of roots.splice(0)) rmSync(r, { recursive: true, force: true });
 });
 
-async function mount(o: { now?: () => number; runner?: StandInRunner; selfTestFile?: string; env?: Record<string, string> } = {}) {
+async function mount(o: { now?: () => number; runner?: StandInRunner; selfTestFile?: string; env?: Record<string, string>; selfTestRetryMs?: number } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), 'hac-mount-'));
   roots.push(root);
   const selfTestFile = o.selfTestFile ?? path.join(root, '..', `${path.basename(root)}-selftest.pdf`);
@@ -80,7 +84,9 @@ async function mount(o: { now?: () => number; runner?: StandInRunner; selfTestFi
   const heavy = lock();
   const lines: string[] = [];
   const cap = await startCapture(
-    { SUPABASE_URL: 'https://auth.example', SUPABASE_ANON_KEY: 'anon', JOBS_ROOT: root, JOB_UID: String(process.getuid?.() === 0 ? 10002 : 10002), ...o.env },
+    { SUPABASE_URL: 'https://auth.example', SUPABASE_ANON_KEY: 'anon', JOBS_ROOT: root, // Only root may chown a job folder to 10002; as any other user (CI) the job user is the test's own (R2.1-1).
+      JOB_UID: String(process.getuid?.() === 0 ? 10002 : process.getuid?.()),
+      JOB_GID: String(process.getgid?.() === 0 ? 10002 : process.getgid?.()), ...o.env },
     {
       basePath: '/heard-as-check',
       heavy,
@@ -90,6 +96,7 @@ async function mount(o: { now?: () => number; runner?: StandInRunner; selfTestFi
       versions: { pdfjs: '6.5.438', chromium: '158.0.8127.36', verapdf: 'veraPDF 1.30.4' },
       selfTestFile,
       now: o.now,
+      selfTestRetryMs: o.selfTestRetryMs,
     },
   );
   await cap.ready;
@@ -152,6 +159,77 @@ describe('health and the self-test (AC-23)', () => {
     const jobs2 = new Jobs({ root, runner: failing, log: createLogger(() => undefined), jobUid: null, jobGid: null, keepMs: 600_000, heldBytes: 40 * 2 ** 20 });
     writeFileSync(path.join(root, 'st.pdf'), PDF);
     expect(await runSelfTest({ heavy, jobs: jobs2, file: path.join(root, 'st.pdf') })).toMatchObject({ ok: false, reason: 'chrome-failed' });
+  });
+});
+
+describe('a self-test that failed, and a job user that could not be stopped (R2.1-4, R2.1-2)', () => {
+  const until = async (f: () => Promise<boolean>) => {
+    for (let i = 0; i < 2_000 && !(await f()); i++) await new Promise((r) => setImmediate(r));
+  };
+
+  it('runs a failed self-test again under the lock, and turns capture on when it passes', async () => {
+    const runner = new StandInRunner();
+    runner.selfTest = { ok: false, reason: 'timeout', message: MESSAGES.timeout, summary: summary() };
+    const m = await mount({ runner, selfTestRetryMs: 1 });
+    expect(await json(await m.call('/api/health'))).toMatchObject({ capture: false, selfTest: { ok: false, reason: 'timeout' } });
+    runner.selfTest = { ok: true, output: Buffer.from('{}'), summary: GOOD_SELF_TEST };
+    await until(async () => (await json(await m.call('/api/health'))).capture === true);
+    expect(await json(await m.call('/api/health'))).toMatchObject({ capture: true, selfTest: { ok: true } });
+    expect(runner.seen.filter((r) => !r.verapdf).length).toBeGreaterThanOrEqual(2);
+    expect(m.heavy.held).toBeNull();
+    expect((await m.call('/api/jobs', post())).status).toBe(202);
+    (await m.runner.next()).end({ ok: true, output: Buffer.from('{}'), summary: summary() });
+    m.cap.stop();
+  });
+
+  it('does not run it again when Chromium\'s sandbox was refused (question 2)', async () => {
+    const runner = new StandInRunner();
+    runner.selfTest = { ok: false, reason: 'no-sandbox', message: MESSAGES.internal, summary: summary() };
+    const m = await mount({ runner, selfTestRetryMs: 1 });
+    // A retry would be due within a millisecond; give it twenty.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(runner.seen.filter((r) => !r.verapdf)).toHaveLength(1);
+    expect(await json(await m.call('/api/health'))).toMatchObject({ capture: false, selfTest: { reason: 'no-sandbox' } });
+    m.cap.stop();
+  });
+
+  it('keeps the job\'s folder when a process of the job user outlived the job, and then refuses every job with capture false', async () => {
+    const m = await mount();
+    const r = await m.call('/api/jobs', post());
+    expect(r.status).toBe(202);
+    const { id } = await json(r);
+    const job = await m.runner.next();
+    m.runner.closed = true;
+    job.end({ ok: false, reason: 'unreadable', message: MESSAGES.unreadable, summary: summary(), clean: false });
+    await m.cap.jobs.idle();
+    // Not deleted: a recursive delete as root could follow a link the job user swapped in (R2.1-2).
+    expect(existsSync(path.join(m.root, id))).toBe(true);
+    utimesSync(path.join(m.root, id), new Date(0), new Date(0));
+    expect(m.cap.jobs.sweep()).toBe(0);
+    expect(existsSync(path.join(m.root, id))).toBe(true);
+    expect(await json(await m.call('/api/health'))).toMatchObject({ capture: false, selfTest: { ok: false, reason: 'job-user-alive' } });
+    const refused = await m.call('/api/jobs', post());
+    expect(refused.status).toBe(503);
+    expect((await json(refused)).error).toBe('The checker is not available.');
+    m.cap.stop();
+  });
+
+  it('leaves old folders alone while a job runs', async () => {
+    let t = 1_000_000;
+    const m = await mount({ now: () => t });
+    mkdirSync(path.join(m.root, 'stale'));
+    utimesSync(path.join(m.root, 'stale'), new Date(0), new Date(0));
+    expect((await m.call('/api/jobs', post())).status).toBe(202);
+    const job = await m.runner.next();
+    t += 20 * 60_000;
+    expect(m.cap.jobs.sweep()).toBe(0);
+    expect(existsSync(path.join(m.root, 'stale'))).toBe(true);
+    job.end({ ok: true, output: Buffer.from('{}'), summary: summary() });
+    await m.cap.jobs.idle();
+    expect(existsSync(path.join(m.root, 'stale'))).toBe(true);
+    m.cap.jobs.sweep();
+    expect(existsSync(path.join(m.root, 'stale'))).toBe(false);
+    m.cap.stop();
   });
 });
 
@@ -253,7 +331,10 @@ describe('jobs, results and ownership (AC-22, AC-26)', () => {
     running.req.onStage?.('validating');
     expect(await json(await m.call(`/api/jobs/${job.id}`, { token: 'token-of-person-a' }))).toMatchObject({ status: 'running', stage: 'validating', result: false });
     // Not finished: no result yet.
-    expect((await m.call(`/api/jobs/${job.id}/result`, { token: 'token-of-person-a' })).status).toBe(409);
+    const early = await m.call(`/api/jobs/${job.id}/result`, { token: 'token-of-person-a' });
+    expect(early.status).toBe(409);
+    // Its own reason in the answer and the log, not a 404's (R2.1-8).
+    expect((await json(early)).reason).toBe('not-ready');
     const output = Buffer.from(JSON.stringify({ payloadVersion: 1, heard: ['שלום'] }));
     running.end({ ok: true, output, summary: summary() });
     await m.cap.jobs.idle();

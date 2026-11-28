@@ -61,6 +61,8 @@ export interface CaptureOptions {
   versions?: { pdfjs: string; chromium: string; verapdf: string };
   selfTestFile?: string;
   now?: () => number;
+  /** How long after a failed self-test it runs again (R2.1-4); 5 minutes. */
+  selfTestRetryMs?: number;
 }
 
 export interface Capture {
@@ -80,17 +82,26 @@ export async function startCapture(env: Record<string, string | undefined>, opts
   const quota = new Quota(LIMITS.perPersonPerDay, LIMITS.allPerDay, opts.now);
   const versions = opts.versions ?? readVersions(cfg);
   let selfTest: SelfTestView = { ok: false, reason: 'running', checkedAt: null, ms: null, sandbox: null };
-  const ready = runSelfTest({ heavy: opts.heavy, jobs, file: opts.selfTestFile ?? path.join(STATIC_DIR, 'selftest.pdf'), now: opts.now }).then(
-    (st) => {
-      selfTest = st;
-      log.log('self-test', { ok: st.ok, reason: st.reason, ms: st.ms ?? undefined, sandbox: st.sandbox ? st.sandbox.seccomp > 0 : undefined });
-      return st;
-    },
-    () => {
-      selfTest = { ok: false, reason: 'internal', checkedAt: new Date().toISOString(), ms: null, sandbox: null };
-      return selfTest;
-    },
-  );
+  let stopped = false;
+  let retry: NodeJS.Timeout | null = null;
+  const attempt = (): Promise<SelfTestView> =>
+    runSelfTest({ heavy: opts.heavy, jobs, file: opts.selfTestFile ?? path.join(STATIC_DIR, 'selftest.pdf'), now: opts.now })
+      .then(
+        (st) => st,
+        (): SelfTestView => ({ ok: false, reason: 'internal', checkedAt: new Date().toISOString(), ms: null, sandbox: null }),
+      )
+      .then((st) => {
+        selfTest = st;
+        log.log('self-test', { ok: st.ok, reason: st.reason, ms: st.ms ?? undefined, sandbox: st.sandbox ? st.sandbox.namespaced > 0 : undefined });
+        // A failure that may pass later (a slow cold start, Chromium failing once) runs again, under the lock,
+        // every few minutes (R2.1-4); a refused sandbox (question 2) and a job user that cannot be stopped do not.
+        if (!st.ok && !stopped && st.reason !== 'no-sandbox' && !runner.unsafe?.()) {
+          retry = setTimeout(() => void attempt(), opts.selfTestRetryMs ?? 5 * 60_000);
+          retry.unref();
+        }
+        return st;
+      });
+  const ready = attempt();
   const timer = setInterval(() => jobs.sweep(), 60_000);
   timer.unref();
   const handle = createHandler({
@@ -101,8 +112,18 @@ export async function startCapture(env: Record<string, string | undefined>, opts
     heavy: opts.heavy,
     log,
     versions,
-    selfTest: () => selfTest,
+    // Once a process of the job user could not be stopped, the mount refuses every job until a restart (R2.1-2, D-48).
+    selfTest: () => (runner.unsafe?.() ? { ...selfTest, ok: false, reason: 'job-user-alive' } : selfTest),
     basePath: opts.basePath,
   });
-  return { handle, ready, jobs, stop: () => clearInterval(timer) };
+  return {
+    handle,
+    ready,
+    jobs,
+    stop: () => {
+      stopped = true;
+      clearInterval(timer);
+      if (retry) clearTimeout(retry);
+    },
+  };
 }
