@@ -12,7 +12,10 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { codeOf, FIXTURES, generateAll, pdfText, writePdf, type Made } from './fixtures/generate';
 
 const SPIKE_SET = ['basic', 'roles', 'five-pages', 'stress', 'big-tree', 'rtl-reversed', 'good-rtl', 'control-rowspan'];
-const vera = JSON.parse(fs.readFileSync('test/fixtures/veraPDF.json', 'utf8')) as Record<string, { sha256: string; bytes: number; pages: number; mustPass: boolean; compliant: boolean; profile: string; verapdf: string; failedClauses: string[] }>;
+/** Milestone 2's fixtures (the capture mount): SPEC section 4 and AC-17, AC-18, AC-20, AC-21, AC-23. */
+const M2_SET = ['selftest', 'seventy-five-pages', 'no-tags', 'password', 'hostile', 'memory-bomb', 'deep-tree', 'many-glyphs'];
+const ALL = [...SPIKE_SET, ...M2_SET];
+const vera = JSON.parse(fs.readFileSync('test/fixtures/veraPDF.json', 'utf8')) as Record<string, { sha256: string; bytes: number; pages: number; mustPass: boolean; compliant: boolean; profile: string; verapdf: string; failedClauses: string[]; note?: string }>;
 
 let first: Made[];
 let second: Made[];
@@ -22,8 +25,28 @@ beforeAll(() => {
 }, 120_000);
 
 describe('AC-3: the fixture generator', () => {
-  it('makes milestone 1\'s eight fixtures, the ones the spike uses', () => {
-    expect(FIXTURES.map((f) => f.name)).toEqual(SPIKE_SET);
+  it('makes milestone 1\'s eight fixtures, the ones the spike uses, then milestone 2\'s', () => {
+    expect(FIXTURES.map((f) => f.name)).toEqual(ALL);
+  });
+
+  it('keeps milestone 2\'s fixtures within the upload limit, and shaped as their criteria need', () => {
+    for (const m of first.filter((x) => M2_SET.includes(x.name))) expect(m.bytes, m.name).toBeLessThanOrEqual(10 * 1024 * 1024);
+    expect(first.find((m) => m.name === 'seventy-five-pages')!.pages).toBe(75);
+    expect(first.find((m) => m.name === 'many-glyphs')!.pages).toBe(60);
+    const deep = fs.readFileSync(first.find((m) => m.name === 'deep-tree')!.file, 'latin1');
+    expect(deep.match(/\/S \/Div /g)?.length).toBe(100_000 - 1);
+    // The /K cycle: the fifth element also lists the second as a kid.
+    expect(deep).toMatch(/\/S \/Div \/P 11 0 R \/K \[13 0 R 9 0 R\]/);
+    const pw = fs.readFileSync(first.find((m) => m.name === 'password')!.file, 'latin1');
+    expect(pw).toContain('/Filter /Standard /V 1 /R 2');
+    expect(pw).not.toContain('needs the password');
+    const nt = fs.readFileSync(first.find((m) => m.name === 'no-tags')!.file, 'latin1');
+    expect(nt).not.toContain('/StructTreeRoot');
+    expect(nt).not.toContain('BDC');
+    const hostile = fs.readFileSync(first.find((m) => m.name === 'hostile')!.file, 'latin1');
+    for (const part of ['/S /URI /URI (https://hac-outside.invalid/open-action)', '/S /JavaScript', 'hac-marker.invalid', '/FontFile2', '/Subtype /Link']) expect(hostile).toContain(part);
+    const bomb = fs.readFileSync(first.find((m) => m.name === 'memory-bomb')!.file, 'latin1');
+    expect(bomb.match(/\/Filter \/RunLengthDecode/g)?.length).toBe(40);
   });
 
   it('writes every fixture with the same sha256 twice', () => {
@@ -41,7 +64,7 @@ describe('AC-3: the fixture generator', () => {
   });
 
   it('every fixture has a veraPDF entry for its exact bytes', () => {
-    expect(Object.keys(vera).sort()).toEqual([...SPIKE_SET].sort());
+    expect(Object.keys(vera).sort()).toEqual([...ALL].sort());
     for (const m of first) {
       const e = vera[m.name];
       expect(e, m.name).toBeDefined();
@@ -61,6 +84,10 @@ describe('AC-3: the fixture generator', () => {
     expect(vera.roles).toMatchObject({ compliant: false, failedClauses: ['7.3-1'] });
     // The fulgur case passes the validator (SPEC AC-53).
     expect(vera['rtl-reversed'].compliant).toBe(true);
+    // veraPDF gives no result for three of milestone 2's: the entry says why.
+    expect(vera.password.note).toMatch(/encrypted/);
+    expect(vera['deep-tree'].note).toMatch(/no report/);
+    expect(vera['many-glyphs'].note).toMatch(/OutOfMemory/);
   });
 });
 

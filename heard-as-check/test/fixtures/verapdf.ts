@@ -25,6 +25,8 @@ export interface VeraEntry {
   compliant: boolean;
   failedRules: number;
   failedClauses: string[];
+  /** Why veraPDF gave no validation result (password.pdf: an encrypted file is not validated). */
+  note?: string;
 }
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -33,7 +35,7 @@ const FILE = path.join(HERE, 'veraPDF.json');
 interface Report {
   report: {
     buildInformation: { releaseDetails: { id: string; version: string }[] };
-    jobs: { validationResult: VR | VR[] }[];
+    jobs: { validationResult?: VR | VR[]; taskException?: { exceptionMessage?: string } }[];
   };
 }
 interface VR {
@@ -55,14 +57,30 @@ for (const m of generateAll(OUT_DIR)) {
   }
   let raw: string;
   try {
-    raw = execFileSync(command[0], [...command.slice(1), '--flavour', 'ua1', '--format', 'json', m.file], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+    raw = execFileSync(command[0], [...command.slice(1), '--flavour', 'ua1', '--format', 'json', m.file], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
   } catch (e) {
     // veraPDF exits 1 when the file is not compliant; its report is still on stdout.
     raw = (e as { stdout?: string }).stdout ?? '';
   }
-  const report = JSON.parse(raw) as Report;
+  let report: Report;
+  try {
+    report = JSON.parse(raw) as Report;
+  } catch {
+    // deep-tree.pdf: veraPDF overflows its stack (-Xss512k) on the 100,000-deep tree and its report is cut off.
+    out[m.name] = { sha256: m.sha256, bytes: m.bytes, pages: m.pages, mustPass: f.mustPass, profile: 'PDF/UA-1', verapdf: '1.30.4', compliant: false, failedRules: 0, failedClauses: [], note: 'no report: veraPDF stopped before its report ended' };
+    console.log(`${m.name}\tno report`);
+    continue;
+  }
   const vr = [report.report.jobs[0].validationResult].flat()[0];
   const core = report.report.buildInformation.releaseDetails.find((r) => r.id === 'core');
+  if (!vr) {
+    // No result: veraPDF does not validate an encrypted file (password.pdf), and runs out of its 192 MB heap on many-glyphs.pdf.
+    const ex = report.report.jobs[0].taskException?.exceptionMessage;
+    const note = ex ? `not validated: ${ex.slice(0, 160)}` : 'not validated: veraPDF does not validate an encrypted file';
+    out[m.name] = { sha256: m.sha256, bytes: m.bytes, pages: m.pages, mustPass: f.mustPass, profile: 'PDF/UA-1', verapdf: core?.version ?? 'unknown', compliant: false, failedRules: 0, failedClauses: [], note };
+    console.log(`${m.name}\tnot validated`);
+    continue;
+  }
   out[m.name] = {
     sha256: m.sha256,
     bytes: m.bytes,

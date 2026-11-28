@@ -1,0 +1,37 @@
+# Chromium's system libraries in the hub's image, as dpkg reports them (the TeX image's own packages, pinned by its digest; D-41).
+# Regenerate with the command in pins.test.ts when the TeX image or Chromium changes, and review the difference.
+libasound2t64 1.2.16.1-2
+libatk-bridge2.0-0t64 2.62.1-1
+libatk1.0-0t64 2.62.1-1
+libatomic1 16.2.0-4
+libatspi2.0-0t64 2.62.1-1
+libblkid1 2.42.4-1
+libc6 2.43-7
+libdbus-1-3 1.16.2-8
+libdrm2 2.4.134-3
+libexpat1 2.10.0-1
+libffi8 3.8.0-2
+libgbm1 26.1.6-1
+libgcc-s1 16.2.0-4
+libglib2.0-0t64 2.90.1-2
+libmount1 2.42.4-1
+libnspr4 2:4.40-1
+libnss3 2:3.132-1
+libpcre2-8-0 10.48-3.1
+libselinux1 3.11-2.1+b1
+libsystemd0 262-1
+libudev1 262-1
+libx11-6 2:1.8.14-1
+libxau6 1:1.0.11-1+b2
+libxcb1 1.17.0-2+b2
+libxcomposite1 1:0.4.6-1+b2
+libxdamage1 1:1.1.7-1+b1
+libxdmcp6 1:1.1.5-2+b1
+libxext6 2:1.3.4-1+b4
+libxfixes3 1:6.0.0-2+b5
+libxi6 2:1.8.4-1
+libxkbcommon0 1.13.1-1
+libxrandr2 2:1.5.4-1+b4
+libxrender1 1:0.9.13-1
+libxres1 2:1.2.1-2
+zlib1g 1:1.3.dfsg+really1.3.2-3

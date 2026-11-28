@@ -26,9 +26,12 @@ import { fileURLToPath } from 'node:url';
 export interface TextLeaf {
   text: string;
   visual?: boolean;
+  /** Draws the text this many times, one show-text operator each, on one line (many-glyphs.pdf). */
+  repeat?: number;
 }
 export interface ImageLeaf {
-  image: { width: number; height: number; seed: number; drawWidth?: number };
+  /** `zeros`: an all-black image stored with RunLengthDecode, small in the file and large decoded (memory-bomb.pdf). */
+  image: { width: number; height: number; seed: number; drawWidth?: number; zeros?: boolean };
 }
 export interface LinkLeaf {
   link: { text: string; uri: string };
@@ -54,11 +57,21 @@ export interface Layout {
   columns: number;
 }
 
+/** Objects a fixture adds beside the tagged content (hostile.pdf): catalog entries, and resources and operators on the first page. */
+export interface Extra {
+  catalog?: string;
+  pageResources?: string;
+  pageOps?: string;
+}
+
 export interface FixtureDoc {
   title: string;
   lang: string;
   layout?: Partial<Layout>;
   root: SNode;
+  /** No structure tree, no marked content, not marked (no-tags.pdf). */
+  untagged?: boolean;
+  extra?: (alloc: () => number, set: (n: number, body: string | Buffer) => void) => Extra;
 }
 
 const isNode = (k: SNode | Leaf): k is SNode => (k as SNode).role !== undefined;
@@ -200,8 +213,13 @@ export function writePdf(doc: FixtureDoc): Buffer {
   };
 
   const drawText = (elem: ElemRec, leaf: TextLeaf, x: number, size: number) => {
+    const show = leaf.repeat ? `${encodeLine(leaf)}Tj `.repeat(leaf.repeat).trimEnd() : `${encodeLine(leaf)} Tj`;
+    if (doc.untagged) {
+      page!.ops.push(`BT /F1 ${num(size)} Tf ${num(x)} ${num(y)} Td ${show} ET`);
+      return;
+    }
     const ref = mark(elem);
-    page!.ops.push(`/${tagOf(elem.node.role)} <</MCID ${ref.mcid}>> BDC BT /F1 ${num(size)} Tf ${num(x)} ${num(y)} Td ${encodeLine(leaf)} Tj ET EMC`);
+    page!.ops.push(`/${tagOf(elem.node.role)} <</MCID ${ref.mcid}>> BDC BT /F1 ${num(size)} Tf ${num(x)} ${num(y)} Td ${show} ET EMC`);
   };
 
   const sizeFor = (role: string) => layout.size * (HEADING_SIZE[role] ?? 1);
@@ -224,9 +242,10 @@ export function writePdf(doc: FixtureDoc): Buffer {
       const h = (w * height) / width;
       y -= h;
       const obj = alloc();
+      const data = leaf.image.zeros ? runLengthZeros(width * height * 3) : noise(width * height * 3, seed);
       bodies.set(obj, Buffer.concat([
-        Buffer.from(`<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Length ${width * height * 3} >>\nstream\n`, 'latin1'),
-        noise(width * height * 3, seed),
+        Buffer.from(`<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} /ColorSpace /DeviceRGB /BitsPerComponent 8${leaf.image.zeros ? ' /Filter /RunLengthDecode' : ''} /Length ${data.length} >>\nstream\n`, 'latin1'),
+        data,
         Buffer.from('\nendstream', 'latin1'),
       ]));
       const name = `Im${page!.images.length}`;
@@ -282,6 +301,8 @@ export function writePdf(doc: FixtureDoc): Buffer {
 
   newPage();
   const top = walk(doc.root, STRUCT_ROOT, 0);
+  const extra = doc.extra ? doc.extra(alloc, (n, body) => bodies.set(n, body)) : {};
+  if (extra.pageOps) pages[0].ops.push(extra.pageOps);
 
   // Structure elements.
   for (const e of elems) {
@@ -323,17 +344,21 @@ export function writePdf(doc: FixtureDoc): Buffer {
       annotRefs.push(`${a.obj} 0 R`);
     }
     const xobjects = p.images.length ? ` /XObject << ${p.images.map((im) => `/${im.name} ${im.obj} 0 R`).join(' ')} >>` : '';
+    const more = i === 0 && extra.pageResources ? ` ${extra.pageResources}` : '';
     bodies.set(
       pageObjs[i],
-      `<< /Type /Page /Parent ${PAGES} 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Resources << /Font << /F1 ${FONT} 0 R >>${xobjects} >> /Contents ${contentObj} 0 R /StructParents ${i} /Tabs /S${annotRefs.length ? ` /Annots [${annotRefs.join(' ')}]` : ''} >>`,
+      `<< /Type /Page /Parent ${PAGES} 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Resources << /Font << /F1 ${FONT} 0 R${more} >>${xobjects} >> /Contents ${contentObj} 0 R${doc.untagged ? '' : ` /StructParents ${i}`} /Tabs /S${annotRefs.length ? ` /Annots [${annotRefs.join(' ')}]` : ''} >>`,
     );
   });
   const PARENT_TREE = alloc();
   bodies.set(PARENT_TREE, `<< /Nums [${nums.join(' ')}] >>`);
 
-  bodies.set(CATALOG, `<< /Type /Catalog /Pages ${PAGES} 0 R /StructTreeRoot ${STRUCT_ROOT} 0 R /MarkInfo << /Marked true >> /Lang ${pdfText(doc.lang)} /ViewerPreferences << /DisplayDocTitle true >> /Metadata ${METADATA} 0 R >>`);
+  const tagged = doc.untagged ? '' : ` /StructTreeRoot ${STRUCT_ROOT} 0 R /MarkInfo << /Marked true >>`;
+  bodies.set(CATALOG, `<< /Type /Catalog /Pages ${PAGES} 0 R${tagged} /Lang ${pdfText(doc.lang)} /ViewerPreferences << /DisplayDocTitle true >> /Metadata ${METADATA} 0 R${extra.catalog ? ` ${extra.catalog}` : ''} >>`);
   bodies.set(PAGES, `<< /Type /Pages /Kids [${pageObjs.map((o) => `${o} 0 R`).join(' ')}] /Count ${pageObjs.length} >>`);
-  bodies.set(STRUCT_ROOT, `<< /Type /StructTreeRoot /K [${top.obj} 0 R] /ParentTree ${PARENT_TREE} 0 R /ParentTreeNextKey ${annotKey} >>`);
+  // An untagged document keeps its (unreferenced) tree objects out: they are written as empty dictionaries.
+  if (doc.untagged) for (const o of [STRUCT_ROOT, PARENT_TREE, ...elems.map((e) => e.obj)]) bodies.set(o, '<< >>');
+  else bodies.set(STRUCT_ROOT, `<< /Type /StructTreeRoot /K [${top.obj} 0 R] /ParentTree ${PARENT_TREE} 0 R /ParentTreeNextKey ${annotKey} >>`);
 
   const xmlTitle = doc.title.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   const xmp = Buffer.from(
@@ -394,6 +419,128 @@ export function writePdf(doc: FixtureDoc): Buffer {
   return Buffer.concat(parts);
 }
 
+/** `bytes` zero bytes as RunLengthDecode data: runs of 128 (two bytes each), then the end mark. */
+function runLengthZeros(bytes: number): Buffer {
+  const runs = Math.floor(bytes / 128);
+  const rest = bytes % 128;
+  const out = Buffer.alloc(runs * 2 + (rest ? 2 : 0) + 1);
+  let o = 0;
+  for (let i = 0; i < runs; i++) {
+    out[o++] = 129; // 257 - 129 = 128 copies of the next byte
+    out[o++] = 0;
+  }
+  if (rest === 1) {
+    out[o++] = 0; // a literal run of one byte
+    out[o++] = 0;
+  } else if (rest) {
+    out[o++] = 257 - rest;
+    out[o++] = 0;
+  }
+  out[o++] = 128; // end of data
+  return out.subarray(0, o);
+}
+
+// ---- Files the tree writer cannot make: a deep tree, and an encrypted file --------
+
+/** Serialises numbered object bodies with an xref table and the given trailer entries. */
+function serialise(bodies: (string | Buffer)[], trailer: string): Buffer {
+  const parts: Buffer[] = [Buffer.from('%PDF-1.7\n%\xE2\xE3\xCF\xD3\n', 'latin1')];
+  let offset = parts[0].length;
+  const offsets: number[] = [];
+  bodies.forEach((body, i) => {
+    const chunk = Buffer.concat([Buffer.from(`${i + 1} 0 obj\n`, 'latin1'), typeof body === 'string' ? Buffer.from(body, 'latin1') : body, Buffer.from('\nendobj\n', 'latin1')]);
+    offsets.push(offset);
+    parts.push(chunk);
+    offset += chunk.length;
+  });
+  let xref = `xref\n0 ${bodies.length + 1}\n0000000000 65535 f \n`;
+  for (const o of offsets) xref += `${String(o).padStart(10, '0')} 00000 n \n`;
+  xref += `trailer\n<< /Size ${bodies.length + 1} ${trailer} >>\nstartxref\n${offset}\n%%EOF\n`;
+  parts.push(Buffer.from(xref, 'latin1'));
+  return Buffer.concat(parts);
+}
+
+const stream = (dict: string, data: Buffer) => Buffer.concat([Buffer.from(`<< ${dict} /Length ${data.length} >>\nstream\n`, 'latin1'), data, Buffer.from('\nendstream', 'latin1')]);
+
+/**
+ * deep-tree.pdf (AC-21): a structure tree nested `depth` deep, Document then
+ * Div after Div, with one paragraph at the bottom, and a `/K` cycle: the
+ * fifth Div also lists the second as a kid. Written without recursion.
+ */
+export function deepTreePdf(depth: number): Buffer {
+  // 1 catalog, 2 pages, 3 page, 4 content, 5 font, 6 struct root, 7 parent tree, 8.. elements (8 = Document, last = P).
+  const FIRST = 8;
+  const last = FIRST + depth; // the P
+  const bodies: (string | Buffer)[] = [];
+  bodies.push(`<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 6 0 R /MarkInfo << /Marked true >> /Lang ${pdfText('en')} >>`);
+  bodies.push('<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+  bodies.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R /StructParents 0 /Tabs /S >>`);
+  bodies.push(stream('', Buffer.from('/P <</MCID 0>> BDC BT /F1 12 Tf 72 720 Td (The paragraph at the bottom of a deep tree.) Tj ET EMC', 'latin1')));
+  bodies.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  bodies.push(`<< /Type /StructTreeRoot /K [${FIRST} 0 R] /ParentTree 7 0 R /ParentTreeNextKey 1 >>`);
+  bodies.push(`<< /Nums [0 [${last} 0 R]] >>`);
+  for (let n = FIRST; n < last; n++) {
+    const parent = n === FIRST ? 6 : n - 1;
+    const role = n === FIRST ? 'Document' : 'Div';
+    const kids = n === FIRST + 4 ? `${n + 1} 0 R ${FIRST + 1} 0 R` : `${n + 1} 0 R`;
+    bodies.push(`<< /S /${role} /P ${parent} 0 R /K [${kids}] >>`);
+  }
+  bodies.push(`<< /S /P /P ${last - 1} 0 R /Pg 3 0 R /K [0] >>`);
+  const id = createHash('sha256').update(String(depth)).digest('hex').slice(0, 32).toUpperCase();
+  return serialise(bodies, `/Root 1 0 R /ID [<${id}> <${id}>]`);
+}
+
+/** RC4, for the Standard security handler's revision 2 (password.pdf). */
+function rc4(key: Buffer, data: Buffer): Buffer {
+  const S = Array.from({ length: 256 }, (_, i) => i);
+  let j = 0;
+  for (let i = 0; i < 256; i++) {
+    j = (j + S[i] + key[i % key.length]) & 255;
+    [S[i], S[j]] = [S[j], S[i]];
+  }
+  const out = Buffer.alloc(data.length);
+  let i = 0;
+  j = 0;
+  for (let k = 0; k < data.length; k++) {
+    i = (i + 1) & 255;
+    j = (j + S[i]) & 255;
+    [S[i], S[j]] = [S[j], S[i]];
+    out[k] = data[k] ^ S[(S[i] + S[j]) & 255];
+  }
+  return out;
+}
+
+const PDF_PAD = Buffer.from('28BF4E5E4E758A4164004E56FFFA01082E2E00B6D0683E802F0CA9FE6453697A', 'hex');
+const md5 = (...parts: Buffer[]) => createHash('md5').update(Buffer.concat(parts)).digest();
+
+/**
+ * password.pdf (AC-17): one page, encrypted with the Standard security
+ * handler, revision 2 (40-bit RC4), user password "user", owner password
+ * "owner". A viewer must ask for the password before it can read anything.
+ */
+export function passwordPdf(): Buffer {
+  const pad = (pw: string) => Buffer.concat([Buffer.from(pw, 'latin1'), PDF_PAD]).subarray(0, 32);
+  const id = createHash('sha256').update('password.pdf').digest().subarray(0, 16);
+  const O = rc4(md5(pad('owner')).subarray(0, 5), pad('user'));
+  const P = -44;
+  const p = Buffer.alloc(4);
+  p.writeInt32LE(P);
+  const key = md5(pad('user'), O, p, id).subarray(0, 5);
+  const U = rc4(key, PDF_PAD);
+  const objKey = (n: number) => md5(key, Buffer.from([n & 255, (n >> 8) & 255, (n >> 16) & 255, 0, 0])).subarray(0, 10);
+  const content = rc4(objKey(4), Buffer.from('BT /F1 12 Tf 72 720 Td (This text needs the password.) Tj ET', 'latin1'));
+  const bodies: (string | Buffer)[] = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>`,
+    stream('', content),
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Filter /Standard /V 1 /R 2 /O <${O.toString('hex').toUpperCase()}> /U <${U.toString('hex').toUpperCase()}> /P ${P} >>`,
+  ];
+  const hex = id.toString('hex').toUpperCase();
+  return serialise(bodies, `/Root 1 0 R /Encrypt 6 0 R /ID [<${hex}> <${hex}>]`);
+}
+
 // ---- The fixtures ----------------------------------------------------------------
 
 const t = (text: string): TextLeaf => ({ text });
@@ -431,7 +578,21 @@ export interface Fixture {
   name: string;
   /** veraPDF's PDF/UA-1 check must pass (AC-3); false when the fixture is meant to fail it or nobody relies on it. */
   mustPass: boolean;
-  doc: () => FixtureDoc;
+  doc?: () => FixtureDoc;
+  /** A file the tree writer cannot make (deep-tree, password). */
+  bytes?: () => Buffer;
+}
+
+/** The structure depth of deep-tree.pdf (AC-21). */
+export const DEEP_TREE_DEPTH = 100_000;
+/** many-glyphs.pdf: show-text operators of one glyph per page (AC-18; D-36 measures the output cap with it). */
+export const MANY_GLYPHS_PER_PAGE = 18_000;
+/** memory-bomb.pdf: all-black images on its one page, each this size (AC-20). */
+export const MEMORY_BOMB = { images: 40, width: 2000, height: 2000 };
+
+/** many-glyphs with `perPage` one-glyph operators on each of `pages` pages. */
+export function manyGlyphsDoc(pages: number, perPage: number): FixtureDoc {
+  return doc('Many glyphs', [H(1, 'Many glyphs'), ...Array.from({ length: pages }, (_, i): SNode => ({ role: 'P', newPage: i > 0, kids: [{ text: 'A', repeat: perPage }] }))], { layout: { size: 1 } });
 }
 
 export const FIXTURES: Fixture[] = [
@@ -526,16 +687,91 @@ export const FIXTURES: Fixture[] = [
   {
     name: 'control-rowspan',
     mustPass: true,
-    doc: () =>
-      doc('RowSpan control', [
-        H(1, 'A table with a cell spanning two rows'),
-        {
-          role: 'Table',
-          kids: [TR(TH('Item'), TH('Detail')), TR(TD('Shared', { RowSpan: 2 }), TD('first')), TR(TD('second'))],
-        },
+    doc: () => controlRowspan(),
+  },
+  // ---- Milestone 2 (the capture mount) ----
+  {
+    name: 'selftest',
+    mustPass: true,
+    doc: () => doc('Heard-As self-test', [H(1, 'Heard-As self-test'), P('This page is the capture mount self-test.')]),
+  },
+  {
+    name: 'seventy-five-pages',
+    mustPass: true,
+    doc: () => doc('Seventy-five pages', [H(1, 'Seventy-five pages'), ...Array.from({ length: 75 }, (_, i): SNode[] => [H(2, `Page ${i + 1}`, i > 0), P(`Page ${i + 1} of 75.`)]).flat()]),
+  },
+  {
+    name: 'no-tags',
+    mustPass: false,
+    doc: () => ({ ...doc('No tags', [H(1, 'A file with no tags'), P('Nothing in this file is tagged.')]), untagged: true }),
+  },
+  {
+    name: 'password',
+    mustPass: false,
+    bytes: () => passwordPdf(),
+  },
+  {
+    name: 'hostile',
+    mustPass: false,
+    doc: () => ({
+      ...doc('Hostile', [
+        H(1, 'A file that tries to reach out'),
+        P('It opens a web address, runs a script and carries a font program.'),
+        { role: 'P', kids: [t('See'), { role: 'Link', kids: [{ link: { text: 'an outside page', uri: 'https://hac-outside.invalid/link' } }] }] },
       ]),
+      extra: (alloc, set) => {
+        const js = alloc();
+        const uri = alloc();
+        const font = alloc();
+        const desc = alloc();
+        const program = alloc();
+        // The script asks for the marker address; it runs only if scripting is on (AC-15).
+        set(js, `<< /S /JavaScript /JS (app.launchURL\\("https://hac-marker.invalid/marker", true\\); this.getURL\\("https://hac-marker.invalid/marker2"\\);) >>`);
+        set(uri, '<< /S /URI /URI (https://hac-outside.invalid/open-action) >>');
+        const junk = Buffer.from(Array.from({ length: 2048 }, (_, i) => (i * 37 + 11) & 255));
+        set(program, Buffer.concat([Buffer.from(`<< /Length ${junk.length} /Length1 ${junk.length} >>\nstream\n`, 'latin1'), junk, Buffer.from('\nendstream', 'latin1')]));
+        set(desc, `<< /Type /FontDescriptor /FontName /HacJunk /Flags 32 /FontBBox [0 0 1000 1000] /ItalicAngle 0 /Ascent 800 /Descent -200 /CapHeight 700 /StemV 80 /FontFile2 ${program} 0 R >>`);
+        set(font, `<< /Type /Font /Subtype /TrueType /BaseFont /HacJunk /FirstChar 32 /LastChar 126 /Widths [${Array(95).fill(500).join(' ')}] /FontDescriptor ${desc} 0 R /Encoding /WinAnsiEncoding >>`);
+        return {
+          catalog: `/OpenAction ${uri} 0 R /Names << /JavaScript << /Names [(hac) ${js} 0 R] >> >>`,
+          pageResources: `/F2 ${font} 0 R`,
+          pageOps: '/Artifact BMC BT /F2 9 Tf 54 40 Td (drawn with an embedded font program) Tj ET EMC',
+        };
+      },
+    }),
+  },
+  {
+    name: 'memory-bomb',
+    mustPass: false,
+    doc: () =>
+      doc(
+        'Memory bomb',
+        [H(1, 'Images that are small in the file and large when decoded'), ...Array.from({ length: MEMORY_BOMB.images }, (_, i): SNode => ({ role: 'Figure', alt: `Black image ${i + 1}`, kids: [{ image: { width: MEMORY_BOMB.width, height: MEMORY_BOMB.height, seed: i, drawWidth: 8, zeros: true } }] }))],
+        { layout: { size: 4, lead: 1.2, columns: 8 } },
+      ),
+  },
+  {
+    name: 'deep-tree',
+    mustPass: false,
+    bytes: () => deepTreePdf(DEEP_TREE_DEPTH),
+  },
+  {
+    name: 'many-glyphs',
+    mustPass: false,
+    doc: () => manyGlyphsDoc(60, MANY_GLYPHS_PER_PAGE),
   },
 ];
+
+function controlRowspan(): FixtureDoc {
+  return doc('RowSpan control', [
+    H(1, 'A table with a cell spanning two rows'),
+    {
+      role: 'Table',
+      kids: [TR(TH('Item'), TH('Detail')), TR(TD('Shared', { RowSpan: 2 }), TD('first')), TR(TD('second'))],
+    },
+  ]);
+}
+
 
 export interface Made {
   name: string;
@@ -551,7 +787,7 @@ export function generateAll(outDir: string, only?: string[]): Made[] {
   const made: Made[] = [];
   for (const f of FIXTURES) {
     if (only && !only.includes(f.name)) continue;
-    const bytes = writePdf(f.doc());
+    const bytes = f.bytes ? f.bytes() : writePdf((f.doc as () => FixtureDoc)());
     const file = path.join(outDir, `${f.name}.pdf`);
     fs.writeFileSync(file, bytes);
     const pages = Number(/\/Type \/Pages \/Kids \[[^\]]*\] \/Count (\d+)/.exec(bytes.toString('latin1'))?.[1] ?? 0);

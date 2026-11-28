@@ -1,0 +1,32 @@
+{
+  "name": "heard-as-check-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Heard-As Check's capture mount for backend-hub: pdf.js in a sandboxed headless Chromium reads a tagged PDF's accessibility tree, then veraPDF checks it, one job at a time.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit && node --disable-warning=ExperimentalWarning --input-type=module -e \"await import('./src/mount.ts'); await import('./src/driver.ts'); console.log('src loads under node type stripping')\"",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test static",
+    "test:image": "vitest run --config vitest.image.config.ts"
+  },
+  "dependencies": {
+    "pdfjs-dist": "6.5.438"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.10.2",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^9.17.0",
+    "globals": "^15.14.0",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.19.0",
+    "vitest": "^2.1.8"
+  }
+}

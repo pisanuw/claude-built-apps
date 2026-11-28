@@ -2098,6 +2098,37 @@ jobs:
       - name: Build
         run: npm run build
 
+  heard-as-check-worker:
+    name: heard-as-check-worker
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: heard-as-check-worker
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: heard-as-check-worker/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      # The self-test file's test reads the app's fixture generator (a type-stripped import, no install needed there).
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test with coverage
+        run: npm run coverage
+
+      - name: Build
+        run: npm run build
+
   heard-as-check:
     name: heard-as-check
     runs-on: ubuntu-latest

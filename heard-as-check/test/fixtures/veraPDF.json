@@ -88,5 +88,102 @@
     "compliant": true,
     "failedRules": 0,
     "failedClauses": []
+  },
+  "selftest": {
+    "sha256": "56ddd92b93da0adc751c38158815cddb379c1895913cf7057aad7eca18430a35",
+    "bytes": 7069,
+    "pages": 1,
+    "mustPass": true,
+    "profile": "PDF/UA-1",
+    "verapdf": "1.30.4",
+    "compliant": true,
+    "failedRules": 0,
+    "failedClauses": []
+  },
+  "seventy-five-pages": {
+    "sha256": "4bb3666d64c4e9350f4fd3150424dd62266c8b89a56048921aa4c268ea8279f1",
+    "bytes": 52142,
+    "pages": 75,
+    "mustPass": true,
+    "profile": "PDF/UA-1",
+    "verapdf": "1.30.4",
+    "compliant": true,
+    "failedRules": 0,
+    "failedClauses": []
+  },
+  "no-tags": {
+    "sha256": "fd19465647fa9c69a9a253204aa4b027182c7c2a00631a3f006e954ada95805e",
+    "bytes": 6704,
+    "pages": 1,
+    "mustPass": false,
+    "profile": "PDF/UA-1",
+    "verapdf": "1.30.4",
+    "compliant": false,
+    "failedRules": 3,
+    "failedClauses": [
+      "6.2-1",
+      "7.1-11",
+      "7.1-3"
+    ]
+  },
+  "password": {
+    "sha256": "225087ca48b825fe29e9582099c11dc35b24938910679606fac70324793203ce",
+    "bytes": 918,
+    "pages": 1,
+    "mustPass": false,
+    "profile": "PDF/UA-1",
+    "verapdf": "1.30.4",
+    "compliant": false,
+    "failedRules": 0,
+    "failedClauses": [],
+    "note": "not validated: Exception: The PDF stream appears to be encrypted. caused by exception: encrypted PDF with unknown or wrong password"
+  },
+  "hostile": {
+    "sha256": "1a68589d6d01447125f60c55c9db106849eafc7d89d4b71abba999d5e9c75f2a",
+    "bytes": 11143,
+    "pages": 1,
+    "mustPass": false,
+    "profile": "PDF/UA-1",
+    "verapdf": "1.30.4",
+    "compliant": false,
+    "failedRules": 1,
+    "failedClauses": [
+      "7.21.4.1-1"
+    ]
+  },
+  "memory-bomb": {
+    "sha256": "f3997eea4d107152acbc23c5b545cb8e40b824abebae0337be0bd334f13c7097",
+    "bytes": 7524397,
+    "pages": 1,
+    "mustPass": false,
+    "profile": "PDF/UA-1",
+    "verapdf": "1.30.4",
+    "compliant": true,
+    "failedRules": 0,
+    "failedClauses": []
+  },
+  "deep-tree": {
+    "sha256": "738ea8d9a9f3a6ab1a3d2f1882491580481a994e20b89f13a0dc22955b63db9f",
+    "bytes": 8067897,
+    "pages": 1,
+    "mustPass": false,
+    "profile": "PDF/UA-1",
+    "verapdf": "1.30.4",
+    "compliant": false,
+    "failedRules": 0,
+    "failedClauses": [],
+    "note": "no report: veraPDF stopped before its report ended"
+  },
+  "many-glyphs": {
+    "sha256": "7e18d319d5421816569e92dc66d4206bb54f1c96baba08e015d3a278e428dd72",
+    "bytes": 7590828,
+    "pages": 60,
+    "mustPass": false,
+    "profile": "PDF/UA-1",
+    "verapdf": "1.30.4",
+    "compliant": false,
+    "failedRules": 0,
+    "failedClauses": [],
+    "note": "not validated: Exception: OutOfMemory caught when validating item caused by exception: Java heap space"
   }
 }
