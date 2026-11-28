@@ -132,6 +132,8 @@ describe('capture', () => {
     expect(b.calls.filter((m) => m === 'Accessibility.getChildAXNodes')).toHaveLength(2);
     expect(c.outputBytes).toBe(Buffer.byteLength(own) + c.heard.reduce((a, h) => a + Buffer.byteLength(h) + 1, 0));
     expect(b.calls).toContain('Accessibility.enable');
+    // Garbage collected after every page's read (D-36): one per page.
+    expect(b.calls.filter((m) => m === 'HeapProfiler.collectGarbage')).toHaveLength(2);
   });
 
   it('continues requests to the job\'s own origin and fails and counts any other (AC-15)', async () => {

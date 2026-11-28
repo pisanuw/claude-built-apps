@@ -173,6 +173,9 @@ export async function capture(cdp: Browser, input: CaptureInput): Promise<Captur
     pageBytes = pg.outputBytes;
     maxElements = Math.max(maxElements, pg.elements);
     if (pg.capped || overOutput()) throw new CaptureFailure('output-cap');
+    // The page's operator list is garbage once read; V8 is slow to collect it, and a file of many
+    // show-text operators would otherwise reach the memory kill long before the output cap (D-36).
+    await s('HeapProfiler.collectGarbage').catch(() => undefined);
     // The element count, before the accessibility tree is asked for (AC-12).
     if (overNodes() || structNodes + axNodes + pg.elements > input.nodeCap) throw new CaptureFailure('tree-cap');
     const { nodes: rootNodes } = await s<{ nodes: AxNode[] }>('Accessibility.getFullAXTree', { depth: 1 });

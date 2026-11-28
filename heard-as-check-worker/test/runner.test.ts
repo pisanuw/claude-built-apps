@@ -34,6 +34,7 @@ function runner(body: string, over: Partial<ConstructorParameters<typeof DriverR
     read: { job: () => 0, container: () => null },
     cleanup,
     ...over,
+    limits: { windDownMs: 0, ...over.limits },
   });
   return { r, lines, cleanup };
 }
@@ -97,6 +98,27 @@ describe('the runner', () => {
     const done = new AbortController();
     done.abort();
     expect(await pre.r.run({ id: 'x', file: '/f', jobDir: '/j', verapdf: true, signal: done.signal })).toMatchObject({ ok: false, reason: 'cancelled' });
+  });
+
+  it('on a kill, ends the job user\'s processes first and lets the driver end by itself; kills its group only after the wind-down (D-44)', async () => {
+    // The clean-up stands for killing Chromium: the driver, its browser gone, ends by itself.
+    let proc: ReturnType<ReturnType<typeof standIn>> | null = null;
+    const order: string[] = [];
+    const ends = runner(`await new Promise(()=>{});`, {
+      cfg: { ...cfg, jobMs: 1 },
+      limits: { windDownMs: 600_000 },
+      spawnDriver: () => (proc = standIn(`process.on('SIGTERM', () => process.exit(0)); await new Promise(()=>{});`)()),
+      cleanup: () => {
+        order.push(proc?.exitCode === null ? 'cleanup, driver alive' : 'cleanup');
+        proc?.kill('SIGTERM');
+        return { killed: 3, removed: 0 };
+      },
+    });
+    expect(await ends.r.run({ id: 'x', file: '/f', jobDir: '/j', verapdf: true })).toMatchObject({ ok: false, reason: 'timeout' });
+    expect(order[0]).toBe('cleanup, driver alive');
+    // A driver that does not end is killed once the wind-down is over.
+    const stuck = runner(`await new Promise(()=>{});`, { cfg: { ...cfg, jobMs: 1 }, limits: { windDownMs: 1 } });
+    expect(await stuck.r.run({ id: 'x', file: '/f', jobDir: '/j', verapdf: true })).toMatchObject({ ok: false, reason: 'timeout' });
   });
 
   it('refuses an output past the cap, without keeping it', async () => {

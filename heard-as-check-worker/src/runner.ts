@@ -88,7 +88,7 @@ export interface DriverRunnerOptions {
   /** For tests: the process to start instead of node driver.ts, and the monitor's readings. */
   spawnDriver?: (args: DriverArgs) => ChildProcess;
   read?: { job: () => number; container: () => number | null };
-  limits?: Partial<Record<'killJobBytes' | 'killContainerBytes' | 'outputBytes' | 'treeNodes' | 'maxPages' | 'sampleMs', number>>;
+  limits?: Partial<Record<'killJobBytes' | 'killContainerBytes' | 'outputBytes' | 'treeNodes' | 'maxPages' | 'sampleMs' | 'windDownMs', number>>;
   cleanup?: () => { killed: number; removed: number };
 }
 
@@ -155,17 +155,25 @@ export class DriverRunner implements Runner {
       const killAll = (why: Reason) => {
         if (killed) return;
         killed = why;
-        try {
-          if (child.pid) process.kill(-child.pid, 'SIGKILL');
-        } catch {
-          /* gone */
-        }
-        try {
-          child.kill('SIGKILL');
-        } catch {
-          /* gone */
-        }
+        // The job user's processes first: their memory comes back at once, and Chromium's reaper, still
+        // the driver's child, reaps them and ends, so nothing is left a zombie of the hub (D-44). The
+        // driver then ends by itself; if it has not within the wind-down, its group is killed.
         this.cleanup();
+        const stop = () => {
+          try {
+            if (child.pid) process.kill(-child.pid, 'SIGKILL');
+          } catch {
+            /* gone */
+          }
+          try {
+            child.kill('SIGKILL');
+          } catch {
+            /* gone */
+          }
+        };
+        if (this.limits.windDownMs <= 0) return stop();
+        const backstop = setTimeout(stop, this.limits.windDownMs);
+        child.once('close', () => clearTimeout(backstop));
       };
       const monitor = new Monitor({
         uid: cfg.jobUid,

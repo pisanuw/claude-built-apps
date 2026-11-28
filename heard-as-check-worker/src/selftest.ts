@@ -2,8 +2,8 @@
  * AC-23: at start the mount takes the hub's lock and captures a bundled
  * one-page file (static/selftest.pdf, a heading "Heard-As self-test" and a
  * paragraph, from the app's fixture generator). Only when the heard tree
- * names that heading, and Chromium ran under its sandbox (a seccomp filter on
- * every Chromium process, AC-14), does health say `capture: true`; until then,
+ * names that heading, and Chromium ran under its sandbox (a renderer in a PID
+ * namespace of its own, AC-14, D-38), does health say `capture: true`; until then,
  * and when it fails, jobs are refused with "The checker is not available."
  * A sandbox Chromium refuses to start (Render's answer, question 2) shows as
  * the reason `no-sandbox`.

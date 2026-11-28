@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { chromeArgs, chromeArgv, hasHeading, REAPER, resolveStatic, sandboxFacts, staticServer } from '../src/driver.ts';
+import { chromeArgs, chromeArgv, hasHeading, REAPER, resolveStatic, sandboxFacts, staticServer, stopChrome } from '../src/driver.ts';
 
 const dirs: string[] = [];
 const tmp = () => {
@@ -88,6 +88,19 @@ describe('the reaper (D-44)', () => {
     const r = spawnSync('perl', ['-e', REAPER, 'sh', '-c', '(sleep 0.2; echo grandchild) & echo child'], { encoding: 'utf8' });
     expect(r.status).toBe(0);
     expect(r.stdout.split('\n').filter(Boolean).sort()).toEqual(['child', 'grandchild']);
+  });
+});
+
+describe('ending Chromium (D-44)', () => {
+  it('kills the job user\'s processes and leaves the reaper to end; kills the reaper only when it does not', async () => {
+    const calls: string[] = [];
+    let end: () => void = () => undefined;
+    const exited = new Promise<void>((r) => (end = r));
+    await stopChrome({ proc: { kill: () => (calls.push('reaper'), true) }, exited }, 10002, (uid) => (calls.push(`uid ${uid}`), end(), 4));
+    expect(calls).toEqual(['uid 10002']);
+    calls.length = 0;
+    await stopChrome({ proc: { kill: () => (calls.push('reaper'), true) }, exited: new Promise(() => undefined) }, 10002, (uid) => (calls.push(`uid ${uid}`), 0), 1);
+    expect(calls).toEqual(['uid 10002', 'uid 10002', 'uid 10002', 'reaper']);
   });
 });
 

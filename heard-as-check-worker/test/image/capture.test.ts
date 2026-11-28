@@ -250,7 +250,7 @@ describe('AC-14 and AC-22: the job user, its folder and the clean-ups', () => {
     // AC-22: the job's folder, its file and its profile are gone; no file of the job user is left anywhere.
     expect(hub.exec(['sh', '-c', `ls /hac-jobs`]).trim()).toBe('');
     expect(hub.exec(['sh', '-c', 'find / /dev/shm -xdev -user 10002 -not -path "/proc/*" 2>/dev/null || true']).trim()).toBe('');
-    expect(hub.exec(['sh', '-c', 'ps -eo uid | grep -c "^ *10002$" || true']).trim()).toBe('0');
+    expect(hub.exec(['sh', '-c', 'ps -eo uid,pid,ppid,stat,args | grep -E "^ *10002 " || true']).trim()).toBe('');
     // The result waits for its owner, as bytes, and is dropped once fetched.
     expect((await fetch(`${hub.base}/api/jobs/${id}/result`, { headers: { authorization: `Bearer ${token}` } })).status).toBe(200);
     expect((await fetch(`${hub.base}/api/jobs/${id}/result`, { headers: { authorization: `Bearer ${token}` } })).status).toBe(404);
@@ -277,6 +277,8 @@ describe('AC-20: the memory kill', () => {
     expect(hubS.every((s) => s === 200)).toBe(true);
     expect(checker.every((s) => s === 200)).toBe(true);
     expect((await fetch(`${hub.root}/mult-streak/api/health`)).status).toBe(200);
+    // Nothing of the job is left running, and nothing is left a zombie of the hub (D-44).
+    expect(hub.exec(['sh', '-c', 'ps -eo uid,pid,ppid,stat,args | grep -E "^ *10002 |<defunct>" | grep -v grep || true']).trim()).toBe('');
     const killed = hub.events('job-killed').at(-1);
     console.log(JSON.stringify({ memoryBomb: { containerPeakMB: +(c.peak / MB).toFixed(1), samplerMaxGapMs: c.maxGap, killed } }));
   });

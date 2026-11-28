@@ -251,6 +251,22 @@ function startChrome(a: DriverArgs): { proc: ChildProcess; stderr: () => string;
   return { proc, stderr: () => err, exited };
 }
 
+/**
+ * Ends Chromium (D-44): the job user's processes are killed and the reaper,
+ * which runs as the driver's user, is left to reap them and end, so none is
+ * orphaned to the hub. Killing the reaper first would leave Chromium's
+ * processes as zombies of the hub. A process started meanwhile is killed on
+ * the next pass; the reaper is killed only if it has not ended after three.
+ */
+export async function stopChrome(chrome: { proc: Pick<ChildProcess, 'kill'>; exited: Promise<void> }, uid: number, kill: (uid: number) => number = killUid, waitMs = 2_000): Promise<void> {
+  for (let i = 0; i < 3; i++) {
+    kill(uid);
+    const ended = await Promise.race([chrome.exited.then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), waitMs).unref())]);
+    if (ended) return;
+  }
+  chrome.proc.kill('SIGKILL');
+}
+
 export async function runDriver(a: DriverArgs): Promise<void> {
   await send({ type: 'stage', stage: 'reading' });
   const fileBytes = readFileSync(a.file);
@@ -273,8 +289,7 @@ export async function runDriver(a: DriverArgs): Promise<void> {
     sandbox = pickMax(sandbox, sandboxFacts(a.uid));
   } catch (e) {
     server.close();
-    chrome.proc.kill('SIGKILL');
-    killUid(a.uid);
+    await stopChrome(chrome, a.uid);
     if (e instanceof CaptureFailure) return send({ type: 'fail', reason: e.reason, detail: e.message.slice(0, 200) });
     const err = chrome.stderr();
     if (/No usable sandbox/i.test(err)) return send({ type: 'fail', reason: 'no-sandbox' });
@@ -284,7 +299,7 @@ export async function runDriver(a: DriverArgs): Promise<void> {
   await Promise.race([chrome.exited, new Promise((r) => setTimeout(r, 5_000))]);
   server.close();
   // veraPDF and Chromium never run at the same time: every process of the job user ends first.
-  killUid(a.uid);
+  await stopChrome(chrome, a.uid);
   let v: Validation | null = null;
   let err: 'timeout' | 'failed' | null = null;
   if (a.verapdf) {

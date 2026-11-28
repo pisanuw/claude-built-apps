@@ -36,6 +36,8 @@ export const LIMITS = {
   killContainerBytes: 470 * MB,
   /** AC-20: the monitor's period. */
   sampleMs: 100,
+  /** After a kill, how long the driver has to end by itself once the job user's processes are gone (D-44). */
+  windDownMs: 2_000,
   /** Bodies received at once (each to a file, never into memory). */
   uploadsAtOnce: 2,
   /** A body must arrive within this (10 MB at about 1 Mbit/s and a half). */
