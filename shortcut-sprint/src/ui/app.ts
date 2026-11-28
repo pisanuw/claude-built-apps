@@ -143,8 +143,18 @@ export class App {
 
   private onKeyDown(e: KeyboardEvent): void {
     if (this.tab !== 'practice' || !this.session) return;
-    const target = e.target as HTMLElement | null;
+    // The real target: a key in a shadow root (the theme switch's button) reaches window retargeted to its host.
+    const target = (e.composedPath()[0] ?? e.target) as HTMLElement | null;
     if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+    // On the theme switch, Enter and Space press it and Tab leaves it; any other key still answers the card.
+    if (
+      (e.target as Element | null)?.closest?.('hw-theme-toggle') &&
+      ['Enter', ' ', 'Tab'].includes(e.key) &&
+      !e.ctrlKey &&
+      !e.altKey &&
+      !e.metaKey
+    )
+      return;
     const s = this.session;
     if (s.index >= s.queue.length) return;
     if (s.revealed) {
@@ -259,10 +269,13 @@ export class App {
     const zap = el('span', 'zap');
     zap.textContent = '⌨';
     title.append(zap, ' Shortcut Sprint');
+    // The light and dark mode switch ends the title row (platform/src/theme).
+    const row = el('div', 'title-row');
+    row.append(title, document.createElement('hw-theme-toggle'));
     const streak = computeStreak(this.progress.days, isoDate(new Date()));
     const badge = el('div', 'streak');
     badge.textContent = streak > 0 ? `🔥 ${streak}-day streak` : 'no streak yet';
-    h.append(title, badge);
+    h.append(row, badge);
     return h;
   }
 
@@ -415,7 +428,14 @@ export class App {
       tbody.append(tr);
     }
     table.append(tbody);
-    panel.append(table);
+    // At phone widths the five columns are wider than the panel: the table scrolls sideways in its own box,
+    // which the keyboard can reach (WCAG 1.4.10; axe: scrollable-region-focusable).
+    const scroll = el('div', 'table-scroll');
+    scroll.tabIndex = 0;
+    scroll.setAttribute('role', 'region');
+    scroll.setAttribute('aria-label', 'Progress per set');
+    scroll.append(table);
+    panel.append(scroll);
 
     const streak = computeStreak(this.progress.days, isoDate(new Date()));
     const note = el('p', 'note');
@@ -477,6 +497,8 @@ export class App {
     const label = document.createElement('label');
     label.textContent = 'New cards per session: ';
     const num = document.createElement('input');
+    num.id = 'new-per-day';
+    label.htmlFor = num.id;
     num.type = 'number';
     num.min = '1';
     num.max = '50';
@@ -517,6 +539,7 @@ export class App {
     const file = document.createElement('input');
     file.type = 'file';
     file.accept = 'application/json,.json';
+    file.setAttribute('aria-label', 'Load a set from a JSON file');
     file.addEventListener('change', async () => {
       const f = file.files?.[0];
       if (f) ta.value = await f.text();
@@ -626,16 +649,16 @@ function radarSvg(stats: SetStats[]): string {
   const rings = [0.25, 0.5, 0.75, 1]
     .map((f) => {
       const pts = radarPoints(Array(n).fill(f), cx, cy, r);
-      return `<polygon points="${pts}" fill="none" stroke="#2c3140" stroke-width="1"/>`;
+      return `<polygon class="radar-grid" points="${pts}" fill="none" stroke-width="1"/>`;
     })
     .join('');
   const axes = radarAxes(n, cx, cy, r)
-    .map((a) => `<line x1="${cx}" y1="${cy}" x2="${a.x.toFixed(1)}" y2="${a.y.toFixed(1)}" stroke="#2c3140"/>`)
+    .map((a) => `<line x1="${cx}" y1="${cy}" x2="${a.x.toFixed(1)}" y2="${a.y.toFixed(1)}" class="radar-grid"/>`)
     .join('');
   const labels = radarAxes(n, cx, cy, r + 22)
     .map((a, i) => {
       const anchor = Math.abs(a.x - cx) < 1 ? 'middle' : a.x > cx ? 'start' : 'end';
-      return `<text x="${a.x.toFixed(1)}" y="${a.y.toFixed(1)}" fill="#8b93a7" font-size="12" text-anchor="${anchor}" dominant-baseline="middle">${escapeHtml(stats[i].tool)}</text>`;
+      return `<text x="${a.x.toFixed(1)}" y="${a.y.toFixed(1)}" class="radar-label" font-size="12" text-anchor="${anchor}" dominant-baseline="middle">${escapeHtml(stats[i].tool)}</text>`;
     })
     .join('');
   const shape = radarPoints(
@@ -649,7 +672,7 @@ function radarSvg(stats: SetStats[]): string {
   return (
     `<svg viewBox="${-pad} 0 ${size + 2 * pad} ${size}" width="${size + 2 * pad}" height="${size}" role="img" aria-label="Mastery per tool">` +
     `${rings}${axes}` +
-    `<polygon points="${shape}" fill="rgba(79,140,255,0.25)" stroke="#4f8cff" stroke-width="2"/>` +
+    `<polygon class="radar-shape" points="${shape}" stroke-width="2"/>` +
     `${labels}</svg>`
   );
 }

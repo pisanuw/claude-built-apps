@@ -43,6 +43,14 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+/** The title, with the light and dark mode switch at the end of its line (platform/src/theme). */
+function titleRow(): HTMLElement {
+  return el('div', { class: 'title-row' }, [
+    el('h1', {}, [el('span', { class: 'spark' }, ['⚒ ']), 'Code Analogy Forge']),
+    el('hw-theme-toggle'),
+  ]);
+}
+
 async function copyToClipboard(text: string, button: HTMLButtonElement): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
@@ -285,7 +293,7 @@ function renderShareView(root: HTMLElement, payload: { analogyId: string; audien
   state.audience = payload.audience;
   const wrap = el('div', { class: 'wrap' });
   const hero = el('header', { class: 'hero' });
-  hero.append(el('h1', {}, [el('span', { class: 'spark' }, ['⚒ ']), 'Code Analogy Forge']));
+  hero.append(titleRow());
   hero.append(el('p', {}, ['Someone shared this analogy with you.']));
   wrap.append(hero);
 
@@ -319,7 +327,7 @@ export function mountApp(root: HTMLElement): void {
   const wrap = el('div', { class: 'wrap' });
 
   const hero = el('header', { class: 'hero' });
-  hero.append(el('h1', {}, [el('span', { class: 'spark' }, ['⚒ ']), 'Code Analogy Forge']));
+  hero.append(titleRow());
   hero.append(
     el('p', {}, [
       'Paste code or name a CS concept, pick your audience, and get three analogies from different everyday domains: ready for a lecture slide, a blog post, or a meeting with stakeholders.',

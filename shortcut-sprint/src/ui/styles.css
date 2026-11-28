@@ -1,16 +1,61 @@
+/* Light and dark mode (platform/src/theme): the light set here, the dark set below twice and the same,
+   once for the switch's choice and once for the device's setting; paper gets the light set. */
 :root {
-  --bg: #0f1117;
-  --panel: #181b24;
-  --panel2: #1f2330;
-  --border: #2c3140;
-  --text: #e6e9f0;
-  --muted: #8b93a7;
-  --accent: #4f8cff;
-  --good: #3ecf8e;
-  --bad: #ff6b6b;
-  --warn: #f0b429;
+  color-scheme: light;
+  --bg: #f5f7fb;
+  --panel: #ffffff;
+  --panel2: #eef1f7;
+  --border: #d3d8e3;
+  --text: #1a1f2b;
+  --muted: #535b6e;
+  --accent: #1f5fd6;
+  --on-accent: #ffffff;
+  --good: #137a4f;
+  --bad: #c0362c;
+  --warn: #8a5a00;
+  /* Fields' and buttons' edges (WCAG 1.4.11, 3:1); --border is for rules and cards. */
+  --field-border: #768096;
+  --radar-fill: rgba(31, 95, 214, 0.18);
   --radius: 10px;
   font-size: 16px;
+}
+
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0f1117;
+    --panel: #181b24;
+    --panel2: #1f2330;
+    --border: #2c3140;
+    --text: #e6e9f0;
+    --muted: #8b93a7;
+    --accent: #4f8cff;
+    --on-accent: #0f1117;
+    --good: #3ecf8e;
+    --bad: #ff6b6b;
+    --warn: #f0b429;
+    --field-border: #737c92;
+    --radar-fill: rgba(79, 140, 255, 0.25);
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0f1117;
+    --panel: #181b24;
+    --panel2: #1f2330;
+    --border: #2c3140;
+    --text: #e6e9f0;
+    --muted: #8b93a7;
+    --accent: #4f8cff;
+    --on-accent: #0f1117;
+    --good: #3ecf8e;
+    --bad: #ff6b6b;
+    --warn: #f0b429;
+    --field-border: #737c92;
+    --radar-fill: rgba(79, 140, 255, 0.25);
+  }
 }
 
 * {
@@ -37,17 +82,29 @@ body {
 }
 
 header.top {
-  display: flex;
-  align-items: baseline;
-  gap: 1rem;
-  flex-wrap: wrap;
   padding: 0.75rem 0 1rem;
+}
+
+/* The title, then the light and dark mode switch at the end of the line. */
+header.top .title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 header.top h1 {
   font-size: 1.35rem;
   margin: 0;
+  min-width: 0;
   letter-spacing: 0.01em;
+}
+
+hw-theme-toggle:not([hidden]) {
+  display: inline-flex;
+  flex: none;
+  width: var(--hw-theme-toggle-size, 44px);
+  height: var(--hw-theme-toggle-size, 44px);
 }
 
 header.top h1 .zap {
@@ -55,7 +112,7 @@ header.top h1 .zap {
 }
 
 .streak {
-  margin-left: auto;
+  margin-top: 0.15rem;
   font-variant-numeric: tabular-nums;
   color: var(--warn);
   font-weight: 600;
@@ -173,7 +230,7 @@ kbd {
 button.btn {
   background: var(--panel2);
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   padding: 0.45rem 1rem;
   font: inherit;
@@ -187,7 +244,7 @@ button.btn:hover {
 button.btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .done-card {
@@ -197,6 +254,10 @@ button.btn.primary {
 
 .done-card .big {
   font-size: 2rem;
+}
+
+.table-scroll {
+  overflow-x: auto;
 }
 
 table.stats {
@@ -227,6 +288,19 @@ table.stats th {
 .radar-box svg {
   max-width: 100%;
   height: auto;
+}
+
+.radar-grid {
+  stroke: var(--border);
+}
+
+.radar-label {
+  fill: var(--muted);
+}
+
+.radar-shape {
+  fill: var(--radar-fill);
+  stroke: var(--accent);
 }
 
 .set-row {
@@ -273,7 +347,7 @@ textarea.upload {
   min-height: 8rem;
   background: var(--panel2);
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   padding: 0.6rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -306,7 +380,7 @@ textarea.upload {
   width: 4.5rem;
   background: var(--panel2);
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 6px;
   padding: 0.3rem 0.5rem;
   font: inherit;
@@ -339,4 +413,20 @@ footer.foot {
 
 footer.foot a {
   color: var(--muted);
+}
+
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
+
+  /* Paper drops the fill unless told: the label takes the ink. */
+  button.btn.primary {
+    color: var(--text);
+  }
+
+  .radar-shape {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }

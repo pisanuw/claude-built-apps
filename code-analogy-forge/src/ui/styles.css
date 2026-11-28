@@ -1,15 +1,56 @@
+/* Light and dark mode (platform/src/theme): the light set here, the dark set below twice and the same,
+   once for the switch's choice and once for the device's setting; paper gets the light set. */
 :root {
-  --bg: #12141c;
-  --panel: #1b1e2a;
-  --panel-2: #232738;
-  --border: #323850;
-  --text: #e8eaf2;
-  --muted: #9aa1b8;
-  --accent: #f0a848;
-  --accent-soft: rgba(240, 168, 72, 0.14);
-  --good: #5fd39a;
+  color-scheme: light;
+  --bg: #f5f6fa;
+  --panel: #ffffff;
+  --panel-2: #eef0f6;
+  --border: #d4d8e4;
+  --text: #1b1e2a;
+  --muted: #555c70;
+  --accent: #945700;
+  /* The accent's tint, as a colour: it sits under accent text (the domain pill, a pressed audience). */
+  --accent-soft: #f2ebe0;
+  --on-accent: #ffffff;
+  --good: #13794a;
+  /* Fields' and buttons' edges (WCAG 1.4.11, 3:1); --border is for cards and rules. */
+  --field-border: #767d92;
   --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   --sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+@media screen {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #12141c;
+    --panel: #1b1e2a;
+    --panel-2: #232738;
+    --border: #323850;
+    --text: #e8eaf2;
+    --muted: #9aa1b8;
+    --accent: #f0a848;
+    --accent-soft: #39312e;
+    --on-accent: #1c1405;
+    --good: #5fd39a;
+    --field-border: #737b96;
+  }
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #12141c;
+    --panel: #1b1e2a;
+    --panel-2: #232738;
+    --border: #323850;
+    --text: #e8eaf2;
+    --muted: #9aa1b8;
+    --accent: #f0a848;
+    --accent-soft: #39312e;
+    --on-accent: #1c1405;
+    --good: #5fd39a;
+    --field-border: #737b96;
+  }
 }
 
 * {
@@ -34,10 +75,26 @@ header.hero {
   padding: 26px 0 10px;
 }
 
+/* The title, then the light and dark mode switch at the end of the line. */
+header.hero .title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
 header.hero h1 {
   margin: 0;
+  min-width: 0;
   font-size: 1.9rem;
   letter-spacing: 0.3px;
+}
+
+hw-theme-toggle:not([hidden]) {
+  display: inline-flex;
+  flex: none;
+  width: var(--hw-theme-toggle-size, 44px);
+  height: var(--hw-theme-toggle-size, 44px);
 }
 
 header.hero h1 .spark {
@@ -75,7 +132,7 @@ textarea#input {
   min-height: 150px;
   resize: vertical;
   background: var(--panel-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   color: var(--text);
   font-family: var(--mono);
@@ -104,7 +161,7 @@ textarea#input:focus {
 
 .audience-group button {
   background: var(--panel-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   color: var(--muted);
   border-radius: 999px;
   padding: 7px 14px;
@@ -121,8 +178,10 @@ textarea#input:focus {
 
 select#concept-picker,
 select#example-picker {
+  /* A list is as wide as its longest choice (339 px), which widened the page at 320 and 375 px. */
+  max-width: 100%;
   background: var(--panel-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   color: var(--text);
   border-radius: 8px;
   padding: 8px 10px;
@@ -132,7 +191,7 @@ select#example-picker {
 button.primary {
   background: var(--accent);
   border: none;
-  color: #1c1405;
+  color: var(--on-accent);
   font-weight: 700;
   border-radius: 8px;
   padding: 9px 20px;
@@ -153,7 +212,7 @@ button.primary:hover {
 
 .chips .chip {
   background: var(--panel-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   color: var(--muted);
   border-radius: 999px;
   padding: 4px 12px;
@@ -167,7 +226,6 @@ button.primary:hover {
 }
 
 .chips .chip .score {
-  opacity: 0.7;
   margin-left: 4px;
 }
 
@@ -265,7 +323,7 @@ table.maps td:first-child {
 
 .card-actions button {
   background: var(--panel-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   color: var(--text);
   border-radius: 7px;
   padding: 6px 10px;
@@ -287,7 +345,7 @@ table.maps td:first-child {
 
 .save-form input {
   background: var(--panel-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 7px;
   color: var(--text);
   padding: 7px 9px;
@@ -297,6 +355,17 @@ table.maps td:first-child {
 .save-form .row {
   display: flex;
   gap: 6px;
+}
+
+/* Cancel: dressed as the card's other buttons, not left to the browser's default. */
+.save-form .row button:not(.primary) {
+  background: var(--panel-2);
+  border: 1px solid var(--field-border);
+  color: var(--text);
+  border-radius: 7px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  cursor: pointer;
 }
 
 .flash {
@@ -320,7 +389,7 @@ section.library h2 {
 .library-controls input {
   flex: 1 1 220px;
   background: var(--panel-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   color: var(--text);
   padding: 8px 10px;
@@ -328,7 +397,7 @@ section.library h2 {
 
 .tag-chip {
   background: var(--panel-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--field-border);
   color: var(--muted);
   border-radius: 999px;
   padding: 3px 11px;
@@ -385,5 +454,22 @@ footer a {
 @media (max-width: 640px) {
   .cards {
     grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  hw-theme-toggle {
+    display: none !important;
+  }
+
+  /* Paper drops the fill unless told: the label takes the ink. */
+  button.primary {
+    color: var(--text);
+  }
+
+  article.card .domain,
+  .audience-group button[aria-pressed='true'] {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }
