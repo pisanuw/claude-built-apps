@@ -40,6 +40,8 @@ export interface DriverArgs {
   maxPages: number;
   /** False for the self-test, which reads only the heard tree. */
   verapdf: boolean;
+  /** Chromium's fontconfig file, when there is one (D-43). */
+  fontconfigFile?: string;
   /** The self-test's heading text: the summary says whether the heard tree has a heading and that text (AC-23). */
   expect?: string;
 }
@@ -217,11 +219,28 @@ async function verapdf(a: DriverArgs, declared: number | null): Promise<{ v: Val
   return { v, err: v ? null : 'failed' };
 }
 
+/**
+ * A reaper for Chromium (D-44): Perl (in the TeX image) marks itself a child
+ * subreaper, starts Chromium, and waits until every process below it has
+ * ended, so Chromium's zygote and renderers, orphaned when the browser
+ * process ends, are reaped here and not left as zombies of the hub, which is
+ * the container's PID 1 and reaps only its own children. It runs in a session
+ * of its own, so killing the driver's group leaves it to reap what the
+ * clean-up kills. 157 is prctl and 36 PR_SET_CHILD_SUBREAPER on x86-64.
+ */
+export const REAPER = 'syscall(157, 36, 1); my $p = fork(); die "fork" unless defined $p; if ($p == 0) { exec { $ARGV[0] } @ARGV or exit 127 } alarm 600; while (waitpid(-1, 0) > 0) {} exit 0;';
+
+/** The argv that starts Chromium as the job user under the reaper. Pure. */
+export function chromeArgv(a: Pick<DriverArgs, 'chrome' | 'jobDir' | 'uid' | 'gid'>): string[] {
+  return ['perl', '-e', REAPER, ...asUser([a.chrome, ...chromeArgs(path.join(a.jobDir, 'profile'))], a.uid, a.gid, false)];
+}
+
 function startChrome(a: DriverArgs): { proc: ChildProcess; stderr: () => string; exited: Promise<void> } {
-  const argv = asUser([a.chrome, ...chromeArgs(path.join(a.jobDir, 'profile'))], a.uid, a.gid, false);
+  const argv = chromeArgv(a);
   const proc = spawn(argv[0], argv.slice(1), {
+    detached: true,
     stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'],
-    env: { HOME: a.jobDir, TMPDIR: path.join(a.jobDir, 'tmp'), PATH: '/usr/bin:/bin', LANG: 'C.UTF-8' },
+    env: { HOME: a.jobDir, TMPDIR: path.join(a.jobDir, 'tmp'), PATH: '/usr/local/bin:/usr/bin:/bin', LANG: 'C.UTF-8', ...(a.fontconfigFile ? { FONTCONFIG_FILE: a.fontconfigFile } : {}) },
     cwd: a.jobDir,
   });
   let err = '';

@@ -122,6 +122,22 @@ describe('the runner', () => {
     await r.run({ id: 'x', file: '/j/in.pdf', jobDir: '/j', verapdf: false });
     expect(seen).toMatchObject({ file: '/j/in.pdf', jobDir: '/j', uid: 10002, gid: 10002, outputCap: 20 * 2 ** 20, nodeCap: 24_700, maxPages: 60, verapdf: false });
     expect(seen.deadline as number).toBeLessThanOrEqual(t0 + 89_000 + 1000);
+    expect(seen.fontconfigFile).toBeUndefined();
+    // Chromium's fontconfig file is passed when the image has it (D-43).
+    const r2 = new DriverRunner({
+      cfg: { ...cfg, fontconfigFile: __filename },
+      staticDir: '/s',
+      driverPath: '/d',
+      log: createLogger(() => undefined),
+      read: { job: () => 0, container: () => null },
+      cleanup: () => ({ killed: 0, removed: 0 }),
+      spawnDriver: (args) => {
+        seen = args as unknown as Record<string, unknown>;
+        return standIn(`await send({type:'fail',reason:'unreadable'});`)();
+      },
+    });
+    await r2.run({ id: 'x', file: '/j/in.pdf', jobDir: '/j', verapdf: true, expect: 'Heading' });
+    expect(seen).toMatchObject({ fontconfigFile: __filename, expect: 'Heading' });
   });
 
   it('has words for every reason', () => {

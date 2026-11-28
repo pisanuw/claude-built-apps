@@ -10,7 +10,7 @@
  * are removed.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { setPriority } from 'node:os';
 import type { DriverArgs, DriverMessage } from './driver.ts';
 import { LIMITS, type Config } from './config.ts';
@@ -81,7 +81,7 @@ export function messageFor(reason: Reason): string {
 }
 
 export interface DriverRunnerOptions {
-  cfg: Pick<Config, 'jobUid' | 'jobGid' | 'chrome' | 'verapdfHome' | 'pdfjsDir' | 'sweepDirs' | 'cgroupDir' | 'jobMs'>;
+  cfg: Pick<Config, 'jobUid' | 'jobGid' | 'chrome' | 'verapdfHome' | 'pdfjsDir' | 'sweepDirs' | 'cgroupDir' | 'jobMs'> & { fontconfigFile?: string };
   staticDir: string;
   driverPath: string;
   log: Logger;
@@ -134,6 +134,7 @@ export class DriverRunner implements Runner {
       maxPages: this.limits.maxPages,
       verapdf: req.verapdf,
       ...(req.expect ? { expect: req.expect } : {}),
+      ...(cfg.fontconfigFile && existsSync(cfg.fontconfigFile) ? { fontconfigFile: cfg.fontconfigFile } : {}),
     };
     return new Promise<RunOutcome>((resolve) => {
       const child = this.spawnDriver(args);

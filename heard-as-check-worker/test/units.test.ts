@@ -35,7 +35,9 @@ describe('loadConfig', () => {
       pdfjsDir: '/p',
       sweepDirs: ['/tmp', '/var/tmp', '/dev/shm'],
       jobMs: 90_000,
+      fontconfigFile: '/opt/hac-fontconfig/fonts.conf',
     });
+    expect(loadConfig({ ...base, FONTCONFIG_FILE: '' }, { pdfjsDir: '' }).fontconfigFile).toBe('');
   });
   it('allows localhost only with ALLOW_LOCAL=1 (AC-16)', () => {
     expect(loadConfig({ ...base, ALLOW_LOCAL: '1' }, { pdfjsDir: '' }).allowedOrigins).toEqual([PRODUCTION_ORIGIN, LOCAL_ORIGIN]);

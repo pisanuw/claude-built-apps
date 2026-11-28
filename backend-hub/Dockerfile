@@ -124,9 +124,18 @@ COPY heard-as-check-worker/package.json /app/heard-as-check-worker/package.json
 COPY heard-as-check-worker/src /app/heard-as-check-worker/src
 COPY heard-as-check-worker/static /app/heard-as-check-worker/static
 COPY --from=build /src/heard-as-check-worker/node_modules/pdfjs-dist /app/heard-as-check-worker/node_modules/pdfjs-dist
+# Chromium's fonts: TeX Live's DejaVu only, with its fontconfig cache built now and
+# read-only at run time. With the TeX image's 11,700 fonts each job rebuilt a cache
+# in its own home (7 s at full CPU) and loaded them all (DECISIONS.md D-43).
 RUN groupadd --gid 10002 hacjob \
  && useradd --uid 10002 --gid 10002 --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin hacjob \
  && install -d -m 0711 -o root -g root /hac-jobs \
+ && install -d -m 0755 /opt/hac-fontconfig/cache \
+ && printf '%s\n' '<?xml version="1.0"?>' '<!DOCTYPE fontconfig SYSTEM "fonts.dtd">' '<fontconfig>' \
+      '  <dir>/usr/local/texlive/2026/texmf-dist/fonts/truetype/public/dejavu</dir>' \
+      '  <cachedir>/opt/hac-fontconfig/cache</cachedir>' '</fontconfig>' > /opt/hac-fontconfig/fonts.conf \
+ && FONTCONFIG_FILE=/opt/hac-fontconfig/fonts.conf fc-cache -f \
+ && chmod -R a+rX,go-w /opt/hac-fontconfig \
  && /opt/chrome/chrome-headless-shell --version | head -1 > /opt/versions/chromium
 # The jobs root belongs to the server user with mode 0711: the TeX user can
 # enter its own job folder by name but cannot list the others (AC-64).

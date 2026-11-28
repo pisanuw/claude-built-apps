@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { chromeArgs, hasHeading, resolveStatic, sandboxFacts, staticServer } from '../src/driver.ts';
+import { spawnSync } from 'node:child_process';
+import { chromeArgs, chromeArgv, hasHeading, REAPER, resolveStatic, sandboxFacts, staticServer } from '../src/driver.ts';
 
 const dirs: string[] = [];
 const tmp = () => {
@@ -67,6 +68,26 @@ describe('Chromium\'s flags (AC-14, AC-15)', () => {
     expect(a).toContain('--proxy-server=http://127.0.0.1:9');
     expect(a).toContain('--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE 127.0.0.1');
     expect(a.at(-1)).toBe('about:blank');
+  });
+});
+
+describe('the reaper (D-44)', () => {
+  it('starts Chromium as the job user below a Perl subreaper that waits for every process', () => {
+    const argv = chromeArgv({ chrome: '/opt/chrome/chrome-headless-shell', jobDir: '/j', uid: 10002, gid: 10002 });
+    expect(argv.slice(0, 2)).toEqual(['perl', '-e']);
+    expect(argv[2]).toBe(REAPER);
+    expect(REAPER).toContain('syscall(157, 36, 1)');
+    expect(REAPER).toContain('waitpid(-1, 0)');
+    expect(argv.slice(3, 6)).toEqual(['setpriv', '--reuid=10002', '--regid=10002']);
+    expect(argv).not.toContain('--no-new-privs');
+    expect(argv).toContain('/opt/chrome/chrome-headless-shell');
+  });
+
+  it.runIf(process.platform === 'linux' && process.arch === 'x64')('reaps an orphaned grandchild and ends when the last one ends', () => {
+    // The child starts a grandchild that outlives it; the reaper still returns only after both have ended, and leaves no zombie.
+    const r = spawnSync('perl', ['-e', REAPER, 'sh', '-c', '(sleep 0.2; echo grandchild) & echo child'], { encoding: 'utf8' });
+    expect(r.status).toBe(0);
+    expect(r.stdout.split('\n').filter(Boolean).sort()).toEqual(['child', 'grandchild']);
   });
 });
 

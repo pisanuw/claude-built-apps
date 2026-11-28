@@ -62,6 +62,8 @@ export interface Config {
   cgroupDir: string;
   /** A shorter job limit for tests; never a longer one. */
   jobMs: number;
+  /** Chromium's fontconfig file (D-43): a few fonts with a cache built into the image; '' for the system's. */
+  fontconfigFile: string;
 }
 
 export class ConfigError extends Error {
@@ -99,5 +101,6 @@ export function loadConfig(env: Record<string, string | undefined>, defaults: { 
     sweepDirs: (env.SWEEP_DIRS ?? '/tmp,/var/tmp,/dev/shm').split(',').filter(Boolean),
     cgroupDir: env.CGROUP_DIR || '',
     jobMs: Math.min(int(env.JOB_MS, LIMITS.jobMs, 'JOB_MS'), LIMITS.jobMs),
+    fontconfigFile: env.FONTCONFIG_FILE ?? '/opt/hac-fontconfig/fonts.conf',
   };
 }
